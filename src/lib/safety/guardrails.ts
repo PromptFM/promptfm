@@ -17,7 +17,7 @@ export interface GuardrailResult {
 
 const EXPLICIT_ADULT_PATTERNS = [
   /\b(porn|pornographic|nsfw|xxx|blowjob|cumshot|gangbang|hardcore\s*sex|anal\s*sex|hentai)\b/i,
-  /\b(orgasm|erotic\s*roleplay|pedophil|cp\b|incest)\b/i,
+  /\b(orgasm|erotic\s*roleplay|pedophil\w*|cp\b|incest)\b/i,
 ];
 
 const RELIGIOUS_HOSTILITY_PATTERNS = [

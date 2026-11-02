@@ -27,74 +27,82 @@ export function createStreamPlayerController(
   callbacks: PlayerControllerCallbacks
 ): StreamPlayerController {
   const effectiveUrl = streamUrl?.trim() || DEFAULT_STREAM_URL;
+  const notifyError = callbacks.onError || (() => {});
 
   let state: PlayerState = 'idle';
   let userStopped = true;
   let reconnectAttempts = 0;
-  let reconnectTimer: any = null;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   const setState = (next: PlayerState) => {
     state = next;
     callbacks.onStateChange(next);
   };
 
+  const clearTimer = () => {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+  };
+
+  const executePlay = () => {
+    audio.src = `${effectiveUrl}?nocache=${Date.now()}`;
+    audio.load();
+    Promise.resolve(audio.play()).catch(() => {
+      if (!userStopped) {
+        scheduleReconnect();
+      }
+    });
+  };
+
   const scheduleReconnect = () => {
-    if (userStopped || state === 'idle') return;
+    if (userStopped) return;
 
     if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
       setState('error');
-      callbacks.onError?.('Unable to connect to live stream. Please try again later.');
+      notifyError('Unable to connect to live stream. Please try again later.');
       return;
     }
 
-    const delay = BASE_RECONNECT_DELAY_MS * 2 ** reconnectAttempts;
+    const delay = BASE_RECONNECT_DELAY_MS * (2 ** reconnectAttempts);
     reconnectAttempts += 1;
 
     setState('loading');
-    callbacks.onError?.(`Reconnecting (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})…`);
+    notifyError(`Reconnecting (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})…`);
 
-    if (reconnectTimer) clearTimeout(reconnectTimer);
+    clearTimer();
     reconnectTimer = setTimeout(() => {
-      if (userStopped || state === 'idle') return;
-
-      audio.src = `${effectiveUrl}?nocache=${Date.now()}`;
-      audio.load();
-      const playPromise = audio.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(() => {
-          if (!userStopped && state !== 'idle') {
-            scheduleReconnect();
-          }
-        });
-      }
+      if (userStopped) return;
+      executePlay();
     }, delay);
   };
 
   // Event listeners
   const handleWaiting = () => {
-    if (userStopped || state === 'idle') return;
+    if (userStopped) return;
     setState('loading');
   };
 
   const handlePlaying = () => {
-    if (userStopped || state === 'idle') {
+    if (userStopped) {
       audio.pause();
       return;
     }
     setState('playing');
-    callbacks.onError?.(null);
+    notifyError(null);
     reconnectAttempts = 0;
   };
 
   const handleError = () => {
     // When paused or stopped, browser fires error on src removal. Ignore it!
-    if (userStopped || state === 'idle') return;
+    if (userStopped) return;
     scheduleReconnect();
   };
 
   const handleEnded = () => {
     // Live streams should never fire ended unless network severed.
-    if (userStopped || state === 'idle') return;
+    if (userStopped) return;
     scheduleReconnect();
   };
 
@@ -105,35 +113,19 @@ export function createStreamPlayerController(
 
   const play = () => {
     userStopped = false;
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer);
-      reconnectTimer = null;
-    }
+    clearTimer();
     reconnectAttempts = 0;
     setState('loading');
-    callbacks.onError?.(null);
-
-    audio.src = `${effectiveUrl}?nocache=${Date.now()}`;
-    audio.load();
-    const playPromise = audio.play();
-    if (playPromise !== undefined) {
-      playPromise.catch(() => {
-        if (!userStopped && state !== 'idle') {
-          scheduleReconnect();
-        }
-      });
-    }
+    notifyError(null);
+    executePlay();
   };
 
   const pause = () => {
     userStopped = true;
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer);
-      reconnectTimer = null;
-    }
+    clearTimer();
     reconnectAttempts = 0;
     setState('idle');
-    callbacks.onError?.(null);
+    notifyError(null);
 
     audio.pause();
     // Cleanly unload audio without firing loopback reconnects

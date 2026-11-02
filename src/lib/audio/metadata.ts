@@ -29,17 +29,17 @@ export function matchCategory(genre?: string): StationCategory {
 
   const g = genre.toLowerCase().trim();
 
-  if (g.includes('synth') || g.includes('electro') || g.includes('retro') || g.includes('80s') || g.includes('wave')) {
-    return 'Synthwave & Electro';
-  }
-  if (g.includes('ambient') || g.includes('lofi') || g.includes('lo-fi') || g.includes('chill') || g.includes('meditat') || g.includes('relax')) {
-    return 'Ambient & Lo-Fi';
-  }
   if (g.includes('cyber') || g.includes('industrial') || g.includes('ebm') || g.includes('darkwave')) {
     return 'Cyberpunk & Industrial';
   }
   if (g.includes('chip') || g.includes('8bit') || g.includes('8-bit') || g.includes('arcade') || g.includes('game') || g.includes('pixel')) {
     return 'Chiptune & 8-Bit';
+  }
+  if (g.includes('synth') || g.includes('electro') || g.includes('retro') || g.includes('80s') || g.includes('wave')) {
+    return 'Synthwave & Electro';
+  }
+  if (g.includes('ambient') || g.includes('lofi') || g.includes('lo-fi') || g.includes('chill') || g.includes('meditat') || g.includes('relax')) {
+    return 'Ambient & Lo-Fi';
   }
   if (g.includes('dance') || g.includes('edm') || g.includes('house') || g.includes('techno') || g.includes('trance') || g.includes('club')) {
     return 'EDM & Dance';

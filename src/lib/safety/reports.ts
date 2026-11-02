@@ -6,35 +6,26 @@
 import { createAdminClient } from '../supabase/server';
 import { broadcastToCommunity } from '../chat/bridge';
 import { sendContentReportAlert } from '../email/resend';
-import { type ContentReport, type ReportReason, type ReportTargetType, type ReporterPlatform, REASON_LABELS } from '../../types/database';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import {
+  type ContentReport,
+  type ReportReason,
+  type ReportTargetType,
+  type ReporterPlatform,
+  REASON_LABELS,
+} from '../../types/database';
 
 export { REASON_LABELS };
 
-const PERSISTENT_REPORTS_FILE = '/tmp/promptfm_reports.json';
+// In-memory reports cache (instant fallback access)
+let memoryReports: ContentReport[] = [];
 
-function loadFallbackReports(): ContentReport[] {
-  try {
-    if (existsSync(PERSISTENT_REPORTS_FILE)) {
-      const content = readFileSync(PERSISTENT_REPORTS_FILE, 'utf8');
-      return JSON.parse(content) as ContentReport[];
-    }
-  } catch {
-    // Ignore read errors
-  }
-  return [];
+export function getMemoryReports(): ContentReport[] {
+  return memoryReports;
 }
 
-function saveFallbackReports(reports: ContentReport[]) {
-  try {
-    writeFileSync(PERSISTENT_REPORTS_FILE, JSON.stringify(reports.slice(0, 100), null, 2), 'utf8');
-  } catch {
-    // Ignore write errors
-  }
+export function clearMemoryReportsForTesting(): void {
+  memoryReports = [];
 }
-
-// In-memory reports cache (instant access) + disk persistence
-const memoryReports: ContentReport[] = loadFallbackReports();
 
 export interface SubmitReportInput {
   target_type: ReportTargetType;
@@ -43,6 +34,23 @@ export interface SubmitReportInput {
   details?: string;
   reporter_platform: ReporterPlatform;
   reporter_id?: string;
+}
+
+export function formatReportAlert(report: ContentReport): string {
+  const parts = [
+    `🚨 **PROMPTFM CONTENT REPORT FILED**`,
+    `• **Target:** \`${report.target_type}\` (${report.target_id})`,
+    `• **Reason:** ${REASON_LABELS[report.reason] || report.reason}`,
+    `• **Platform:** ${report.reporter_platform.toUpperCase()}`,
+  ];
+  if (report.reporter_id) {
+    parts.push(`• **Reporter:** ${report.reporter_id}`);
+  }
+  if (report.details) {
+    parts.push(`• **Details:** "${report.details}"`);
+  }
+  parts.push(`• **Ticket ID:** \`${report.id}\``);
+  return parts.join('\n');
 }
 
 /**
@@ -70,43 +78,20 @@ export async function submitContentReport(input: SubmitReportInput): Promise<{
   };
 
   memoryReports.unshift(newReport);
-  saveFallbackReports(memoryReports);
 
   // Attempt DB write
   try {
     const supabase = createAdminClient();
-    await supabase.from('content_reports').insert({
-      id: newReport.id,
-      target_type: newReport.target_type,
-      target_id: newReport.target_id,
-      reason: newReport.reason,
-      details: newReport.details,
-      reporter_platform: newReport.reporter_platform,
-      reporter_id: newReport.reporter_id,
-      status: 'pending',
-      created_at: newReport.created_at,
-    });
+    await supabase.from('content_reports').insert(newReport);
   } catch (err) {
     console.warn('[Safety Reports] Supabase insert note (using memory fallback):', err);
   }
 
   // Dispatch high-priority moderation notification to Discord & Telegram
-  const alertText = [
-    `🚨 **PROMPTFM CONTENT REPORT FILED**`,
-    `• **Target:** \`${newReport.target_type}\` (${newReport.target_id})`,
-    `• **Reason:** ${REASON_LABELS[newReport.reason] || newReport.reason}`,
-    `• **Platform:** ${newReport.reporter_platform.toUpperCase()}`,
-    newReport.reporter_id ? `• **Reporter:** ${newReport.reporter_id}` : null,
-    newReport.details ? `• **Details:** "${newReport.details}"` : null,
-    `• **Ticket ID:** \`${reportId}\``,
-  ]
-    .filter(Boolean)
-    .join('\n');
-
   try {
     await broadcastToCommunity({
       title: '🚨 Content Moderation Alert',
-      message: alertText,
+      message: formatReportAlert(newReport),
       category: 'announcement',
     });
   } catch (e) {
@@ -144,14 +129,10 @@ export async function getRecentReports(limit = 20): Promise<ContentReport[]> {
       return data as ContentReport[];
     }
   } catch {
-    // Return persistent file or memory fallback
+    // Return memory fallback on DB failure
   }
 
-  if (memoryReports.length > 0) {
-    return memoryReports.slice(0, limit);
-  }
-
-  return loadFallbackReports().slice(0, limit);
+  return memoryReports.slice(0, limit);
 }
 
 /**
@@ -162,22 +143,9 @@ export async function resolveContentReport(
   status: 'actioned' | 'dismissed',
   notes?: string
 ): Promise<{ success: boolean; reportId: string; status: string; notes?: string }> {
-  // Update in-memory cache
-  const reportIndex = memoryReports.findIndex((r) => r.id === reportId);
-  if (reportIndex !== -1 && memoryReports[reportIndex]) {
-    memoryReports[reportIndex] = {
-      ...memoryReports[reportIndex]!,
-      status,
-    };
-    saveFallbackReports(memoryReports);
-  } else {
-    // If not in memory, try loading from disk fallback and updating
-    const diskReports = loadFallbackReports();
-    const diskIndex = diskReports.findIndex((r) => r.id === reportId);
-    if (diskIndex !== -1 && diskReports[diskIndex]) {
-      diskReports[diskIndex]!.status = status;
-      saveFallbackReports(diskReports);
-    }
+  const report = memoryReports.find((r) => r.id === reportId);
+  if (report) {
+    report.status = status;
   }
 
   // Update in database if configured
@@ -198,4 +166,3 @@ export async function resolveContentReport(
     notes,
   };
 }
-

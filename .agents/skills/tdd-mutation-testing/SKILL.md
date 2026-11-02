@@ -8,26 +8,30 @@ description: >-
 
 # Test-Driven Development (TDD) & Mutation Testing Protocol
 
-Whenever writing new features, fixing bugs, or refactoring existing code in this repository, you **MUST** follow the Red-to-Green TDD and Mutation Testing protocol.
+Whenever writing new features, fixing bugs, or refactoring existing code in this repository, you **MUST** follow the Red → Green → Refactor → Mutate cycle.
+
+> [!CAUTION]
+> **MANDATORY MUTATION TESTING GATE: NEVER STOP AT GREEN!**
+> Green tests alone are **INSUFFICIENT**. You are strictly prohibited from declaring a task finished, concluding work, or reporting completion to the user until you have run Stryker mutation testing (`npx stryker run --mutate "<changed-file>"`) on all created/modified production code and verified a **mutation score of ≥ 80%** with zero surviving mutants on core business logic.
 
 --------------------------------------------------------------------------------
 
-## 1. The Core Methodology: Red → Green → Refactor → Mutate
+## 1. The 4-Phase Cycle: Red → Green → Refactor → Mutate
 
 ```
 ┌─────────┐      ┌─────────┐      ┌────────────┐      ┌────────────┐
 │ 1. RED  │ ───> │2. GREEN │ ───> │3. REFACTOR │ ───> │ 4. MUTATE  │
 └─────────┘      └─────────┘      └────────────┘      └────────────┘
-Write failing    Write minimal    Clean code &        Run Stryker to
-unit & integr.   code to make     types, keeping      kill mutants
-test first       all tests pass   all tests green     & test edges
+Write failing    Write minimal    Clean code &        Run Stryker on
+unit/integr.     code to make     types, keeping      modified files;
+test first       all tests pass   all tests green     kill all mutants (≥80%)
 ```
 
 ### Phase 1: RED (Write the Test First)
-1. **Do not write implementation code before writing the test.**
+1. **Never write implementation code before writing the test.**
 2. Formulate the requirements as executable assertions.
 3. Place tests in `tests/unit/` or `tests/integration/` (or co-located `*.test.ts`).
-4. Run the test suite:
+4. Run Vitest:
    ```bash
    npm test
    ```
@@ -36,7 +40,7 @@ test first       all tests pass   all tests green     & test edges
 ### Phase 2: GREEN (Minimal Implementation)
 1. Write the minimal production code needed to satisfy the test requirements.
 2. Avoid over-engineering or adding untested speculative logic.
-3. Run the test suite again:
+3. Run Vitest:
    ```bash
    npm test
    ```
@@ -50,53 +54,46 @@ test first       all tests pass   all tests green     & test edges
    ```
 3. Re-run `npm test` to ensure zero regressions.
 
-### Phase 4: MUTATE (Mutation Testing with Stryker)
-Test coverage (lines/branches) can be deceptive if assertions are weak. Mutation testing tests your test suite by injecting deliberate bugs into your production code ("mutants"):
-* Changing `>` to `>=` or `<`
-* Changing `true` to `false`
-* Removing function call arguments or returning empty arrays/strings
-* Removing conditional statements
-
-1. Run Stryker mutation testing on targeted modules:
+### Phase 4: MUTATE (Mutation Testing with Stryker — MANDATORY)
+1. **Run targeted Stryker mutation testing on every modified or new production file**:
    ```bash
-   npm run test:mutate
+   npx stryker run --mutate "src/path/to/modified-file.ts"
    ```
-2. **Goal:** Mutation score ≥ 80% with 0 survived mutants on new business logic.
-3. If mutants survive, analyze why: did a test fail to assert a boundary condition or return value? Add the missing test assertion and re-run.
+2. **Examine the report:**
+   - Goal: **Mutation score ≥ 80%**.
+   - Check `[Survived]` mutants. Each survived mutant represents untested boundary logic (e.g. edge condition inverted, boolean swapped, fallback bypassed, error handling ignored).
+3. **Kill surviving mutants**:
+   - Write targeted test assertions in your test file that specifically fail if the mutant is present.
+   - Refactor out redundant/unreachable conditionals if the code cannot be observed or reached.
+4. **Re-run Stryker** until the mutation score is ≥ 80%.
 
 --------------------------------------------------------------------------------
 
-## 2. Test Framework & Commands
+## 2. Fast Mutation Testing Commands
 
-* **Unit & Integration Runner:** Vitest (`vitest.config.ts`)
-* **Mutation Testing Engine:** Stryker Mutator (`stryker.config.json`)
+When modifying specific modules, do NOT run full-suite mutation testing blindly (which may test 100+ files and take minutes). Run targeted mutation testing immediately after reaching green:
 
-### Standard Commands
 ```bash
-# Run all unit & integration tests
-npm test
+# 1. Targeted mutation on a single file:
+npx stryker run --mutate "src/lib/audio/player-controller.ts"
 
-# Run tests in watch mode during development
-npm run test:watch
+# 2. Targeted mutation on a directory:
+npx stryker run --mutate "src/lib/audio/**/*.ts"
 
-# Run tests with code coverage report
-npm run test:coverage
+# 3. Targeted mutation on multiple files:
+npx stryker run --mutate "src/lib/reporting/report-service.ts,src/lib/email/resend.ts"
 
-# Run Stryker mutation testing
+# 4. Full project mutation test:
 npm run test:mutate
-
-# Run TypeScript compilation check
-npm run typecheck
 ```
 
 --------------------------------------------------------------------------------
 
-## 3. Test Structure Standards
+## 3. Completion Checklist (Check Before Any Response to User)
 
-* **Unit Tests (`tests/unit/**/*.test.ts`)**:
-  * Focus on isolated pure functions, domain models, validation, and algorithmic logic.
-  * Fast (< 100ms), deterministic, no real network or external API calls.
-* **Integration Tests (`tests/integration/**/*.test.ts`)**:
-  * Test route handlers (`/api/report`, `/api/bot/webhook`, `/api/mcp`), database adapters, and state machines working together.
-  * Mock external network calls (e.g. Telegram API, Discord Webhook, Google Gemini) to keep tests fast and sandbox-compliant.
-
+Before responding to the user or declaring a coding task done, verify every item:
+- [ ] 1. Tests were written first (Red verified).
+- [ ] 2. Implementation makes all tests pass (Green: `npm test` exit 0).
+- [ ] 3. Strict typechecking passes (`npm run typecheck` exit 0).
+- [ ] 4. Stryker mutation test executed on changed code (`npx stryker run --mutate ...`).
+- [ ] 5. Mutation score is ≥ 80% with surviving mutants analyzed and addressed.

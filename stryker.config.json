@@ -3,9 +3,12 @@
   "packageManager": "npm",
   "testRunner": "vitest",
   "testRunner_comment": "Uses Vitest runner plugin",
+  "mutator": {
+    "excludedMutations": ["Regex"]
+  },
   "mutate": [
-    "src/lib/safety/**/*.ts",
-    "src/lib/dj/roster.ts",
+    "src/lib/**/*.ts",
+    "!src/lib/**/*.d.ts",
     "!src/**/*.test.ts",
     "!src/**/*.spec.ts"
   ],
@@ -24,4 +27,3 @@
     "break": null
   }
 }
-
