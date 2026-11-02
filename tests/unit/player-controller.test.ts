@@ -334,4 +334,28 @@ describe('Live Stream Player Controller', () => {
     vi.advanceTimersByTime(3000);
     expect(controller.getState()).toBe('loading');
   });
+
+  it('updates stream URL via setUrl and switches playback immediately if active', () => {
+    const controller = createStreamPlayerController(mockAudio, DEFAULT_STREAM_URL, {
+      onStateChange: vi.fn(),
+      onError: vi.fn(),
+    });
+
+    // Case 1: When idle, setUrl updates target without playing
+    controller.setUrl('https://stream.promptfm.live/cyberpunk.mp3');
+    expect(mockAudio.play).not.toHaveBeenCalled();
+
+    // Now play uses the new URL
+    controller.play();
+    expect(mockAudio.src).toContain('cyberpunk.mp3');
+
+    // Case 2: When active, setUrl immediately switches stream source
+    controller.setUrl('https://stream.promptfm.live/chillout.mp3');
+    expect(mockAudio.src).toContain('chillout.mp3');
+    expect(mockAudio.play).toHaveBeenCalledTimes(2);
+
+    // Case 3: Empty string falls back to default stream URL
+    controller.setUrl('');
+    expect(mockAudio.src).toContain(DEFAULT_STREAM_URL);
+  });
 });

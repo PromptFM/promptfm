@@ -19,6 +19,7 @@ export interface StreamPlayerController {
   toggle: () => void;
   destroy: () => void;
   getState: () => PlayerState;
+  setUrl: (url: string) => void;
 }
 
 export function createStreamPlayerController(
@@ -26,7 +27,7 @@ export function createStreamPlayerController(
   streamUrl: string,
   callbacks: PlayerControllerCallbacks
 ): StreamPlayerController {
-  const effectiveUrl = streamUrl?.trim() || DEFAULT_STREAM_URL;
+  let effectiveUrl = streamUrl?.trim() || DEFAULT_STREAM_URL;
   const notifyError = callbacks.onError || (() => {});
 
   let state: PlayerState = 'idle';
@@ -54,6 +55,14 @@ export function createStreamPlayerController(
         scheduleReconnect();
       }
     });
+  };
+
+  const setUrl = (newUrl: string) => {
+    effectiveUrl = newUrl?.trim() || DEFAULT_STREAM_URL;
+    if (!userStopped) {
+      clearTimer();
+      executePlay();
+    }
   };
 
   const scheduleReconnect = () => {
@@ -155,5 +164,6 @@ export function createStreamPlayerController(
     toggle,
     destroy,
     getState: () => state,
+    setUrl,
   };
 }

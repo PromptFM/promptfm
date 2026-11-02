@@ -2,10 +2,25 @@
 
 // src/components/AudioPlayer.tsx
 // Sticky bottom live-stream player with active DJ indicator, Now Playing metadata,
-// 1-click in-player voting, and live spoken transcript viewer.
+// 1-click in-player voting, live spoken transcript viewer, and live theme channel switcher.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Volume2, VolumeX, Radio, Loader2, AlertCircle, ThumbsUp, MessageSquareQuote, ChevronUp, Flag } from 'lucide-react';
+import {
+  Volume2,
+  VolumeX,
+  Radio,
+  Loader2,
+  AlertCircle,
+  ThumbsUp,
+  MessageSquareQuote,
+  ChevronUp,
+  Flag,
+  Check,
+  Zap,
+  Moon,
+  Gamepad2,
+  Sparkles,
+} from 'lucide-react';
 import ReportModal from '@/components/ReportModal';
 import {
   createStreamPlayerController,
@@ -13,6 +28,14 @@ import {
   DEFAULT_STREAM_URL,
   PlayerState,
 } from '@/lib/audio/player-controller';
+import {
+  OFFICIAL_CHANNELS,
+  RadioChannel,
+  DEFAULT_CHANNEL_SLUG,
+  getChannelBySlug,
+  getStreamUrlForChannel,
+  isValidChannelSlug,
+} from '@/lib/radio/channels';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -30,10 +53,6 @@ interface NowPlayingInfo {
     title: string;
   };
 }
-
-// ─── Constants ───────────────────────────────────────────────────────────────
-
-const STREAM_URL = process.env.NEXT_PUBLIC_STREAM_URL || DEFAULT_STREAM_URL;
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
@@ -73,15 +92,23 @@ export default function AudioPlayer() {
   const [muted, setMuted] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Channel State
+  const [currentChannelSlug, setCurrentChannelSlug] = useState<string>(DEFAULT_CHANNEL_SLUG);
+  const [showChannelMenu, setShowChannelMenu] = useState(false);
+
   // Now Playing & Live Transcript State
   const [nowPlaying, setNowPlaying] = useState<NowPlayingInfo | null>(null);
   const [voted, setVoted] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
 
-  const fetchNowPlaying = useCallback(async () => {
+  const currentChannel = getChannelBySlug(currentChannelSlug);
+
+  // Fetch Now Playing info for a given channel
+  const fetchNowPlaying = useCallback(async (slug?: string) => {
+    const targetSlug = slug || currentChannelSlug;
     try {
-      const res = await fetch('/api/radio/now');
+      const res = await fetch(`/api/radio/now?channel=${encodeURIComponent(targetSlug)}`);
       if (res.ok) {
         const data = await res.json();
         if (data.now_playing) {
@@ -110,13 +137,14 @@ export default function AudioPlayer() {
     } catch {
       // Ignore network errors in background poll
     }
-  }, []);
+  }, [currentChannelSlug]);
 
+  // Periodic polling for Now Playing updates
   useEffect(() => {
-    fetchNowPlaying();
-    const interval = setInterval(fetchNowPlaying, 12000);
+    fetchNowPlaying(currentChannelSlug);
+    const interval = setInterval(() => fetchNowPlaying(currentChannelSlug), 12000);
     return () => clearInterval(interval);
-  }, [fetchNowPlaying]);
+  }, [fetchNowPlaying, currentChannelSlug]);
 
   // Handle in-player quick upvote
   const handleQuickVote = async () => {
@@ -156,16 +184,74 @@ export default function AudioPlayer() {
     }
   };
 
+  // ── Switch Channel Method ─────────────────────────────────────────────────
+  const switchChannel = useCallback((slug: string, autoPlay = false) => {
+    const validSlug = isValidChannelSlug(slug) ? slug.toLowerCase().trim() : DEFAULT_CHANNEL_SLUG;
+    setCurrentChannelSlug(validSlug);
+    setShowChannelMenu(false);
+
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('promptfm_channel', validSlug);
+      } catch {
+        // Ignore localStorage restrictions
+      }
+
+      // Notify external components of channel change
+      window.dispatchEvent(
+        new CustomEvent('promptfm:channel-changed', {
+          detail: { slug: validSlug },
+        })
+      );
+    }
+
+    const streamUrl = getStreamUrlForChannel(validSlug);
+    controllerRef.current?.setUrl(streamUrl);
+
+    if (autoPlay) {
+      controllerRef.current?.play();
+    }
+
+    // Refresh Now Playing immediately for the selected channel
+    fetchNowPlaying(validSlug);
+  }, [fetchNowPlaying]);
+
   // ── Stream player controller setup ───────────────────────────────────────
   useEffect(() => {
+    // Initial channel detection from URL or localStorage
+    let initialSlug = DEFAULT_CHANNEL_SLUG;
+    if (typeof window !== 'undefined') {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlChannel = urlParams.get('channel');
+        const storedChannel = localStorage.getItem('promptfm_channel');
+        if (urlChannel && isValidChannelSlug(urlChannel)) {
+          initialSlug = urlChannel;
+        } else if (storedChannel && isValidChannelSlug(storedChannel)) {
+          initialSlug = storedChannel;
+        }
+      } catch {
+        // Ignore localStorage restrictions
+      }
+    }
+    setCurrentChannelSlug(initialSlug);
+
+    const initialStreamUrl = getStreamUrlForChannel(initialSlug);
     const audio = new Audio();
     audio.preload = 'none';
     audio.volume = muted ? 0 : volume;
     audioRef.current = audio;
 
-    const controller = createStreamPlayerController(audio, STREAM_URL, {
+    const controller = createStreamPlayerController(audio, initialStreamUrl, {
       onStateChange: (newState) => {
         setPlayerState(newState);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('promptfm:player-state', {
+              detail: { state: newState },
+            })
+          );
+        }
       },
       onError: (msg) => {
         setErrorMessage(msg);
@@ -180,6 +266,21 @@ export default function AudioPlayer() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── External Channel Switch Event Listener ────────────────────────────────
+  useEffect(() => {
+    const handleExternalSwitch = (e: Event) => {
+      const customEvent = e as CustomEvent<{ slug: string; autoPlay?: boolean }>;
+      if (customEvent.detail?.slug) {
+        switchChannel(customEvent.detail.slug, !!customEvent.detail.autoPlay);
+      }
+    };
+
+    window.addEventListener('promptfm:switch-channel', handleExternalSwitch);
+    return () => {
+      window.removeEventListener('promptfm:switch-channel', handleExternalSwitch);
+    };
+  }, [switchChannel]);
 
   // Sync volume changes to the audio element
   useEffect(() => {
@@ -204,6 +305,20 @@ export default function AudioPlayer() {
   const isPlaying = playerState === 'playing';
   const isLoading = playerState === 'loading';
 
+  const getStationIcon = (slug: string) => {
+    switch (slug) {
+      case 'cyberpunk':
+        return <Zap className="w-3.5 h-3.5 text-purple-400" />;
+      case 'chillout':
+        return <Moon className="w-3.5 h-3.5 text-teal-400" />;
+      case 'kids':
+        return <Gamepad2 className="w-3.5 h-3.5 text-amber-400" />;
+      case 'main':
+      default:
+        return <Radio className="w-3.5 h-3.5 text-emerald-400" />;
+    }
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <>
@@ -217,11 +332,62 @@ export default function AudioPlayer() {
         role="region"
         aria-label="Live radio player"
       >
+        {/* Channel Switcher Popover Menu */}
+        {showChannelMenu && (
+          <div className="absolute bottom-full left-3 sm:left-6 mb-2 w-[calc(100vw-24px)] sm:w-80 bg-zinc-900 border border-zinc-700/80 rounded-2xl p-3 shadow-2xl z-50 animate-in fade-in slide-in-from-bottom-2 space-y-2">
+            <div className="flex items-center justify-between px-1 text-xs font-bold text-zinc-300 border-b border-zinc-800 pb-2">
+              <span className="flex items-center gap-1.5 text-emerald-400">
+                <Radio className="w-3.5 h-3.5" />
+                Live Radio Channels
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowChannelMenu(false)}
+                className="text-zinc-500 hover:text-white text-xs px-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-1.5">
+              {OFFICIAL_CHANNELS.map((ch) => {
+                const isSelected = ch.slug === currentChannelSlug;
+                return (
+                  <button
+                    key={ch.slug}
+                    type="button"
+                    onClick={() => switchChannel(ch.slug, isPlaying)}
+                    className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-all ${
+                      isSelected
+                        ? 'bg-zinc-800 text-white border border-emerald-500/50 shadow-sm'
+                        : 'hover:bg-zinc-800/60 text-zinc-300 border border-transparent'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded-lg bg-zinc-950 flex items-center justify-center flex-shrink-0 border border-zinc-800">
+                        {getStationIcon(ch.slug)}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold truncate">{ch.shortName}</span>
+                          <span className="text-[10px] text-zinc-400 font-medium">({ch.djName})</span>
+                        </div>
+                        <p className="text-[10px] text-zinc-400 truncate">{ch.badge}</p>
+                      </div>
+                    </div>
+                    {isSelected && <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Transcript Popover Modal */}
         {showTranscript && nowPlaying?.transcript && (
           <div className="absolute bottom-full left-3 sm:left-6 mb-2 max-w-[calc(100vw-24px)] sm:max-w-md w-full bg-zinc-900 border border-zinc-700 rounded-xl p-3 shadow-2xl z-50 space-y-1.5 animate-in fade-in slide-in-from-bottom-2">
             <div className="flex items-center justify-between text-[11px] font-semibold text-emerald-400">
-              <span>🎙️ Spoken on Air by {nowPlaying.active_dj?.name || 'AI DJ'}</span>
+              <span>🎙️ Spoken on Air by {nowPlaying.active_dj?.name || currentChannel.djName}</span>
               <button
                 onClick={() => setShowTranscript(false)}
                 className="text-zinc-500 hover:text-white"
@@ -239,7 +405,6 @@ export default function AudioPlayer() {
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
           <button
             onClick={handlePlayPause}
-            disabled={!STREAM_URL}
             aria-label={isPlaying ? 'Pause stream' : 'Play stream'}
             className={[
               'flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center',
@@ -248,7 +413,6 @@ export default function AudioPlayer() {
               isPlaying
                 ? 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-lg shadow-emerald-500/20'
                 : 'bg-zinc-700 hover:bg-zinc-600 text-white',
-              !STREAM_URL && 'opacity-40 cursor-not-allowed',
             ].join(' ')}
           >
             {isLoading ? (
@@ -267,25 +431,42 @@ export default function AudioPlayer() {
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 sm:gap-2">
+              {/* Channel Selector Button */}
+              <button
+                type="button"
+                onClick={() => setShowChannelMenu((prev) => !prev)}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-zinc-800 hover:bg-zinc-750 text-emerald-400 border border-emerald-500/30 hover:border-emerald-500/60 transition-colors flex-shrink-0"
+                title="Switch radio channel"
+                aria-label={`Current channel: ${currentChannel.shortName}. Click to change channel`}
+              >
+                {getStationIcon(currentChannel.slug)}
+                <span className="hidden xs:inline">{currentChannel.shortName}</span>
+                <ChevronUp
+                  className={`w-3 h-3 text-emerald-400 transition-transform ${
+                    showChannelMenu ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+
               <div className="flex items-center gap-1 min-w-0">
-                <Radio className="w-3 h-3 text-emerald-400 flex-shrink-0" />
-                <span className="text-white font-semibold text-xs sm:text-sm truncate max-w-[120px] xs:max-w-[180px] sm:max-w-xs md:max-w-sm">
-                  {nowPlaying ? nowPlaying.title : 'PromptFM Live'}
+                <span className="text-white font-semibold text-xs sm:text-sm truncate max-w-[110px] xs:max-w-[160px] sm:max-w-xs md:max-w-sm">
+                  {nowPlaying ? nowPlaying.title : currentChannel.name}
                 </span>
               </div>
+
               <div className="hidden xs:flex items-center">
                 <EqualizerBars playing={isPlaying} />
               </div>
-              {nowPlaying?.active_dj && (
-                <span className="hidden md:inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-zinc-800 text-zinc-300 border border-zinc-700 flex-shrink-0">
-                  🎙️ {nowPlaying.active_dj.name}
-                </span>
-              )}
+
+              {/* Active DJ Tag */}
+              <span className="hidden md:inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-zinc-800 text-zinc-300 border border-zinc-700 flex-shrink-0">
+                🎙️ {nowPlaying?.active_dj?.name || currentChannel.djName}
+              </span>
             </div>
 
             <div className="flex items-center gap-2 mt-0.5">
               <p className="text-[11px] sm:text-xs text-zinc-400 truncate max-w-[120px] xs:max-w-[160px] sm:max-w-xs">
-                {nowPlaying ? nowPlaying.artist : isPlaying ? '24/7 AI-generated music' : 'Click play to tune in'}
+                {nowPlaying ? nowPlaying.artist : isPlaying ? currentChannel.vibe : 'Click play to tune in'}
               </p>
               {nowPlaying?.transcript && (
                 <button
@@ -360,11 +541,11 @@ export default function AudioPlayer() {
         isOpen={reportOpen}
         onClose={() => setReportOpen(false)}
         targetType="broadcast"
-        targetId={nowPlaying?.id || 'live-broadcast'}
+        targetId={nowPlaying?.id || `channel-${currentChannelSlug}`}
         targetTitle={
           nowPlaying?.title
-            ? `Airplay: "${nowPlaying.title}" by ${nowPlaying.artist}`
-            : 'Live Radio Broadcast Stream'
+            ? `Airplay: "${nowPlaying.title}" by ${nowPlaying.artist} (${currentChannel.name})`
+            : `Live Radio Stream: ${currentChannel.name}`
         }
       />
     </>

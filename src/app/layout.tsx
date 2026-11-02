@@ -60,6 +60,12 @@ export default function RootLayout({
 
             <div className="flex items-center gap-2 sm:gap-4 md:gap-6 text-xs sm:text-sm font-medium">
               <a
+                href="/#channels"
+                className="text-zinc-400 hover:text-white transition-colors py-1 px-1 flex items-center gap-1"
+              >
+                <span>Channels</span>
+              </a>
+              <a
                 href="/top"
                 className="text-zinc-400 hover:text-white transition-colors py-1 px-1"
               >
