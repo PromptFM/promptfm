@@ -10,7 +10,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { broadcastToCommunity } from '@/lib/chat/bridge';
 import { createBroadcastDrop } from '@/lib/dj/engine';
-import { readFileSync, existsSync } from 'fs';
+import { fetchLiveWeatherSummary } from '@/lib/dj/rotation';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 
 export const dynamic = 'force-dynamic';
@@ -122,6 +123,34 @@ const ADMIN_MCP_TOOLS = [
         prompt: { type: 'string', description: 'The prompt or instruction for the AI radio host' },
       },
       required: ['prompt'],
+    },
+  },
+  {
+    name: 'promptfm_admin_update_schedule',
+    description: 'Updates the station schedule.yaml configuration (programming blocks, weather regions, news cron).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        schedule_yaml: { type: 'string', description: 'The complete updated YAML string' },
+      },
+      required: ['schedule_yaml'],
+    },
+  },
+  {
+    name: 'promptfm_admin_inject_interstitial',
+    description: 'Force-injects a live audio drop (news, weather, announcement, or custom prompt) to play NEXT on air.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        type: {
+          type: 'string',
+          enum: ['news', 'weather', 'announcement', 'custom_prompt'],
+          description: 'Type of interstitial drop',
+        },
+        prompt: { type: 'string', description: 'Prompt or announcement message' },
+        city: { type: 'string', description: 'Optional target city for weather (e.g. "Tokyo", "London", "San Francisco")' },
+      },
+      required: ['type'],
     },
   },
 ];
@@ -422,6 +451,63 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
       return {
         success: true,
         script_generated: script,
+        audio_url: audioUrl,
+      };
+    }
+
+    case 'promptfm_admin_update_schedule': {
+      const scheduleYaml = args.schedule_yaml as string;
+      if (!scheduleYaml) throw new Error('Missing schedule_yaml');
+      const p = join(process.cwd(), 'config', 'schedule.yaml');
+      writeFileSync(p, scheduleYaml, 'utf8');
+      return { success: true, message: 'Updated config/schedule.yaml successfully' };
+    }
+
+    case 'promptfm_admin_inject_interstitial': {
+      const type = (args.type as 'news' | 'weather' | 'announcement' | 'custom_prompt') || 'custom_prompt';
+      let promptText = (args.prompt as string) || '';
+
+      if (type === 'weather') {
+        const city = args.city as string | undefined;
+        const weather = await fetchLiveWeatherSummary(city);
+        promptText = `Give a 15-second radio station weather check for ${weather.city}: "${weather.text}". Add a fun radio station vibe.`;
+      }
+
+      const { script, audioUrl } = await createBroadcastDrop({
+        type: type === 'weather' ? 'custom_prompt' : type,
+        topicOrText: promptText,
+      });
+
+      // Insert as high-priority track in Supabase
+      const { data: track, error } = await supabase
+        .from('tracks')
+        .insert({
+          title: `Live Drop: ${type.toUpperCase()}`,
+          artist_name: 'DJ Neon (Admin Injected)',
+          tool_used: 'Other',
+          audio_url: audioUrl,
+          status: 'approved',
+        })
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
+
+      // Prioritize to front of queue
+      const { data: channel } = await supabase.from('channels').select('id').eq('slug', 'main').single();
+      if (channel) {
+        await supabase.from('channel_queue').insert({
+          channel_id: channel.id,
+          track_id: track.id,
+          requested_by: 'Admin MCP',
+          created_at: new Date(Date.now() - 3600000).toISOString(),
+        });
+      }
+
+      return {
+        success: true,
+        message: `Injected [${type.toUpperCase()}] to play NEXT on air!`,
+        script_spoken: script,
         audio_url: audioUrl,
       };
     }

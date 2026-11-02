@@ -1,11 +1,42 @@
 # PromptFM 24/7 Declarative Station Schedule & AI Prompt Config
-# Modify this YAML file to change programming, AI DJ behavior, news sources, and prompts.
+# Modify this YAML file to change programming, AI DJ behavior, news sources, weather regions, and prompts.
 
 station:
   name: "PromptFM"
   tagline: "The 24/7 AI-Generated Music Radio"
   stream_mount: "/stream.mp3"
   default_volume: 0.8
+
+# Weather Configuration & Global Listener Cities
+# The DJ rotates through these regions when giving live weather checks
+weather:
+  frequency_tracks: 4 # Inject weather check every N tracks
+  regions:
+    - city: "San Francisco"
+      country: "US"
+      latitude: 37.7749
+      longitude: -122.4194
+      unit: "fahrenheit"
+    - city: "Tokyo"
+      country: "Japan"
+      latitude: 35.6762
+      longitude: 139.6503
+      unit: "celsius"
+    - city: "London"
+      country: "UK"
+      latitude: 51.5074
+      longitude: -0.1278
+      unit: "celsius"
+    - city: "Berlin"
+      country: "Germany"
+      latitude: 52.5200
+      longitude: 13.4050
+      unit: "celsius"
+    - city: "Bucharest"
+      country: "Romania"
+      latitude: 44.4268
+      longitude: 26.1025
+      unit: "celsius"
 
 # Automated Recurring Broadcasts (Cron Jobs)
 crons:
@@ -14,11 +45,9 @@ crons:
     title: "Morning AI News Flash"
     host: "DJ Neon"
     type: "news"
-    # Live RSS / news feeds to scrape fresh headlines from:
     news_sources:
       - "https://hnrss.org/frontpage?q=AI+OR+music+OR+model"
       - "https://news.google.com/rss/search?q=generative+AI+music&hl=en-US&gl=US&ceid=US:en"
-    # Prompt angle sent to Gemini with the scraped headlines:
     prompt_topic: "Top breakthroughs in AI music generation, open models, Suno, Udio, and charts"
 
   - id: "evening_recap"

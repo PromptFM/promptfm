@@ -20,21 +20,77 @@ export interface AirplayItem {
 // In-memory counter for track rotation per process
 let tracksSinceLastInterstitial = 0;
 
+export interface WeatherRegion {
+  city: string;
+  latitude: number;
+  longitude: number;
+  unit?: string;
+}
+
 /**
- * Fetches real-time weather summary (Open-Meteo, 100% free, zero API key).
+ * Reads weather regions declared in config/schedule.yaml.
  */
-export async function fetchLiveWeatherSummary(): Promise<string> {
+export function getConfiguredWeatherRegions(): WeatherRegion[] {
+  const fallback: WeatherRegion[] = [
+    { city: 'San Francisco', latitude: 37.7749, longitude: -122.4194, unit: 'fahrenheit' },
+    { city: 'Tokyo', latitude: 35.6762, longitude: 139.6503, unit: 'celsius' },
+    { city: 'London', latitude: 51.5074, longitude: -0.1278, unit: 'celsius' },
+    { city: 'Berlin', latitude: 52.52, longitude: 13.405, unit: 'celsius' },
+    { city: 'Bucharest', latitude: 44.4268, longitude: 26.1025, unit: 'celsius' },
+  ];
+
+  try {
+    const p = join(process.cwd(), 'config', 'schedule.yaml');
+    if (!existsSync(p)) return fallback;
+    const raw = readFileSync(p, 'utf8');
+
+    const matches = [
+      ...raw.matchAll(
+        /-\s*city:\s*"([^"]+)"[\s\S]*?latitude:\s*(-?[\d.]+)[\s\S]*?longitude:\s*(-?[\d.]+)(?:[\s\S]*?unit:\s*"([^"]+)")?/gi
+      ),
+    ];
+    if (matches.length > 0) {
+      return matches.map((m) => ({
+        city: m[1] || 'San Francisco',
+        latitude: parseFloat(m[2] || '37.7749'),
+        longitude: parseFloat(m[3] || '-122.4194'),
+        unit: m[4] || 'celsius',
+      }));
+    }
+  } catch (e) {
+    console.warn('Error reading schedule.yaml regions:', e);
+  }
+
+  return fallback;
+}
+
+/**
+ * Fetches real-time weather summary for a specific city or a rotating region from schedule.yaml.
+ * (Open-Meteo, 100% free, zero API key needed).
+ */
+export async function fetchLiveWeatherSummary(targetCity?: string): Promise<{ text: string; city: string }> {
+  const regions = getConfiguredWeatherRegions();
+  const selected = targetCity
+    ? regions.find((r) => r.city.toLowerCase().includes(targetCity.toLowerCase())) || regions[0]!
+    : regions[Math.floor(Math.random() * regions.length)]!;
+
+  const unitParam = selected.unit === 'fahrenheit' ? '&temperature_unit=fahrenheit' : '';
+  const unitSymbol = selected.unit === 'fahrenheit' ? '°F' : '°C';
+
   try {
     const res = await fetch(
-      'https://api.open-meteo.com/v1/forecast?latitude=37.7749&longitude=-122.4194&current=temperature_2m,weather_code&temperature_unit=fahrenheit',
+      `https://api.open-meteo.com/v1/forecast?latitude=${selected.latitude}&longitude=${selected.longitude}&current=temperature_2m,weather_code${unitParam}`,
       { next: { revalidate: 1800 } }
     );
-    if (!res.ok) return 'Clear skies across the synthetic airwaves';
+    if (!res.ok) return { text: `Clear skies in ${selected.city}`, city: selected.city };
     const data = await res.json();
-    const temp = Math.round(data.current?.temperature_2m || 72);
-    return `Currently ${temp}°F and clear skies`;
+    const temp = Math.round(data.current?.temperature_2m || 20);
+    return {
+      text: `${temp}${unitSymbol} with fair weather in ${selected.city}`,
+      city: selected.city,
+    };
   } catch {
-    return 'Clear skies and warm signals';
+    return { text: `Mild temperatures in ${selected.city}`, city: selected.city };
   }
 }
 
@@ -111,12 +167,12 @@ export async function getNextAirplayItem(channelSlug = 'main'): Promise<AirplayI
         const weatherInfo = await fetchLiveWeatherSummary();
         const drop = await createBroadcastDrop({
           type: 'custom_prompt',
-          topicOrText: `Give a 15-second radio station weather check and vibe check: "${weatherInfo}". Tell listeners to keep upvoting their favorite AI tracks on PromptFM.`,
+          topicOrText: `Give a 15-second radio station weather check for our listeners in ${weatherInfo.city}: "${weatherInfo.text}". Tell listeners to keep upvoting their favorite AI tracks on PromptFM.`,
         });
         return {
           id: `weather-${Date.now()}`,
           type: 'weather',
-          title: 'DJ Neon Weather & Station Check',
+          title: `DJ Neon Weather Check (${weatherInfo.city})`,
           artist: 'DJ Neon',
           audio_url: drop.audioUrl,
           duration_hint_seconds: 20,

@@ -15,7 +15,8 @@
 //   npm run promptfm listen
 
 import { createBroadcastDrop, fetchLiveHeadlines } from '../src/lib/dj/engine';
-import { getNextAirplayItem } from '../src/lib/dj/rotation';
+import { getNextAirplayItem, fetchLiveWeatherSummary } from '../src/lib/dj/rotation';
+import { synthesizeScheduledRequest } from '../src/lib/dj/batches';
 import { createAdminClient } from '../src/lib/supabase/server';
 import { broadcastToCommunity } from '../src/lib/chat/bridge';
 import { getR2Client, getBucketName, getPublicUrl } from '../src/lib/r2';
@@ -54,12 +55,16 @@ Airplay Queue ("Up Next"):
 
 AI Voice & Broadcast:
   dj <prompt>             Send ANY custom prompt to Gemini -> Generates voice monologue
+  weather [city]          Synthesize a live weather report for a city in schedule.yaml
   news [topic] [--live]   Fetch live tech headlines -> Generates news audio broadcast
   announce <text>         Synthesize a quick announcement drop for listeners
+  inject <type> <text>    Force-inject (news|weather|announcement) to play NEXT on air
   broadcast <message>     Push notification to connected Discord & Telegram channels
   listen                  Launch the live audio stream in terminal (mpv/ffplay)
 
 Moderation & Schedule:
+  requests list           View scheduled Discord/Telegram requests by batch
+  requests air <id>       Force-synthesize & air a scheduled dedication or request
   admin pending           List community tracks waiting for review
   admin approve <id>      Approve a pending track for airplay
   admin reject <id>       Reject a track
@@ -70,6 +75,52 @@ Moderation & Schedule:
   }
 
   switch (command) {
+    case 'requests': {
+      const sub = args[1];
+      const targetId = args[2];
+      const supabase = createAdminClient();
+
+      if (sub === 'air') {
+        if (!targetId) {
+          console.error('Provide request ID: npm run promptfm requests air <requestId>');
+          return;
+        }
+        console.log(`🎙️  Synthesizing voice drop for request ${targetId}...`);
+        const result = await synthesizeScheduledRequest(targetId);
+        console.log(`\n✨ Synthesized Script:\n"${result.script}"\n`);
+        console.log(`🔗 Audio URL: ${result.audioUrl}`);
+        console.log(`📢 Dispatched "ON AIR NOW" alert to community Discord/Telegram.`);
+        return;
+      }
+
+      // Default: list
+      const { data: requests, error } = await supabase
+        .from('community_requests')
+        .select('*')
+        .in('status', ['pending', 'scheduled'])
+        .order('created_at', { ascending: true })
+        .limit(20);
+
+      if (error) {
+        console.error('Error fetching requests:', error.message);
+        return;
+      }
+
+      console.log(`\n📬 Incoming Community Requests (${requests?.length || 0}):`);
+      if (!requests || requests.length === 0) {
+        console.log('• No pending requests. All batches clear.');
+      } else {
+        requests.forEach((r) => {
+          console.log(
+            `• [ID: ${r.id}] [${r.batch_id || 'NEXT'}] [${r.type.toUpperCase()}] from @${r.platform_user_name} (${r.platform}): "${r.content}" ${
+              r.target ? `(Target: ${r.target})` : ''
+            }`
+          );
+        });
+      }
+      break;
+    }
+
     case 'next': {
       console.log('📻 Calculating next item on the PromptFM clock wheel...');
       const item = await getNextAirplayItem('main');
@@ -252,6 +303,67 @@ Moderation & Schedule:
         }
       } else {
         console.log(`No matching track found for "${query}".`);
+      }
+      break;
+    }
+
+    case 'weather': {
+      const city = args.slice(1).join(' ');
+      console.log(`🌤️  Fetching live weather conditions${city ? ` for ${city}` : ' from schedule.yaml'}...`);
+      const weather = await fetchLiveWeatherSummary(city || undefined);
+      console.log(`📍 City: ${weather.city} -> "${weather.text}"`);
+
+      console.log(`🎙️  Prompting Gemini & synthesizing DJ weather drop...`);
+      const { script, audioUrl } = await createBroadcastDrop({
+        type: 'custom_prompt',
+        topicOrText: `Give a 15-second radio station weather check for our listeners in ${weather.city}: "${weather.text}". Add upbeat radio vibes.`,
+      });
+      console.log(`\n✨ Spoken Script:\n"${script}"\n`);
+      console.log(`🔗 Audio URL: ${audioUrl}`);
+      break;
+    }
+
+    case 'inject': {
+      const type = (args[1] || 'announcement') as 'news' | 'weather' | 'announcement';
+      const text = args.slice(2).join(' ') || 'Station special announcement';
+
+      console.log(`💉 Force-injecting [${type.toUpperCase()}] into the live airplay queue to play NEXT...`);
+
+      let promptText = text;
+      if (type === 'weather') {
+        const weather = await fetchLiveWeatherSummary(text !== 'Station special announcement' ? text : undefined);
+        promptText = `Give a 15-second radio station weather check for ${weather.city}: "${weather.text}".`;
+      }
+
+      const { script, audioUrl } = await createBroadcastDrop({
+        type: type === 'weather' ? 'custom_prompt' : type,
+        topicOrText: promptText,
+      });
+
+      const supabase = createAdminClient();
+      const { data: track } = await supabase
+        .from('tracks')
+        .insert({
+          title: `Injected: ${type.toUpperCase()}`,
+          artist_name: 'DJ Neon (Live Priority)',
+          tool_used: 'Other',
+          audio_url: audioUrl,
+          status: 'approved',
+        })
+        .select()
+        .single();
+
+      if (track) {
+        const { data: channel } = await supabase.from('channels').select('id').eq('slug', 'main').single();
+        if (channel) {
+          await supabase.from('channel_queue').insert({
+            channel_id: channel.id,
+            track_id: track.id,
+            requested_by: 'Admin CLI (Priority Inject)',
+            created_at: new Date(Date.now() - 3600000).toISOString(), // Placed at very front
+          });
+          console.log(`⚡ Successfully injected! "${script}" will play NEXT.`);
+        }
       }
       break;
     }
