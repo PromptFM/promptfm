@@ -62,3 +62,4 @@ describe('POST /api/vote API Integration', () => {
     expect(json.error).toContain('Could not register vote');
   });
 });
+

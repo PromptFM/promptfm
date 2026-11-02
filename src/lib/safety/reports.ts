@@ -5,6 +5,7 @@
 
 import { createAdminClient } from '../supabase/server';
 import { broadcastToCommunity } from '../chat/bridge';
+import { sendContentReportAlert } from '../email/resend';
 import { type ContentReport, type ReportReason, type ReportTargetType, type ReporterPlatform, REASON_LABELS } from '../../types/database';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 
@@ -110,6 +111,13 @@ export async function submitContentReport(input: SubmitReportInput): Promise<{
     });
   } catch (e) {
     console.warn('[Safety Reports] Could not broadcast moderation alert:', e);
+  }
+
+  // Dispatch moderation email alert via Resend
+  try {
+    await sendContentReportAlert(newReport);
+  } catch (e) {
+    console.warn('[Safety Reports] Could not send Resend moderation email:', e);
   }
 
   return {
