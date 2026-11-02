@@ -1,16 +1,6 @@
-# PromptFM — Vercel Deployment Configuration
-
-framework = "nextjs"
-buildCommand = "npm run build"
-devCommand = "npm run dev"
-installCommand = "npm install"
-outputDirectory = ".next"
-
-[env]
-# Add all variables listed in .env.local.example to your Vercel project
-# Dashboard → Settings → Environment Variables
-# Mark server-only keys (SUPABASE_SERVICE_ROLE_KEY, R2_*) as non-exposed.
-
-[build.env]
-NEXT_TELEMETRY_DISABLED = "1"
-
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "framework": "nextjs"
+}
