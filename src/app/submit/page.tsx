@@ -17,6 +17,8 @@ import { Upload, CheckCircle2, AlertCircle, FileAudio, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import type { AITool, UploadUrlRequest, UploadUrlResponse } from '@/types/database';
 
+export const dynamic = 'force-dynamic';
+
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const MAX_FILE_SIZE_MB = 12;

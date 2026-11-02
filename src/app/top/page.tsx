@@ -20,6 +20,8 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import type { RankedTrack, AITool } from '@/types/database';
 
+export const dynamic = 'force-dynamic';
+
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const TOOL_COLORS: Record<AITool, string> = {
