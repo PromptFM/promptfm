@@ -1,15 +1,16 @@
 // src/app/api/cron/news/route.ts
 // Scheduled 7:00 AM Morning AI News Broadcast Hook
-// Can be called by Vercel Cron, GitHub Actions, or a curl webhook.
+// Scrapes live news headlines from RSS feeds, prompts Gemini to write a snappy 40s script,
+// synthesizes the DJ voice via Google Cloud TTS, and queues the audio drop on R2 & Supabase.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createBroadcastDrop } from '@/lib/dj/engine';
+import { createBroadcastDrop, fetchLiveHeadlines } from '@/lib/dj/engine';
 import { createAdminClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  // Verify cron secret if configured
+  // Optional cron authorization check
   const authHeader = req.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
@@ -17,16 +18,20 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // 1. Generate 7 AM Morning News Drop with Gemini + Google TTS
+    // 1. Fetch live tech & AI music headlines from RSS feeds (Hacker News, Google News AI)
+    const headlines = await fetchLiveHeadlines();
+
+    // 2. Prompt Gemini Pro to review headlines and synthesize broadcast drop
     const { script, audioUrl } = await createBroadcastDrop({
       type: 'news',
-      topicOrText: 'Morning AI briefing: Top generative music models, Suno and Udio updates, and trending tracks on PromptFM',
+      headlines,
+      topicOrText: 'Morning AI briefing: Top generative music models, Suno and Udio updates, and trending community tracks on PromptFM',
     });
 
-    // 2. Insert into Supabase as an approved broadcast track
+    // 3. Insert into Supabase as an approved broadcast track
     const supabase = createAdminClient();
     const { data, error } = await supabase.from('tracks').insert({
-      title: `PromptFM 7 AM Morning AI News`,
+      title: `PromptFM 7 AM Morning AI News (${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`,
       artist_name: 'DJ Neon (AI Host)',
       tool_used: 'Other',
       audio_url: audioUrl,
@@ -40,6 +45,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: '7 AM Morning news bulletin synthesized and queued.',
+      headlines_scraped_count: headlines.length,
+      top_headline_used: headlines[0] || 'N/A',
       script,
       audioUrl,
       trackId: data?.id,
@@ -50,4 +57,3 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-

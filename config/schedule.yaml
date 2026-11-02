@@ -1,0 +1,76 @@
+# PromptFM 24/7 Declarative Station Schedule & AI Prompt Config
+# Modify this YAML file to change programming, AI DJ behavior, news sources, and prompts.
+
+station:
+  name: "PromptFM"
+  tagline: "The 24/7 AI-Generated Music Radio"
+  stream_mount: "/stream.mp3"
+  default_volume: 0.8
+
+# Automated Recurring Broadcasts (Cron Jobs)
+crons:
+  - id: "morning_news"
+    cron: "0 7 * * *" # Every day at 07:00 UTC (7 AM Morning Briefing)
+    title: "Morning AI News Flash"
+    host: "DJ Neon"
+    type: "news"
+    # Live RSS / news feeds to scrape fresh headlines from:
+    news_sources:
+      - "https://hnrss.org/frontpage?q=AI+OR+music+OR+model"
+      - "https://news.google.com/rss/search?q=generative+AI+music&hl=en-US&gl=US&ceid=US:en"
+    # Prompt angle sent to Gemini with the scraped headlines:
+    prompt_topic: "Top breakthroughs in AI music generation, open models, Suno, Udio, and charts"
+
+  - id: "evening_recap"
+    cron: "0 18 * * *" # Every day at 18:00 UTC (6 PM Chart Countdown)
+    title: "The Evening Chart Countdown"
+    host: "DJ Neon"
+    type: "chart_recap"
+    prompt_topic: "Daily top 5 community upvoted tracks and artist shoutouts."
+
+# Daily Thematic Program Blocks (UTC)
+programming:
+  - time: "06:00 - 10:00"
+    show: "Morning Beats & AI Briefings"
+    genre: "Upbeat Electro, Lofi Coffee, Pop Synth"
+    ai_tools: ["Suno", "Udio"]
+    dj_prompt_style: "High morning energy, optimistic, coffee-vibes"
+    dj_banter_frequency_minutes: 20
+
+  - time: "10:00 - 15:00"
+    show: "Deep Focus & Generative Ambient"
+    genre: "Ambient, Chillwave, Neural Soundscapes"
+    ai_tools: ["Stable Audio", "Other"]
+    dj_prompt_style: "Calm, soothing, minimalist radio whispers"
+    dj_banter_frequency_minutes: 45
+
+  - time: "15:00 - 20:00"
+    show: "Cyberpunk Rush & Community Showcase"
+    genre: "Dark Synthwave, Cyberpunk, Darksynth"
+    ai_tools: ["Suno", "Udio"]
+    dj_prompt_style: "Gritty, futuristic, high-octane 80s synth DJ"
+    dj_banter_frequency_minutes: 15
+
+  - time: "20:00 - 06:00"
+    show: "Night Shift: Experimental & Free Requests"
+    genre: "All Community Tracks & Listener Queued Prompts"
+    ai_tools: ["All"]
+    dj_prompt_style: "Late night radio host, candid, interactive"
+    dj_banter_frequency_minutes: 30
+
+# Community Channels
+channels:
+  - slug: "main"
+    name: "PromptFM Main Stage"
+    description: "The primary 24/7 community broadcast."
+    is_private: false
+
+  - slug: "cyberpunk"
+    name: "Neon Alley (Cyberpunk)"
+    description: "Dark, fast, 80s-inspired cyber synthetic beats."
+    is_private: false
+
+  - slug: "kids"
+    name: "Tiny Prompt (Kids & Family)"
+    description: "Playful, gentle, and fun AI melodies for all ages."
+    is_private: false
