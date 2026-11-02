@@ -1,23 +1,129 @@
 // src/lib/chat/bridge.ts
-// Discord & Telegram Social Notification and Chat Relay Bridge
-// Broadcasts station announcements, trending tracks, and syncs messages with external bots.
+// Discord & Telegram Social Notification, Voting, and Live Transcript Bridge
+// Broadcasts Now Playing updates, live spoken transcripts, and enables 1-click in-chat voting.
 
-interface BroadcastNotification {
+import { createAdminClient } from '../supabase/server';
+
+export interface BroadcastNotification {
   title: string;
   message: string;
   url?: string;
   author?: string;
+  category?: 'now_playing' | 'news' | 'weather' | 'announcement' | 'dedication' | 'ad';
+  trackId?: string;
+  artist?: string;
+  toolUsed?: string;
+  upvotesCount?: number;
+  transcript?: string;
+  coverUrl?: string;
 }
 
 /**
- * Sends a rich embed notification to a Discord channel via an incoming Webhook URL.
- * Free, requires zero bot servers.
+ * Casts an upvote for a track in Supabase (used by Discord buttons & Telegram inline keyboards).
+ */
+export async function castVoteForTrack(
+  trackId: string,
+  _voterId?: string
+): Promise<{ success: boolean; newCount: number; title: string }> {
+  const supabase = createAdminClient();
+
+  const { data: track, error: fetchErr } = await supabase
+    .from('tracks')
+    .select('id, title, upvotes_count')
+    .eq('id', trackId)
+    .single();
+
+  if (fetchErr || !track) {
+    return { success: false, newCount: 0, title: 'Unknown Track' };
+  }
+
+  const updatedCount = (track.upvotes_count || 0) + 1;
+
+  const { error: updateErr } = await supabase
+    .from('tracks')
+    .update({ upvotes_count: updatedCount })
+    .eq('id', trackId);
+
+  if (updateErr) {
+    console.error('Failed to increment vote count:', updateErr);
+    return { success: false, newCount: track.upvotes_count, title: track.title };
+  }
+
+  return { success: true, newCount: updatedCount, title: track.title };
+}
+
+/**
+ * Sends a rich embed notification to a Discord channel via incoming Webhook URL.
+ * Includes direct 1-click vote buttons and formatted spoken transcripts.
  */
 export async function sendDiscordNotification(payload: BroadcastNotification): Promise<boolean> {
   const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
-  if (!webhookUrl) {
-    return false;
+  if (!webhookUrl) return false;
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://promptfm.vercel.app';
+  const voteUrl = payload.trackId ? `${siteUrl}/top?vote=${payload.trackId}` : siteUrl;
+
+  const fields: Array<{ name: string; value: string; inline?: boolean }> = [];
+
+  if (payload.artist) {
+    fields.push({
+      name: '🎤 Artist / AI Model',
+      value: `${payload.artist} ${payload.toolUsed ? `(${payload.toolUsed})` : ''}`,
+      inline: true,
+    });
   }
+
+  if (payload.upvotesCount !== undefined) {
+    fields.push({
+      name: '🔥 Community Upvotes',
+      value: `${payload.upvotesCount}`,
+      inline: true,
+    });
+  }
+
+  // Live spoken transcript from Gemini
+  if (payload.transcript) {
+    fields.push({
+      name: '📜 Live Spoken Transcript',
+      value: `> "${payload.transcript}"`,
+      inline: false,
+    });
+  }
+
+  // Interactive link buttons for Discord
+  const components: Array<Record<string, unknown>> = [];
+  if (payload.category === 'now_playing' && payload.trackId) {
+    components.push({
+      type: 1, // Action Row
+      components: [
+        {
+          type: 2, // Button
+          style: 5, // Link button (allowed on standard webhooks)
+          label: '👍 Vote',
+          url: voteUrl,
+        },
+        {
+          type: 2,
+          style: 5,
+          label: '🚩 Report',
+          url: `${siteUrl}/top?report=${payload.trackId}`,
+        },
+        {
+          type: 2,
+          style: 5,
+          label: '📻 Listen Live',
+          url: siteUrl,
+        },
+      ],
+    });
+  }
+
+  // Embed Color based on category
+  let color = 0x34d399; // Default Emerald
+  if (payload.category === 'news') color = 0x3b82f6; // Blue
+  if (payload.category === 'weather') color = 0x38bdf8; // Sky
+  if (payload.category === 'dedication') color = 0xf43f5e; // Rose
+  if (payload.category === 'ad') color = 0xfbbf24; // Amber
 
   try {
     const res = await fetch(webhookUrl, {
@@ -25,19 +131,21 @@ export async function sendDiscordNotification(payload: BroadcastNotification): P
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username: 'PromptFM DJ Bot',
-        avatar_url: 'https://promptfm.vercel.app/logo-mark.png',
+        avatar_url: `${siteUrl}/logo-mark.png`,
         embeds: [
           {
             title: `📻 ${payload.title}`,
             description: payload.message,
-            url: payload.url || 'https://promptfm.vercel.app',
-            color: 0x34d399, // PromptFM emerald green
+            url: payload.url || siteUrl,
+            color,
+            fields: fields.length > 0 ? fields : undefined,
             footer: {
-              text: payload.author ? `Announced by ${payload.author}` : 'PromptFM Live 24/7',
+              text: payload.author ? `On Air: ${payload.author}` : 'PromptFM Live 24/7',
             },
             timestamp: new Date().toISOString(),
           },
         ],
+        components: components.length > 0 ? components : undefined,
       }),
     });
     return res.ok;
@@ -48,16 +156,46 @@ export async function sendDiscordNotification(payload: BroadcastNotification): P
 }
 
 /**
- * Sends a notification to a Telegram Channel or Group via the Telegram Bot API.
+ * Sends a notification to Telegram with an Inline Keyboard for voting and live transcripts.
  */
 export async function sendTelegramNotification(payload: BroadcastNotification): Promise<boolean> {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!botToken || !chatId) {
-    return false;
+  if (!botToken || !chatId) return false;
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://promptfm.vercel.app';
+  const voteUrl = payload.trackId ? `${siteUrl}/top?vote=${payload.trackId}` : siteUrl;
+
+  let text = `📻 *${payload.title}*\n\n${payload.message}`;
+
+  if (payload.transcript) {
+    text += `\n\n🎙️ *Live DJ Transcript (${payload.author || 'AI Host'}):*\n> _"${payload.transcript}"_`;
   }
 
-  const text = `📻 *${payload.title}*\n\n${payload.message}\n\n[Tune in to PromptFM](${payload.url || 'https://promptfm.vercel.app'})`;
+  text += `\n\n[Tune in to PromptFM Live](${payload.url || siteUrl})`;
+
+  // Telegram Inline Keyboard for Now Playing votes & reports
+  const replyMarkup: Record<string, unknown> = {};
+  if (payload.category === 'now_playing' && payload.trackId) {
+    replyMarkup.inline_keyboard = [
+      [
+        {
+          text: `👍 Upvote (${payload.upvotesCount ?? 0})`,
+          callback_data: `vote:${payload.trackId}`,
+        },
+        {
+          text: '🚩 Report',
+          callback_data: `report:${payload.trackId}`,
+        },
+      ],
+      [
+        {
+          text: '🌐 View Chart',
+          url: `${siteUrl}/top`,
+        },
+      ],
+    ];
+  }
 
   try {
     const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -67,6 +205,7 @@ export async function sendTelegramNotification(payload: BroadcastNotification): 
         chat_id: chatId,
         text,
         parse_mode: 'Markdown',
+        reply_markup: Object.keys(replyMarkup).length > 0 ? replyMarkup : undefined,
         disable_web_page_preview: false,
       }),
     });
@@ -78,7 +217,7 @@ export async function sendTelegramNotification(payload: BroadcastNotification): 
 }
 
 /**
- * Unified broadcaster that notifies both Discord and Telegram if configured.
+ * Unified broadcaster that notifies both Discord and Telegram in parallel.
  */
 export async function broadcastToCommunity(payload: BroadcastNotification) {
   return Promise.allSettled([
@@ -86,4 +225,3 @@ export async function broadcastToCommunity(payload: BroadcastNotification) {
     sendTelegramNotification(payload),
   ]);
 }
-

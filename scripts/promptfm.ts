@@ -15,10 +15,13 @@
 //   npm run promptfm listen
 
 import { createBroadcastDrop, fetchLiveHeadlines } from '../src/lib/dj/engine';
-import { getNextAirplayItem, fetchLiveWeatherSummary } from '../src/lib/dj/rotation';
-import { synthesizeScheduledRequest } from '../src/lib/dj/batches';
+import { getNextAirplayItem, fetchLiveWeatherSummary, getNowPlaying, getUpNext } from '../src/lib/dj/rotation';
+import { synthesizeScheduledRequest, rejectScheduledRequest } from '../src/lib/dj/batches';
+import { getAllDJs, getActiveDJ, getDJById, getAdsConfig, getActiveAdSpot } from '../src/lib/dj/roster';
 import { createAdminClient } from '../src/lib/supabase/server';
-import { broadcastToCommunity } from '../src/lib/chat/bridge';
+import { broadcastToCommunity, castVoteForTrack } from '../src/lib/chat/bridge';
+import { submitContentReport, getRecentReports } from '../src/lib/safety/reports';
+import type { ReportReason } from '../src/types/database';
 import { getR2Client, getBucketName, getPublicUrl } from '../src/lib/r2';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { execSync } from 'child_process';
@@ -47,24 +50,31 @@ Tracks & Playlists:
                           Flags: --title "Name" --artist "Artist" --tool "Suno"
 
 Airplay Queue ("Up Next"):
+  now                     Show what is currently playing on stream and active DJ
   next                    Test the rotation clock: calculate what plays next (music, news, or weather)
+  vote <trackId>          Cast an upvote for a track from terminal
   queue list              View the upcoming songs scheduled to play next
   queue next <trackId>    Bump a track to the very top of the live queue
   queue remove <queueId>  Remove an item from the upcoming queue
   queue <prompt>          Find & queue a track matching a text vibe
 
 AI Voice & Broadcast:
-  dj <prompt>             Send ANY custom prompt to Gemini -> Generates voice monologue
-  weather [city]          Synthesize a live weather report for a city in schedule.yaml
+  djs                     View full AI DJ roster, voices, and who is currently LIVE
+  dj <prompt> [--dj name] Send ANY prompt to Gemini -> Generates voice monologue
+  weather [city] [--dj]   Synthesize a live weather report for a city in schedule.yaml
   news [topic] [--live]   Fetch live tech headlines -> Generates news audio broadcast
-  announce <text>         Synthesize a quick announcement drop for listeners
+  announce <text> [--dj]  Synthesize a quick announcement drop for listeners
   inject <type> <text>    Force-inject (news|weather|announcement) to play NEXT on air
+  ads list                List active sponsor campaigns, frequency, and ad spots
+  ads inject [id]         Force-inject a sponsor ad spot to play NEXT on stream
   broadcast <message>     Push notification to connected Discord & Telegram channels
   listen                  Launch the live audio stream in terminal (mpv/ffplay)
 
 Moderation & Schedule:
   requests list           View scheduled Discord/Telegram requests by batch
   requests air <id>       Force-synthesize & air a scheduled dedication or request
+  requests reject <id>    Remove item from batch with reason & notify user on Telegram/Discord
+                          Flags: --reason "Religious mockery / 18+ content"
   admin pending           List community tracks waiting for review
   admin approve <id>      Approve a pending track for airplay
   admin reject <id>       Reject a track
@@ -75,6 +85,37 @@ Moderation & Schedule:
   }
 
   switch (command) {
+    case 'now':
+    case 'np': {
+      const np = getNowPlaying();
+      console.log(`\n📻 PromptFM — Now Playing on Air:`);
+      console.log(`------------------------------------------------`);
+      console.log(`Title:       "${np.item.title}"`);
+      console.log(`Artist/Host: ${np.item.artist} ${np.item.tool_used ? `(${np.item.tool_used})` : ''}`);
+      console.log(`Type:        [${np.item.type.toUpperCase()}]`);
+      console.log(`Active DJ:   ${np.activeDJ.name} (${np.activeDJ.title})`);
+      console.log(`Upvotes:     🔥 ${np.item.upvotes_count ?? 0}`);
+      console.log(`Elapsed:     ${np.elapsedSeconds}s (Started at ${np.startedAt})`);
+      console.log(`Audio URL:   ${np.item.audio_url}`);
+      console.log(`Tune In:     https://promptfm.vercel.app\n`);
+      break;
+    }
+
+    case 'vote': {
+      const targetId = args[1];
+      if (!targetId) {
+        console.error('Error: Please provide track ID: npm run promptfm vote <trackId>');
+        return;
+      }
+      const res = await castVoteForTrack(targetId);
+      if (res.success) {
+        console.log(`🎉 Upvoted "${res.title}"! Total community votes: ${res.newCount}`);
+      } else {
+        console.error(`Failed to cast vote for track ${targetId}.`);
+      }
+      break;
+    }
+
     case 'requests': {
       const sub = args[1];
       const targetId = args[2];
@@ -90,6 +131,18 @@ Moderation & Schedule:
         console.log(`\n✨ Synthesized Script:\n"${result.script}"\n`);
         console.log(`🔗 Audio URL: ${result.audioUrl}`);
         console.log(`📢 Dispatched "ON AIR NOW" alert to community Discord/Telegram.`);
+        return;
+      }
+
+      if (sub === 'reject' || sub === 'remove') {
+        if (!targetId) {
+          console.error('Provide request ID: npm run promptfm requests reject <requestId> --reason "Explanation"');
+          return;
+        }
+        const reason = parseArg('--reason') || 'Declined by broadcast standards & practices';
+        console.log(`🚫 Removing request ${targetId} from broadcast batch...`);
+        const result = await rejectScheduledRequest(targetId, reason, 'Station Director (CLI)');
+        console.log(`✅ ${result.message}`);
         return;
       }
 
@@ -307,27 +360,124 @@ Moderation & Schedule:
       break;
     }
 
+    case 'djs': {
+      const djs = getAllDJs();
+      const active = getActiveDJ();
+      console.log('\n🎙️  PromptFM AI DJ Roster & Schedule Shifts:');
+      console.log('------------------------------------------------');
+      djs.forEach((dj) => {
+        const isLive = dj.id === active.id;
+        const liveBadge = isLive ? '🔴 LIVE ON AIR NOW' : '⚪ Off Air';
+        console.log(`\n• ${dj.name} [${dj.id}] — ${liveBadge}`);
+        console.log(`  Title:   ${dj.title}`);
+        console.log(`  Voice:   ${dj.voice.name} (${dj.voice.ssmlGender}) | Rate: ${dj.voice.speakingRate ?? 1.0} | Pitch: ${dj.voice.pitch ?? 0.0}`);
+        console.log(`  Shifts:  ${dj.shifts.length > 0 ? dj.shifts.join(', ') : 'Special Events / Custom Channel'}`);
+        console.log(`  Persona: ${dj.stylePrompt}`);
+        console.log(`  Bio:     ${dj.bio}`);
+      });
+      break;
+    }
+
+    case 'ads': {
+      const sub = args[1];
+      const config = getAdsConfig();
+
+      if (sub === 'inject') {
+        const adId = args[2];
+        const spot = adId ? config.spots.find((s) => s.id === adId) : getActiveAdSpot();
+        if (!spot) {
+          console.error('No matching sponsor spot found.');
+          return;
+        }
+        const requestedDj = parseArg('--dj');
+        const activeDJ = requestedDj ? getDJById(requestedDj) : getActiveDJ();
+
+        console.log(`🎙️  Injecting sponsor spot "${spot.title}" (${spot.sponsor}) with ${activeDJ.name}...`);
+        let audioUrl = spot.audioUrl || '';
+        let script = spot.copy || '';
+        if (spot.type === 'ai_read' || !audioUrl) {
+          const drop = await createBroadcastDrop({
+            type: 'ad',
+            topicOrText: spot.copy || spot.title,
+            dj: activeDJ,
+          });
+          audioUrl = drop.audioUrl;
+          script = drop.script;
+        }
+        const supabase = createAdminClient();
+        const { data: track } = await supabase
+          .from('tracks')
+          .insert({
+            title: `[Sponsor Ad] ${spot.title}`,
+            artist_name: `${activeDJ.name} for ${spot.sponsor}`,
+            tool_used: 'Other',
+            audio_url: audioUrl,
+            status: 'approved',
+          })
+          .select()
+          .single();
+
+        if (track) {
+          const { data: channel } = await supabase.from('channels').select('id').eq('slug', 'main').single();
+          if (channel) {
+            await supabase.from('channel_queue').insert({
+              channel_id: channel.id,
+              track_id: track.id,
+              requested_by: 'CLI (Ad Inject)',
+              created_at: new Date(Date.now() - 3600000).toISOString(),
+            });
+            console.log(`⚡ Injected sponsor ad! Will play NEXT on air.`);
+            if (script) console.log(`✨ Script Spoken: "${script}"`);
+          }
+        }
+        return;
+      }
+
+      // Default: ads list
+      console.log(`\n📢 PromptFM Sponsor & Audio Ad Configuration:`);
+      console.log(`------------------------------------------------`);
+      console.log(`Enabled:   ${config.enabled ? 'Yes' : 'No'}`);
+      console.log(`Cadence:   Every ${config.frequencyTracks} music tracks`);
+      console.log(`Clock:     At minutes :${config.clockMinutes.join(', :')} past the hour`);
+      console.log(`\nConfigured Spots (${config.spots.length}):`);
+      config.spots.forEach((s) => {
+        console.log(`\n• [${s.id}] "${s.title}" — ${s.sponsor}`);
+        console.log(`  Type: ${s.type} | Duration: ${s.durationSeconds}s | Weight: ${s.weight} | Active: ${s.active}`);
+        if (s.copy) console.log(`  AI Read Copy: "${s.copy}"`);
+        if (s.audioUrl) console.log(`  Audio URL: ${s.audioUrl}`);
+      });
+      break;
+    }
+
     case 'weather': {
-      const city = args.slice(1).join(' ');
+      const requestedDj = parseArg('--dj');
+      const dj = requestedDj ? getDJById(requestedDj) : getActiveDJ();
+      const cityArgs = args.slice(1).filter((a, i, arr) => a !== '--dj' && arr[i - 1] !== '--dj');
+      const city = cityArgs.join(' ');
+
       console.log(`🌤️  Fetching live weather conditions${city ? ` for ${city}` : ' from schedule.yaml'}...`);
       const weather = await fetchLiveWeatherSummary(city || undefined);
       console.log(`📍 City: ${weather.city} -> "${weather.text}"`);
 
-      console.log(`🎙️  Prompting Gemini & synthesizing DJ weather drop...`);
+      console.log(`🎙️  Prompting Gemini & synthesizing with ${dj.name} (${dj.voice.name})...`);
       const { script, audioUrl } = await createBroadcastDrop({
         type: 'custom_prompt',
         topicOrText: `Give a 15-second radio station weather check for our listeners in ${weather.city}: "${weather.text}". Add upbeat radio vibes.`,
+        dj,
       });
-      console.log(`\n✨ Spoken Script:\n"${script}"\n`);
+      console.log(`\n✨ Spoken Script (${dj.name}):\n"${script}"\n`);
       console.log(`🔗 Audio URL: ${audioUrl}`);
       break;
     }
 
     case 'inject': {
       const type = (args[1] || 'announcement') as 'news' | 'weather' | 'announcement';
-      const text = args.slice(2).join(' ') || 'Station special announcement';
+      const requestedDj = parseArg('--dj');
+      const dj = requestedDj ? getDJById(requestedDj) : getActiveDJ();
+      const textArgs = args.slice(2).filter((a, i, arr) => a !== '--dj' && arr[i - 1] !== '--dj');
+      const text = textArgs.join(' ') || 'Station special announcement';
 
-      console.log(`💉 Force-injecting [${type.toUpperCase()}] into the live airplay queue to play NEXT...`);
+      console.log(`💉 Force-injecting [${type.toUpperCase()}] into the live airplay queue with ${dj.name}...`);
 
       let promptText = text;
       if (type === 'weather') {
@@ -338,6 +488,7 @@ Moderation & Schedule:
       const { script, audioUrl } = await createBroadcastDrop({
         type: type === 'weather' ? 'custom_prompt' : type,
         topicOrText: promptText,
+        dj,
       });
 
       const supabase = createAdminClient();
@@ -345,7 +496,7 @@ Moderation & Schedule:
         .from('tracks')
         .insert({
           title: `Injected: ${type.toUpperCase()}`,
-          artist_name: 'DJ Neon (Live Priority)',
+          artist_name: `${dj.name} (Live Priority)`,
           tool_used: 'Other',
           audio_url: audioUrl,
           status: 'approved',
@@ -362,32 +513,39 @@ Moderation & Schedule:
             requested_by: 'Admin CLI (Priority Inject)',
             created_at: new Date(Date.now() - 3600000).toISOString(), // Placed at very front
           });
-          console.log(`⚡ Successfully injected! "${script}" will play NEXT.`);
+          console.log(`⚡ Successfully injected! "${script}" by ${dj.name} will play NEXT.`);
         }
       }
       break;
     }
 
     case 'dj': {
-      const userPrompt = args.slice(1).join(' ');
+      const requestedDj = parseArg('--dj');
+      const dj = requestedDj ? getDJById(requestedDj) : getActiveDJ();
+      const promptArgs = args.slice(1).filter((a, i, arr) => a !== '--dj' && arr[i - 1] !== '--dj');
+      const userPrompt = promptArgs.join(' ');
+
       if (!userPrompt) {
         console.error('Error: Please provide a prompt for Gemini.');
         process.exit(1);
       }
-      console.log(`🤖 Prompting Gemini with: "${userPrompt}"...`);
-      console.log(`🎙️  Synthesizing radio voice via Google Cloud Journey Voice...`);
+      console.log(`🤖 Prompting Gemini with ${dj.name}: "${userPrompt}"...`);
+      console.log(`🎙️  Synthesizing radio voice via ${dj.voice.name}...`);
       const { script, audioUrl } = await createBroadcastDrop({
         type: 'custom_prompt',
         topicOrText: userPrompt,
+        dj,
       });
-      console.log(`\n✨ Spoken Monologue:\n"${script}"\n`);
+      console.log(`\n✨ Spoken Monologue (${dj.name}):\n"${script}"\n`);
       console.log(`🔗 Audio Drop URL: ${audioUrl}`);
       break;
     }
 
     case 'news': {
       const isLive = args.includes('--live');
-      const filteredArgs = args.slice(1).filter((a) => a !== '--live');
+      const requestedDj = parseArg('--dj');
+      const dj = requestedDj ? getDJById(requestedDj) : getActiveDJ();
+      const filteredArgs = args.slice(1).filter((a, i, arr) => a !== '--live' && a !== '--dj' && arr[i - 1] !== '--dj');
       const topic = filteredArgs.join(' ') || 'Latest AI music releases and generative audio updates';
 
       let headlines: string[] = [];
@@ -397,29 +555,34 @@ Moderation & Schedule:
         console.log(`📰 Found ${headlines.length} fresh headlines:\n` + headlines.map((h, i) => `   ${i + 1}. ${h}`).join('\n'));
       }
 
-      console.log(`\n🤖 Prompting Gemini with headlines on topic: "${topic}"...`);
+      console.log(`\n🤖 Prompting Gemini with ${dj.name} on topic: "${topic}"...`);
       const { script, audioUrl } = await createBroadcastDrop({
         type: 'news',
         headlines,
         topicOrText: topic,
+        dj,
       });
-      console.log(`\n🎙️  Broadcast News Script:\n"${script}"\n`);
+      console.log(`\n🎙️  Broadcast News Script (${dj.name}):\n"${script}"\n`);
       console.log(`🔗 Audio Broadcast URL: ${audioUrl}`);
       break;
     }
 
     case 'announce': {
-      const text = args.slice(1).join(' ');
+      const requestedDj = parseArg('--dj');
+      const dj = requestedDj ? getDJById(requestedDj) : getActiveDJ();
+      const textArgs = args.slice(1).filter((a, i, arr) => a !== '--dj' && arr[i - 1] !== '--dj');
+      const text = textArgs.join(' ');
       if (!text) {
         console.error('Error: Please provide announcement text.');
         process.exit(1);
       }
-      console.log(`🎙️  Generating DJ announcement for: "${text}"...`);
+      console.log(`🎙️  Generating announcement with ${dj.name} for: "${text}"...`);
       const { script, audioUrl } = await createBroadcastDrop({
         type: 'announcement',
         topicOrText: text,
+        dj,
       });
-      console.log(`\n✨ Spoken Script:\n"${script}"\n`);
+      console.log(`\n✨ Spoken Script (${dj.name}):\n"${script}"\n`);
       console.log(`🔗 Audio Drop URL: ${audioUrl}`);
       break;
     }
@@ -513,6 +676,48 @@ Moderation & Schedule:
       }
 
       console.log('Admin subcommands: pending, approve <id>, reject <id>');
+      break;
+    }
+
+    case 'report': {
+      const sub = args[1]; // 'list' | 'file'
+      if (sub === 'list') {
+        const reports = await getRecentReports(20);
+        console.log(`\n🛡️ PromptFM Community Content Reports (${reports.length}):`);
+        if (reports.length === 0) {
+          console.log('No reports pending. Broadcast stream is clean.');
+        } else {
+          reports.forEach((r) => {
+            console.log(`• [${r.id}] [${r.target_type}] target="${r.target_id}" reason="${r.reason}" status="${r.status}" via ${r.reporter_platform} ${r.details ? `("${r.details}")` : ''}`);
+          });
+        }
+        return;
+      }
+
+      if (sub === 'file') {
+        const targetId = args[2];
+        const reason = (args[3] || 'copyright_dmca') as ReportReason;
+        const details = args.slice(4).join(' ') || 'Filed via PromptFM CLI';
+
+        if (!targetId) {
+          console.error('Usage: npm run promptfm -- report file <targetId> [reason] [details]');
+          return;
+        }
+
+        const res = await submitContentReport({
+          target_type: 'track',
+          target_id: targetId,
+          reason,
+          details,
+          reporter_platform: 'web',
+          reporter_id: 'CLI Operator',
+        });
+        console.log(`✅ Report submitted! Ticket ID: ${res.reportId}`);
+        console.log(`   Target: ${targetId} | Reason: ${reason}`);
+        return;
+      }
+
+      console.log('Report commands: npm run promptfm -- report list | report file <id> [reason] [details]');
       break;
     }
 

@@ -16,13 +16,17 @@ CREATE TABLE IF NOT EXISTS public.tracks (
   tool_used      TEXT        NOT NULL    CHECK (tool_used IN ('Suno', 'Udio', 'Stable Audio', 'Other')),
   status         TEXT        NOT NULL    DEFAULT 'pending'
                              CHECK (status IN ('pending', 'approved', 'rejected')),
-  upvotes_count  INTEGER     NOT NULL    DEFAULT 0
+  upvotes_count  INTEGER     NOT NULL    DEFAULT 0,
+  is_explicit    BOOLEAN     NOT NULL    DEFAULT false,
+  rejection_reason TEXT
 );
 
 COMMENT ON TABLE  public.tracks                IS 'AI-generated music tracks submitted by the community.';
 COMMENT ON COLUMN public.tracks.tool_used      IS 'The AI generation tool used (Suno, Udio, Stable Audio, Other).';
 COMMENT ON COLUMN public.tracks.status         IS 'Moderation state: pending → approved or rejected.';
 COMMENT ON COLUMN public.tracks.upvotes_count  IS 'Denormalized vote count, kept in sync by trigger.';
+COMMENT ON COLUMN public.tracks.is_explicit    IS 'Parental control flag: true for 18+ explicit tracks.';
+COMMENT ON COLUMN public.tracks.rejection_reason IS 'Explanation if declined by station moderation.';
 
 -- ----------------------------------------------------------------
 -- 2. VOTES TABLE
@@ -224,6 +228,8 @@ CREATE TABLE IF NOT EXISTS public.community_requests (
   target              TEXT,       -- Dedicated person (for dedications) or City (for weather) or Zodiac sign
   batch_id            TEXT,       -- e.g. "batch-15:30"
   status              TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'scheduled', 'aired', 'rejected')),
+  rejection_reason    TEXT,       -- Explanation sent back to Discord / Telegram if rejected
+  is_explicit         BOOLEAN     NOT NULL DEFAULT false,
   estimated_air_time  TIMESTAMPTZ,
   aired_at            TIMESTAMPTZ,
   audio_url           TEXT,
@@ -236,6 +242,41 @@ CREATE INDEX IF NOT EXISTS idx_community_requests_status_type
 ALTER TABLE public.community_requests ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public read and submit community requests"
   ON public.community_requests FOR ALL USING (true) WITH CHECK (true);
+
+-- ----------------------------------------------------------------
+-- 10. CONTENT REPORTS TABLE
+-- Handles community reports across Web, Discord, Telegram, and MCP
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.content_reports (
+  id                  TEXT        PRIMARY KEY,
+  target_type         TEXT        NOT NULL CHECK (target_type IN ('track', 'broadcast', 'request', 'user')),
+  target_id           TEXT        NOT NULL, -- track UUID, request ID, or content description
+  reason              TEXT        NOT NULL CHECK (reason IN ('copyright_dmca', 'hate_harassment', 'religious_ethical', 'unlabeled_18_plus', 'spam_abuse', 'other')),
+  details             TEXT,
+  reporter_platform   TEXT        NOT NULL CHECK (reporter_platform IN ('web', 'discord', 'telegram', 'mcp', 'api')),
+  reporter_id         TEXT,       -- User UUID, platform ID, or IP hash
+  status              TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'reviewed', 'actioned', 'dismissed')),
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_content_reports_status
+  ON public.content_reports (status, created_at DESC);
+
+ALTER TABLE public.content_reports ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public can submit content reports"
+  ON public.content_reports FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public can view own or pending reports"
+  ON public.content_reports FOR SELECT USING (true);
+
+-- ----------------------------------------------------------------
+-- 11. SAFE MIGRATION PATCH (For existing databases)
+-- ----------------------------------------------------------------
+ALTER TABLE public.tracks ADD COLUMN IF NOT EXISTS is_explicit BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.tracks ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+
+ALTER TABLE public.community_requests ADD COLUMN IF NOT EXISTS is_explicit BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.community_requests ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+
 
 
 

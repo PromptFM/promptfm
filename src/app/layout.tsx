@@ -4,6 +4,7 @@ import Image from 'next/image';
 import './globals.css';
 import AudioPlayer from '@/components/AudioPlayer';
 import AuthButton from '@/components/AuthButton';
+import Footer from '@/components/Footer';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
@@ -38,43 +39,43 @@ export default function RootLayout({
       <body className="bg-zinc-950 font-sans antialiased">
         {/* Navigation */}
         <nav className="sticky top-0 z-40 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur-md">
-          <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
+          <div className="max-w-5xl mx-auto px-3 sm:px-4 h-14 flex items-center justify-between">
             <a
               href="/"
-              className="flex items-center gap-2 group"
+              className="flex items-center gap-2 group flex-shrink-0"
               aria-label="PromptFM home"
             >
               <Image
                 src="/logo-mark.png"
                 alt="PromptFM logo mark"
-                width={30}
-                height={30}
+                width={28}
+                height={28}
                 className="rounded-md transition-opacity group-hover:opacity-80"
                 priority
               />
-              <span className="font-bold text-lg tracking-tight text-white group-hover:text-emerald-400 transition-colors">
+              <span className="font-bold text-base sm:text-lg tracking-tight text-white group-hover:text-emerald-400 transition-colors">
                 Prompt<span className="text-emerald-400">FM</span>
               </span>
             </a>
 
-            <div className="flex items-center gap-6 text-sm font-medium">
+            <div className="flex items-center gap-2 sm:gap-4 md:gap-6 text-xs sm:text-sm font-medium">
               <a
                 href="/top"
-                className="text-zinc-400 hover:text-white transition-colors"
+                className="text-zinc-400 hover:text-white transition-colors py-1 px-1"
               >
                 Charts
               </a>
               <a
                 href="/admin"
-                className="text-zinc-400 hover:text-emerald-400 transition-colors text-xs font-semibold px-2.5 py-1 rounded-md border border-zinc-800 hover:border-zinc-700 bg-zinc-900/50"
+                className="text-zinc-400 hover:text-emerald-400 transition-colors text-[11px] sm:text-xs font-semibold px-2 py-1 sm:px-2.5 rounded-md border border-zinc-800 hover:border-zinc-700 bg-zinc-900/50"
               >
                 Studio
               </a>
               <a
                 href="/submit"
-                className="bg-emerald-500 hover:bg-emerald-400 text-black px-3 py-1.5 rounded-lg transition-colors"
+                className="bg-emerald-500 hover:bg-emerald-400 text-black px-2.5 py-1.5 sm:px-3 rounded-lg font-semibold text-xs transition-colors whitespace-nowrap"
               >
-                Submit Track
+                Submit<span className="hidden sm:inline"> Track</span>
               </a>
               <AuthButton />
             </div>
@@ -82,7 +83,10 @@ export default function RootLayout({
         </nav>
 
         {/* Page content */}
-        {children}
+        <div className="min-h-[calc(100vh-3.5rem)] flex flex-col justify-between">
+          <div className="flex-1">{children}</div>
+          <Footer />
+        </div>
 
         {/* Sticky live stream player */}
         <AudioPlayer />

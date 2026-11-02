@@ -19,12 +19,16 @@ import {
   Loader2,
   Clock,
   Sparkles,
+  MessageSquare,
+  AlertCircle,
+  ShieldAlert,
+  ShieldCheck,
+  Flag,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import type { Track, AITool } from '@/types/database';
+import { type Track, type AITool, type ContentReport, REASON_LABELS } from '@/types/database';
 import type { User } from '@supabase/supabase-js';
 import AuthButton from '@/components/AuthButton';
-import { ShieldAlert, ShieldCheck } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,14 +41,32 @@ interface QueuedItem {
   track: Track;
 }
 
+interface CommunityRequestRow {
+  id: string;
+  platform: 'discord' | 'telegram' | 'web';
+  platform_user_id: string;
+  platform_user_name: string;
+  type: string;
+  content: string;
+  target: string | null;
+  batch_id: string | null;
+  status: string;
+  created_at: string;
+  estimated_air_time: string | null;
+}
+
 export default function AdminDashboard() {
   const [user, setUser] = useState<User | null>(null);
   const [authChecking, setAuthChecking] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'submissions' | 'queue' | 'upload'>('submissions');
+  const [activeTab, setActiveTab] = useState<'submissions' | 'queue' | 'batches' | 'reports' | 'upload'>('submissions');
   const [pendingTracks, setPendingTracks] = useState<Track[]>([]);
   const [queueItems, setQueueItems] = useState<QueuedItem[]>([]);
+  const [communityRequests, setCommunityRequests] = useState<CommunityRequestRow[]>([]);
+  const [reports, setReports] = useState<ContentReport[]>([]);
+  const [rejectingRequestId, setRejectingRequestId] = useState<string | null>(null);
+  const [customRejectReason, setCustomRejectReason] = useState<string>('Religious hostility violates broadcast standards');
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
@@ -92,6 +114,29 @@ export default function AdminDashboard() {
       const formatted = (qData as unknown as { id: string; track_id: string; prompt_used: string | null; requested_by: string; created_at: string; track: Track }[])
         .filter((item) => Boolean(item.track));
       setQueueItems(formatted);
+    }
+
+    // Fetch scheduled community requests (Discord/Telegram)
+    const { data: reqs } = await supabase
+      .from('community_requests')
+      .select('*')
+      .in('status', ['pending', 'scheduled'])
+      .order('created_at', { ascending: true })
+      .limit(30);
+
+    if (reqs) {
+      setCommunityRequests(reqs as unknown as CommunityRequestRow[]);
+    }
+
+    // Fetch content moderation reports
+    try {
+      const repRes = await fetch('/api/admin/reports');
+      if (repRes.ok) {
+        const repData = await repRes.json();
+        if (repData.reports) setReports(repData.reports);
+      }
+    } catch (e) {
+      console.warn('Could not load reports:', e);
     }
 
     setLoading(false);
@@ -206,7 +251,57 @@ export default function AdminDashboard() {
     }
   };
 
-  // ── 5. Direct MP3 Upload to Station (Pre-Approved) ─────────────────────────
+  // ── 5. Reject / Remove Request from Batch with Reason ──────────────────────
+
+  const handleRejectBatchRequest = async (requestId: string, reason: string) => {
+    setActionLoadingId(requestId);
+    try {
+      const res = await fetch('/api/admin/requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'reject',
+          requestId,
+          reason,
+          moderator: user?.email || 'Station Director',
+        }),
+      });
+
+      if (res.ok) {
+        setCommunityRequests((prev) => prev.filter((r) => r.id !== requestId));
+        setRejectingRequestId(null);
+      } else {
+        const data = await res.json();
+        alert(`Failed to remove request: ${data.error || 'Server error'}`);
+      }
+    } catch (e) {
+      console.error('Failed to reject request:', e);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // ── 6. Action Content Report ───────────────────────────────────────────────
+
+  const handleActionReport = async (reportId: string, action: 'actioned' | 'dismissed') => {
+    setActionLoadingId(reportId);
+    try {
+      const res = await fetch('/api/admin/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reportId, action }),
+      });
+      if (res.ok) {
+        setReports((prev) =>
+          prev.map((r) => (r.id === reportId ? { ...r, status: action } : r))
+        );
+      }
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // ── 7. Direct MP3 Upload to Station (Pre-Approved) ─────────────────────────
 
   const handleDirectUpload = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -318,10 +413,10 @@ export default function AdminDashboard() {
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex bg-zinc-900 border border-zinc-800 p-1 rounded-xl">
+          <div className="flex bg-zinc-900 border border-zinc-800 p-1 rounded-xl overflow-x-auto max-w-full scrollbar-none gap-1">
             <button
               onClick={() => setActiveTab('submissions')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
                 activeTab === 'submissions'
                   ? 'bg-emerald-500 text-black shadow-sm'
                   : 'text-zinc-400 hover:text-white'
@@ -332,25 +427,47 @@ export default function AdminDashboard() {
             </button>
             <button
               onClick={() => setActiveTab('queue')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
                 activeTab === 'queue'
                   ? 'bg-emerald-500 text-black shadow-sm'
                   : 'text-zinc-400 hover:text-white'
               }`}
             >
               <ListMusic className="w-3.5 h-3.5" />
-              Live Queue ({queueItems.length})
+              Queue ({queueItems.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('batches')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+                activeTab === 'batches'
+                  ? 'bg-emerald-500 text-black shadow-sm'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              Batches ({communityRequests.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('reports')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+                activeTab === 'reports'
+                  ? 'bg-emerald-500 text-black shadow-sm'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <Flag className="w-3.5 h-3.5 text-amber-400" />
+              Reports ({reports.filter((r) => r.status === 'pending').length})
             </button>
             <button
               onClick={() => setActiveTab('upload')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
                 activeTab === 'upload'
                   ? 'bg-emerald-500 text-black shadow-sm'
                   : 'text-zinc-400 hover:text-white'
               }`}
             >
               <Upload className="w-3.5 h-3.5" />
-              Upload Local MP3
+              Upload MP3
             </button>
           </div>
         </div>
@@ -509,7 +626,253 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* ── TAB 3: DIRECT LOCAL MP3 UPLOAD ──────────────────────────────── */}
+        {/* ── TAB 3: SCHEDULED BATCHES & LISTENER REQUESTS ──────────────── */}
+        {activeTab === 'batches' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-zinc-200">Scheduled Broadcast Batches</h2>
+                <p className="text-xs text-zinc-400">
+                  Manage incoming Discord and Telegram requests (dedications, songs, weather, zodiac).
+                </p>
+              </div>
+              <button
+                onClick={refreshData}
+                className="text-xs text-zinc-400 hover:text-emerald-400 transition-colors"
+              >
+                Refresh
+              </button>
+            </div>
+
+            {communityRequests.length === 0 ? (
+              <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-12 text-center space-y-2">
+                <ShieldCheck className="w-8 h-8 text-emerald-400 mx-auto opacity-60" />
+                <p className="text-sm font-medium text-zinc-300">No Pending Batch Requests</p>
+                <p className="text-xs text-zinc-500">
+                  Listener requests from Discord and Telegram will appear here grouped by 15-minute batches.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {communityRequests.map((req) => (
+                  <div
+                    key={req.id}
+                    className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex flex-col gap-3"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            {req.batch_id || 'PENDING'}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-zinc-800 text-zinc-300 capitalize">
+                            {req.platform}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase">
+                            {req.type}
+                          </span>
+                          <span className="text-xs text-zinc-400">
+                            by <span className="text-white font-medium">@{req.platform_user_name}</span>
+                          </span>
+                        </div>
+                        <p className="text-sm text-zinc-200 font-medium">
+                          &ldquo;{req.content}&rdquo;
+                          {req.target ? (
+                            <span className="text-emerald-400 ml-1.5 font-normal">
+                              (Target: {req.target})
+                            </span>
+                          ) : null}
+                        </p>
+                        <p className="text-[11px] text-zinc-500">
+                          Estimated Air: {req.estimated_air_time ? new Date(req.estimated_air_time).toUTCString() : 'Next Batch'}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {rejectingRequestId === req.id ? (
+                          <button
+                            onClick={() => setRejectingRequestId(null)}
+                            className="px-2.5 py-1 text-xs text-zinc-400 hover:text-white"
+                          >
+                            Cancel
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setRejectingRequestId(req.id);
+                              setCustomRejectReason('Religious hostility / mockery violates broadcast ethics');
+                            }}
+                            disabled={actionLoadingId === req.id}
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-colors flex items-center gap-1.5"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                            Decline & Notify
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Inline Rejection Reason Panel */}
+                    {rejectingRequestId === req.id && (
+                      <div className="mt-2 p-3 bg-zinc-950 border border-red-500/30 rounded-lg space-y-2.5">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-red-400">
+                          <AlertCircle className="w-4 h-4" />
+                          <span>Select reason to send to @{req.platform_user_name} on {req.platform}:</span>
+                        </div>
+
+                        {/* Preset quick buttons */}
+                        <div className="flex flex-wrap gap-1.5">
+                          {[
+                            'Religious hostility or mockery violates station standards',
+                            'Explicit 18+ adult content is not permitted',
+                            'Hate speech, slurs, or harassment violate guidelines',
+                            'Request is off-topic or inappropriate for broadcast',
+                          ].map((preset) => (
+                            <button
+                              key={preset}
+                              type="button"
+                              onClick={() => setCustomRejectReason(preset)}
+                              className={`text-[11px] px-2.5 py-1 rounded-md border transition-colors ${
+                                customRejectReason === preset
+                                  ? 'bg-red-500/20 border-red-500/40 text-red-200'
+                                  : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                              }`}
+                            >
+                              {preset}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={customRejectReason}
+                            onChange={(e) => setCustomRejectReason(e.target.value)}
+                            placeholder="Or enter custom reason to message listener..."
+                            className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-red-500"
+                          />
+                          <button
+                            onClick={() => handleRejectBatchRequest(req.id, customRejectReason)}
+                            disabled={actionLoadingId === req.id || !customRejectReason.trim()}
+                            className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-red-600 hover:bg-red-500 text-white transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                          >
+                            {actionLoadingId === req.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              'Confirm Removal'
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── TAB 4: CONTENT MODERATION REPORTS ─────────────────────────── */}
+        {activeTab === 'reports' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-zinc-200">
+                  Community Safety & Copyright Reports
+                </h2>
+                <p className="text-xs text-zinc-400">
+                  Reports submitted via Web UI, Discord, Telegram, and MCP.
+                </p>
+              </div>
+              <button
+                onClick={refreshData}
+                className="text-xs text-zinc-400 hover:text-emerald-400 transition-colors"
+              >
+                Refresh
+              </button>
+            </div>
+
+            {reports.length === 0 ? (
+              <div className="text-center py-16 text-zinc-500 border border-zinc-800/80 rounded-2xl bg-zinc-900/40">
+                <ShieldCheck className="w-10 h-10 mx-auto text-emerald-400/60 mb-2" />
+                <p className="text-sm font-medium text-zinc-300">All clear!</p>
+                <p className="text-xs text-zinc-500">No active content reports filed.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {reports.map((report) => (
+                  <div
+                    key={report.id}
+                    className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                  >
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                          {report.target_type}
+                        </span>
+                        <span className="text-xs font-bold text-white truncate max-w-xs">
+                          {report.target_id}
+                        </span>
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+                            report.status === 'pending'
+                              ? 'bg-red-500/10 text-red-400 border border-red-500/30'
+                              : 'bg-zinc-800 text-zinc-400'
+                          }`}
+                        >
+                          {report.status.toUpperCase()}
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-zinc-300">
+                        <strong className="text-zinc-200">Reason:</strong>{' '}
+                        {REASON_LABELS[report.reason] || report.reason}
+                      </p>
+
+                      {report.details && (
+                        <p className="text-xs text-zinc-400 italic">
+                          &ldquo;{report.details}&rdquo;
+                        </p>
+                      )}
+
+                      <div className="flex items-center gap-3 text-[10px] text-zinc-500 pt-1">
+                        <span>Platform: <strong className="text-zinc-400">{report.reporter_platform}</strong></span>
+                        {report.reporter_id && <span>By: {report.reporter_id}</span>}
+                        <span>{new Date(report.created_at).toLocaleTimeString()}</span>
+                      </div>
+                    </div>
+
+                    {report.status === 'pending' && (
+                      <div className="flex items-center gap-2 self-end sm:self-center flex-shrink-0">
+                        <button
+                          onClick={() => handleActionReport(report.id, 'dismissed')}
+                          disabled={actionLoadingId === report.id}
+                          className="px-2.5 py-1.5 rounded-lg border border-zinc-700 text-zinc-400 hover:text-white text-xs font-semibold hover:border-zinc-500 transition-colors"
+                        >
+                          Dismiss
+                        </button>
+                        <button
+                          onClick={() => handleActionReport(report.id, 'actioned')}
+                          disabled={actionLoadingId === report.id}
+                          className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-colors flex items-center gap-1.5"
+                        >
+                          {actionLoadingId === report.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <ShieldAlert className="w-3.5 h-3.5" />
+                          )}
+                          Take Action
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── TAB 5: DIRECT LOCAL MP3 UPLOAD ──────────────────────────────── */}
         {activeTab === 'upload' && (
           <div className="max-w-xl mx-auto space-y-6 bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
             <div>

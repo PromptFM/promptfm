@@ -1,30 +1,198 @@
 // src/lib/dj/rotation.ts
 // PromptFM 24/7 Smart Airplay Rotation Engine
-// Decides what plays next, manages the clock wheel, and injects
-// [News], [Weather], [Announcements], and [DJ Intros] between music tracks.
+// Decides what plays next, manages the clock wheel, rotates active AI DJs according to schedule,
+// and injects [News], [Weather], [Announcements], [DJ Banter], and [Sponsor Ads].
+// Broadcasts Now Playing updates, transcripts, and voting links to Discord & Telegram.
 
 import { createAdminClient } from '../supabase/server';
 import { createBroadcastDrop, fetchLiveHeadlines } from './engine';
+import { getActiveDJ, getAdsConfig, getActiveAdSpot, isContentAllowedForAirplay, DJProfile } from './roster';
+import { broadcastToCommunity } from '../chat/bridge';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 
 export interface AirplayItem {
   id: string;
-  type: 'music' | 'news' | 'weather' | 'announcement' | 'dj_banter';
+  type: 'music' | 'news' | 'weather' | 'announcement' | 'dj_banter' | 'ad';
   title: string;
   artist: string;
   audio_url: string;
   duration_hint_seconds?: number;
+  transcript?: string;
+  tool_used?: string;
+  upvotes_count?: number;
+  dj?: {
+    id: string;
+    name: string;
+    title: string;
+  };
 }
 
-// In-memory counter for track rotation per process
+// In-memory counters and state for track rotation per process
 let tracksSinceLastInterstitial = 0;
+let tracksSinceLastAd = 0;
+let lastAdTimestamp = 0;
+
+let currentAirplayItem: AirplayItem | null = null;
+let currentAirplayStartedAt: number = Date.now();
 
 export interface WeatherRegion {
   city: string;
   latitude: number;
   longitude: number;
   unit?: string;
+}
+
+/**
+ * Returns the currently active audio item, active DJ, and elapsed seconds.
+ */
+export function getNowPlaying(channelSlug = 'main'): {
+  item: AirplayItem;
+  startedAt: string;
+  elapsedSeconds: number;
+  activeDJ: DJProfile;
+} {
+  const activeDJ = getActiveDJ(channelSlug);
+  const item: AirplayItem = currentAirplayItem || {
+    id: 'demo-fallback',
+    type: 'music',
+    title: 'PromptFM Ambient AI Anthem',
+    artist: 'PromptFM Core',
+    audio_url: 'https://ice1.somafm.com/groovesalad-128-mp3',
+    tool_used: 'Other',
+    upvotes_count: 42,
+    dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
+  };
+
+  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - currentAirplayStartedAt) / 1000));
+
+  return {
+    item,
+    startedAt: new Date(currentAirplayStartedAt).toISOString(),
+    elapsedSeconds,
+    activeDJ,
+  };
+}
+
+/**
+ * Returns upcoming items queued or scheduled to play next.
+ */
+export async function getUpNext(channelSlug = 'main', limit = 5): Promise<AirplayItem[]> {
+  const supabase = createAdminClient();
+  const upNext: AirplayItem[] = [];
+
+  // 1. Check listener queued requests in channel_queue
+  const { data: channel } = await supabase.from('channels').select('id').eq('slug', channelSlug).single();
+  if (channel) {
+    const { data: queueItems } = await supabase
+      .from('channel_queue')
+      .select('id, track_id, prompt_used, requested_by, track:tracks(*)')
+      .eq('channel_id', channel.id)
+      .is('played_at', null)
+      .order('created_at', { ascending: true })
+      .limit(limit);
+
+    if (queueItems && queueItems.length > 0) {
+      for (const qi of queueItems) {
+        if (qi.track) {
+          const t = qi.track as unknown as { id: string; title: string; artist_name: string; audio_url: string; tool_used: string; upvotes_count: number };
+          upNext.push({
+            id: t.id,
+            type: 'music',
+            title: t.title,
+            artist: t.artist_name,
+            audio_url: t.audio_url,
+            tool_used: t.tool_used,
+            upvotes_count: t.upvotes_count,
+          });
+        }
+      }
+    }
+  }
+
+  // 2. Fill remainder from top-voted approved library tracks
+  const needed = limit - upNext.length;
+  if (needed > 0) {
+    const { data: topTracks } = await supabase
+      .from('tracks')
+      .select('id, title, artist_name, audio_url, tool_used, upvotes_count')
+      .eq('status', 'approved')
+      .order('upvotes_count', { ascending: false })
+      .limit(needed + 5);
+
+    if (topTracks) {
+      const existingIds = new Set(upNext.map((u) => u.id));
+      for (const t of topTracks) {
+        if (!existingIds.has(t.id) && upNext.length < limit) {
+          upNext.push({
+            id: t.id,
+            type: 'music',
+            title: t.title,
+            artist: t.artist_name,
+            audio_url: t.audio_url,
+            tool_used: t.tool_used,
+            upvotes_count: t.upvotes_count,
+          });
+        }
+      }
+    }
+  }
+
+  return upNext;
+}
+
+/**
+ * Dispatches Now Playing alerts, vote buttons, and live spoken transcripts to Discord & Telegram.
+ */
+async function notifyCommunityAirplay(item: AirplayItem, activeDJ: DJProfile) {
+  try {
+    if (item.type === 'music') {
+      await broadcastToCommunity({
+        title: `Now Playing on PromptFM`,
+        message: `🎵 **${item.title}** by **${item.artist}**\n\nVote directly below or request the next track!`,
+        category: 'now_playing',
+        trackId: item.id,
+        artist: item.artist,
+        toolUsed: item.tool_used,
+        upvotesCount: item.upvotes_count,
+        author: activeDJ.name,
+      });
+    } else if (item.type === 'news') {
+      await broadcastToCommunity({
+        title: `Hourly AI News Flash (Live On Air)`,
+        message: `📢 Tune in now for the latest generative AI breakthroughs.`,
+        category: 'news',
+        author: activeDJ.name,
+        transcript: item.transcript,
+      });
+    } else if (item.type === 'weather') {
+      await broadcastToCommunity({
+        title: `Live Regional Weather Report`,
+        message: `🌤️ ${item.title}`,
+        category: 'weather',
+        author: activeDJ.name,
+        transcript: item.transcript,
+      });
+    } else if (item.type === 'ad') {
+      await broadcastToCommunity({
+        title: `Sponsor Break: ${item.title}`,
+        message: `Promoting: ${item.artist}`,
+        category: 'ad',
+        author: activeDJ.name,
+        transcript: item.transcript,
+      });
+    } else if (item.type === 'announcement' || item.type === 'dj_banter') {
+      await broadcastToCommunity({
+        title: `Station Broadcast: ${activeDJ.name}`,
+        message: `🎙️ Live on air`,
+        category: 'announcement',
+        author: activeDJ.name,
+        transcript: item.transcript,
+      });
+    }
+  } catch (err) {
+    console.warn('Community airplay notification failed:', err);
+  }
 }
 
 /**
@@ -96,6 +264,7 @@ export async function fetchLiveWeatherSummary(targetCity?: string): Promise<{ te
 
 /**
  * The Master Engine: Returns the exact next audio item that should play on the radio.
+ * Dynamically resolves the active DJ based on the UTC clock wheel & channel.
  */
 export async function getNextAirplayItem(channelSlug = 'main'): Promise<AirplayItem> {
   const supabase = createAdminClient();
@@ -103,7 +272,18 @@ export async function getNextAirplayItem(channelSlug = 'main'): Promise<AirplayI
   const currentMinute = now.getUTCMinutes();
   const currentHour = now.getUTCHours();
 
-  // ── 1. Check for Top of the Hour (:00 to :03) News Broadcast ───────────────
+  // 1. Identify which AI DJ is currently on air for this hour & channel
+  const activeDJ: DJProfile = getActiveDJ(channelSlug, now);
+
+  const finishAndBroadcast = (item: AirplayItem): AirplayItem => {
+    currentAirplayItem = item;
+    currentAirplayStartedAt = Date.now();
+    // Fire and forget community notification
+    notifyCommunityAirplay(item, activeDJ).catch(() => {});
+    return item;
+  };
+
+  // ── 1. Top of the Hour (:00 to :03) News Broadcast ─────────────────────────
   if (currentMinute <= 3 && tracksSinceLastInterstitial > 0) {
     tracksSinceLastInterstitial = 0;
     try {
@@ -112,15 +292,18 @@ export async function getNextAirplayItem(channelSlug = 'main'): Promise<AirplayI
         type: 'news',
         headlines,
         topicOrText: `PromptFM Hourly News at ${currentHour}:00 UTC`,
+        dj: activeDJ,
       });
-      return {
+      return finishAndBroadcast({
         id: `news-${Date.now()}`,
         type: 'news',
         title: `PromptFM Hourly AI News Briefing`,
-        artist: 'DJ Neon (AI Host)',
+        artist: `${activeDJ.name} (${activeDJ.title})`,
         audio_url: drop.audioUrl,
         duration_hint_seconds: 45,
-      };
+        transcript: drop.script,
+        dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
+      });
     } catch (e) {
       console.warn('Failed to generate top-of-hour news, falling back to music:', e);
     }
@@ -144,77 +327,140 @@ export async function getNextAirplayItem(channelSlug = 'main'): Promise<AirplayI
       await supabase.from('channel_queue').update({ played_at: new Date().toISOString() }).eq('id', queueItem.id);
 
       tracksSinceLastInterstitial++;
-      const tr = queueItem.track as unknown as { id: string; title: string; artist_name: string; audio_url: string };
-      return {
+      tracksSinceLastAd++;
+      const tr = queueItem.track as unknown as { id: string; title: string; artist_name: string; audio_url: string; tool_used: string; upvotes_count: number };
+      return finishAndBroadcast({
         id: tr.id,
         type: 'music',
         title: tr.title,
         artist: tr.artist_name,
         audio_url: tr.audio_url,
-      };
+        tool_used: tr.tool_used,
+        upvotes_count: tr.upvotes_count,
+      });
     }
   }
 
-  // ── 3. Interstitial Check: Every 3 Tracks, Inject [Weather / DJ Drop / Banter] ──
+  // ── 3. Sponsor & Ad Slot Check (Every N Tracks or at :20 / :40 Clock Breaks) 
+  const adsConfig = getAdsConfig();
+  const timeSinceLastAdSec = (Date.now() - lastAdTimestamp) / 1000;
+  const isClockAdTime = adsConfig.clockMinutes.some((m) => Math.abs(currentMinute - m) <= 1);
+  const isTrackAdTime = tracksSinceLastAd >= adsConfig.frequencyTracks;
+
+  if (adsConfig.enabled && (isTrackAdTime || (isClockAdTime && timeSinceLastAdSec > 600))) {
+    const adSpot = getActiveAdSpot();
+    if (adSpot) {
+      tracksSinceLastAd = 0;
+      lastAdTimestamp = Date.now();
+
+      // Case A: Pre-recorded audio ad
+      if (adSpot.type === 'pre_recorded' && adSpot.audioUrl) {
+        return finishAndBroadcast({
+          id: `ad-${adSpot.id}-${Date.now()}`,
+          type: 'ad',
+          title: `[Sponsor] ${adSpot.title}`,
+          artist: adSpot.sponsor,
+          audio_url: adSpot.audioUrl,
+          duration_hint_seconds: adSpot.durationSeconds,
+          transcript: `[Pre-recorded audio commercial for ${adSpot.sponsor}]`,
+        });
+      }
+
+      // Case B: Dynamic AI-read sponsor spot in active DJ's voice & persona!
+      try {
+        const drop = await createBroadcastDrop({
+          type: 'ad',
+          topicOrText: adSpot.copy || `PromptFM sponsor message from ${adSpot.sponsor}: ${adSpot.title}`,
+          dj: activeDJ,
+        });
+
+        return finishAndBroadcast({
+          id: `ad-${adSpot.id}-${Date.now()}`,
+          type: 'ad',
+          title: `[Sponsor Break] ${adSpot.title}`,
+          artist: `${activeDJ.name} for ${adSpot.sponsor}`,
+          audio_url: drop.audioUrl,
+          duration_hint_seconds: adSpot.durationSeconds,
+          transcript: drop.script,
+          dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
+        });
+      } catch (e) {
+        console.warn('Failed to synthesize AI sponsor ad, falling through:', e);
+      }
+    }
+  }
+
+  // ── 4. Interstitial Check: Every 3 Tracks [Weather / DJ Banter / Trivia] ────
   if (tracksSinceLastInterstitial >= 3) {
     tracksSinceLastInterstitial = 0;
 
     const interstitialRoll = Math.random();
 
-    // 50% chance: Weather & Station Vibe
+    // 50% chance: Regional Weather Check
     if (interstitialRoll < 0.5) {
       try {
         const weatherInfo = await fetchLiveWeatherSummary();
         const drop = await createBroadcastDrop({
           type: 'custom_prompt',
-          topicOrText: `Give a 15-second radio station weather check for our listeners in ${weatherInfo.city}: "${weatherInfo.text}". Tell listeners to keep upvoting their favorite AI tracks on PromptFM.`,
+          topicOrText: `Give a 15-second radio station weather check for our listeners in ${weatherInfo.city}: "${weatherInfo.text}". Tell listeners to keep voting for their favorite tracks on PromptFM.`,
+          dj: activeDJ,
         });
-        return {
+        return finishAndBroadcast({
           id: `weather-${Date.now()}`,
           type: 'weather',
-          title: `DJ Neon Weather Check (${weatherInfo.city})`,
-          artist: 'DJ Neon',
+          title: `${activeDJ.name} Weather Check (${weatherInfo.city})`,
+          artist: activeDJ.name,
           audio_url: drop.audioUrl,
           duration_hint_seconds: 20,
-        };
+          transcript: drop.script,
+          dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
+        });
       } catch (err) {
         console.warn('Weather drop failed:', err);
       }
     } else {
-      // 50% chance: Fun DJ Music Trivia or Model Banter
+      // 50% chance: DJ Music Trivia / Persona Banter
       try {
         const drop = await createBroadcastDrop({
           type: 'custom_prompt',
-          topicOrText: 'Tell a witty 15-second thought about AI producers creating hits from bedroom laptops, and hype up the community chart.',
+          topicOrText: `Share a witty 15-second thought in your personality style about AI music, studio prompts, or the live community charts.`,
+          dj: activeDJ,
         });
-        return {
+        return finishAndBroadcast({
           id: `dj-${Date.now()}`,
           type: 'dj_banter',
-          title: 'DJ Neon Station Banter',
-          artist: 'DJ Neon',
+          title: `${activeDJ.name} Station Banter`,
+          artist: activeDJ.name,
           audio_url: drop.audioUrl,
           duration_hint_seconds: 20,
-        };
+          transcript: drop.script,
+          dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
+        });
       } catch (err) {
         console.warn('DJ drop failed:', err);
       }
     }
   }
 
-  // ── 4. Standard Music Rotation: Pick from Top Approved Community Tracks ────
+  // ── 5. Standard Music Rotation: Pick from Top Approved Community Tracks ────
   tracksSinceLastInterstitial++;
+  tracksSinceLastAd++;
 
   // Fetch top approved tracks ordered by upvotes
-  const { data: tracks } = await supabase
+  const { data: rawTracks } = await supabase
     .from('tracks')
-    .select('id, title, artist_name, audio_url, upvotes_count')
+    .select('id, title, artist_name, audio_url, tool_used, upvotes_count')
     .eq('status', 'approved')
     .order('upvotes_count', { ascending: false })
-    .limit(30);
+    .limit(40);
+
+  // Filter against parental controls and channel rating restrictions
+  const tracks = (rawTracks || []).filter((t) =>
+    isContentAllowedForAirplay((t as unknown as { is_explicit?: boolean }).is_explicit ?? false, channelSlug, now)
+  );
 
   if (tracks && tracks.length > 0) {
     // Weighted random selection: Higher upvoted songs are picked much more frequently
-    // top 5 tracks get 3x weight
     const weightedPool: typeof tracks = [];
     tracks.forEach((t, index) => {
       const weight = index < 5 ? 4 : index < 15 ? 2 : 1;
@@ -224,21 +470,25 @@ export async function getNextAirplayItem(channelSlug = 'main'): Promise<AirplayI
     });
 
     const chosen = weightedPool[Math.floor(Math.random() * weightedPool.length)] || tracks[0]!;
-    return {
+    return finishAndBroadcast({
       id: chosen.id,
       type: 'music',
       title: chosen.title,
       artist: chosen.artist_name,
       audio_url: chosen.audio_url,
-    };
+      tool_used: chosen.tool_used,
+      upvotes_count: chosen.upvotes_count,
+    });
   }
 
   // Fallback demo track if database has 0 tracks yet
-  return {
+  return finishAndBroadcast({
     id: 'demo-fallback',
     type: 'music',
     title: 'PromptFM Ambient AI Anthem',
     artist: 'PromptFM Core',
     audio_url: 'https://ice1.somafm.com/groovesalad-128-mp3',
-  };
+    tool_used: 'Other',
+    upvotes_count: 42,
+  });
 }

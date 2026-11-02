@@ -13,8 +13,10 @@
 
 import React, { useCallback, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Upload, CheckCircle2, AlertCircle, FileAudio, X } from 'lucide-react';
+import { Upload, CheckCircle2, AlertCircle, FileAudio, X, ShieldAlert, Shield, Scale, FileText } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { evaluateHeuristicGuardrails } from '@/lib/safety/guardrails';
+import AgreementsModal from '@/components/AgreementsModal';
 import type { AITool, UploadUrlRequest, UploadUrlResponse } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
@@ -40,6 +42,8 @@ interface FormState {
   artistName: string;
   toolUsed: AITool;
   legalConfirmed: boolean;
+  termsConfirmed: boolean;
+  isExplicit: boolean;
 }
 
 type SubmitStatus = 'idle' | 'uploading' | 'inserting' | 'success' | 'error';
@@ -55,7 +59,17 @@ export default function SubmitPage() {
     artistName: '',
     toolUsed: 'Suno',
     legalConfirmed: false,
+    termsConfirmed: false,
+    isExplicit: false,
   });
+
+  const [agreementsOpen, setAgreementsOpen] = useState(false);
+  const [agreementsTab, setAgreementsTab] = useState<'terms' | 'copyright' | 'ethics' | 'watershed' | 'dmca'>('terms');
+
+  const openAgreements = (tab: 'terms' | 'copyright' | 'ethics' | 'watershed' | 'dmca') => {
+    setAgreementsTab(tab);
+    setAgreementsOpen(true);
+  };
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -148,9 +162,21 @@ export default function SubmitPage() {
       return;
     }
 
-    // Guard: legal checkbox
-    if (!form.legalConfirmed) {
-      setErrorMessage('You must confirm the copyright certification before submitting.');
+    // Guard: legal & broadcast agreements
+    if (!form.legalConfirmed || !form.termsConfirmed) {
+      setErrorMessage(
+        'You must confirm both the commercial copyright certification and the PromptFM broadcast agreements before submitting.'
+      );
+      return;
+    }
+
+    // Guard: broadcast safety & ethics guardrails check
+    const safety = evaluateHeuristicGuardrails(`${form.title} ${form.artistName}`);
+    if (!safety.safe) {
+      setErrorMessage(
+        safety.refusalMessage ||
+          'Submission declined: Track metadata violates PromptFM broadcast standards.'
+      );
       return;
     }
 
@@ -188,6 +214,8 @@ export default function SubmitPage() {
         data: { user },
       } = await supabase.auth.getUser();
 
+      const isExplicitFinal = form.isExplicit || safety.is18Plus;
+
       const { error: insertError } = await supabase.from('tracks').insert({
         title: form.title.trim(),
         artist_name: form.artistName.trim(),
@@ -195,6 +223,7 @@ export default function SubmitPage() {
         audio_url: publicUrl,
         user_id: user?.id ?? null,
         status: 'pending',
+        is_explicit: isExplicitFinal,
       });
 
       if (insertError) throw new Error(insertError.message);
@@ -232,17 +261,68 @@ export default function SubmitPage() {
   // ─── Main form ───────────────────────────────────────────────────────────
   return (
     <main className="min-h-screen bg-zinc-950 text-white pb-28">
-      <div className="max-w-xl mx-auto px-4 py-12 space-y-8">
+      <div className="max-w-xl mx-auto px-3 sm:px-4 py-8 sm:py-12 space-y-6 sm:space-y-8">
         {/* Header */}
         <div className="space-y-1">
-          <h1 className="text-3xl font-bold tracking-tight">Submit a Track</h1>
-          <p className="text-zinc-400">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Submit a Track</h1>
+          <p className="text-xs sm:text-sm text-zinc-400">
             Share your AI-generated music with the PromptFM community.
           </p>
         </div>
 
+        {/* Creator Notice & Broadcast Agreement Card */}
+        <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-4 sm:p-5 space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <Shield className="w-4 h-4 text-emerald-400" />
+              <h2 className="text-xs sm:text-sm font-bold text-white tracking-tight">
+                Creator Notice & Airplay Agreement
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => openAgreements('terms')}
+              className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 underline underline-offset-2"
+            >
+              Read Full Rules →
+            </button>
+          </div>
+
+          <p className="text-xs text-zinc-400 leading-relaxed">
+            PromptFM broadcasts community music globally across the live stream, leaderboard,
+            Discord, and Telegram. All submissions are governed by commercial licensing and broadcast
+            ethics guardrails.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 text-xs">
+            <button
+              type="button"
+              onClick={() => openAgreements('copyright')}
+              className="flex items-start gap-2 p-2.5 rounded-xl bg-zinc-950/60 border border-zinc-800/80 text-left hover:border-zinc-700 transition-colors"
+            >
+              <Scale className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-zinc-200 block text-[11px]">Commercial AI License</span>
+                <span className="text-[10px] text-zinc-500">Valid Suno, Udio, or Stable Audio subscription rights.</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => openAgreements('ethics')}
+              className="flex items-start gap-2 p-2.5 rounded-xl bg-zinc-950/60 border border-zinc-800/80 text-left hover:border-zinc-700 transition-colors"
+            >
+              <ShieldAlert className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-zinc-200 block text-[11px]">Broadcast Ethics</span>
+                <span className="text-[10px] text-zinc-500">Zero tolerance for hate speech or religious mockery.</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
         {/* Form */}
-        <form onSubmit={handleSubmit} noValidate className="space-y-6">
+        <form onSubmit={handleSubmit} noValidate className="space-y-5 sm:space-y-6">
           {/* Title */}
           <div className="space-y-1.5">
             <label htmlFor="title" className="block text-sm font-medium text-zinc-300">
@@ -373,8 +453,23 @@ export default function SubmitPage() {
             <p className="text-sm text-zinc-400 animate-pulse">Saving your track record…</p>
           )}
 
-          {/* Legal checkbox */}
-          <div className="flex items-start gap-3 bg-zinc-900 border border-zinc-700 rounded-xl p-4">
+          {/* Parental Control / Explicit Checkbox */}
+          <div className="flex items-start gap-3 bg-zinc-900 border border-zinc-800 rounded-xl p-3.5 sm:p-4">
+            <input
+              id="isExplicit"
+              name="isExplicit"
+              type="checkbox"
+              checked={form.isExplicit}
+              onChange={handleFieldChange}
+              className="mt-0.5 w-4 h-4 accent-amber-400 cursor-pointer flex-shrink-0"
+            />
+            <label htmlFor="isExplicit" className="text-xs text-zinc-300 leading-relaxed cursor-pointer">
+              <span className="font-semibold text-amber-400">Parental Advisory (18+):</span> Check this box if your song contains explicit lyrics, profanity, or adult themes. Explicit tracks air exclusively during the late-night watershed (22:00–06:00 UTC) and are excluded from family-safe channels.
+            </label>
+          </div>
+
+          {/* Legal Certification Checkbox */}
+          <div className="flex items-start gap-3 bg-zinc-900 border border-zinc-700/80 rounded-xl p-3.5 sm:p-4">
             <input
               id="legalConfirmed"
               name="legalConfirmed"
@@ -384,9 +479,45 @@ export default function SubmitPage() {
               className="mt-0.5 w-4 h-4 accent-emerald-400 cursor-pointer flex-shrink-0"
             />
             <label htmlFor="legalConfirmed" className="text-xs text-zinc-300 leading-relaxed cursor-pointer">
-              I certify that this music was generated using AI tools, I hold a valid commercial
-              license or subscription for the tool used, and this track does not infringe on any
-              third-party copyrights, trademarks, or other intellectual property rights.
+              <span className="font-semibold text-white">Commercial AI Rights Certification:</span> I certify that this audio was generated with valid commercial rights (e.g. active Suno/Udio/Stable Audio subscription or open model), does not infringe on third-party copyrights, and does not clone living artists' likenesses without permission.{' '}
+              <button
+                type="button"
+                onClick={() => openAgreements('copyright')}
+                className="text-emerald-400 hover:text-emerald-300 underline"
+              >
+                Learn more
+              </button>
+            </label>
+          </div>
+
+          {/* Broadcast Terms & Ethics Checkbox */}
+          <div className="flex items-start gap-3 bg-zinc-900 border border-zinc-700/80 rounded-xl p-3.5 sm:p-4">
+            <input
+              id="termsConfirmed"
+              name="termsConfirmed"
+              type="checkbox"
+              checked={form.termsConfirmed}
+              onChange={handleFieldChange}
+              className="mt-0.5 w-4 h-4 accent-emerald-400 cursor-pointer flex-shrink-0"
+            />
+            <label htmlFor="termsConfirmed" className="text-xs text-zinc-300 leading-relaxed cursor-pointer">
+              <span className="font-semibold text-white">Broadcast Terms & Ethics Agreement:</span> I agree to the PromptFM{' '}
+              <button
+                type="button"
+                onClick={() => openAgreements('ethics')}
+                className="text-emerald-400 hover:text-emerald-300 underline"
+              >
+                Broadcast Ethics
+              </button>
+              , zero tolerance for hate speech or religious mockery, and{' '}
+              <button
+                type="button"
+                onClick={() => openAgreements('dmca')}
+                className="text-emerald-400 hover:text-emerald-300 underline"
+              >
+                DMCA takedown rules
+              </button>
+              . I grant PromptFM a non-exclusive license to stream and feature this track.
             </label>
           </div>
 
@@ -401,7 +532,14 @@ export default function SubmitPage() {
           {/* Submit button */}
           <button
             type="submit"
-            disabled={isSubmitting || !form.title || !form.artistName || !selectedFile || !form.legalConfirmed}
+            disabled={
+              isSubmitting ||
+              !form.title ||
+              !form.artistName ||
+              !selectedFile ||
+              !form.legalConfirmed ||
+              !form.termsConfirmed
+            }
             className={[
               'w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm',
               'bg-emerald-500 hover:bg-emerald-400 text-black transition-all duration-200',
@@ -414,6 +552,13 @@ export default function SubmitPage() {
           </button>
         </form>
       </div>
+
+      {/* Station Agreements Modal */}
+      <AgreementsModal
+        isOpen={agreementsOpen}
+        onClose={() => setAgreementsOpen(false)}
+        defaultTab={agreementsTab}
+      />
     </main>
   );
 }

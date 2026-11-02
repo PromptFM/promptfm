@@ -1,28 +1,211 @@
 // src/app/api/bot/webhook/route.ts
-// Discord & Telegram Incoming Command Webhook
+// Discord & Telegram Interactive Bot Webhook
 // Handles:
-//   /dedicate <to> <message>
-//   /song <prompt>
-//   /weather <city>
-//   /zodiac <sign>
-// Automatically allocates into a batch slot and replies with confirmed airplay time!
+//   - Commands: /nowplaying, /next, /dedicate, /song, /weather, /zodiac, /vote
+//   - Telegram Inline Keyboard Button clicks (👍 Vote Callback Queries)
+//   - Discord Component Interactions (Button clicks)
+// Automatically allocates requests into broadcast slots and records real-time votes!
 
 import { NextRequest, NextResponse } from 'next/server';
 import { scheduleListenerRequest, type RequestType } from '@/lib/dj/batches';
+import { getNowPlaying, getUpNext } from '@/lib/dj/rotation';
+import { castVoteForTrack } from '@/lib/chat/bridge';
+import { submitContentReport } from '@/lib/safety/reports';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://promptfm.vercel.app';
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
 
-    // ── 1. Telegram Bot Webhook Format ───────────────────────────────────────
+    // ── 1. Telegram Callback Query (Inline Button Click - e.g. 👍 Upvote) ─────
+    if (body.callback_query) {
+      const cq = body.callback_query;
+      const data = cq.data as string; // e.g. "vote:<trackId>"
+      const voterId = String(cq.from?.id || 'anon');
+      const voterName = cq.from?.username || cq.from?.first_name || 'Listener';
+
+      if (data && data.startsWith('vote:')) {
+        const trackId = data.replace('vote:', '');
+        const voteResult = await castVoteForTrack(trackId, voterId);
+
+        let answerText = `🎉 Upvoted "${voteResult.title}"! Current score: ${voteResult.newCount} upvotes.`;
+        if (!voteResult.success) {
+          answerText = '⚠️ Could not register vote for this track.';
+        }
+
+        // Answer callback query so Telegram dismisses the button loading spinner
+        if (botToken) {
+          await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              callback_query_id: cq.id,
+              text: answerText,
+              show_alert: false,
+            }),
+          });
+        }
+
+        return NextResponse.json({ success: true, voter: voterName, voteResult });
+      }
+
+      // Telegram Inline Button Report click
+      if (data && data.startsWith('report:')) {
+        const trackId = data.replace('report:', '');
+        const rep = await submitContentReport({
+          target_type: 'track',
+          target_id: trackId,
+          reason: 'other',
+          details: 'Reported via Telegram inline button on Now Playing broadcast',
+          reporter_platform: 'telegram',
+          reporter_id: `${voterName} (${voterId})`,
+        });
+
+        if (botToken) {
+          await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              callback_query_id: cq.id,
+              text: `🛡️ Report registered (Ticket: ${rep.reportId}). Station moderation alerted!`,
+              show_alert: true,
+            }),
+          });
+        }
+
+        return NextResponse.json({ success: true, voter: voterName, report: rep });
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
+    // ── 2. Telegram Bot Text Messages & Commands ─────────────────────────────
     if (body.message && body.message.text) {
       const text = body.message.text.trim();
       const from = body.message.from?.username || body.message.from?.first_name || 'Telegram Listener';
       const userId = String(body.message.from?.id || 'anon');
       const chatId = body.message.chat?.id;
 
+      // /nowplaying or /np command
+      if (text === '/nowplaying' || text === '/np' || text.startsWith('/nowplaying@') || text.startsWith('/np@')) {
+        const np = getNowPlaying();
+        const replyText = `📻 *Now Playing on PromptFM*\n\n🎵 *${np.item.title}*\n🎤 *${np.item.artist}* ${np.item.tool_used ? `(${np.item.tool_used})` : ''}\n🎙️ Host: *${np.activeDJ.name}*\n🔥 Upvotes: *${np.item.upvotes_count ?? 0}*\n\n[Tune in Live](${siteUrl})`;
+
+        if (botToken && chatId) {
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              reply_to_message_id: body.message.message_id,
+              text: replyText,
+              parse_mode: 'Markdown',
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    {
+                      text: `👍 Upvote (${np.item.upvotes_count ?? 0})`,
+                      callback_data: `vote:${np.item.id}`,
+                    },
+                    {
+                      text: '🌐 Vote on Web',
+                      url: `${siteUrl}/top?vote=${np.item.id}`,
+                    },
+                  ],
+                ],
+              },
+            }),
+          });
+        }
+
+        return NextResponse.json({ success: true, now_playing: np });
+      }
+
+      // /next or /queue or /whatisnext command
+      if (text === '/next' || text === '/queue' || text === '/whatisnext' || text.startsWith('/next@') || text.startsWith('/queue@')) {
+        const upcoming = await getUpNext('main', 5);
+        let replyText = `⏭️ *Up Next on PromptFM:*\n\n`;
+        if (upcoming.length === 0) {
+          replyText += `Continuous community stream loaded. Request a song with /song <prompt>!`;
+        } else {
+          upcoming.forEach((item, index) => {
+            replyText += `${index + 1}. *"${item.title}"* by ${item.artist} ${item.tool_used ? `(${item.tool_used})` : ''} — 🔥 ${item.upvotes_count ?? 0} votes\n`;
+          });
+        }
+        replyText += `\n[Tune in Live](${siteUrl})`;
+
+        if (botToken && chatId) {
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              reply_to_message_id: body.message.message_id,
+              text: replyText,
+              parse_mode: 'Markdown',
+            }),
+          });
+        }
+
+        return NextResponse.json({ success: true, upcoming });
+      }
+
+      // Direct /vote <trackId> command
+      if (text.startsWith('/vote')) {
+        const trackId = text.replace('/vote', '').trim();
+        if (trackId) {
+          const voteResult = await castVoteForTrack(trackId, userId);
+          if (botToken && chatId) {
+            await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                reply_to_message_id: body.message.message_id,
+                text: `🎉 You upvoted "${voteResult.title}"! Current count: ${voteResult.newCount} votes.`,
+              }),
+            });
+          }
+          return NextResponse.json({ success: true, voteResult });
+        }
+      }
+
+      // /report command: /report <trackId_or_keyword> <reason>
+      if (text.startsWith('/report')) {
+        const rawArg = text.replace('/report', '').trim();
+        const parts = rawArg.split(' ');
+        const targetId = parts[0] || 'current-track';
+        const reasonText = parts.slice(1).join(' ') || 'Reported for broadcast standards violation';
+
+        const rep = await submitContentReport({
+          target_type: 'track',
+          target_id: targetId,
+          reason: 'other',
+          details: reasonText,
+          reporter_platform: 'telegram',
+          reporter_id: `${from} (${userId})`,
+        });
+
+        if (botToken && chatId) {
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              reply_to_message_id: body.message.message_id,
+              text: `🛡️ *Content Report Registered*\n\n• Target: *${targetId}*\n• Details: _${reasonText}_\n• Ticket ID: \`${rep.reportId}\`\n\nPromptFM station moderators have been notified immediately. Thank you for protecting community safety.`,
+              parse_mode: 'Markdown',
+            }),
+          });
+        }
+
+        return NextResponse.json({ success: true, report: rep });
+      }
+
+      // Batch scheduled listener requests: /dedicate, /weather, /zodiac, /song
       let type: RequestType = 'song';
       let content = text;
       let target = '';
@@ -55,8 +238,6 @@ export async function POST(req: NextRequest) {
         target,
       });
 
-      // Send response back to Telegram if BOT token configured
-      const botToken = process.env.TELEGRAM_BOT_TOKEN;
       if (botToken && chatId) {
         await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: 'POST',
@@ -72,13 +253,141 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, slot });
     }
 
-    // ── 2. Discord Slash Command Interaction Format ──────────────────────────
+    // ── 3. Discord Interactions (Slash Commands & Button Clicks) ─────────────
+
+    // Type 3: Component Interaction (Discord Button Click)
+    if (body.type === 3 && body.data) {
+      const customId = body.data.custom_id as string;
+      const userId = body.member?.user?.id || body.user?.id || 'anon';
+      const user = body.member?.user?.username || body.user?.username || 'Discord Listener';
+
+      if (customId && customId.startsWith('vote:')) {
+        const trackId = customId.replace('vote:', '');
+        const voteResult = await castVoteForTrack(trackId, userId);
+
+        return NextResponse.json({
+          type: 4, // ChannelMessageWithSource (ephemeral response to voter)
+          data: {
+            content: `🎉 You upvoted **"${voteResult.title}"**! Current score: **${voteResult.newCount}** upvotes.`,
+            flags: 64, // Ephemeral (only visible to voter)
+          },
+        });
+      }
+
+      if (customId && customId.startsWith('report:')) {
+        const trackId = customId.replace('report:', '');
+        const rep = await submitContentReport({
+          target_type: 'track',
+          target_id: trackId,
+          reason: 'other',
+          details: 'Reported via Discord interactive button',
+          reporter_platform: 'discord',
+          reporter_id: `${user} (${userId})`,
+        });
+
+        return NextResponse.json({
+          type: 4,
+          data: {
+            content: `🛡️ **Content Report Filed (Ticket: \`${rep.reportId}\`)**\nYour report against item \`${trackId}\` has been logged and routed to station moderation. Thank you for protecting the community!`,
+            flags: 64,
+          },
+        });
+      }
+    }
+
+    // Type 2: Application Command (Discord Slash Commands)
     if (body.type === 2 && body.data) {
       const commandName = body.data.name;
       const user = body.member?.user?.username || body.user?.username || 'Discord Listener';
       const userId = body.member?.user?.id || body.user?.id || 'anon';
       const options = body.data.options || [];
 
+      // /nowplaying slash command
+      if (commandName === 'nowplaying' || commandName === 'np') {
+        const np = getNowPlaying();
+        return NextResponse.json({
+          type: 4,
+          data: {
+            content: `📻 **Now Playing on PromptFM**\n🎵 **${np.item.title}** by **${np.item.artist}**\n🎙️ Active Host: **${np.activeDJ.name}**\n🔥 Upvotes: **${np.item.upvotes_count ?? 0}**\n\nVote directly below:`,
+            components: [
+              {
+                type: 1,
+                components: [
+                  {
+                    type: 2,
+                    style: 5,
+                    label: '👍 Vote on Web',
+                    url: `${siteUrl}/top?vote=${np.item.id}`,
+                  },
+                  {
+                    type: 2,
+                    style: 5,
+                    label: '🚩 Report',
+                    url: `${siteUrl}/top?report=${np.item.id}`,
+                  },
+                  {
+                    type: 2,
+                    style: 5,
+                    label: '📻 Tune In Live',
+                    url: siteUrl,
+                  },
+                ],
+              },
+            ],
+          },
+        });
+      }
+
+      // /report slash command
+      if (commandName === 'report') {
+        const target = (options.find((o: { name: string }) => o.name === 'target')?.value as string) || 'current-broadcast';
+        const reason = (options.find((o: { name: string }) => o.name === 'reason')?.value as string) || 'Reported for broadcast ethics or copyright violation';
+        const rep = await submitContentReport({
+          target_type: 'track',
+          target_id: target,
+          reason: 'other',
+          details: reason,
+          reporter_platform: 'discord',
+          reporter_id: `${user} (${userId})`,
+        });
+
+        return NextResponse.json({
+          type: 4,
+          data: {
+            content: `🛡️ **Report Logged (Ticket: \`${rep.reportId}\`)**\n• Target: **${target}**\n• Reason: _${reason}_\nPromptFM station moderators have been alerted.`,
+            flags: 64,
+          },
+        });
+      }
+
+      // /next slash command
+      if (commandName === 'next' || commandName === 'queue') {
+        const upcoming = await getUpNext('main', 5);
+        let listText = `⏭️ **Up Next on PromptFM:**\n\n`;
+        upcoming.forEach((item, index) => {
+          listText += `${index + 1}. **"${item.title}"** by ${item.artist} — 🔥 ${item.upvotes_count ?? 0} votes\n`;
+        });
+        return NextResponse.json({
+          type: 4,
+          data: { content: listText },
+        });
+      }
+
+      // /vote slash command
+      if (commandName === 'vote') {
+        const trackId = options.find((o: { name: string }) => o.name === 'track_id')?.value as string;
+        if (trackId) {
+          const res = await castVoteForTrack(trackId, userId);
+          return NextResponse.json({
+            type: 4,
+            data: {
+              content: `🎉 Recorded your upvote for **"${res.title}"**! Current count: **${res.newCount}** upvotes.`,
+            },
+          });
+        }
+      }
+
+      // Scheduling commands: dedicate, weather, zodiac, song
       let type: RequestType = 'song';
       let content = '';
       let target = '';
@@ -110,7 +419,6 @@ export async function POST(req: NextRequest) {
         target,
       });
 
-      // Immediate Discord response (Type 4: ChannelMessageWithSource)
       return NextResponse.json({
         type: 4,
         data: {
@@ -119,7 +427,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ── 3. Direct JSON Request (from Web UI or Admin) ────────────────────────
+    // ── 4. Direct JSON API Request ───────────────────────────────────────────
     if (body.type && body.content) {
       const slot = await scheduleListenerRequest({
         platform: body.platform || 'web',
@@ -140,4 +448,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-

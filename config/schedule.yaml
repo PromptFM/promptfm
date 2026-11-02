@@ -1,5 +1,5 @@
 # PromptFM 24/7 Declarative Station Schedule & AI Prompt Config
-# Modify this YAML file to change programming, AI DJ behavior, news sources, weather regions, and prompts.
+# Modify this YAML file to change programming, AI DJ behavior, sponsor ads, news sources, and weather regions.
 
 station:
   name: "PromptFM"
@@ -7,8 +7,135 @@ station:
   stream_mount: "/stream.mp3"
   default_volume: 0.8
 
+# ─────────────────────────────────────────────────────────────────────────────
+# AI DJ Roster: Personas, Google Cloud TTS Voices, and Specialties
+# ─────────────────────────────────────────────────────────────────────────────
+djs:
+  - id: "dj_neon"
+    name: "DJ Neon"
+    title: "The Electric Morning Host & Synth Enthusiast"
+    bio: "High-energy, tech-optimist host who lives on the cutting edge of AI models and electronic synth beats."
+    style_prompt: "High morning energy, witty, fast-paced, optimistic radio charisma with subtle sci-fi flair."
+    voice:
+      name: "en-US-Journey-F"
+      language_code: "en-US"
+      ssml_gender: "FEMALE"
+      speaking_rate: 1.05
+      pitch: 0.0
+    shifts:
+      - "06:00 - 10:00"
+      - "15:00 - 20:00"
+    default_channels: ["main"]
+
+  - id: "dj_luna"
+    name: "DJ Luna"
+    title: "The Ambient Nomad & Chillwave Whisperer"
+    bio: "Soothing, reflective minimalist voice who guides listeners through deep focus sessions, generative soundscapes, and lofi beats."
+    style_prompt: "Calm, warm, soothing, poetic, relaxed radio whisper. Never shouts; speaks with intimate, meditative warmth."
+    voice:
+      name: "en-US-Journey-D"
+      language_code: "en-US"
+      ssml_gender: "MALE"
+      speaking_rate: 0.95
+      pitch: -1.0
+    shifts:
+      - "10:00 - 15:00"
+    default_channels: ["chillout"]
+
+  - id: "dj_cipher"
+    name: "DJ Cipher"
+    title: "The Cyberpunk Hacker & Night Shift Renegade"
+    bio: "Gritty, mysterious late-night pirate radio host broadcasting from an underground terminal with dry humor and philosophical punchlines."
+    style_prompt: "Gritty, late-night pirate radio host, deadpan dry wit, deep knowledge of code, neural weights, and dark synthwave."
+    voice:
+      name: "en-US-Neural2-J"
+      language_code: "en-US"
+      ssml_gender: "MALE"
+      speaking_rate: 1.0
+      pitch: -2.5
+    shifts:
+      - "20:00 - 06:00"
+    default_channels: ["cyberpunk"]
+
+  - id: "dj_pixel"
+    name: "DJ Pixel"
+    title: "The 8-Bit Chiptune & Family Jam Host"
+    bio: "Bubbly, energetic, game-loving host playing upbeat tunes, playful chiptunes, and family-friendly AI melodies."
+    style_prompt: "Playful, joyful, super enthusiastic, arcade gaming references, friendly and upbeat."
+    voice:
+      name: "en-US-Neural2-F"
+      language_code: "en-US"
+      ssml_gender: "FEMALE"
+      speaking_rate: 1.15
+      pitch: 2.5
+    shifts: []
+    default_channels: ["kids"]
+
+  - id: "dj_vance"
+    name: "DJ Vance"
+    title: "The Velvet Baritone & Chart Countdown Master"
+    bio: "Classic golden-era FM broadcaster with a rich, resonant velvet voice who presents the weekly Top 20 countdown and community milestones."
+    style_prompt: "Classic FM velvet baritone, smooth, authoritative, nostalgic, legendary radio host delivery."
+    voice:
+      name: "en-US-Neural2-D"
+      language_code: "en-US"
+      ssml_gender: "MALE"
+      speaking_rate: 0.98
+      pitch: -3.5
+    shifts: []
+    default_channels: []
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Sponsor & Audio Ad Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+ads:
+  enabled: true
+  frequency_tracks: 5 # Inject a sponsor/ad slot every N music tracks
+  clock_minutes: [20, 40] # Minute marks past the hour for commercial breaks
+  min_interval_minutes: 12 # Minimum cooldown between sponsor spots
+  spots:
+    - id: "suno_promo"
+      sponsor: "Suno AI"
+      title: "Create Songs with Suno v3"
+      type: "ai_read" # Delivered live by the active DJ in their unique persona!
+      copy: "PromptFM is proudly powered by generative sound. Turn your wildest lyrics and prompts into full studio tracks in seconds with Suno. Check out suno.com and hear what the future sounds like."
+      duration_seconds: 15
+      weight: 3
+      active: true
+
+    - id: "patreon_community"
+      sponsor: "PromptFM Community Club"
+      title: "Support PromptFM Radio"
+      type: "ai_read"
+      copy: "Love what you're hearing? PromptFM is 100 percent community driven. Support our cloud streaming servers and unlock custom DJ shoutouts at promptfm.vercel.app."
+      duration_seconds: 15
+      weight: 4
+      active: true
+
+    - id: "elevenlabs_creator"
+      sponsor: "ElevenLabs"
+      title: "Voice Cloning & Audio Generation"
+      type: "ai_read"
+      copy: "This hour of PromptFM is brought to you by next-generation voice AI. Turn your words into lifelike audio and custom voices in seconds with ElevenLabs."
+      duration_seconds: 15
+      weight: 2
+      active: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Parental Control (18+) & Broadcast Standards
+# ─────────────────────────────────────────────────────────────────────────────
+parental_control:
+  enabled: true
+  safe_channels: ["kids", "chillout"]   # Channels that strictly prohibit 18+ content
+  allow_explicit_late_night: true       # 18+ explicit tracks only air during late-night watershed
+  late_night_start_utc: 22              # 22:00 UTC (10 PM)
+  late_night_end_utc: 6                 # 06:00 UTC (6 AM)
+  block_severe_profanity: true          # Refuses slurs and hate speech permanently
+  refusal_contact: "moderation@promptfm.radio"
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Weather Configuration & Global Listener Cities
-# The DJ rotates through these regions when giving live weather checks
+# ─────────────────────────────────────────────────────────────────────────────
 weather:
   frequency_tracks: 4 # Inject weather check every N tracks
   regions:
@@ -38,12 +165,14 @@ weather:
       longitude: 26.1025
       unit: "celsius"
 
+# ─────────────────────────────────────────────────────────────────────────────
 # Automated Recurring Broadcasts (Cron Jobs)
+# ─────────────────────────────────────────────────────────────────────────────
 crons:
   - id: "morning_news"
     cron: "0 7 * * *" # Every day at 07:00 UTC (7 AM Morning Briefing)
     title: "Morning AI News Flash"
-    host: "DJ Neon"
+    dj_id: "dj_neon"
     type: "news"
     news_sources:
       - "https://hnrss.org/frontpage?q=AI+OR+music+OR+model"
@@ -53,14 +182,17 @@ crons:
   - id: "evening_recap"
     cron: "0 18 * * *" # Every day at 18:00 UTC (6 PM Chart Countdown)
     title: "The Evening Chart Countdown"
-    host: "DJ Neon"
+    dj_id: "dj_vance"
     type: "chart_recap"
     prompt_topic: "Daily top 5 community upvoted tracks and artist shoutouts."
 
+# ─────────────────────────────────────────────────────────────────────────────
 # Daily Thematic Program Blocks (UTC)
+# ─────────────────────────────────────────────────────────────────────────────
 programming:
   - time: "06:00 - 10:00"
     show: "Morning Beats & AI Briefings"
+    dj_id: "dj_neon"
     genre: "Upbeat Electro, Lofi Coffee, Pop Synth"
     ai_tools: ["Suno", "Udio"]
     dj_prompt_style: "High morning energy, optimistic, coffee-vibes"
@@ -68,6 +200,7 @@ programming:
 
   - time: "10:00 - 15:00"
     show: "Deep Focus & Generative Ambient"
+    dj_id: "dj_luna"
     genre: "Ambient, Chillwave, Neural Soundscapes"
     ai_tools: ["Stable Audio", "Other"]
     dj_prompt_style: "Calm, soothing, minimalist radio whispers"
@@ -75,6 +208,7 @@ programming:
 
   - time: "15:00 - 20:00"
     show: "Cyberpunk Rush & Community Showcase"
+    dj_id: "dj_neon"
     genre: "Dark Synthwave, Cyberpunk, Darksynth"
     ai_tools: ["Suno", "Udio"]
     dj_prompt_style: "Gritty, futuristic, high-octane 80s synth DJ"
@@ -82,24 +216,30 @@ programming:
 
   - time: "20:00 - 06:00"
     show: "Night Shift: Experimental & Free Requests"
+    dj_id: "dj_cipher"
     genre: "All Community Tracks & Listener Queued Prompts"
     ai_tools: ["All"]
-    dj_prompt_style: "Late night radio host, candid, interactive"
+    dj_prompt_style: "Late night pirate radio host, candid, interactive"
     dj_banter_frequency_minutes: 30
 
+# ─────────────────────────────────────────────────────────────────────────────
 # Community Channels
+# ─────────────────────────────────────────────────────────────────────────────
 channels:
   - slug: "main"
     name: "PromptFM Main Stage"
     description: "The primary 24/7 community broadcast."
+    default_dj: "dj_neon"
     is_private: false
 
   - slug: "cyberpunk"
     name: "Neon Alley (Cyberpunk)"
     description: "Dark, fast, 80s-inspired cyber synthetic beats."
+    default_dj: "dj_cipher"
     is_private: false
 
   - slug: "kids"
     name: "Tiny Prompt (Kids & Family)"
     description: "Playful, gentle, and fun AI melodies for all ages."
+    default_dj: "dj_pixel"
     is_private: false

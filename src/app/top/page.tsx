@@ -16,8 +16,11 @@ import {
   Trophy,
   Music2,
   Loader2,
+  Shield,
+  Flag,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import ReportModal from '@/components/ReportModal';
 import type { RankedTrack, AITool } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
@@ -103,6 +106,7 @@ interface TrackRowProps {
   track: RankedTrack;
   rank: number;
   onVote: (trackId: string) => void;
+  onReport: (track: RankedTrack) => void;
   isVoting: boolean;
   playingId: string | null;
   loadingId: string | null;
@@ -113,6 +117,7 @@ function TrackRow({
   track,
   rank,
   onVote,
+  onReport,
   isVoting,
   playingId,
   loadingId,
@@ -126,19 +131,19 @@ function TrackRow({
   return (
     <div
       className={[
-        'flex items-center gap-3 sm:gap-4 px-4 py-3 rounded-xl border transition-colors',
+        'flex items-center gap-2 sm:gap-3.5 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border transition-colors',
         'bg-zinc-900 border-zinc-800 hover:border-zinc-700',
       ].join(' ')}
     >
       {/* Rank badge */}
       <div
         className={[
-          'flex-shrink-0 w-9 h-9 rounded-lg border flex items-center justify-center',
-          'text-sm font-bold tabular-nums',
+          'flex-shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-lg border flex items-center justify-center',
+          'text-xs sm:text-sm font-bold tabular-nums',
           rankStyle,
         ].join(' ')}
       >
-        {rank <= 3 ? <Trophy className="w-4 h-4" /> : rank}
+        {rank <= 3 ? <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : rank}
       </div>
 
       {/* Preview play button */}
@@ -146,7 +151,7 @@ function TrackRow({
         onClick={() => onPlay(track.id, track.audio_url)}
         aria-label={isPlaying ? `Pause preview of ${track.title}` : `Play 30s preview of ${track.title}`}
         className={[
-          'flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center',
+          'flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center',
           'transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400',
           isPlaying
             ? 'bg-emerald-500 text-black'
@@ -164,12 +169,19 @@ function TrackRow({
 
       {/* Track info */}
       <div className="flex-1 min-w-0">
-        <p className="font-semibold text-white text-sm truncate">{track.title}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="font-semibold text-white text-xs sm:text-sm truncate">{track.title}</p>
+          {track.is_explicit && (
+            <span className="flex-shrink-0 px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+              18+
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-2 mt-0.5">
-          <span className="text-xs text-zinc-400 truncate">{track.artist_name}</span>
+          <span className="text-[11px] sm:text-xs text-zinc-400 truncate">{track.artist_name}</span>
           <span
             className={[
-              'flex-shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full border',
+              'flex-shrink-0 text-[9px] sm:text-[10px] font-medium px-1.5 py-0.5 rounded-full border',
               toolStyle,
             ].join(' ')}
           >
@@ -177,6 +189,16 @@ function TrackRow({
           </span>
         </div>
       </div>
+
+      {/* Report Flag Button */}
+      <button
+        onClick={() => onReport(track)}
+        aria-label={`Report ${track.title}`}
+        title="Report track for copyright or ethics violation"
+        className="flex-shrink-0 p-1.5 rounded-lg text-zinc-600 hover:text-amber-400 hover:bg-zinc-800/80 transition-colors"
+      >
+        <Flag className="w-3.5 h-3.5" />
+      </button>
 
       {/* Vote button */}
       <button
@@ -188,7 +210,7 @@ function TrackRow({
             : `Vote for ${track.title}`
         }
         className={[
-          'flex-shrink-0 flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl border',
+          'flex-shrink-0 flex flex-col items-center gap-0.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl border',
           'text-xs font-bold tabular-nums transition-all focus-visible:outline',
           'focus-visible:outline-2 focus-visible:outline-emerald-400',
           isVoting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
@@ -199,7 +221,7 @@ function TrackRow({
       >
         <ChevronUp
           className={[
-            'w-4 h-4 transition-transform',
+            'w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform',
             track.user_has_voted ? 'text-emerald-400' : '',
           ].join(' ')}
         />
@@ -215,6 +237,8 @@ export default function TopPage() {
   const [tracks, setTracks] = useState<RankedTrack[]>([]);
   const [loading, setLoading] = useState(true);
   const [votingId, setVotingId] = useState<string | null>(null);
+  const [hideExplicit, setHideExplicit] = useState(false);
+  const [reportingTrack, setReportingTrack] = useState<RankedTrack | null>(null);
   const { playingId, loadingId, play } = usePreviewPlayer();
 
   const supabase = createClient();
@@ -339,14 +363,29 @@ export default function TopPage() {
     <main className="min-h-screen bg-zinc-950 text-white pb-28">
       <div className="max-w-2xl mx-auto px-4 py-12 space-y-6">
         {/* Header */}
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Music2 className="w-6 h-6 text-emerald-400" />
-            <h1 className="text-3xl font-bold tracking-tight">Weekly Top 20</h1>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Music2 className="w-6 h-6 text-emerald-400" />
+              <h1 className="text-3xl font-bold tracking-tight">Weekly Top 20</h1>
+            </div>
+            <p className="text-zinc-400 text-sm">
+              Community-voted AI music chart — updated in real time.
+            </p>
           </div>
-          <p className="text-zinc-400 text-sm">
-            Community-voted AI music chart — updated in real time.
-          </p>
+
+          <button
+            type="button"
+            onClick={() => setHideExplicit((prev) => !prev)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all self-start sm:self-auto ${
+              hideExplicit
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white'
+            }`}
+          >
+            <Shield className="w-3.5 h-3.5" />
+            {hideExplicit ? 'Family-Safe: ON' : 'Family-Safe: OFF'}
+          </button>
         </div>
 
         {/* Chart */}
@@ -372,21 +411,37 @@ export default function TopPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {tracks.map((track, index) => (
-              <TrackRow
-                key={track.id}
-                track={track}
-                rank={index + 1}
-                onVote={handleVote}
-                isVoting={votingId === track.id}
-                playingId={playingId}
-                loadingId={loadingId}
-                onPlay={play}
-              />
-            ))}
+            {tracks
+              .filter((t) => (!hideExplicit ? true : !t.is_explicit))
+              .map((track, index) => (
+                <TrackRow
+                  key={track.id}
+                  track={track}
+                  rank={index + 1}
+                  onVote={handleVote}
+                  onReport={setReportingTrack}
+                  isVoting={votingId === track.id}
+                  playingId={playingId}
+                  loadingId={loadingId}
+                  onPlay={play}
+                />
+              ))}
           </div>
         )}
       </div>
+
+      {/* Content Report Dialog */}
+      <ReportModal
+        isOpen={!!reportingTrack}
+        onClose={() => setReportingTrack(null)}
+        targetType="track"
+        targetId={reportingTrack?.id ?? ''}
+        targetTitle={
+          reportingTrack
+            ? `"${reportingTrack.title}" by ${reportingTrack.artist_name}`
+            : ''
+        }
+      />
     </main>
   );
 }
