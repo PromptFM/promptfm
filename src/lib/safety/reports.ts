@@ -32,6 +32,9 @@ function saveFallbackReports(reports: ContentReport[]) {
   }
 }
 
+// In-memory reports cache (instant access) + disk persistence
+const memoryReports: ContentReport[] = loadFallbackReports();
+
 export interface SubmitReportInput {
   target_type: ReportTargetType;
   target_id: string;
@@ -48,6 +51,7 @@ export async function submitContentReport(input: SubmitReportInput): Promise<{
   success: boolean;
   reportId: string;
   message: string;
+  report: ContentReport;
 }> {
   const reportId = `rep_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const now = new Date().toISOString();
@@ -64,9 +68,8 @@ export async function submitContentReport(input: SubmitReportInput): Promise<{
     created_at: now,
   };
 
-  const currentReports = loadFallbackReports();
-  currentReports.unshift(newReport);
-  saveFallbackReports(currentReports);
+  memoryReports.unshift(newReport);
+  saveFallbackReports(memoryReports);
 
   // Attempt DB write
   try {
@@ -113,6 +116,7 @@ export async function submitContentReport(input: SubmitReportInput): Promise<{
     success: true,
     reportId,
     message: 'Report received and routed to the station safety desk.',
+    report: newReport,
   };
 }
 
@@ -132,7 +136,11 @@ export async function getRecentReports(limit = 20): Promise<ContentReport[]> {
       return data as ContentReport[];
     }
   } catch {
-    // Return persistent file fallback
+    // Return persistent file or memory fallback
+  }
+
+  if (memoryReports.length > 0) {
+    return memoryReports.slice(0, limit);
   }
 
   return loadFallbackReports().slice(0, limit);

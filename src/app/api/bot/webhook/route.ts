@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        return NextResponse.json({ success: true, voter: voterName, report: rep });
+        return NextResponse.json({ success: true, voter: voterName, report: rep.report });
       }
 
       return NextResponse.json({ success: true });
@@ -202,7 +202,7 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        return NextResponse.json({ success: true, report: rep });
+        return NextResponse.json({ success: true, report: rep.report });
       }
 
       // Batch scheduled listener requests: /dedicate, /weather, /zodiac, /song

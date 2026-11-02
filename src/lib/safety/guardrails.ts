@@ -27,8 +27,8 @@ const RELIGIOUS_HOSTILITY_PATTERNS = [
 ];
 
 const HATE_SPEECH_PATTERNS = [
-  /\b(nigg|kike|chink|faggot|spic|wetback|gook|towelhead)\b/i,
-  /\b(white\s*supremac|neo-nazi|hitler\s*was\s*right|gas\s*the\s*jews)\b/i,
+  /\b(nigg\w*|kike\w*|chink\w*|faggot\w*|spic\w*|wetback\w*|gook\w*|towelhead\w*)\b/i,
+  /\b(white\s*supremac\w*|neo-nazi|hitler\s*was\s*right|gas\s*the\s*jews)\b/i,
   /\b(kill\s*yourself|kys|commit\s*suicide|hang\s*yourself)\b/i,
 ];
 
