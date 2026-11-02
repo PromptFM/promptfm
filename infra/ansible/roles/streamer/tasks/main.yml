@@ -42,6 +42,14 @@
     group: "{{ ansible_user }}"
     mode: '0644'
 
+- name: Deploy Caddy reverse proxy configuration
+  template:
+    src: Caddyfile.j2
+    dest: "{{ app_dir }}/Caddyfile"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+
 - name: Deploy Docker Compose configuration
   template:
     src: docker-compose.yml.j2

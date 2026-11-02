@@ -50,6 +50,21 @@ resource "google_compute_firewall" "allow_icecast" {
   target_tags   = ["http-server", "promptfm-streamer"]
 }
 
+# 2b. Firewall Rule: Allow HTTP & HTTPS for Caddy Automatic SSL (Ports 80 & 443)
+resource "google_compute_firewall" "allow_web" {
+  name        = "allow-http-https"
+  network     = "default"
+  description = "Allows incoming HTTP/HTTPS traffic for Caddy SSL proxy on ports 80 and 443"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["80", "443"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = ["http-server", "https-server", "promptfm-streamer"]
+}
+
 # 3. Always-Free Compute Engine VM (e2-micro, 30GB pd-standard disk)
 resource "google_compute_instance" "streamer" {
   name         = var.instance_name

@@ -27,12 +27,22 @@ services:
       - ./fallback.mp3:/etc/liquidsoap/fallback.mp3:ro
     command: ["liquidsoap", "/etc/liquidsoap/radio.liq"]
 
-  # 3. Cloudflare Tunnel (Bypasses GCP Egress Fees)
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: promptfm-tunnel
+  # 3. Caddy Automatic HTTPS Reverse Proxy (Let's Encrypt SSL on 443)
+  caddy:
+    image: caddy:2-alpine
+    container_name: promptfm-caddy
     restart: unless-stopped
-    environment:
-      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
-    command: tunnel --no-autoupdate run
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - icecast
+
+volumes:
+  caddy_data:
+  caddy_config:
 
