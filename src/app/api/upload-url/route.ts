@@ -7,9 +7,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomUUID } from 'crypto';
-import { r2Client, R2_BUCKET_NAME, getPublicUrl } from '@/lib/r2';
+import { getR2Client, getBucketName, getPublicUrl } from '@/lib/r2';
 import { createClient } from '@/lib/supabase/server';
 import type { UploadUrlRequest, UploadUrlResponse } from '@/types/database';
+
+export const dynamic = 'force-dynamic';
 
 /** Audio MIME types accepted for upload. */
 const ALLOWED_CONTENT_TYPES = new Set([
@@ -90,7 +92,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   let presignedUrl: string;
   try {
     const command = new PutObjectCommand({
-      Bucket: R2_BUCKET_NAME,
+      Bucket: getBucketName(),
       Key: key,
       ContentType: normalizedContentType,
       // Enforce max upload size (12 MB) server-side via content-length-range condition.
@@ -98,7 +100,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // include the Content-Length header equal to the file size.
     });
 
-    presignedUrl = await getSignedUrl(r2Client, command, {
+    presignedUrl = await getSignedUrl(getR2Client(), command, {
       expiresIn: URL_EXPIRES_IN,
     });
   } catch (err) {
