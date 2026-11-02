@@ -7,10 +7,11 @@ This document tracks upcoming features, architectural milestones, and infrastruc
 ## 🎯 Active Milestones & Backlog
 
 ### 1. 24/7 Continuous Audio Stream Server (GCP Free Tier)
-- [x] **GCP Always Free `e2-micro` VM Setup**: Provision a free-tier Compute Engine instance (`us-central1`, 1 GB RAM, 30 GB PD) running Docker.
-- [x] **Icecast 2 / Liquidsoap Continuous Broadcaster**: Configure Liquidsoap script that queries PromptFM's clock wheel, fetches R2 MP3s & Gemini DJ voice drops, and outputs a continuous 128 kbps MP3 stream.
-- [x] **Terraform & Ansible Infrastructure Code**: Complete IaC suite with GCS free remote state and 1-click Makefile state machine.
-- [ ] **Zero-Egress Proxy via Cloudflare Tunnel (`cloudflared`)**: Connect the Icecast mount point (`/stream.mp3`) to Cloudflare CDN to avoid GCP egress charges and provide HTTPS streaming.
+- [x] **GCP Always Free `e2-micro` VM Setup**: Provisioned a free-tier Compute Engine instance (`us-central1-a`, 1 GB RAM, 30 GB PD) running Docker.
+- [x] **Icecast 2 / Liquidsoap Continuous Broadcaster**: Configured Liquidsoap dynamic track fetcher that queries PromptFM's Next.js API, decodes finite MP3s, crossfades, and streams continuous 128 kbps MP3 to Icecast.
+- [x] **Dynamic Stream Feeder Endpoint (`/api/radio/next?format=uri`)**: Implemented raw URI output verified via Vitest integration tests (100% pass rate).
+- [x] **Terraform & Ansible Infrastructure Code**: Complete IaC suite with GCS Always Free remote state backend and 1-click Makefile state machine.
+- [ ] **SSL/HTTPS Termination for Audio Stream**: Expose stream over HTTPS (e.g. via Hostinger domain `stream.promptfm.live` or Cloudflare Tunnel) to avoid browser mixed-content blocks and GCP egress bandwidth fees.
 - [ ] **AudioPlayer Live Stream Sync**: Connect web frontend [`AudioPlayer.tsx`](src/components/AudioPlayer.tsx) to the live continuous mount with seamless fallback.
 
 ---
