@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://promptfm.vercel.app';
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://promptfm.live';
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
 
     // ── 1. Telegram Callback Query (Inline Button Click - e.g. 👍 Upvote) ─────
@@ -92,7 +92,9 @@ export async function POST(req: NextRequest) {
       // /nowplaying or /np command
       if (text === '/nowplaying' || text === '/np' || text.startsWith('/nowplaying@') || text.startsWith('/np@')) {
         const np = await getNowPlaying();
-        const replyText = `📻 *Now Playing on PromptFM*\n\n🎵 *${np.item.title}*\n🎤 *${np.item.artist}* ${np.item.tool_used ? `(${np.item.tool_used})` : ''}\n🎙️ Host: *${np.activeDJ.name}*\n🔥 Upvotes: *${np.item.upvotes_count ?? 0}*\n\n[Tune in Live](${siteUrl})`;
+        const rankStr = np.rank ? `\n🏆 Chart Rank: *#${np.rank}*` : '';
+        const trackIdStr = np.item.id ? `\n🆔 Track ID: \`${np.item.id}\`` : '';
+        const replyText = `📻 *Now Playing on PromptFM*\n\n🎵 *${np.item.title}*\n🎤 *${np.item.artist}* ${np.item.tool_used ? `(${np.item.tool_used})` : ''}${trackIdStr}${rankStr}\n🎙️ Host: *${np.activeDJ.name}*\n🔥 Upvotes: *${np.item.upvotes_count ?? 0}*\n\n[Tune in Live](${siteUrl})`;
 
         if (botToken && chatId) {
           await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -305,10 +307,12 @@ export async function POST(req: NextRequest) {
       // /nowplaying slash command
       if (commandName === 'nowplaying' || commandName === 'np') {
         const np = await getNowPlaying();
+        const rankStr = np.rank ? `\n🏆 Chart Rank: **#${np.rank}**` : '';
+        const trackIdStr = np.item.id ? `\n🆔 Track ID: \`${np.item.id}\`` : '';
         return NextResponse.json({
           type: 4,
           data: {
-            content: `📻 **Now Playing on PromptFM**\n🎵 **${np.item.title}** by **${np.item.artist}**\n🎙️ Active Host: **${np.activeDJ.name}**\n🔥 Upvotes: **${np.item.upvotes_count ?? 0}**\n\nVote directly below:`,
+            content: `📻 **Now Playing on PromptFM**\n🎵 **${np.item.title}** by **${np.item.artist}**${trackIdStr}${rankStr}\n🎙️ Active Host: **${np.activeDJ.name}**\n🔥 Upvotes: **${np.item.upvotes_count ?? 0}**\n\nVote directly below:`,
             components: [
               {
                 type: 1,

@@ -273,9 +273,28 @@ CREATE POLICY "Public can view own or pending reports"
 -- ----------------------------------------------------------------
 ALTER TABLE public.tracks ADD COLUMN IF NOT EXISTS is_explicit BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE public.tracks ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+ALTER TABLE public.tracks ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'Synthwave & Electro';
+ALTER TABLE public.tracks ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE public.tracks ADD COLUMN IF NOT EXISTS lyrics TEXT;
+ALTER TABLE public.tracks ADD COLUMN IF NOT EXISTS cover_art_url TEXT;
 
 ALTER TABLE public.community_requests ADD COLUMN IF NOT EXISTS is_explicit BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE public.community_requests ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+
+-- ----------------------------------------------------------------
+-- 12. STATION STATE (Persistent Airplay across serverless lambdas)
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.station_state (
+  channel_slug TEXT PRIMARY KEY DEFAULT 'main',
+  airplay_item JSONB NOT NULL,
+  started_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.station_state ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public read station state" ON public.station_state FOR SELECT USING (true);
+CREATE POLICY "Admin write station state" ON public.station_state FOR ALL USING (true) WITH CHECK (true);
+
 
 
 

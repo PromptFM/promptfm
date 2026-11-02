@@ -107,7 +107,7 @@ ads:
       sponsor: "PromptFM Community Club"
       title: "Support PromptFM Radio"
       type: "ai_read"
-      copy: "Love what you're hearing? PromptFM is 100 percent community driven. Support our cloud streaming servers and unlock custom DJ shoutouts at promptfm.vercel.app."
+      copy: "Love what you're hearing? PromptFM is 100 percent community driven. Support our cloud streaming servers and unlock custom DJ shoutouts at promptfm.live."
       duration_seconds: 15
       weight: 4
       active: true

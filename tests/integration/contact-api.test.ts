@@ -65,3 +65,4 @@ describe('POST /api/contact Integration', () => {
     expect(data.messageId).toBe('test-email-msg-456');
   });
 });
+

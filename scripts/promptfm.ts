@@ -1,18 +1,9 @@
 #!/usr/bin/env node
 // scripts/promptfm.ts
 // Command-line interface for PromptFM DJs, station admins, and terminal power-users.
-// Usage:
-//   npm run promptfm upload /path/to/song.mp3 --title "Title" --artist "Artist" --tool "Suno"
-//   npm run promptfm dj "Crack a joke about GPUs melting"
-//   npm run promptfm news [topic] [--live]
-//   npm run promptfm queue list
-//   npm run promptfm queue next <trackId>
-//   npm run promptfm queue remove <queueId>
-//   npm run promptfm broadcast "Announcement to Discord & Telegram"
-//   npm run promptfm schedule
-//   npm run promptfm admin pending
-//   npm run promptfm admin approve <trackId>
-//   npm run promptfm listen
+
+import { loadEnvConfig } from '@next/env';
+loadEnvConfig(process.cwd());
 
 import { createBroadcastDrop, fetchLiveHeadlines } from '../src/lib/dj/engine';
 import { getNextAirplayItem, fetchLiveWeatherSummary, getNowPlaying, getUpNext } from '../src/lib/dj/rotation';
@@ -22,6 +13,7 @@ import { createAdminClient } from '../src/lib/supabase/server';
 import { broadcastToCommunity, castVoteForTrack } from '../src/lib/chat/bridge';
 import { submitContentReport, getRecentReports, resolveContentReport } from '../src/lib/safety/reports';
 import type { ReportReason } from '../src/types/database';
+import { extractMetadataFromBuffer, DEFAULT_TRACK_ICON } from '../src/lib/audio/metadata';
 import { getR2Client, getBucketName, getPublicUrl } from '../src/lib/r2';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { execSync } from 'child_process';
@@ -88,16 +80,29 @@ Moderation & Schedule:
     case 'now':
     case 'np': {
       const np = await getNowPlaying();
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://promptfm.live';
+      const streamUrl = process.env.NEXT_PUBLIC_STREAM_URL || 'https://stream.promptfm.live/stream.mp3';
+      const rankText = np.rank
+        ? `#${np.rank}${np.totalApprovedTracks ? ` of ${np.totalApprovedTracks}` : ''} on Weekly Chart`
+        : 'Featured Airplay';
+
       console.log(`\n📻 PromptFM — Now Playing on Air:`);
       console.log(`------------------------------------------------`);
+      console.log(`Track ID:    ${np.item.id || 'N/A'}`);
       console.log(`Title:       "${np.item.title}"`);
       console.log(`Artist/Host: ${np.item.artist} ${np.item.tool_used ? `(${np.item.tool_used})` : ''}`);
       console.log(`Type:        [${np.item.type.toUpperCase()}]`);
-      console.log(`Active DJ:   ${np.activeDJ.name} (${np.activeDJ.title})`);
-      console.log(`Upvotes:     🔥 ${np.item.upvotes_count ?? 0}`);
-      console.log(`Elapsed:     ${np.elapsedSeconds}s (Started at ${np.startedAt})`);
-      console.log(`Audio URL:   ${np.item.audio_url}`);
-      console.log(`Tune In:     https://promptfm.vercel.app\n`);
+      console.log(`Chart Rank:  🏆 ${rankText}`);
+      console.log(`Community:   🔥 ${np.item.upvotes_count ?? 0} upvotes`);
+      console.log(`Active DJ:   🎙️ ${np.activeDJ.name} — ${np.activeDJ.title}`);
+      console.log(`Airtime:     ${np.elapsedSeconds}s elapsed (Started at ${np.startedAt})`);
+      console.log(`Audio File:  ${np.item.audio_url}`);
+      console.log(`Stream Live: ${streamUrl}`);
+      console.log(`Tune In Web: ${siteUrl}`);
+      if (np.item.id && np.item.id !== 'demo-fallback') {
+        console.log(`Quick Vote:  npm run promptfm vote ${np.item.id}`);
+      }
+      console.log(`------------------------------------------------\n`);
       break;
     }
 
@@ -189,7 +194,7 @@ Moderation & Schedule:
       const filePath = args[1];
       if (!filePath || filePath.startsWith('--')) {
         console.error('Error: Please specify the local path to the MP3 file.');
-        console.log('Usage: npm run promptfm upload /path/to/song.mp3 --title "My Track" --artist "DJ Name" --tool "Suno"');
+        console.log('Usage: npm run promptfm upload /path/to/song.mp3 --title "My Track" --artist "DJ Name" --category "Synthwave & Electro" --tool "Suno"');
         process.exit(1);
       }
 
@@ -201,11 +206,6 @@ Moderation & Schedule:
       const fileBuffer = readFileSync(filePath);
       const rawFileName = basename(filePath);
       const cleanFileName = rawFileName.replace(/^["']|["']$/g, '');
-      const defaultTitle = cleanFileName.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
-
-      const title = parseArg('--title') || defaultTitle;
-      const artist = parseArg('--artist') || 'PromptFM Resident';
-      const tool = (parseArg('--tool') || 'Suno') as 'Suno' | 'Udio' | 'Stable Audio' | 'Other';
 
       // Detect media extension and MIME type
       const lowerName = cleanFileName.toLowerCase();
@@ -229,7 +229,26 @@ Moderation & Schedule:
         contentType = 'audio/flac';
       }
 
-      console.log(`📤 Uploading "${cleanFileName}" (${(fileBuffer.length / (1024 * 1024)).toFixed(2)} MB, ${contentType}) to Cloudflare R2...`);
+      console.log(`🔍 Inspecting audio metadata & ID3 tags for "${cleanFileName}"...`);
+      const meta = await extractMetadataFromBuffer(fileBuffer, cleanFileName, contentType);
+
+      const title = parseArg('--title') || meta.title;
+      const artist = parseArg('--artist') || meta.artist;
+      const category = parseArg('--category') || meta.category;
+      const tool = (parseArg('--tool') || 'Suno') as 'Suno' | 'Udio' | 'Stable Audio' | 'Other';
+      const description = parseArg('--description') || meta.description;
+      const lyrics = parseArg('--lyrics') || meta.lyrics;
+
+      console.log(`\n🎵 Track Metadata Extracted:`);
+      console.log(`• Title:       "${title}"`);
+      console.log(`• Artist:      "${artist}"`);
+      console.log(`• Category:    "${category}"`);
+      console.log(`• Tool Used:   "${tool}"`);
+      if (description) console.log(`• Prompt/Desc: "${description}"`);
+      if (lyrics) console.log(`• Lyrics:      "${lyrics.slice(0, 60)}..."`);
+      console.log(`• Cover Icon:  ${meta.hasCoverArt ? 'Embedded Picture Found (Saved)' : 'PromptFM Default Brand Icon'}`);
+
+      console.log(`\n📤 Uploading "${cleanFileName}" (${(fileBuffer.length / (1024 * 1024)).toFixed(2)} MB, ${contentType}) to Cloudflare R2...`);
 
       const key = `tracks/admin/${randomUUID()}.${ext}`;
       const s3 = getR2Client();
@@ -253,8 +272,12 @@ Moderation & Schedule:
         .insert({
           title,
           artist_name: artist,
+          category,
           tool_used: tool,
           audio_url: publicUrl,
+          description: description || null,
+          lyrics: lyrics || null,
+          cover_art_url: meta.hasCoverArt ? meta.coverArtUrl : DEFAULT_TRACK_ICON,
           status: 'approved',
         })
         .select()
@@ -642,6 +665,24 @@ Moderation & Schedule:
       const sub = args[1];
       const targetId = args[2];
       const supabase = createAdminClient();
+
+      if (sub === 'list' || sub === 'approved') {
+        const { data: allTracks, error } = await supabase
+          .from('tracks')
+          .select('id, title, artist_name, tool_used, status, upvotes_count')
+          .order('upvotes_count', { ascending: false });
+
+        if (error) {
+          console.error('Error fetching tracks:', error);
+          return;
+        }
+
+        console.log(`\n🎵 PromptFM Tracks in Database (${allTracks?.length || 0}):`);
+        allTracks?.forEach((t, i) => {
+          console.log(`${i + 1}. [${t.id}] "${t.title}" by ${t.artist_name} | status: ${t.status} | votes: ${t.upvotes_count}`);
+        });
+        return;
+      }
 
       if (sub === 'pending') {
         const { data: pending, error } = await supabase

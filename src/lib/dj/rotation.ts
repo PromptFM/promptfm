@@ -45,10 +45,25 @@ export interface WeatherRegion {
 
 /**
  * Updates the in-memory upvote count for the active airplay track if matching.
+ * Also persists updated count to station_state in Supabase.
  */
 export function updateCurrentAirplayUpvotes(trackId: string, count: number): void {
   if (currentAirplayItem && currentAirplayItem.id === trackId) {
     currentAirplayItem.upvotes_count = count;
+  }
+  try {
+    const supabase = createAdminClient();
+    Promise.resolve(
+      supabase
+        .from('station_state')
+        .update({
+          airplay_item: currentAirplayItem,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('channel_slug', 'main')
+    ).catch(() => {});
+  } catch {
+    // Ignore in-memory sync error
   }
 }
 
@@ -61,32 +76,57 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
   startedAt: string;
   elapsedSeconds: number;
   activeDJ: DJProfile;
+  rank?: number | null;
+  totalApprovedTracks?: number | null;
 }> {
   const activeDJ = getActiveDJ(channelSlug);
 
-  // If in-memory item is absent, fetch from Supabase
+  // If in-memory item is absent, fetch from Supabase station_state or top approved track
   if (!currentAirplayItem) {
     try {
       const supabase = createAdminClient();
-      const { data: topTrack } = await supabase
-        .from('tracks')
-        .select('id, title, artist_name, audio_url, tool_used, upvotes_count')
-        .eq('status', 'approved')
-        .order('upvotes_count', { ascending: false })
-        .limit(1)
+      const { data: stateData } = await supabase
+        .from('station_state')
+        .select('airplay_item, started_at')
+        .eq('channel_slug', channelSlug)
         .maybeSingle();
 
-      if (topTrack) {
-        currentAirplayItem = {
-          id: topTrack.id,
-          type: 'music',
-          title: topTrack.title,
-          artist: topTrack.artist_name,
-          audio_url: topTrack.audio_url,
-          tool_used: topTrack.tool_used,
-          upvotes_count: topTrack.upvotes_count,
-          dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
-        };
+      if (stateData?.airplay_item) {
+        currentAirplayItem = stateData.airplay_item as AirplayItem;
+        if (stateData.started_at) {
+          currentAirplayStartedAt = new Date(stateData.started_at).getTime();
+        }
+      } else {
+        const { data: topTrack } = await supabase
+          .from('tracks')
+          .select('id, title, artist_name, audio_url, tool_used, upvotes_count')
+          .eq('status', 'approved')
+          .order('upvotes_count', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (topTrack) {
+          currentAirplayItem = {
+            id: topTrack.id,
+            type: 'music',
+            title: topTrack.title,
+            artist: topTrack.artist_name,
+            audio_url: topTrack.audio_url,
+            tool_used: topTrack.tool_used,
+            upvotes_count: topTrack.upvotes_count,
+            dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
+          };
+          Promise.resolve(
+            supabase
+              .from('station_state')
+              .upsert({
+                channel_slug: channelSlug,
+                airplay_item: currentAirplayItem,
+                started_at: new Date(currentAirplayStartedAt).toISOString(),
+                updated_at: new Date().toISOString(),
+              })
+          ).catch(() => {});
+        }
       }
     } catch {
       // Fallback gracefully on DB failure
@@ -106,11 +146,45 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
 
   const elapsedSeconds = Math.max(0, Math.floor((Date.now() - currentAirplayStartedAt) / 1000));
 
+  let rank: number | null = null;
+  let totalApprovedTracks: number | null = null;
+
+  if (item.id && item.id !== 'demo-fallback') {
+    try {
+      const supabase = createAdminClient();
+      const [trackRes, higherVotesRes, totalRes] = await Promise.all([
+        supabase.from('tracks').select('upvotes_count').eq('id', item.id).maybeSingle(),
+        supabase
+          .from('tracks')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'approved')
+          .gt('upvotes_count', item.upvotes_count ?? 0),
+        supabase
+          .from('tracks')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'approved'),
+      ]);
+      if (typeof trackRes?.data?.upvotes_count === 'number') {
+        item.upvotes_count = trackRes.data.upvotes_count;
+      }
+      if (typeof higherVotesRes.count === 'number') {
+        rank = higherVotesRes.count + 1;
+      }
+      if (typeof totalRes.count === 'number') {
+        totalApprovedTracks = totalRes.count;
+      }
+    } catch {
+      // Non-blocking fallback
+    }
+  }
+
   return {
     item,
     startedAt: new Date(currentAirplayStartedAt).toISOString(),
     elapsedSeconds,
     activeDJ,
+    rank,
+    totalApprovedTracks,
   };
 }
 
@@ -318,6 +392,20 @@ export async function getNextAirplayItem(channelSlug = 'main'): Promise<AirplayI
   const finishAndBroadcast = (item: AirplayItem): AirplayItem => {
     currentAirplayItem = item;
     currentAirplayStartedAt = Date.now();
+    try {
+      Promise.resolve(
+        supabase
+          .from('station_state')
+          .upsert({
+            channel_slug: channelSlug,
+            airplay_item: item,
+            started_at: new Date(currentAirplayStartedAt).toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+      ).catch(() => {});
+    } catch {
+      // Ignore background persistence errors
+    }
     // Fire and forget community notification
     notifyCommunityAirplay(item, activeDJ).catch(() => {});
     return item;
@@ -529,6 +617,6 @@ export async function getNextAirplayItem(channelSlug = 'main'): Promise<AirplayI
     artist: 'PromptFM Core',
     audio_url: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3',
     tool_used: 'Other',
-    upvotes_count: 42,
+    upvotes_count: 0,
   });
 }

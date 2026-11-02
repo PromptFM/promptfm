@@ -132,7 +132,7 @@ promptfm-streamer ansible_host=34.123.80.137 ansible_user=ubuntu ansible_ssh_pri
 
 [streamer:vars]
 app_dir=/opt/promptfm/streamer
-promptfm_api_url=https://promptfm.vercel.app
+promptfm_api_url=https://promptfm.live
 stream_bitrate=128
 icecast_port=8000
 icecast_source_password=promptfm_source_2026

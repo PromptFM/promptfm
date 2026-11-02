@@ -72,3 +72,4 @@ describe('POST /api/webhooks/resend/inbound Integration', () => {
     expect(data.category).toBe('contact');
   });
 });
+

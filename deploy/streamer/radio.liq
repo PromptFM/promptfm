@@ -13,7 +13,7 @@ emergency_fallback = mksafe(single("/etc/liquidsoap/fallback.mp3"))
 # 2. Dynamic track fetcher from PromptFM API
 def get_next_promptfm_track() =
   # Call PromptFM API endpoint
-  result = process.read("curl -s 'https://promptfm.vercel.app/api/radio/next?format=uri'")
+  result = process.read("curl -s 'https://promptfm.live/api/radio/next?format=uri'")
   uri = string.trim(result)
   target = if uri == "" then
     "/etc/liquidsoap/fallback.mp3"
@@ -41,7 +41,7 @@ output.icecast(
   mount="/stream.mp3",
   name="PromptFM — 24/7 AI Generated Music Radio",
   description="Continuous generative beats, AI DJ monologues, and community-curated music.",
-  url="https://promptfm.vercel.app",
+  url="https://promptfm.live",
   genre="AI Music / Electronic / Ambient",
   radio
 )

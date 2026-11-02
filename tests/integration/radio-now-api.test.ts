@@ -34,6 +34,8 @@ describe('GET /api/radio/now API Integration', () => {
         shifts: ['06:00 - 10:00'],
         defaultChannels: ['main'],
       },
+      rank: 1,
+      totalApprovedTracks: 3,
     });
 
     const req = new NextRequest('http://localhost:3000/api/radio/now');
@@ -42,7 +44,10 @@ describe('GET /api/radio/now API Integration', () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.success).toBe(true);
+    expect(json.now_playing.id).toBe('7dd1c716-733c-4ea7-8e82-dda10684d4e6');
     expect(json.now_playing.title).toBe('Forged in Pain');
+    expect(json.now_playing.rank).toBe(1);
+    expect(json.now_playing.total_approved_tracks).toBe(3);
     expect(json.now_playing.upvotes_count).toBe(31);
     expect(json.now_playing.audio_url).toContain('forged_in_pain.mp4');
   });

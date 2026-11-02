@@ -197,7 +197,7 @@ async function notifyUserOfRejection(
   moderator: string
 ) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://promptfm.vercel.app';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://promptfm.live';
 
   // Telegram notification
   if (req.platform === 'telegram' && botToken) {
@@ -276,7 +276,7 @@ Deliver this dedication on air with high radio warmth, charisma, and enthusiasm.
   // Notify Discord/Telegram channels that this dedication is on air NOW
   await broadcastToCommunity({
     title: `ON AIR NOW: Dedication from @${req.platform_user_name}`,
-    message: `🎙️ "${script}"\n\nTune in live: https://promptfm.vercel.app`,
+    message: `🎙️ "${script}"\n\nTune in live: https://promptfm.live`,
     author: dj.name,
   });
 

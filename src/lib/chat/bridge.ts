@@ -18,6 +18,8 @@ export interface BroadcastNotification {
   coverUrl?: string;
 }
 
+let fallbackDemoVotes = 0;
+
 /**
  * Casts an upvote for a track in Supabase (used by Discord buttons & Telegram inline keyboards).
  */
@@ -25,6 +27,16 @@ export async function castVoteForTrack(
   trackId: string,
   _voterId?: string
 ): Promise<{ success: boolean; newCount: number; title: string }> {
+  // Handle demo-fallback track gracefully if database is cold/empty
+  if (trackId === 'demo-fallback') {
+    fallbackDemoVotes += 1;
+    return {
+      success: true,
+      newCount: fallbackDemoVotes,
+      title: 'PromptFM Ambient AI Anthem',
+    };
+  }
+
   const supabase = createAdminClient();
 
   const { data: track, error: fetchErr } = await supabase
@@ -60,7 +72,7 @@ export async function sendDiscordNotification(payload: BroadcastNotification): P
   const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
   if (!webhookUrl) return false;
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://promptfm.vercel.app';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://promptfm.live';
   const voteUrl = payload.trackId ? `${siteUrl}/top?vote=${payload.trackId}` : siteUrl;
 
   const fields: Array<{ name: string; value: string; inline?: boolean }> = [];
@@ -163,7 +175,7 @@ export async function sendTelegramNotification(payload: BroadcastNotification): 
   const chatId = process.env.TELEGRAM_CHAT_ID;
   if (!botToken || !chatId) return false;
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://promptfm.vercel.app';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://promptfm.live';
   const voteUrl = payload.trackId ? `${siteUrl}/top?vote=${payload.trackId}` : siteUrl;
 
   let text = `📻 *${payload.title}*\n\n${payload.message}`;

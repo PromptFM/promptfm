@@ -13,11 +13,12 @@
 
 import React, { useCallback, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Upload, CheckCircle2, AlertCircle, FileAudio, X, ShieldAlert, Shield, Scale, FileText } from 'lucide-react';
+import { Upload, CheckCircle2, AlertCircle, FileAudio, X, ShieldAlert, Shield, Scale, FileText, Music, Sparkles, Image as ImageIcon } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { evaluateHeuristicGuardrails } from '@/lib/safety/guardrails';
+import { extractMetadataFromBlob, DEFAULT_TRACK_ICON, ExtractedAudioMetadata } from '@/lib/audio/metadata';
+import { STATION_CATEGORIES, StationCategory, AITool, UploadUrlRequest, UploadUrlResponse } from '@/types/database';
 import AgreementsModal from '@/components/AgreementsModal';
-import type { AITool, UploadUrlRequest, UploadUrlResponse } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,7 +41,10 @@ function formatBytes(bytes: number): string {
 interface FormState {
   title: string;
   artistName: string;
+  category: StationCategory;
   toolUsed: AITool;
+  description: string;
+  lyrics: string;
   legalConfirmed: boolean;
   termsConfirmed: boolean;
   isExplicit: boolean;
@@ -57,11 +61,19 @@ export default function SubmitPage() {
   const [form, setForm] = useState<FormState>({
     title: '',
     artistName: '',
+    category: 'Synthwave & Electro',
     toolUsed: 'Suno',
+    description: '',
+    lyrics: '',
     legalConfirmed: false,
     termsConfirmed: false,
     isExplicit: false,
   });
+
+  const [coverArtUrl, setCoverArtUrl] = useState<string>(DEFAULT_TRACK_ICON);
+  const [hasCoverArt, setHasCoverArt] = useState<boolean>(false);
+  const [isParsingMetadata, setIsParsingMetadata] = useState<boolean>(false);
+  const [extractedMeta, setExtractedMeta] = useState<ExtractedAudioMetadata | null>(null);
 
   const [agreementsOpen, setAgreementsOpen] = useState(false);
   const [agreementsTab, setAgreementsTab] = useState<'terms' | 'copyright' | 'ethics' | 'watershed' | 'dmca'>('terms');
@@ -111,12 +123,36 @@ export default function SubmitPage() {
     }
 
     setSelectedFile(file);
+    setIsParsingMetadata(true);
+    extractMetadataFromBlob(file, file.name)
+      .then((meta) => {
+        setExtractedMeta(meta);
+        setForm((prev) => ({
+          ...prev,
+          title: prev.title || meta.title,
+          artistName: prev.artistName || meta.artist,
+          category: prev.category === 'Synthwave & Electro' ? meta.category : prev.category,
+          description: prev.description || meta.description || '',
+          lyrics: prev.lyrics || meta.lyrics || '',
+        }));
+        setCoverArtUrl(meta.coverArtUrl);
+        setHasCoverArt(meta.hasCoverArt);
+      })
+      .catch((err) => {
+        console.warn('Metadata parse error:', err);
+      })
+      .finally(() => {
+        setIsParsingMetadata(false);
+      });
   };
 
   const clearFile = () => {
     setSelectedFile(null);
     setFileError(null);
     setUploadProgress(0);
+    setCoverArtUrl(DEFAULT_TRACK_ICON);
+    setHasCoverArt(false);
+    setExtractedMeta(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -224,8 +260,12 @@ export default function SubmitPage() {
       const { error: insertError } = await supabase.from('tracks').insert({
         title: form.title.trim(),
         artist_name: form.artistName.trim(),
+        category: form.category,
         tool_used: form.toolUsed,
         audio_url: publicUrl,
+        description: form.description?.trim() || null,
+        lyrics: form.lyrics?.trim() || null,
+        cover_art_url: coverArtUrl || DEFAULT_TRACK_ICON,
         user_id: user?.id ?? null,
         status: 'pending',
         is_explicit: isExplicitFinal,
@@ -384,6 +424,29 @@ export default function SubmitPage() {
             </select>
           </div>
 
+          {/* Station Category / Genre */}
+          <div className="space-y-1.5">
+            <label htmlFor="category" className="block text-sm font-medium text-zinc-300">
+              Station Genre / Category <span className="text-red-400">*</span>
+            </label>
+            <select
+              id="category"
+              name="category"
+              value={form.category}
+              onChange={handleFieldChange}
+              className={selectCls}
+            >
+              {STATION_CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-zinc-500">
+              Determines which AI DJ show and rotation clock will air your song.
+            </p>
+          </div>
+
           {/* File upload */}
           <div className="space-y-1.5">
             <span className="block text-sm font-medium text-zinc-300">
@@ -436,6 +499,74 @@ export default function SubmitPage() {
                 <AlertCircle className="w-3.5 h-3.5" /> {fileError}
               </p>
             )}
+
+            {/* Extracted Cover Art & Metadata Badge */}
+            {selectedFile && (
+              <div className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl flex items-center gap-3.5">
+                <div className="relative w-14 h-14 rounded-lg overflow-hidden bg-zinc-950 flex-shrink-0 border border-zinc-800 shadow-sm">
+                  <img
+                    src={coverArtUrl}
+                    alt="Track Artwork"
+                    className="w-full h-full object-cover"
+                  />
+                  {hasCoverArt && (
+                    <span className="absolute bottom-0 right-0 bg-emerald-500 text-[8px] text-black font-bold px-1 rounded-tl">
+                      ID3
+                    </span>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>{hasCoverArt ? 'Embedded Cover Art Extracted' : 'PromptFM Default Brand Icon'}</span>
+                  </div>
+                  <p className="text-xs text-zinc-400 truncate mt-0.5">
+                    {extractedMeta?.durationSeconds ? `${Math.floor(extractedMeta.durationSeconds / 60)}:${(extractedMeta.durationSeconds % 60).toString().padStart(2, '0')}` : ''}
+                    {extractedMeta?.bitrate ? ` • ${extractedMeta.bitrate} kbps` : ''}
+                    {extractedMeta?.format ? ` • ${extractedMeta.format.toUpperCase()}` : ''}
+                  </p>
+                  <p className="text-[11px] text-zinc-500">
+                    {hasCoverArt
+                      ? 'Artwork extracted directly from audio metadata tags.'
+                      : 'Audio has no embedded picture; using station default icon.'}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Prompt / Description */}
+          <div className="space-y-1.5">
+            <label htmlFor="description" className="block text-sm font-medium text-zinc-300">
+              Prompt & Description <span className="text-zinc-500 text-xs font-normal">(optional)</span>
+            </label>
+            <textarea
+              id="description"
+              name="description"
+              rows={2}
+              maxLength={500}
+              value={form.description}
+              onChange={handleFieldChange as unknown as React.ChangeEventHandler<HTMLTextAreaElement>}
+              placeholder="e.g. Prompt used in Suno: retro 80s synthwave with analog synthesizer arpeggios"
+              className={inputCls}
+            />
+          </div>
+
+          {/* Lyrics */}
+          <div className="space-y-1.5">
+            <label htmlFor="lyrics" className="block text-sm font-medium text-zinc-300">
+              Song Lyrics <span className="text-zinc-500 text-xs font-normal">(optional)</span>
+            </label>
+            <textarea
+              id="lyrics"
+              name="lyrics"
+              rows={3}
+              maxLength={2000}
+              value={form.lyrics}
+              onChange={handleFieldChange as unknown as React.ChangeEventHandler<HTMLTextAreaElement>}
+              placeholder="Paste generated song lyrics here..."
+              className={inputCls}
+            />
           </div>
 
           {/* Upload progress */}

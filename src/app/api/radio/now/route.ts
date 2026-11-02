@@ -16,7 +16,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       channel: channelSlug,
-      now_playing: status.item,
+      now_playing: {
+        ...status.item,
+        rank: status.rank ?? null,
+        total_approved_tracks: status.totalApprovedTracks ?? null,
+      },
       active_dj: status.activeDJ,
       elapsed_seconds: status.elapsedSeconds,
       started_at: status.startedAt,

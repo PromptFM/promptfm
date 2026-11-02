@@ -168,7 +168,7 @@ export const DEFAULT_ADS: AdsConfig = {
       sponsor: 'PromptFM Community Club',
       title: 'Support PromptFM Radio',
       type: 'ai_read',
-      copy: 'Love what you are hearing? PromptFM is 100 percent community driven. Support our cloud streaming servers and unlock custom DJ shoutouts at promptfm.vercel.app.',
+      copy: 'Love what you are hearing? PromptFM is 100 percent community driven. Support our cloud streaming servers and unlock custom DJ shoutouts at promptfm.live.',
       durationSeconds: 15,
       weight: 4,
       active: true,

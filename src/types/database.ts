@@ -4,6 +4,21 @@
 export type TrackStatus = 'pending' | 'approved' | 'rejected';
 export type AITool = 'Suno' | 'Udio' | 'Stable Audio' | 'Other';
 
+export const STATION_CATEGORIES = [
+  'Synthwave & Electro',
+  'Ambient & Lo-Fi',
+  'Cyberpunk & Industrial',
+  'Chiptune & 8-Bit',
+  'EDM & Dance',
+  'Rock & Metal',
+  'Pop & Vocal',
+  'Cinematic & Classical',
+  'Hip-Hop & Beats',
+  'Other / Experimental',
+] as const;
+
+export type StationCategory = typeof STATION_CATEGORIES[number];
+
 export interface Track {
   id: string;
   created_at: string;
@@ -14,6 +29,10 @@ export interface Track {
   tool_used: AITool;
   status: TrackStatus;
   upvotes_count: number;
+  category?: string;
+  description?: string | null;
+  lyrics?: string | null;
+  cover_art_url?: string | null;
   is_explicit?: boolean;
   rejection_reason?: string | null;
 }
