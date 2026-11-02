@@ -6,14 +6,14 @@ settings.log.stdout.set(true)
 settings.log.level.set(3)
 
 # 1. Fallback ambient audio loop in case of API or network disconnect
-emergency_fallback = mksafe(single("{{ app_dir }}/fallback.mp3"))
+emergency_fallback = mksafe(single("/etc/liquidsoap/fallback.mp3"))
 
 # 2. Dynamic track fetcher from PromptFM Next.js API
 def get_next_promptfm_track() =
-  result = process.read("curl -s '{{ promptfm_api_url }}/api/radio/next?format=uri'")
+  result = http.get("{{ promptfm_api_url }}/api/radio/next?format=uri")
   uri = string.trim(result)
   target = if uri == "" then
-    "{{ app_dir }}/fallback.mp3"
+    "/etc/liquidsoap/fallback.mp3"
   else
     uri
   end

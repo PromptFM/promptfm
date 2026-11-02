@@ -58,7 +58,7 @@ export function getNowPlaying(channelSlug = 'main'): {
     type: 'music',
     title: 'PromptFM Ambient AI Anthem',
     artist: 'PromptFM Core',
-    audio_url: 'https://ice1.somafm.com/groovesalad-128-mp3',
+    audio_url: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3',
     tool_used: 'Other',
     upvotes_count: 42,
     dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
@@ -487,7 +487,7 @@ export async function getNextAirplayItem(channelSlug = 'main'): Promise<AirplayI
     type: 'music',
     title: 'PromptFM Ambient AI Anthem',
     artist: 'PromptFM Core',
-    audio_url: 'https://ice1.somafm.com/groovesalad-128-mp3',
+    audio_url: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3',
     tool_used: 'Other',
     upvotes_count: 42,
   });

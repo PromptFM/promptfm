@@ -18,17 +18,14 @@
     <listen-socket>
         <port>8000</port>
     </listen-socket>
-    <mount type="normal">
+    <mount>
         <mount-name>/stream.mp3</mount-name>
-        <fallback-mount>/fallback.mp3</fallback-mount>
-        <fallback-override>1</fallback-override>
-        <no-mount>0</no-mount>
         <burst-size>65536</burst-size>
     </mount>
     <paths>
-        <logdir>/var/log/icecast2</logdir>
-        <webroot>/usr/share/icecast2/web</webroot>
-        <adminroot>/usr/share/icecast2/admin</adminroot>
+        <logdir>/var/log/icecast</logdir>
+        <webroot>/usr/share/icecast/web</webroot>
+        <adminroot>/usr/share/icecast/admin</adminroot>
     </paths>
     <logging>
         <accesslog>access.log</accesslog>
