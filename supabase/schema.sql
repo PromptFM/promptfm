@@ -139,3 +139,74 @@ CREATE POLICY "Users can delete their own votes"
   TO authenticated
   USING (auth.uid() = user_id);
 
+-- ----------------------------------------------------------------
+-- 6. CHANNELS (Public & Private Stations)
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.channels (
+  id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug         TEXT        NOT NULL UNIQUE, -- e.g. 'main', 'kids', 'cyberpunk', 'private-room'
+  name         TEXT        NOT NULL,
+  description  TEXT,
+  is_private   BOOLEAN     NOT NULL DEFAULT false,
+  invite_token TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Insert default theme channels
+INSERT INTO public.channels (slug, name, description, is_private)
+VALUES 
+  ('main', 'PromptFM Main Stage', 'Community top-voted AI hits', false),
+  ('cyberpunk', 'Cyberpunk & Synth', 'High energy dark synthwave and electro', false),
+  ('kids', 'Kids & Family', 'Gentle, playful, child-friendly AI melodies', false)
+ON CONFLICT (slug) DO NOTHING;
+
+-- ----------------------------------------------------------------
+-- 7. CHANNEL QUEUE (Prompt-Driven Song Requests)
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.channel_queue (
+  id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  channel_id   UUID        NOT NULL REFERENCES public.channels(id) ON DELETE CASCADE,
+  track_id     UUID        NOT NULL REFERENCES public.tracks(id) ON DELETE CASCADE,
+  prompt_used  TEXT,       -- e.g. "play something cyberpunk with female vocals"
+  requested_by TEXT        DEFAULT 'Anonymous Listener',
+  played_at    TIMESTAMPTZ,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ----------------------------------------------------------------
+-- 8. LIVE CHAT ROOMS (Powered by Supabase Realtime)
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.chat_messages (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  channel_id UUID        NOT NULL REFERENCES public.channels(id) ON DELETE CASCADE,
+  user_name  TEXT        NOT NULL,
+  message    TEXT        NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Enable RLS for Chat & Channels
+ALTER TABLE public.channels ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.channel_queue ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chat_messages ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public can view public channels"
+  ON public.channels FOR SELECT
+  USING (is_private = false OR invite_token IS NOT NULL);
+
+CREATE POLICY "Public can view channel queues"
+  ON public.channel_queue FOR SELECT
+  USING (true);
+
+CREATE POLICY "Public can request songs to queue"
+  ON public.channel_queue FOR INSERT
+  WITH CHECK (true);
+
+CREATE POLICY "Public can read and send chat messages"
+  ON public.chat_messages FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+-- Enable Supabase Realtime publication on chat
+ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_messages;
+
+
