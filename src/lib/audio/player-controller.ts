@@ -34,6 +34,7 @@ export function createStreamPlayerController(
   let userStopped = true;
   let reconnectAttempts = 0;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let playSessionId = 0;
 
   const setState = (next: PlayerState) => {
     state = next;
@@ -48,13 +49,24 @@ export function createStreamPlayerController(
   };
 
   const executePlay = () => {
+    const currentSession = ++playSessionId;
     audio.src = `${effectiveUrl}?nocache=${Date.now()}`;
     audio.load();
-    Promise.resolve(audio.play()).catch(() => {
-      if (!userStopped) {
-        scheduleReconnect();
+    Promise.resolve(audio.play()).then(
+      () => {
+        if (userStopped) {
+          audio.pause();
+          audio.src = '';
+          audio.removeAttribute('src');
+          setState('idle');
+        }
+      },
+      () => {
+        if (!userStopped && currentSession === playSessionId) {
+          scheduleReconnect();
+        }
       }
-    });
+    );
   };
 
   const setUrl = (newUrl: string) => {
@@ -96,6 +108,9 @@ export function createStreamPlayerController(
   const handlePlaying = () => {
     if (userStopped) {
       audio.pause();
+      audio.src = '';
+      audio.removeAttribute('src');
+      setState('idle');
       return;
     }
     setState('playing');
@@ -104,14 +119,10 @@ export function createStreamPlayerController(
   };
 
   const handleError = () => {
-    // When paused or stopped, browser fires error on src removal. Ignore it!
-    if (userStopped) return;
     scheduleReconnect();
   };
 
   const handleEnded = () => {
-    // Live streams should never fire ended unless network severed.
-    if (userStopped) return;
     scheduleReconnect();
   };
 
@@ -130,6 +141,7 @@ export function createStreamPlayerController(
   };
 
   const pause = () => {
+    ++playSessionId;
     userStopped = true;
     clearTimer();
     reconnectAttempts = 0;
@@ -137,9 +149,14 @@ export function createStreamPlayerController(
     notifyError(null);
 
     audio.pause();
-    // Cleanly unload audio without firing loopback reconnects
+    // Cleanly unload audio and sever HTTP connection to prevent background buffering
+    audio.src = '';
     audio.removeAttribute('src');
-    audio.load();
+    try {
+      audio.load();
+    } catch {
+      // Ignore browsers where load() throws on empty src
+    }
   };
 
   const toggle = () => {

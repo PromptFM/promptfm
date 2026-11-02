@@ -12,3 +12,4 @@ COMMENT ON COLUMN public.tracks.category IS 'Station category / sound style (e.g
 COMMENT ON COLUMN public.tracks.description IS 'Track prompt, background notes, or AI generator description.';
 COMMENT ON COLUMN public.tracks.lyrics IS 'Spoken lyrics, vocal prompts, or USLT ID3 tag contents.';
 COMMENT ON COLUMN public.tracks.cover_art_url IS 'URL to embedded or uploaded cover art image, defaults to /logo-mark.png if omitted.';
+

@@ -210,7 +210,8 @@ export default function AudioPlayer() {
     const streamUrl = getStreamUrlForChannel(validSlug);
     controllerRef.current?.setUrl(streamUrl);
 
-    if (autoPlay) {
+    const currentState = controllerRef.current?.getState();
+    if (autoPlay && currentState !== 'playing' && currentState !== 'loading') {
       controllerRef.current?.play();
     }
 
@@ -291,10 +292,23 @@ export default function AudioPlayer() {
     }
   }, [volume, muted]);
 
-  // ── Play / Pause toggle ────────────────────────────────────────────────────
+  const lastActionTimeRef = useRef<number>(0);
+
+  // ── Play / Pause toggle with debouncing & explicit intent matching ────────
   const handlePlayPause = useCallback(() => {
-    controllerRef.current?.toggle();
-  }, []);
+    const now = Date.now();
+    // Debounce rapid multi-clicks within 350ms to prevent play/pause flapping
+    if (now - lastActionTimeRef.current < 350) {
+      return;
+    }
+    lastActionTimeRef.current = now;
+
+    if (playerState === 'playing' || playerState === 'loading') {
+      controllerRef.current?.pause();
+    } else {
+      controllerRef.current?.play();
+    }
+  }, [playerState]);
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
@@ -406,6 +420,7 @@ export default function AudioPlayer() {
         {/* Left: Play/Pause + station & Now Playing info */}
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
           <button
+            type="button"
             onClick={handlePlayPause}
             aria-label={isPlaying ? 'Pause stream' : 'Play stream'}
             className={[

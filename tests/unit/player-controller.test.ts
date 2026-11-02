@@ -98,6 +98,7 @@ describe('Live Stream Player Controller', () => {
     expect(mockAudio.play).toHaveBeenCalled();
 
     // Trigger playing event
+    onError.mockClear();
     listeners['playing']?.();
     expect(onStateChange).toHaveBeenCalledWith('playing');
     expect(onError).toHaveBeenCalledWith(null);
@@ -137,11 +138,14 @@ describe('Live Stream Player Controller', () => {
     listeners['playing']?.();
     expect(controller.getState()).toBe('playing');
 
+    mockAudio.load.mockClear();
+    onError.mockClear();
     controller.pause();
 
     expect(mockAudio.pause).toHaveBeenCalled();
+    expect(mockAudio.src).toBe('');
     expect(mockAudio.removeAttribute).toHaveBeenCalledWith('src');
-    expect(mockAudio.load).toHaveBeenCalled();
+    expect(mockAudio.load).toHaveBeenCalledTimes(1);
     expect(controller.getState()).toBe('idle');
     expect(onStateChange).toHaveBeenCalledWith('idle');
     expect(onError).toHaveBeenCalledWith(null);
@@ -156,6 +160,113 @@ describe('Live Stream Player Controller', () => {
     // Verify it stays in idle state and DID NOT reconnect or call play again!
     expect(controller.getState()).toBe('idle');
     expect(mockAudio.play).toHaveBeenCalledTimes(1);
+  });
+
+  it('discards in-flight play attempts if pause is called before play promise resolves', async () => {
+    let resolvePlay: () => void;
+    mockAudio.play = vi.fn().mockImplementation(() => {
+      return new Promise<void>((resolve) => {
+        resolvePlay = resolve;
+      });
+    });
+
+    const onStateChange = vi.fn();
+    const controller = createStreamPlayerController(mockAudio, DEFAULT_STREAM_URL, {
+      onStateChange,
+    });
+
+    controller.play();
+    expect(controller.getState()).toBe('loading');
+
+    // User pauses while play() promise is still pending
+    controller.pause();
+    expect(controller.getState()).toBe('idle');
+    expect(mockAudio.src).toBe('');
+
+    // Now earlier play promise resolves
+    resolvePlay!();
+    await vi.waitFor(() => {
+      expect(mockAudio.pause).toHaveBeenCalled();
+    });
+
+    // Ensure state stays idle and audio src remains empty
+    expect(controller.getState()).toBe('idle');
+    expect(mockAudio.src).toBe('');
+  });
+
+  it('cleans up src and keeps state idle if playing event arrives while user stopped', () => {
+    const onStateChange = vi.fn();
+    const controller = createStreamPlayerController(mockAudio, DEFAULT_STREAM_URL, {
+      onStateChange,
+    });
+
+    controller.play();
+    controller.pause();
+    expect(mockAudio.src).toBe('');
+
+    // Stray playing event arrives
+    mockAudio.pause.mockClear();
+    mockAudio.removeAttribute.mockClear();
+    mockAudio.src = 'some-stray-url';
+    listeners['playing']?.();
+
+    expect(mockAudio.pause).toHaveBeenCalled();
+    expect(mockAudio.src).toBe('');
+    expect(mockAudio.removeAttribute).toHaveBeenCalledWith('src');
+    expect(controller.getState()).toBe('idle');
+  });
+
+  it('discards earlier play session if play is called again while first is resolving', async () => {
+    let resolveFirstPlay: () => void;
+    let resolveSecondPlay: () => void;
+    let playCall = 0;
+    mockAudio.play = vi.fn().mockImplementation(() => {
+      playCall++;
+      if (playCall === 1) {
+        return new Promise<void>((res) => { resolveFirstPlay = res; });
+      }
+      return new Promise<void>((res) => { resolveSecondPlay = res; });
+    });
+
+    const controller = createStreamPlayerController(mockAudio, DEFAULT_STREAM_URL, {
+      onStateChange: vi.fn(),
+    });
+
+    controller.play(); // session 1
+    controller.play(); // session 2
+
+    // First session resolves later
+    resolveFirstPlay!();
+    await Promise.resolve();
+
+    // Verify it did not falsely reset or break session 2
+    expect(controller.getState()).toBe('loading');
+
+    // Second session resolves
+    resolveSecondPlay!();
+    await Promise.resolve();
+  });
+
+  it('does not reconnect when audio.play() rejects after pause or session change', async () => {
+    let rejectPlay: (err: any) => void;
+    mockAudio.play = vi.fn().mockImplementation(() => {
+      return new Promise<void>((_, reject) => {
+        rejectPlay = reject;
+      });
+    });
+
+    const controller = createStreamPlayerController(mockAudio, DEFAULT_STREAM_URL, {
+      onStateChange: vi.fn(),
+    });
+
+    controller.play();
+    controller.pause();
+
+    rejectPlay!(new Error('Aborted'));
+    await Promise.resolve();
+
+    vi.advanceTimersByTime(5000);
+    expect(controller.getState()).toBe('idle');
   });
 
   it('toggles playback correctly between idle and playing/loading', () => {
@@ -211,8 +322,10 @@ describe('Live Stream Player Controller', () => {
     listeners['playing']?.();
 
     // Sudden error
+    onStateChange.mockClear();
     listeners['error']?.();
     expect(onStateChange).toHaveBeenCalledWith('loading');
+    expect(controller.getState()).toBe('loading');
     expect(onError).toHaveBeenCalledWith(`Reconnecting (attempt 1/${MAX_RECONNECT_ATTEMPTS})…`);
 
     // Backoff delay 1: BASE_RECONNECT_DELAY_MS (2000ms)
