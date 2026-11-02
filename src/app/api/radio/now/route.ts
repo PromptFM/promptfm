@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const channelSlug = req.nextUrl.searchParams.get('channel') || 'main';
 
   try {
-    const status = getNowPlaying(channelSlug);
+    const status = await getNowPlaying(channelSlug);
 
     return NextResponse.json({
       success: true,

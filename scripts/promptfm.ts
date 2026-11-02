@@ -87,7 +87,7 @@ Moderation & Schedule:
   switch (command) {
     case 'now':
     case 'np': {
-      const np = getNowPlaying();
+      const np = await getNowPlaying();
       console.log(`\n📻 PromptFM — Now Playing on Air:`);
       console.log(`------------------------------------------------`);
       console.log(`Title:       "${np.item.title}"`);

@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
 
       // /nowplaying or /np command
       if (text === '/nowplaying' || text === '/np' || text.startsWith('/nowplaying@') || text.startsWith('/np@')) {
-        const np = getNowPlaying();
+        const np = await getNowPlaying();
         const replyText = `📻 *Now Playing on PromptFM*\n\n🎵 *${np.item.title}*\n🎤 *${np.item.artist}* ${np.item.tool_used ? `(${np.item.tool_used})` : ''}\n🎙️ Host: *${np.activeDJ.name}*\n🔥 Upvotes: *${np.item.upvotes_count ?? 0}*\n\n[Tune in Live](${siteUrl})`;
 
         if (botToken && chatId) {
@@ -304,7 +304,7 @@ export async function POST(req: NextRequest) {
 
       // /nowplaying slash command
       if (commandName === 'nowplaying' || commandName === 'np') {
-        const np = getNowPlaying();
+        const np = await getNowPlaying();
         return NextResponse.json({
           type: 4,
           data: {

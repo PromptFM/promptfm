@@ -84,8 +84,18 @@ export default function AudioPlayer() {
       if (res.ok) {
         const data = await res.json();
         if (data.now_playing) {
+          const trackId = data.now_playing.id;
+          if (trackId && typeof window !== 'undefined') {
+            try {
+              const alreadyVoted = localStorage.getItem(`promptfm_voted_${trackId}`) === 'true';
+              setVoted(alreadyVoted);
+            } catch {
+              // Ignore localStorage restrictions
+            }
+          }
+
           setNowPlaying({
-            id: data.now_playing.id,
+            id: trackId,
             type: data.now_playing.type,
             title: data.now_playing.title,
             artist: data.now_playing.artist,
@@ -110,23 +120,36 @@ export default function AudioPlayer() {
   // Handle in-player quick upvote
   const handleQuickVote = async () => {
     if (!nowPlaying?.id || voted) return;
+
+    // Optimistically mark as voted and persist to localStorage
     setVoted(true);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`promptfm_voted_${nowPlaying.id}`, 'true');
+      } catch {
+        // Ignore localStorage restrictions
+      }
+    }
+
     setNowPlaying((prev) =>
       prev ? { ...prev, upvotes_count: (prev.upvotes_count || 0) + 1 } : null
     );
 
     try {
-      await fetch('/api/bot/webhook', {
+      const res = await fetch('/api/vote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          callback_query: {
-            id: `web-${Date.now()}`,
-            data: `vote:${nowPlaying.id}`,
-            from: { id: 'web-player', first_name: 'Web Listener' },
-          },
-        }),
+        body: JSON.stringify({ trackId: nowPlaying.id }),
       });
+
+      if (res.ok) {
+        const json = await res.json();
+        if (typeof json.upvotes_count === 'number') {
+          setNowPlaying((prev) =>
+            prev ? { ...prev, upvotes_count: json.upvotes_count } : null
+          );
+        }
+      }
     } catch (e) {
       console.warn('Failed to register quick vote:', e);
     }

@@ -620,7 +620,7 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
 
     case 'promptfm_get_now_playing': {
       const channel = (args.channel as string) || 'main';
-      const np = getNowPlaying(channel);
+      const np = await getNowPlaying(channel);
       return {
         now_playing: {
           id: np.item.id,
