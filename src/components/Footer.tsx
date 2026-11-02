@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { Shield, Flag, Scale, Radio, MessageSquare, Terminal } from 'lucide-react';
 import AgreementsModal from '@/components/AgreementsModal';
 import ReportModal from '@/components/ReportModal';
@@ -48,29 +49,32 @@ export default function Footer() {
 
           {/* Legal Agreements & Safety Links */}
           <div className="flex flex-wrap items-center justify-center gap-y-2 gap-x-4 text-xs font-medium">
-            <button
-              type="button"
-              onClick={() => openTab('terms')}
+            <Link
+              href="/terms"
               className="hover:text-emerald-400 transition-colors flex items-center gap-1"
             >
               <Shield className="w-3.5 h-3.5" />
-              <span>Agreements & Rules</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => openTab('copyright')}
+              <span>Terms of Service</span>
+            </Link>
+            <Link
+              href="/dmca"
+              className="hover:text-emerald-400 transition-colors"
+            >
+              DMCA Safe Harbor
+            </Link>
+            <Link
+              href="/copyright"
               className="hover:text-emerald-400 transition-colors flex items-center gap-1"
             >
               <Scale className="w-3.5 h-3.5" />
               <span>Commercial AI Rights</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => openTab('dmca')}
+            </Link>
+            <Link
+              href="/privacy"
               className="hover:text-emerald-400 transition-colors"
             >
-              DMCA Takedown
-            </button>
+              Privacy
+            </Link>
             <button
               type="button"
               onClick={() => openTab('watershed')}

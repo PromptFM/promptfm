@@ -637,23 +637,25 @@ export default function SubmitPage() {
               className="mt-0.5 w-4 h-4 accent-emerald-400 cursor-pointer flex-shrink-0"
             />
             <label htmlFor="termsConfirmed" className="text-xs text-zinc-300 leading-relaxed cursor-pointer">
-              <span className="font-semibold text-white">Broadcast Terms & Ethics Agreement:</span> I agree to the PromptFM{' '}
-              <button
-                type="button"
-                onClick={() => openAgreements('ethics')}
+              <span className="font-semibold text-white">Broadcast License & Indemnification Agreement:</span> I agree to the PromptFM{' '}
+              <a
+                href="/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-emerald-400 hover:text-emerald-300 underline font-semibold"
+              >
+                Terms of Service
+              </a>
+              , grant PromptFM a worldwide broadcast license, agree to{' '}
+              <a
+                href="/dmca"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="text-emerald-400 hover:text-emerald-300 underline"
               >
-                Broadcast Ethics
-              </button>
-              , zero tolerance for hate speech or religious mockery, and{' '}
-              <button
-                type="button"
-                onClick={() => openAgreements('dmca')}
-                className="text-emerald-400 hover:text-emerald-300 underline"
-              >
-                DMCA takedown rules
-              </button>
-              . I grant PromptFM a non-exclusive license to stream and feature this track.
+                DMCA rules
+              </a>
+              , and agree to <strong>indemnify and hold harmless PromptFM</strong> from and against any copyright or third-party claims arising from this submission.
             </label>
           </div>
 

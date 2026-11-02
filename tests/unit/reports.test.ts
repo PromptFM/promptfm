@@ -6,6 +6,7 @@ import {
   submitContentReport,
   getRecentReports,
   resolveContentReport,
+  quarantineInfringingTrack,
   formatReportAlert,
   clearMemoryReportsForTesting,
   getMemoryReports,
@@ -27,9 +28,12 @@ vi.mock('@/lib/supabase/server', () => ({
   createAdminClient: () => ({
     from: (table: string) => ({
       insert: mockInsert,
-      update: (data: any) => ({
-        eq: mockEq.mockReturnValue({ data: null, error: null }),
-      }),
+      update: (data: any) => {
+        mockUpdate(data, table);
+        return {
+          eq: mockEq.mockReturnValue({ data: null, error: null }),
+        };
+      },
       select: () => ({
         order: () => ({
           limit: mockLimit,
@@ -277,6 +281,8 @@ describe('Content Reporting Service', () => {
       expect(resActioned.status).toBe('actioned');
       expect(resActioned.notes).toBe('Track removed');
       expect(mockEq).toHaveBeenCalledWith('id', submitted.reportId);
+      expect(mockUpdate).toHaveBeenCalledWith({ status: 'actioned' }, 'content_reports');
+      expect(mockUpdate).toHaveBeenCalledWith({ status: 'rejected' }, 'tracks');
 
       const memReports = getMemoryReports();
       expect(memReports.find((r) => r.id === submitted.reportId)?.status).toBe('actioned');
@@ -304,6 +310,88 @@ describe('Content Reporting Service', () => {
       expect(res.success).toBe(true);
       expect(consoleWarnSpy).toHaveBeenCalledWith(
         expect.stringContaining('[Safety Reports] Supabase update note'),
+        expect.any(Error)
+      );
+      consoleWarnSpy.mockRestore();
+    });
+
+    it('automatically quarantines track when report with target_type=track is actioned', async () => {
+      const submitted = await submitContentReport({
+        target_type: 'track',
+        target_id: 'infringing-track-123',
+        reason: 'copyright_dmca',
+        reporter_platform: 'web',
+      });
+
+      const res = await resolveContentReport(submitted.reportId, 'actioned', 'DMCA notice verified');
+      expect(res.success).toBe(true);
+      expect(mockEq).toHaveBeenCalledWith('id', 'infringing-track-123');
+    });
+
+    it('does not quarantine track when report is dismissed or target_type is not track', async () => {
+      const trackReport = await submitContentReport({
+        target_type: 'track',
+        target_id: 'innocent-track-456',
+        reason: 'other',
+        reporter_platform: 'web',
+      });
+      mockEq.mockClear();
+      await resolveContentReport(trackReport.reportId, 'dismissed');
+      expect(mockEq).not.toHaveBeenCalledWith('id', 'innocent-track-456');
+
+      const broadcastReport = await submitContentReport({
+        target_type: 'broadcast',
+        target_id: 'channel-main',
+        reason: 'spam_abuse',
+        reporter_platform: 'web',
+      });
+      mockEq.mockClear();
+      await resolveContentReport(broadcastReport.reportId, 'actioned');
+      expect(mockEq).not.toHaveBeenCalledWith('id', 'channel-main');
+    });
+
+    it('uses fallback note when resolving actioned track report without notes', async () => {
+      const trackReport = await submitContentReport({
+        target_type: 'track',
+        target_id: 'no-notes-track-789',
+        reason: 'copyright_dmca',
+        reporter_platform: 'web',
+      });
+      mockEq.mockClear();
+      const res = await resolveContentReport(trackReport.reportId, 'actioned');
+      expect(res.notes).toBeUndefined();
+      expect(mockEq).toHaveBeenCalledWith('id', 'no-notes-track-789');
+    });
+  });
+
+  describe('quarantineInfringingTrack (Direct Killswitch)', () => {
+    it('sets track status to rejected in database and returns takedown confirmation', async () => {
+      const res = await quarantineInfringingTrack('direct-kill-track-555', 'Statutory DMCA Takedown');
+      expect(res.success).toBe(true);
+      expect(res.trackId).toBe('direct-kill-track-555');
+      expect(res.action).toBe('quarantined');
+      expect(res.reason).toBe('Statutory DMCA Takedown');
+      expect(mockEq).toHaveBeenCalledWith('id', 'direct-kill-track-555');
+    });
+
+    it('uses default reason when reason parameter is omitted', async () => {
+      const res = await quarantineInfringingTrack('default-reason-track');
+      expect(res.success).toBe(true);
+      expect(res.trackId).toBe('default-reason-track');
+      expect(res.reason).toBe('Copyright DMCA takedown');
+    });
+
+    it('handles database error gracefully when quarantining track', async () => {
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      mockEq.mockImplementationOnce(() => {
+        throw new Error('Supabase failure');
+      });
+
+      const res = await quarantineInfringingTrack('fail-track', 'Takedown error test');
+      expect(res.success).toBe(true);
+      expect(res.trackId).toBe('fail-track');
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[Safety Reports] Quarantine track note:'),
         expect.any(Error)
       );
       consoleWarnSpy.mockRestore();

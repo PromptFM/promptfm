@@ -8,12 +8,26 @@
 export interface GuardrailResult {
   safe: boolean;
   is18Plus: boolean;
-  category: 'clean' | 'religious_hostility' | 'explicit_18_plus' | 'hate_speech' | 'harassment' | 'violence';
+  category:
+    | 'clean'
+    | 'religious_hostility'
+    | 'explicit_18_plus'
+    | 'hate_speech'
+    | 'harassment'
+    | 'violence'
+    | 'voice_clone_infringement';
   reason?: string;
   refusalMessage?: string;
 }
 
 // ── Deterministic Heuristic Pre-Filter (Zero-latency instant blocklist) ───────
+
+const VOICE_CLONE_PATTERNS = [
+  /\b(taylor\s*swift|drake|the\s*weeknd|ariana\s*grande|billie\s*eilish|eminem|rihanna|beyonce|kanye|justin\s*bieber|bad\s*bunny|ed\s*sheeran|dua\s*lipa|michael\s*jackson|elvis)\b.*?\b(ai|clone|voice\s*model|deepfake|impersonat\w*)\b/i,
+  /\b(ai|clone|deepfake|voice\s*model)\b.*?\b(taylor\s*swift|drake|the\s*weeknd|ariana\s*grande|billie\s*eilish|eminem|rihanna|beyonce|kanye|justin\s*bieber|bad\s*bunny|ed\s*sheeran|dua\s*lipa|michael\s*jackson)\b/i,
+  /\b(voice\s*clone|vocal\s*clone|deepfake\s*vocal\w*|ai\s*voice\s*clone)\b/i,
+  /\b(ripped\s*vocal\w*|master\s*stem\w*|ripped\s*master|stolen\s*stem\w*)\b/i,
+];
 
 const EXPLICIT_ADULT_PATTERNS = [
   /\b(porn|pornographic|nsfw|xxx|blowjob|cumshot|gangbang|hardcore\s*sex|anal\s*sex|hentai)\b/i,
@@ -47,6 +61,21 @@ export function evaluateHeuristicGuardrails(text: string): GuardrailResult {
         category: 'hate_speech',
         reason: 'Hate speech, slurs, or harassment violate PromptFM community standards.',
         refusalMessage: '🚫 Request declined: PromptFM strictly prohibits hate speech, targeted slurs, and harassment.',
+      };
+    }
+  }
+
+  // 2. Living artist likeness / unauthorized voice clones & master stem rips
+  for (const pattern of VOICE_CLONE_PATTERNS) {
+    if (pattern.test(normalized)) {
+      return {
+        safe: false,
+        is18Plus: false,
+        category: 'voice_clone_infringement',
+        reason:
+          'Unauthorized living artist likeness, voice clone models, or ripped master stems violate PromptFM copyright policies.',
+        refusalMessage:
+          '🚫 Copyright & Likeness Protection: PromptFM strictly prohibits unauthorized AI voice clones or deepfakes of recording artists.',
       };
     }
   }

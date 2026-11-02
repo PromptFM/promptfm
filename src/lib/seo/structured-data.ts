@@ -78,6 +78,30 @@ export function generateSitemapUrls(now = new Date()): SitemapEntry[] {
       changeFrequency: 'monthly',
       priority: 0.7,
     },
+    {
+      url: `${SITE_URL}/terms`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.7,
+    },
+    {
+      url: `${SITE_URL}/dmca`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.7,
+    },
+    {
+      url: `${SITE_URL}/privacy`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.7,
+    },
+    {
+      url: `${SITE_URL}/copyright`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.7,
+    },
   ];
 
   const channelRoutes: SitemapEntry[] = OFFICIAL_CHANNELS.map((ch) => ({
@@ -144,3 +168,4 @@ export function generateWebSiteJsonLd() {
     },
   };
 }
+

@@ -5,7 +5,8 @@
 // parental advisory (18+), and DMCA copyright policies modal.
 
 import React, { useState } from 'react';
-import { Shield, FileText, AlertTriangle, Scale, CheckCircle2, X } from 'lucide-react';
+import Link from 'next/link';
+import { Shield, FileText, AlertTriangle, Scale, CheckCircle2, ExternalLink, X } from 'lucide-react';
 
 interface AgreementsModalProps {
   isOpen: boolean;
@@ -266,15 +267,39 @@ export default function AgreementsModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-5 py-3 border-t border-zinc-800 bg-zinc-950/60">
-          <div className="flex items-center gap-1.5 text-xs text-zinc-400">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            <span>Applies across Web, Discord, Telegram & MCP</span>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3 border-t border-zinc-800 bg-zinc-950/60">
+          <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-400">
+            <Link
+              href="/terms"
+              onClick={onClose}
+              className="text-emerald-400 hover:underline flex items-center gap-1"
+            >
+              <span>Full Terms</span>
+              <ExternalLink className="w-3 h-3" />
+            </Link>
+            <span>•</span>
+            <Link
+              href="/dmca"
+              onClick={onClose}
+              className="text-emerald-400 hover:underline flex items-center gap-1"
+            >
+              <span>DMCA Form</span>
+              <ExternalLink className="w-3 h-3" />
+            </Link>
+            <span>•</span>
+            <Link
+              href="/copyright"
+              onClick={onClose}
+              className="text-emerald-400 hover:underline flex items-center gap-1"
+            >
+              <span>AI Rights</span>
+              <ExternalLink className="w-3 h-3" />
+            </Link>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold transition-colors"
+            className="w-full sm:w-auto px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold transition-colors"
           >
             I Understand
           </button>

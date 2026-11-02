@@ -136,6 +136,28 @@ export async function getRecentReports(limit = 20): Promise<ContentReport[]> {
 }
 
 /**
+ * Quarantines or disables a track immediately from active broadcast rotation and charts.
+ */
+export async function quarantineInfringingTrack(
+  trackId: string,
+  reason = 'Copyright DMCA takedown'
+): Promise<{ success: boolean; trackId: string; action: string; reason: string }> {
+  try {
+    const supabase = createAdminClient();
+    await supabase.from('tracks').update({ status: 'rejected' }).eq('id', trackId);
+  } catch (err) {
+    console.warn('[Safety Reports] Quarantine track note:', err);
+  }
+
+  return {
+    success: true,
+    trackId,
+    action: 'quarantined',
+    reason,
+  };
+}
+
+/**
  * Resolves or updates the moderation status of a report (actioned or dismissed).
  */
 export async function resolveContentReport(
@@ -146,6 +168,9 @@ export async function resolveContentReport(
   const report = memoryReports.find((r) => r.id === reportId);
   if (report) {
     report.status = status;
+    if (status === 'actioned' && report.target_type === 'track') {
+      await quarantineInfringingTrack(report.target_id, notes || 'Actioned report takedown');
+    }
   }
 
   // Update in database if configured

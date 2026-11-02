@@ -73,6 +73,26 @@ describe('Broadcast Ethics Guardrails', () => {
       expect(mockProphet.safe).toBe(false);
       expect(mockProphet.category).toBe('religious_hostility');
     });
+
+    it('rejects unauthorized living artist voice clones, deepfakes, and master stem rips', () => {
+      const clone1 = evaluateHeuristicGuardrails('Taylor Swift AI - New Midnight Song');
+      expect(clone1.safe).toBe(false);
+      expect(clone1.category).toBe('voice_clone_infringement');
+      expect(clone1.reason).toContain('voice clone');
+      expect(clone1.refusalMessage).toContain('🚫 Copyright & Likeness Protection');
+
+      const clone2 = evaluateHeuristicGuardrails('Drake AI voice clone feat The Weeknd');
+      expect(clone2.safe).toBe(false);
+      expect(clone2.category).toBe('voice_clone_infringement');
+
+      const deepfake = evaluateHeuristicGuardrails('Ariana Grande deepfake vocals demo');
+      expect(deepfake.safe).toBe(false);
+      expect(deepfake.category).toBe('voice_clone_infringement');
+
+      const stemRip = evaluateHeuristicGuardrails('ripped vocal master stems from commercial record');
+      expect(stemRip.safe).toBe(false);
+      expect(stemRip.category).toBe('voice_clone_infringement');
+    });
   });
 
   describe('evaluateContentSafety (LLM Contextual Filter)', () => {
