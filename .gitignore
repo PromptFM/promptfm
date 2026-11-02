@@ -1,0 +1,22 @@
+# PromptFM
+
+.env.local
+.env.*.local
+node_modules/
+.next/
+out/
+dist/
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
