@@ -7,10 +7,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Volume2, VolumeX, Radio, Loader2, AlertCircle, ThumbsUp, MessageSquareQuote, ChevronUp, Flag } from 'lucide-react';
 import ReportModal from '@/components/ReportModal';
+import {
+  createStreamPlayerController,
+  StreamPlayerController,
+  DEFAULT_STREAM_URL,
+  PlayerState,
+} from '@/lib/audio/player-controller';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-
-type PlayerState = 'idle' | 'loading' | 'playing' | 'error';
 
 interface NowPlayingInfo {
   id?: string;
@@ -29,9 +33,7 @@ interface NowPlayingInfo {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const STREAM_URL = process.env.NEXT_PUBLIC_STREAM_URL ?? '';
-const MAX_RECONNECT_ATTEMPTS = 5;
-const BASE_RECONNECT_DELAY_MS = 2000;
+const STREAM_URL = process.env.NEXT_PUBLIC_STREAM_URL || DEFAULT_STREAM_URL;
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
@@ -64,8 +66,7 @@ function EqualizerBars({ playing }: { playing: boolean }) {
 
 export default function AudioPlayer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reconnectAttemptsRef = useRef(0);
+  const controllerRef = useRef<StreamPlayerController | null>(null);
 
   const [playerState, setPlayerState] = useState<PlayerState>('idle');
   const [volume, setVolume] = useState(0.8);
@@ -155,34 +156,27 @@ export default function AudioPlayer() {
     }
   };
 
-  // ── Audio element setup ────────────────────────────────────────────────────
+  // ── Stream player controller setup ───────────────────────────────────────
   useEffect(() => {
     const audio = new Audio();
     audio.preload = 'none';
-    audio.volume = volume;
+    audio.volume = muted ? 0 : volume;
     audioRef.current = audio;
 
-    const handleWaiting = () => setPlayerState('loading');
-    const handlePlaying = () => {
-      setPlayerState('playing');
-      setErrorMessage(null);
-      reconnectAttemptsRef.current = 0;
-    };
-    const handleError = () => scheduleReconnect();
-    const handleEnded = () => scheduleReconnect();
-
-    audio.addEventListener('waiting', handleWaiting);
-    audio.addEventListener('playing', handlePlaying);
-    audio.addEventListener('error', handleError);
-    audio.addEventListener('ended', handleEnded);
+    const controller = createStreamPlayerController(audio, STREAM_URL, {
+      onStateChange: (newState) => {
+        setPlayerState(newState);
+      },
+      onError: (msg) => {
+        setErrorMessage(msg);
+      },
+    });
+    controllerRef.current = controller;
 
     return () => {
-      audio.pause();
-      audio.removeEventListener('waiting', handleWaiting);
-      audio.removeEventListener('playing', handlePlaying);
-      audio.removeEventListener('error', handleError);
-      audio.removeEventListener('ended', handleEnded);
-      audio.src = '';
+      controller.destroy();
+      controllerRef.current = null;
+      audioRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -194,57 +188,10 @@ export default function AudioPlayer() {
     }
   }, [volume, muted]);
 
-  // Clean up reconnect timer on unmount
-  useEffect(() => {
-    return () => {
-      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
-    };
-  }, []);
-
-  // ── Reconnect logic ────────────────────────────────────────────────────────
-  const scheduleReconnect = useCallback(() => {
-    if (!audioRef.current || !STREAM_URL) return;
-
-    if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
-      setPlayerState('error');
-      setErrorMessage('Unable to connect to live stream. Please try again later.');
-      return;
-    }
-
-    const delay = BASE_RECONNECT_DELAY_MS * 2 ** reconnectAttemptsRef.current;
-    reconnectAttemptsRef.current += 1;
-
-    setPlayerState('loading');
-    setErrorMessage(`Reconnecting (attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})…`);
-
-    reconnectTimerRef.current = setTimeout(() => {
-      if (!audioRef.current) return;
-      audioRef.current.src = `${STREAM_URL}?nocache=${Date.now()}`;
-      audioRef.current.load();
-      audioRef.current.play().catch(() => scheduleReconnect());
-    }, delay);
-  }, []);
-
   // ── Play / Pause toggle ────────────────────────────────────────────────────
   const handlePlayPause = useCallback(() => {
-    if (!audioRef.current || !STREAM_URL) return;
-
-    if (playerState === 'playing' || playerState === 'loading') {
-      audioRef.current.pause();
-      audioRef.current.src = '';
-      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
-      reconnectAttemptsRef.current = 0;
-      setPlayerState('idle');
-      setErrorMessage(null);
-    } else {
-      setPlayerState('loading');
-      setErrorMessage(null);
-      reconnectAttemptsRef.current = 0;
-      audioRef.current.src = `${STREAM_URL}?nocache=${Date.now()}`;
-      audioRef.current.load();
-      audioRef.current.play().catch(() => scheduleReconnect());
-    }
-  }, [playerState, scheduleReconnect]);
+    controllerRef.current?.toggle();
+  }, []);
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);

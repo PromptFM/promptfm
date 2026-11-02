@@ -121,3 +121,4 @@ describe('Now Playing & Vote State Synchronization', () => {
     expect(() => updateCurrentAirplayUpvotes('track-101', 6)).not.toThrow();
   });
 });
+
