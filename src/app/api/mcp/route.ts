@@ -1,21 +1,23 @@
 // src/app/api/mcp/route.ts
 // Official Model Context Protocol (MCP) HTTP Endpoint for PromptFM on Vercel
-// Allows AI Agents (Claude Desktop, Cursor, ChatGPT, etc.) to:
-//   1. Inspect the weekly top 20 leaderboard
-//   2. Upvote tracks
-//   3. Queue songs via natural language prompts
-//   4. Read the 24/7 radio schedule
+// Supports both Public listener tools and Authorized Admin tools.
+// Authenticate for admin tools via:
+//   Header: Authorization: Bearer <ADMIN_API_KEY>
+//   or Header: x-admin-key: <ADMIN_API_KEY>
+//   or Query Param: ?key=<ADMIN_API_KEY>
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { broadcastToCommunity } from '@/lib/chat/bridge';
+import { createBroadcastDrop } from '@/lib/dj/engine';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 
 export const dynamic = 'force-dynamic';
 
-// ── MCP Tool Definitions ──────────────────────────────────────────────────────
+// ── Public MCP Tools ─────────────────────────────────────────────────────────
 
-const MCP_TOOLS = [
+const PUBLIC_MCP_TOOLS = [
   {
     name: 'promptfm_get_top_tracks',
     description:
@@ -73,6 +75,72 @@ const MCP_TOOLS = [
   },
 ];
 
+// ── Admin-Only MCP Tools ─────────────────────────────────────────────────────
+
+const ADMIN_MCP_TOOLS = [
+  {
+    name: 'promptfm_admin_list_pending',
+    description: 'Lists all community-submitted AI tracks currently waiting for admin moderation.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'promptfm_admin_moderate_track',
+    description: 'Approves or rejects a pending community track by ID.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        track_id: { type: 'string', description: 'The UUID of the track' },
+        action: {
+          type: 'string',
+          enum: ['approved', 'rejected'],
+          description: 'Whether to approve or reject the track for live airplay',
+        },
+      },
+      required: ['track_id', 'action'],
+    },
+  },
+  {
+    name: 'promptfm_admin_broadcast',
+    description: 'Pushes a live announcement to connected community Discord & Telegram channels.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', description: 'The message to broadcast' },
+      },
+      required: ['message'],
+    },
+  },
+  {
+    name: 'promptfm_admin_voice_drop',
+    description: 'Sends a custom prompt to Gemini to write and synthesize an AI DJ voice announcement, saving the MP3 to R2.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        prompt: { type: 'string', description: 'The prompt or instruction for the AI radio host' },
+      },
+      required: ['prompt'],
+    },
+  },
+];
+
+function isAuthorizedAdmin(req: NextRequest): boolean {
+  const adminKey = process.env.ADMIN_API_KEY;
+  if (!adminKey) return true; // Default allow in local dev if not configured
+
+  const authHeader = req.headers.get('authorization');
+  const xAdminKey = req.headers.get('x-admin-key');
+  const urlKey = req.nextUrl.searchParams.get('key');
+
+  return (
+    authHeader === `Bearer ${adminKey}` ||
+    xAdminKey === adminKey ||
+    urlKey === adminKey
+  );
+}
+
 // ── JSON-RPC 2.0 Handler ─────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -100,6 +168,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const isAdmin = isAuthorizedAdmin(req);
+  const availableTools = isAdmin ? [...PUBLIC_MCP_TOOLS, ...ADMIN_MCP_TOOLS] : PUBLIC_MCP_TOOLS;
+
   // 1. Initialize Handshake
   if (method === 'initialize') {
     return NextResponse.json(
@@ -112,7 +183,9 @@ export async function POST(req: NextRequest) {
           serverInfo: {
             name: 'promptfm-mcp',
             version: '1.0.0',
-            description: 'PromptFM 24/7 AI Radio MCP Server on Vercel',
+            description: isAdmin
+              ? 'PromptFM 24/7 AI Radio MCP Server [ADMIN PRIVILEGES UNLOCKED]'
+              : 'PromptFM 24/7 AI Radio MCP Server [Public Listener Mode]',
           },
         },
       },
@@ -127,7 +200,7 @@ export async function POST(req: NextRequest) {
         jsonrpc: '2.0',
         id,
         result: {
-          tools: MCP_TOOLS,
+          tools: availableTools,
         },
       },
       { headers: corsHeaders() }
@@ -142,7 +215,7 @@ export async function POST(req: NextRequest) {
     };
 
     try {
-      const toolResult = await handleToolCall(name, toolArgs || {});
+      const toolResult = await handleToolCall(name, toolArgs || {}, isAdmin);
       return NextResponse.json(
         {
           jsonrpc: '2.0',
@@ -182,9 +255,10 @@ export async function POST(req: NextRequest) {
 
 // ── Tool Execution Implementation ────────────────────────────────────────────
 
-async function handleToolCall(name?: string, args: Record<string, unknown> = {}) {
+async function handleToolCall(name?: string, args: Record<string, unknown> = {}, isAdmin = false) {
   const supabase = createAdminClient();
 
+  // Public tools
   switch (name) {
     case 'promptfm_get_top_tracks': {
       const limit = typeof args.limit === 'number' ? Math.min(Math.max(args.limit, 1), 20) : 10;
@@ -206,7 +280,6 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {})
       const trackId = args.track_id as string;
       if (!trackId) throw new Error('Missing track_id');
 
-      // Increment track upvotes
       const { data: track, error: fetchErr } = await supabase
         .from('tracks')
         .select('id, title, upvotes_count')
@@ -235,7 +308,6 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {})
       const requester = (args.requested_by as string) || 'AI Agent';
       if (!prompt) throw new Error('Missing prompt');
 
-      // Search matching track
       const { data: matches } = await supabase
         .from('tracks')
         .select('id, title, artist_name, tool_used, audio_url')
@@ -245,7 +317,6 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {})
 
       let selected = matches?.[0];
       if (!selected) {
-        // Fallback to top track
         const { data: top } = await supabase
           .from('tracks')
           .select('id, title, artist_name, tool_used, audio_url')
@@ -260,7 +331,6 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {})
         throw new Error('No approved tracks currently available in library to queue.');
       }
 
-      // Find main channel
       const { data: channel } = await supabase
         .from('channels')
         .select('id')
@@ -292,6 +362,69 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {})
       }
       return { message: '24/7 continuous stream with hourly AI News at 07:00 UTC' };
     }
+  }
+
+  // Admin-only tools
+  if (!isAdmin) {
+    throw new Error(`Unauthorized: Tool "${name}" requires admin authorization.`);
+  }
+
+  switch (name) {
+    case 'promptfm_admin_list_pending': {
+      const { data: pending, error } = await supabase
+        .from('tracks')
+        .select('id, title, artist_name, tool_used, audio_url, created_at')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+
+      if (error) throw new Error(error.message);
+      return { pending_tracks: pending || [] };
+    }
+
+    case 'promptfm_admin_moderate_track': {
+      const trackId = args.track_id as string;
+      const action = args.action as 'approved' | 'rejected';
+      if (!trackId || !action) throw new Error('Missing track_id or action');
+
+      const { data: updated, error } = await supabase
+        .from('tracks')
+        .update({ status: action })
+        .eq('id', trackId)
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
+      return {
+        success: true,
+        message: `Track "${updated.title}" marked as ${action.toUpperCase()}`,
+        track: updated,
+      };
+    }
+
+    case 'promptfm_admin_broadcast': {
+      const message = args.message as string;
+      if (!message) throw new Error('Missing message');
+      await broadcastToCommunity({
+        title: 'Station Announcement (via Admin MCP)',
+        message,
+        author: 'AI Agent Admin',
+      });
+      return { success: true, message: 'Dispatched broadcast to community channels.' };
+    }
+
+    case 'promptfm_admin_voice_drop': {
+      const prompt = args.prompt as string;
+      if (!prompt) throw new Error('Missing prompt');
+      const { script, audioUrl } = await createBroadcastDrop({
+        type: 'custom_prompt',
+        topicOrText: prompt,
+      });
+      return {
+        success: true,
+        script_generated: script,
+        audio_url: audioUrl,
+      };
+    }
 
     default:
       throw new Error(`Unknown tool: ${name}`);
@@ -300,15 +433,19 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {})
 
 // ── GET Discovery Endpoint ───────────────────────────────────────────────────
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const isAdmin = isAuthorizedAdmin(req);
+  const tools = isAdmin ? [...PUBLIC_MCP_TOOLS, ...ADMIN_MCP_TOOLS] : PUBLIC_MCP_TOOLS;
+
   return NextResponse.json(
     {
       name: 'promptfm-mcp',
       description: 'Model Context Protocol (MCP) Server for PromptFM Radio',
       version: '1.0.0',
+      admin_unlocked: isAdmin,
       endpoint: '/api/mcp',
       supported_methods: ['initialize', 'tools/list', 'tools/call', 'ping'],
-      tools: MCP_TOOLS.map((t) => ({ name: t.name, description: t.description })),
+      tools: tools.map((t) => ({ name: t.name, description: t.description })),
     },
     { headers: corsHeaders() }
   );
@@ -322,7 +459,6 @@ function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-admin-key',
   };
 }
-

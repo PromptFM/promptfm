@@ -22,6 +22,9 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import type { Track, AITool } from '@/types/database';
+import type { User } from '@supabase/supabase-js';
+import AuthButton from '@/components/AuthButton';
+import { ShieldAlert, ShieldCheck } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,6 +38,10 @@ interface QueuedItem {
 }
 
 export default function AdminDashboard() {
+  const [user, setUser] = useState<User | null>(null);
+  const [authChecking, setAuthChecking] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+
   const [activeTab, setActiveTab] = useState<'submissions' | 'queue' | 'upload'>('submissions');
   const [pendingTracks, setPendingTracks] = useState<Track[]>([]);
   const [queueItems, setQueueItems] = useState<QueuedItem[]>([]);
@@ -91,8 +98,51 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
-    refreshData();
+    async function checkAdmin() {
+      setAuthChecking(true);
+      const {
+        data: { user: currentUser },
+      } = await supabase.auth.getUser();
+      setUser(currentUser);
+
+      if (!currentUser) {
+        setIsAdmin(false);
+        setAuthChecking(false);
+        setLoading(false);
+        return;
+      }
+
+      // Read admin allowlist from env
+      const adminEmailsEnv = process.env.NEXT_PUBLIC_ADMIN_EMAILS || '';
+      const allowedEmails = adminEmailsEnv
+        .split(',')
+        .map((e) => e.trim().toLowerCase())
+        .filter(Boolean);
+
+      // If configured, verify user email is in the allowlist; otherwise allow in dev
+      const authorized =
+        allowedEmails.length === 0 || allowedEmails.includes((currentUser.email || '').toLowerCase());
+
+      setIsAdmin(authorized);
+      setAuthChecking(false);
+
+      if (authorized) {
+        refreshData();
+      } else {
+        setLoading(false);
+      }
+    }
+
+    checkAdmin();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
+      checkAdmin();
+    });
+
     return () => {
+      subscription.unsubscribe();
       audioRef.current?.pause();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -220,6 +270,37 @@ export default function AdminDashboard() {
       setUploading(false);
     }
   };
+
+  if (authChecking) {
+    return (
+      <main className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-6">
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
+      </main>
+    );
+  }
+
+  if (!user || !isAdmin) {
+    return (
+      <main className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-8 text-center space-y-5">
+          <div className="w-12 h-12 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-2xl flex items-center justify-center mx-auto">
+            <ShieldAlert className="w-6 h-6" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-xl font-bold tracking-tight">Admin Station Access Required</h1>
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              {!user
+                ? 'Please sign in with an authorized station admin account to access the DJ and program console.'
+                : `Signed in as ${user.email}. This account is not listed in NEXT_PUBLIC_ADMIN_EMAILS.`}
+            </p>
+          </div>
+          <div className="flex justify-center pt-2">
+            <AuthButton />
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white pb-32">
