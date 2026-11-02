@@ -1,28 +1,86 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import Image from 'next/image';
 import './globals.css';
 import AudioPlayer from '@/components/AudioPlayer';
 import AuthButton from '@/components/AuthButton';
 import Footer from '@/components/Footer';
+import JsonLd from '@/components/JsonLd';
+import { SITE_URL, SITE_NAME, SITE_TAGLINE, SITE_DESCRIPTION } from '@/lib/seo/structured-data';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
+export const viewport: Viewport = {
+  themeColor: '#10b981',
+  width: 'device-width',
+  initialScale: 1,
+};
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: 'PromptFM — 24/7 AI Music Radio',
-    template: '%s | PromptFM',
+    default: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    template: `%s | ${SITE_NAME}`,
   },
-  description:
-    'PromptFM is a 24/7 live radio station and community chart for AI-generated music. Discover, vote, and submit tracks made with Suno, Udio, Stable Audio, and more.',
-  keywords: ['AI music', 'Suno', 'Udio', 'Stable Audio', 'radio', 'community chart'],
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  keywords: [
+    'AI music',
+    'AI radio',
+    'Suno',
+    'Udio',
+    'Stable Audio',
+    'radio live stream',
+    'community music chart',
+    'generative audio',
+    'AI DJ',
+    'cyberpunk synthwave',
+    'ambient chillout',
+  ],
+  authors: [{ name: 'PromptFM Team', url: SITE_URL }],
+  creator: SITE_NAME,
+  publisher: SITE_NAME,
+  category: 'music',
+  classification: 'Music, Radio, Artificial Intelligence',
+  alternates: {
+    canonical: SITE_URL,
+  },
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    siteName: 'PromptFM',
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    description: SITE_DESCRIPTION,
+    images: [
+      {
+        url: '/opengraph-image',
+        width: 1200,
+        height: 630,
+        alt: `${SITE_NAME} — ${SITE_TAGLINE}`,
+      },
+    ],
   },
-  // Next.js App Router picks up src/app/icon.png automatically as the favicon.
-  // The explicit entries below add extra sizes for PWA / Apple touch icon.
+  twitter: {
+    card: 'summary_large_image',
+    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    description: SITE_DESCRIPTION,
+    site: '@PromptFM',
+    creator: '@PromptFM',
+    images: ['/opengraph-image'],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  manifest: '/manifest.webmanifest',
   icons: {
     icon: '/icon.png',
     apple: '/icon.png',
@@ -37,6 +95,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <body className="bg-zinc-950 font-sans antialiased">
+        {/* Schema.org Search Engine Structured Data */}
+        <JsonLd />
+
         {/* Navigation */}
         <nav className="sticky top-0 z-40 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur-md">
           <div className="max-w-5xl mx-auto px-3 sm:px-4 h-14 flex items-center justify-between">

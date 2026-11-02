@@ -10,6 +10,15 @@ export const metadata: Metadata = {
   title: 'Radio Channels & Stations',
   description:
     'Explore PromptFM live radio stations: Main Stage, Cyberpunk & Synth, Chillout & Ambient, and Kids & Family. Curated 24/7 by AI DJs.',
+  alternates: {
+    canonical: '/channels',
+  },
+  openGraph: {
+    title: 'Live AI Radio Channels & Theme Stations | PromptFM',
+    description:
+      'Tune into 4 distinct live streaming channels featuring continuous AI-generated music and autonomous AI radio DJs.',
+    url: '/channels',
+  },
 };
 
 export default function ChannelsPage() {
