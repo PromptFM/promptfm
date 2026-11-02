@@ -19,3 +19,4 @@ export const metadata: Metadata = {
 export default function DmcaLayout({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
+

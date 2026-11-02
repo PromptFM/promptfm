@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import ReportModal from '@/components/ReportModal';
+import NativeSponsorCard from '@/components/NativeSponsorCard';
 import type { RankedTrack, AITool } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
@@ -452,17 +453,24 @@ export default function TopPage() {
             {tracks
               .filter((t) => (!hideExplicit ? true : !t.is_explicit))
               .map((track, index) => (
-                <TrackRow
-                  key={track.id}
-                  track={track}
-                  rank={index + 1}
-                  onVote={handleVote}
-                  onReport={setReportingTrack}
-                  isVoting={votingId === track.id}
-                  playingId={playingId}
-                  loadingId={loadingId}
-                  onPlay={play}
-                />
+                <React.Fragment key={track.id}>
+                  <TrackRow
+                    track={track}
+                    rank={index + 1}
+                    onVote={handleVote}
+                    onReport={setReportingTrack}
+                    isVoting={votingId === track.id}
+                    playingId={playingId}
+                    loadingId={loadingId}
+                    onPlay={play}
+                  />
+                  {index === 4 && (
+                    <NativeSponsorCard
+                      campaignId="elevenlabs_ai"
+                      className="my-3 border-emerald-500/40"
+                    />
+                  )}
+                </React.Fragment>
               ))}
           </div>
         )}

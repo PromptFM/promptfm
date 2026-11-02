@@ -6,6 +6,7 @@ import AudioPlayer from '@/components/AudioPlayer';
 import AuthButton from '@/components/AuthButton';
 import Footer from '@/components/Footer';
 import JsonLd from '@/components/JsonLd';
+import SponsorBanner from '@/components/SponsorBanner';
 import { SITE_URL, SITE_NAME, SITE_TAGLINE, SITE_DESCRIPTION } from '@/lib/seo/structured-data';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
@@ -148,6 +149,9 @@ export default function RootLayout({
             </div>
           </div>
         </nav>
+
+        {/* Top Sponsor Ribbon */}
+        <SponsorBanner />
 
         {/* Page content */}
         <div className="min-h-[calc(100vh-3.5rem)] flex flex-col justify-between">
