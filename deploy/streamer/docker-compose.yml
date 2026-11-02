@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  # 1. Icecast 2 Streaming Audio Server
+  icecast:
+    image: infiniteproject/icecast:latest
+    container_name: promptfm-icecast
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ICECAST_SOURCE_PASSWORD=promptfm_source_2026
+      - ICECAST_ADMIN_PASSWORD=promptfm_admin_2026
+      - ICECAST_PASSWORD=promptfm_stream_2026
+    volumes:
+      - ./icecast.xml:/etc/icecast2/icecast.xml:ro
+
+  # 2. Liquidsoap Radio Automation & Dynamic DJ Mixer
+  liquidsoap:
+    image: savonet/liquidsoap:v2.2.5
+    container_name: promptfm-liquidsoap
+    restart: unless-stopped
+    depends_on:
+      - icecast
+    volumes:
+      - ./radio.liq:/etc/liquidsoap/radio.liq:ro
+      - ./fallback.mp3:/etc/liquidsoap/fallback.mp3:ro
+    command: ["liquidsoap", "/etc/liquidsoap/radio.liq"]
+
+  # 3. Cloudflare Tunnel (Free Zero-Egress Proxy)
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: promptfm-tunnel
+    restart: unless-stopped
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    command: tunnel --no-autoupdate run

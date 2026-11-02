@@ -51,3 +51,4 @@ This document tracks upcoming features, architectural milestones, and infrastruc
 ### 7. Realtime WebSockets for Admin Studio
 - [ ] **Supabase Realtime Subscriptions**: Wire live WebSocket channels to [`/admin`](src/app/admin/page.tsx) so moderation tickets, listener requests, and vote counts update instantly without page reloads.
 - [ ] **Audio Scrubbing / Waveform Preview**: Add visual waveform seeking for admin review of submissions.
+
