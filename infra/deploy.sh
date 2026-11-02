@@ -69,3 +69,4 @@ echo "• Stream URL:  http://${EXTERNAL_IP}:8000/stream.mp3"
 echo "• Admin URL:   http://${EXTERNAL_IP}:8000/admin/"
 echo "• Monthly Cost: \$0.00 (Always-Free Tier)"
 echo "=========================================================="
+

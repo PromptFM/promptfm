@@ -56,3 +56,4 @@ terraform output
 * `external_ip`: Public IP of the stream server.
 * `icecast_stream_url`: `http://<IP>:8000/stream.mp3`
 * `icecast_admin_url`: `http://<IP>:8000/admin/`
+

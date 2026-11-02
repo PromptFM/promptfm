@@ -12,11 +12,12 @@ emergency_fallback = mksafe(single("{{ app_dir }}/fallback.mp3"))
 def get_next_promptfm_track() =
   result = process.read("curl -s '{{ promptfm_api_url }}/api/radio/next?format=uri'")
   uri = string.trim(result)
-  if uri == "" then
+  target = if uri == "" then
     "{{ app_dir }}/fallback.mp3"
   else
     uri
   end
+  request.create(target)
 end
 
 dynamic_stream = request.dynamic(get_next_promptfm_track)

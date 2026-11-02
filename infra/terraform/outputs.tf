@@ -37,3 +37,4 @@ output "gcs_state_bucket" {
   description = "Google Cloud Storage bucket storing Terraform state (100% Free Tier)"
   value       = google_storage_bucket.tf_state.name
 }
+

@@ -28,3 +28,4 @@ This Ansible suite automates the software provisioning, container deployment, an
 # 2. Run the playbook
 ansible-playbook -i inventory.ini playbook.yml
 ```
+

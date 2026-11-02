@@ -99,3 +99,4 @@ resource "google_compute_instance" "streamer" {
     preemptible         = false # Always Free tier requires a non-preemptible e2-micro VM
   }
 }
+

@@ -15,11 +15,12 @@ def get_next_promptfm_track() =
   # Call PromptFM API endpoint
   result = process.read("curl -s 'https://promptfm.vercel.app/api/radio/next?format=uri'")
   uri = string.trim(result)
-  if uri == "" then
+  target = if uri == "" then
     "/etc/liquidsoap/fallback.mp3"
   else
     uri
   end
+  request.create(target)
 end
 
 # Request dynamic stream

@@ -51,3 +51,4 @@ variable "ssh_pub_key_path" {
   type        = string
   default     = "~/.ssh/google_compute_engine.pub"
 }
+

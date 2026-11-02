@@ -39,3 +39,4 @@ logs:
 
 destroy:
 	@cd terraform && terraform destroy -auto-approve
+
