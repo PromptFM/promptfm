@@ -44,6 +44,7 @@ interface NowPlayingInfo {
   type?: string;
   title: string;
   artist: string;
+  cover_art_url?: string;
   tool_used?: string;
   upvotes_count?: number;
   transcript?: string;
@@ -127,6 +128,7 @@ export default function AudioPlayer() {
             type: data.now_playing.type,
             title: data.now_playing.title,
             artist: data.now_playing.artist,
+            cover_art_url: data.now_playing.cover_art_url || '/logo-mark.png',
             tool_used: data.now_playing.tool_used,
             upvotes_count: data.now_playing.upvotes_count,
             transcript: data.now_playing.transcript,
@@ -428,6 +430,45 @@ export default function AudioPlayer() {
               </svg>
             )}
           </button>
+
+          {/* Track Cover Art with Active Singing Aura */}
+          <div className="relative flex-shrink-0">
+            {isPlaying && (
+              <div
+                className="absolute -inset-1 rounded-xl bg-gradient-to-r from-emerald-500/40 via-teal-400/30 to-emerald-500/40 blur-[3px] animate-pulse pointer-events-none"
+                aria-hidden="true"
+              />
+            )}
+            <div
+              className={`relative w-10 h-10 sm:w-11 sm:h-11 rounded-lg overflow-hidden border transition-all ${
+                isPlaying
+                  ? 'border-emerald-400/80 ring-1 ring-emerald-400/50 shadow-md shadow-emerald-500/20'
+                  : 'border-zinc-800'
+              } bg-zinc-900 flex items-center justify-center`}
+            >
+              <img
+                src={nowPlaying?.cover_art_url || '/logo-mark.png'}
+                alt={nowPlaying?.title || 'PromptFM Cover Art'}
+                className={`w-full h-full object-cover transition-transform duration-300 ${
+                  isPlaying ? 'scale-105' : 'scale-100'
+                }`}
+                loading="lazy"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = '/logo-mark.png';
+                }}
+              />
+              {/* Pulsating Singing Equalizer Waves */}
+              {isPlaying && (
+                <div className="absolute inset-0 bg-black/30 flex items-end justify-center pb-0.5 pointer-events-none">
+                  <span className="flex items-end gap-[1.5px] h-2.5">
+                    <span className="w-0.5 bg-emerald-400 rounded-full animate-equalizer" style={{ animationDuration: '0.6s' }} />
+                    <span className="w-0.5 bg-emerald-300 rounded-full animate-equalizer" style={{ animationDuration: '0.8s', animationDelay: '0.15s' }} />
+                    <span className="w-0.5 bg-emerald-400 rounded-full animate-equalizer" style={{ animationDuration: '0.5s', animationDelay: '0.3s' }} />
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 sm:gap-2">

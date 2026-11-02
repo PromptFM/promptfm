@@ -17,6 +17,10 @@ CREATE TABLE IF NOT EXISTS public.tracks (
   status         TEXT        NOT NULL    DEFAULT 'pending'
                              CHECK (status IN ('pending', 'approved', 'rejected')),
   upvotes_count  INTEGER     NOT NULL    DEFAULT 0,
+  category       TEXT,
+  description    TEXT,
+  lyrics         TEXT,
+  cover_art_url  TEXT,
   is_explicit    BOOLEAN     NOT NULL    DEFAULT false,
   rejection_reason TEXT
 );
@@ -25,6 +29,10 @@ COMMENT ON TABLE  public.tracks                IS 'AI-generated music tracks sub
 COMMENT ON COLUMN public.tracks.tool_used      IS 'The AI generation tool used (Suno, Udio, Stable Audio, Other).';
 COMMENT ON COLUMN public.tracks.status         IS 'Moderation state: pending → approved or rejected.';
 COMMENT ON COLUMN public.tracks.upvotes_count  IS 'Denormalized vote count, kept in sync by trigger.';
+COMMENT ON COLUMN public.tracks.category       IS 'Station category / sound style (e.g. Synthwave & Electro, Ambient & Lo-Fi, etc.).';
+COMMENT ON COLUMN public.tracks.description    IS 'Track prompt, background notes, or AI generator description.';
+COMMENT ON COLUMN public.tracks.lyrics         IS 'Spoken lyrics, vocal prompts, or USLT ID3 tag contents.';
+COMMENT ON COLUMN public.tracks.cover_art_url  IS 'URL to embedded or uploaded cover art image, defaults to /logo-mark.png.';
 COMMENT ON COLUMN public.tracks.is_explicit    IS 'Parental control flag: true for 18+ explicit tracks.';
 COMMENT ON COLUMN public.tracks.rejection_reason IS 'Explanation if declined by station moderation.';
 

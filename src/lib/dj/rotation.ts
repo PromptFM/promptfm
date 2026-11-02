@@ -17,6 +17,10 @@ export interface AirplayItem {
   title: string;
   artist: string;
   audio_url: string;
+  cover_art_url?: string;
+  category?: string;
+  description?: string | null;
+  lyrics?: string | null;
   duration_hint_seconds?: number;
   transcript?: string;
   tool_used?: string;
@@ -99,7 +103,7 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
       } else {
         const { data: topTrack } = await supabase
           .from('tracks')
-          .select('id, title, artist_name, audio_url, tool_used, upvotes_count')
+          .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, description, lyrics')
           .eq('status', 'approved')
           .order('upvotes_count', { ascending: false })
           .limit(1)
@@ -112,6 +116,10 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
             title: topTrack.title,
             artist: topTrack.artist_name,
             audio_url: topTrack.audio_url,
+            cover_art_url: (topTrack as unknown as { cover_art_url?: string }).cover_art_url || '/logo-mark.png',
+            category: (topTrack as unknown as { category?: string }).category,
+            description: (topTrack as unknown as { description?: string }).description,
+            lyrics: (topTrack as unknown as { lyrics?: string }).lyrics,
             tool_used: topTrack.tool_used,
             upvotes_count: topTrack.upvotes_count,
             dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
@@ -139,6 +147,8 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
     title: 'PromptFM Ambient AI Anthem',
     artist: 'PromptFM Core',
     audio_url: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3',
+    cover_art_url: '/logo-mark.png',
+    category: 'Ambient & Lo-Fi',
     tool_used: 'Other',
     upvotes_count: 0,
     dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
@@ -209,13 +219,14 @@ export async function getUpNext(channelSlug = 'main', limit = 5): Promise<Airpla
     if (queueItems && queueItems.length > 0) {
       for (const qi of queueItems) {
         if (qi.track) {
-          const t = qi.track as unknown as { id: string; title: string; artist_name: string; audio_url: string; tool_used: string; upvotes_count: number };
+          const t = qi.track as unknown as { id: string; title: string; artist_name: string; audio_url: string; tool_used: string; upvotes_count: number; cover_art_url?: string };
           upNext.push({
             id: t.id,
             type: 'music',
             title: t.title,
             artist: t.artist_name,
             audio_url: t.audio_url,
+            cover_art_url: t.cover_art_url || '/logo-mark.png',
             tool_used: t.tool_used,
             upvotes_count: t.upvotes_count,
           });
@@ -229,7 +240,7 @@ export async function getUpNext(channelSlug = 'main', limit = 5): Promise<Airpla
   if (needed > 0) {
     const { data: topTracks } = await supabase
       .from('tracks')
-      .select('id, title, artist_name, audio_url, tool_used, upvotes_count')
+      .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url')
       .eq('status', 'approved')
       .order('upvotes_count', { ascending: false })
       .limit(needed + 5);
@@ -244,6 +255,7 @@ export async function getUpNext(channelSlug = 'main', limit = 5): Promise<Airpla
             title: t.title,
             artist: t.artist_name,
             audio_url: t.audio_url,
+            cover_art_url: (t as unknown as { cover_art_url?: string }).cover_art_url || '/logo-mark.png',
             tool_used: t.tool_used,
             upvotes_count: t.upvotes_count,
           });
@@ -577,7 +589,7 @@ export async function getNextAirplayItem(channelSlug = 'main'): Promise<AirplayI
   // Fetch top approved tracks ordered by upvotes
   const { data: rawTracks } = await supabase
     .from('tracks')
-    .select('id, title, artist_name, audio_url, tool_used, upvotes_count')
+    .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, description, lyrics, is_explicit')
     .eq('status', 'approved')
     .order('upvotes_count', { ascending: false })
     .limit(40);
@@ -604,6 +616,10 @@ export async function getNextAirplayItem(channelSlug = 'main'): Promise<AirplayI
       title: chosen.title,
       artist: chosen.artist_name,
       audio_url: chosen.audio_url,
+      cover_art_url: (chosen as unknown as { cover_art_url?: string }).cover_art_url || '/logo-mark.png',
+      category: (chosen as unknown as { category?: string }).category,
+      description: (chosen as unknown as { description?: string }).description,
+      lyrics: (chosen as unknown as { lyrics?: string }).lyrics,
       tool_used: chosen.tool_used,
       upvotes_count: chosen.upvotes_count,
     });
@@ -616,6 +632,8 @@ export async function getNextAirplayItem(channelSlug = 'main'): Promise<AirplayI
     title: 'PromptFM Ambient AI Anthem',
     artist: 'PromptFM Core',
     audio_url: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3',
+    cover_art_url: '/logo-mark.png',
+    category: 'Ambient & Lo-Fi',
     tool_used: 'Other',
     upvotes_count: 0,
   });

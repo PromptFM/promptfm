@@ -146,6 +146,44 @@ function TrackRow({
         {rank <= 3 ? <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : rank}
       </div>
 
+      {/* Track Cover Art with Singing Pulse Aura */}
+      <div className="relative flex-shrink-0">
+        {isPlaying && (
+          <div
+            className="absolute -inset-1 rounded-xl bg-gradient-to-r from-emerald-500/40 to-teal-400/30 blur-[2px] animate-pulse pointer-events-none"
+            aria-hidden="true"
+          />
+        )}
+        <div
+          className={`relative w-8 h-8 sm:w-9 sm:h-9 rounded-lg overflow-hidden border transition-all ${
+            isPlaying
+              ? 'border-emerald-400/80 ring-1 ring-emerald-400/50 shadow-md shadow-emerald-500/20'
+              : 'border-zinc-800'
+          } bg-zinc-950 flex items-center justify-center`}
+        >
+          <img
+            src={track.cover_art_url || '/logo-mark.png'}
+            alt={track.title}
+            className={`w-full h-full object-cover transition-transform duration-300 ${
+              isPlaying ? 'scale-105' : 'scale-100'
+            }`}
+            loading="lazy"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).src = '/logo-mark.png';
+            }}
+          />
+          {isPlaying && (
+            <div className="absolute inset-0 bg-black/30 flex items-end justify-center pb-0.5 pointer-events-none">
+              <span className="flex items-end gap-[1px] h-2">
+                <span className="w-0.5 bg-emerald-400 rounded-full animate-equalizer" style={{ animationDuration: '0.6s' }} />
+                <span className="w-0.5 bg-emerald-300 rounded-full animate-equalizer" style={{ animationDuration: '0.8s', animationDelay: '0.15s' }} />
+                <span className="w-0.5 bg-emerald-400 rounded-full animate-equalizer" style={{ animationDuration: '0.5s', animationDelay: '0.3s' }} />
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Preview play button */}
       <button
         onClick={() => onPlay(track.id, track.audio_url)}

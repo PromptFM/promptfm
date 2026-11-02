@@ -51,5 +51,36 @@ describe('GET /api/radio/now API Integration', () => {
     expect(json.now_playing.upvotes_count).toBe(31);
     expect(json.now_playing.audio_url).toContain('forged_in_pain.mp4');
   });
+
+  it('returns cover_art_url from track or falls back to /logo-mark.png', async () => {
+    vi.spyOn(rotation, 'getNowPlaying').mockResolvedValue({
+      item: {
+        id: 'track-with-cover',
+        type: 'music',
+        title: 'Cyber Anthem',
+        artist: 'PromptFM',
+        audio_url: 'https://example.com/audio.mp3',
+        cover_art_url: 'https://example.com/cover.jpg',
+        upvotes_count: 10,
+      },
+      startedAt: new Date().toISOString(),
+      elapsedSeconds: 0,
+      activeDJ: {
+        id: 'dj_neon',
+        name: 'DJ Neon',
+        title: 'Morning Host',
+        bio: '',
+        stylePrompt: '',
+        voice: { name: 'en-US-Journey-F', languageCode: 'en-US', ssmlGender: 'FEMALE' },
+        shifts: [],
+        defaultChannels: [],
+      },
+    });
+
+    const req = new NextRequest('http://localhost:3000/api/radio/now');
+    const res = await GET(req);
+    const json = await res.json();
+    expect(json.now_playing.cover_art_url).toBe('https://example.com/cover.jpg');
+  });
 });
 
