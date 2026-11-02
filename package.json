@@ -27,7 +27,7 @@
   "devDependencies": {
     "@stryker-mutator/core": "^10.1.1",
     "@stryker-mutator/vitest-runner": "^10.1.1",
-    "@types/node": "^20.19.43",
+    "@types/node": "^22.13.0",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
     "autoprefixer": "^10.6.2",

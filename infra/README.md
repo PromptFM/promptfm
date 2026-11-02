@@ -224,3 +224,4 @@ Edit `stream_bitrate` in [`infra/ansible/inventory.ini`](ansible/inventory.ini) 
 
 ### Q: How do I avoid all GCP egress charges?
 Configure a Cloudflare Tunnel (`cloudflared`). The tunnel proxies port 8000 out to `stream.promptfm.com` via Cloudflare's global edge network, absorbing 100% of listener traffic with **unlimited free egress bandwidth**.
+
