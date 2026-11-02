@@ -22,3 +22,5 @@ Thumbs.db
 *.swp
 *.tsbuildinfo
 
+.vercel
+.env*

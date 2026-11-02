@@ -156,7 +156,8 @@ Moderation & Schedule:
           qData.forEach((item, index) => {
             const tr = (item as unknown as { track: { title: string; artist_name: string; tool_used: string } }).track;
             console.log(
-              `  #${index + 1} [Queue ID: ${item.id}] "${tr?.title || 'Unknown'}" by ${tr?.artist_name || 'N/A'} (Requested by: ${item.requested_by}${item.prompt_used ? ` - "${item.prompt_used}"` : ''
+              `  #${index + 1} [Queue ID: ${item.id}] "${tr?.title || 'Unknown'}" by ${tr?.artist_name || 'N/A'} (Requested by: ${item.requested_by}${
+                item.prompt_used ? ` - "${item.prompt_used}"` : ''
               })`
             );
           });
