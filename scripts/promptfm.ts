@@ -2,9 +2,12 @@
 // scripts/promptfm.ts
 // Command-line interface for PromptFM DJs, station admins, and terminal power-users.
 // Usage:
-//   npm run promptfm dj "Crack a joke about GPUs melting and introduce the next synthwave block"
+//   npm run promptfm upload /path/to/song.mp3 --title "Title" --artist "Artist" --tool "Suno"
+//   npm run promptfm dj "Crack a joke about GPUs melting"
 //   npm run promptfm news [topic] [--live]
-//   npm run promptfm queue "cyberpunk synthwave"
+//   npm run promptfm queue list
+//   npm run promptfm queue next <trackId>
+//   npm run promptfm queue remove <queueId>
 //   npm run promptfm broadcast "Announcement to Discord & Telegram"
 //   npm run promptfm schedule
 //   npm run promptfm admin pending
@@ -14,42 +17,235 @@
 import { createBroadcastDrop, fetchLiveHeadlines } from '../src/lib/dj/engine';
 import { createAdminClient } from '../src/lib/supabase/server';
 import { broadcastToCommunity } from '../src/lib/chat/bridge';
+import { getR2Client, getBucketName, getPublicUrl } from '../src/lib/r2';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { execSync } from 'child_process';
 import { readFileSync, existsSync } from 'fs';
-import { join } from 'path';
+import { join, basename } from 'path';
+import { randomUUID } from 'crypto';
 
 const args = process.argv.slice(2);
 const command = args[0];
+
+function parseArg(flag: string): string | undefined {
+  const index = args.indexOf(flag);
+  if (index !== -1 && args[index + 1]) {
+    return args[index + 1];
+  }
+  return undefined;
+}
 
 async function main() {
   if (!command || command === 'help') {
     console.log(`
 📻 PromptFM Terminal Station Manager & Admin CLI
 ------------------------------------------------
-AI DJ & Custom Voice Prompting:
-  dj <prompt>             Send ANY custom prompt to Gemini -> Generates script + synthesizes voice + queues MP3
-  news [topic] [--live]   Fetch real live tech headlines from RSS -> Generates news broadcast with voice
+Tracks & Playlists:
+  upload <file>           Upload a local MP3 from your Mac directly to R2 as approved
+                          Flags: --title "Name" --artist "Artist" --tool "Suno"
+
+Airplay Queue ("Up Next"):
+  queue list              View the upcoming songs scheduled to play next
+  queue next <trackId>    Bump a track to the very top of the live queue
+  queue remove <queueId>  Remove an item from the upcoming queue
+  queue <prompt>          Find & queue a track matching a text vibe
+
+AI Voice & Broadcast:
+  dj <prompt>             Send ANY custom prompt to Gemini -> Generates voice monologue
+  news [topic] [--live]   Fetch live tech headlines -> Generates news audio broadcast
   announce <text>         Synthesize a quick announcement drop for listeners
-  queue <prompt>          Find and queue a track matching a text vibe or prompt
+  broadcast <message>     Push notification to connected Discord & Telegram channels
   listen                  Launch the live audio stream in terminal (mpv/ffplay)
 
-Station Admin & Socials:
-  schedule                Display declarative hourly programming & prompt styles from schedule.yaml
-  broadcast <message>     Push rich notification to connected Discord & Telegram channels
-  admin pending           List community tracks waiting for approval
+Moderation & Schedule:
+  admin pending           List community tracks waiting for review
   admin approve <id>      Approve a pending track for airplay
   admin reject <id>       Reject a track
+  schedule                Display declarative hourly programming from schedule.yaml
   help                    Show this guide
 `);
     return;
   }
 
   switch (command) {
+    case 'upload': {
+      const filePath = args[1];
+      if (!filePath || filePath.startsWith('--')) {
+        console.error('Error: Please specify the local path to the MP3 file.');
+        console.log('Usage: npm run promptfm upload /path/to/song.mp3 --title "My Track" --artist "DJ Name" --tool "Suno"');
+        process.exit(1);
+      }
+
+      if (!existsSync(filePath)) {
+        console.error(`Error: File not found at "${filePath}"`);
+        process.exit(1);
+      }
+
+      const fileBuffer = readFileSync(filePath);
+      const fileName = basename(filePath);
+      const defaultTitle = fileName.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+
+      const title = parseArg('--title') || defaultTitle;
+      const artist = parseArg('--artist') || 'Station DJ';
+      const tool = (parseArg('--tool') || 'Suno') as 'Suno' | 'Udio' | 'Stable Audio' | 'Other';
+
+      console.log(`📤 Uploading "${fileName}" (${(fileBuffer.length / (1024 * 1024)).toFixed(2)} MB) to Cloudflare R2...`);
+
+      const key = `tracks/admin/${randomUUID()}.mp3`;
+      const s3 = getR2Client();
+
+      await s3.send(
+        new PutObjectCommand({
+          Bucket: getBucketName(),
+          Key: key,
+          Body: fileBuffer,
+          ContentType: 'audio/mpeg',
+        })
+      );
+
+      const publicUrl = getPublicUrl(key);
+      console.log(`✅ Stored on R2: ${publicUrl}`);
+
+      console.log(`💾 Adding to Supabase as an APPROVED rotation track...`);
+      const supabase = createAdminClient();
+      const { data, error } = await supabase
+        .from('tracks')
+        .insert({
+          title,
+          artist_name: artist,
+          tool_used: tool,
+          audio_url: publicUrl,
+          status: 'approved',
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error saving track to database:', error.message);
+        process.exit(1);
+      }
+
+      console.log(`\n🎉 Track is LIVE on PromptFM!`);
+      console.log(`• ID: ${data.id}`);
+      console.log(`• Title: "${data.title}" by ${data.artist_name}`);
+      console.log(`• Tool: ${data.tool_used}`);
+      break;
+    }
+
+    case 'queue': {
+      const sub = args[1];
+      const supabase = createAdminClient();
+
+      if (sub === 'list') {
+        const { data: qData, error } = await supabase
+          .from('channel_queue')
+          .select('id, track_id, prompt_used, requested_by, created_at, track:tracks(title, artist_name, tool_used)')
+          .is('played_at', null)
+          .order('created_at', { ascending: true })
+          .limit(15);
+
+        if (error) {
+          console.error('Error fetching queue:', error.message);
+          return;
+        }
+
+        console.log(`\n🎵 PromptFM Active "Up Next" Queue (${qData?.length || 0} upcoming):`);
+        if (!qData || qData.length === 0) {
+          console.log('• Queue is empty. Looping community top chart tracks.');
+        } else {
+          qData.forEach((item, index) => {
+            const tr = (item as unknown as { track: { title: string; artist_name: string; tool_used: string } }).track;
+            console.log(
+              `  #${index + 1} [Queue ID: ${item.id}] "${tr?.title || 'Unknown'}" by ${tr?.artist_name || 'N/A'} (Requested by: ${item.requested_by}${item.prompt_used ? ` - "${item.prompt_used}"` : ''
+              })`
+            );
+          });
+        }
+        return;
+      }
+
+      if (sub === 'remove') {
+        const queueId = args[2];
+        if (!queueId) {
+          console.error('Provide queue ID: npm run promptfm queue remove <queueId>');
+          return;
+        }
+        const { error } = await supabase.from('channel_queue').delete().eq('id', queueId);
+        if (error) {
+          console.error('Failed to remove:', error.message);
+        } else {
+          console.log(`✅ Removed queue item ${queueId}.`);
+        }
+        return;
+      }
+
+      if (sub === 'next') {
+        const trackId = args[2];
+        if (!trackId) {
+          console.error('Provide track ID: npm run promptfm queue next <trackId>');
+          return;
+        }
+
+        // Fetch main channel
+        const { data: channel } = await supabase.from('channels').select('id').eq('slug', 'main').single();
+        if (!channel) {
+          console.error('Main channel not found.');
+          return;
+        }
+
+        // Insert at the front with an earlier timestamp
+        const { error } = await supabase.from('channel_queue').insert({
+          channel_id: channel.id,
+          track_id: trackId,
+          requested_by: 'Station Admin',
+          created_at: new Date(Date.now() - 3600000).toISOString(), // Prioritized to front
+        });
+
+        if (error) {
+          console.error('Failed to bump track:', error.message);
+        } else {
+          console.log(`⚡ Bumped track ${trackId} to play NEXT!`);
+        }
+        return;
+      }
+
+      // Default: prompt-search
+      const query = args.slice(1).join(' ');
+      if (!query) {
+        console.error('Provide search prompt: npm run promptfm queue "cyberpunk"');
+        return;
+      }
+
+      console.log(`🔎 Searching approved tracks matching: "${query}"...`);
+      const { data: tracks } = await supabase
+        .from('tracks')
+        .select('id, title, artist_name, tool_used')
+        .eq('status', 'approved')
+        .ilike('title', `%${query}%`)
+        .limit(1);
+
+      const selected = tracks?.[0];
+      if (selected) {
+        const { data: channel } = await supabase.from('channels').select('id').eq('slug', 'main').single();
+        if (channel) {
+          await supabase.from('channel_queue').insert({
+            channel_id: channel.id,
+            track_id: selected.id,
+            prompt_used: query,
+            requested_by: 'Terminal Listener',
+          });
+          console.log(`✅ Queued for airplay: "${selected.title}" by ${selected.artist_name} (${selected.tool_used})`);
+        }
+      } else {
+        console.log(`No matching track found for "${query}".`);
+      }
+      break;
+    }
+
     case 'dj': {
       const userPrompt = args.slice(1).join(' ');
       if (!userPrompt) {
         console.error('Error: Please provide a prompt for Gemini.');
-        console.log('Example: npm run promptfm dj "Crack a joke about GPUs melting while generating synthwave"');
         process.exit(1);
       }
       console.log(`🤖 Prompting Gemini with: "${userPrompt}"...`);
@@ -191,42 +387,6 @@ Station Admin & Socials:
       }
 
       console.log('Admin subcommands: pending, approve <id>, reject <id>');
-      break;
-    }
-
-    case 'queue': {
-      const query = args.slice(1).join(' ');
-      if (!query) {
-        console.error('Error: Provide a prompt or vibe to search (e.g. "chill synth")');
-        process.exit(1);
-      }
-      console.log(`🔎 Searching approved tracks matching: "${query}"...`);
-      const supabase = createAdminClient();
-      const { data: tracks, error } = await supabase
-        .from('tracks')
-        .select('id, title, artist_name, tool_used, audio_url')
-        .eq('status', 'approved')
-        .ilike('title', `%${query}%`)
-        .limit(3);
-
-      if (error || !tracks || tracks.length === 0) {
-        console.log(`No exact title match found for "${query}". Showing highest-rated track to queue.`);
-        const { data: top } = await supabase
-          .from('tracks')
-          .select('id, title, artist_name')
-          .eq('status', 'approved')
-          .order('upvotes_count', { ascending: false })
-          .limit(1)
-          .single();
-        if (top) {
-          console.log(`✅ Queued: "${top.title}" by ${top.artist_name} (ID: ${top.id})`);
-        }
-      } else {
-        const selected = tracks[0];
-        if (selected) {
-          console.log(`✅ Queued for airplay: "${selected.title}" by ${selected.artist_name} (${selected.tool_used})`);
-        }
-      }
       break;
     }
 

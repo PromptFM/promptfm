@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import Image from 'next/image';
 import './globals.css';
 import AudioPlayer from '@/components/AudioPlayer';
+import AuthButton from '@/components/AuthButton';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
@@ -64,11 +65,18 @@ export default function RootLayout({
                 Charts
               </a>
               <a
+                href="/admin"
+                className="text-zinc-400 hover:text-emerald-400 transition-colors text-xs font-semibold px-2.5 py-1 rounded-md border border-zinc-800 hover:border-zinc-700 bg-zinc-900/50"
+              >
+                Studio
+              </a>
+              <a
                 href="/submit"
                 className="bg-emerald-500 hover:bg-emerald-400 text-black px-3 py-1.5 rounded-lg transition-colors"
               >
                 Submit Track
               </a>
+              <AuthButton />
             </div>
           </div>
         </nav>

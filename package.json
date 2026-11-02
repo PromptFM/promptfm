@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "promptfm": "npx tsx scripts/promptfm.ts"
+    "promptfm": "jiti scripts/promptfm.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1161.0",
