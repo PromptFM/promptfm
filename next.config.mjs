@@ -1,10 +1,5 @@
-import type { NextConfig } from 'next';
-
-const nextConfig: NextConfig = {
-  // Enforce strict output for Vercel deployment
-  output: 'standalone',
-
-  // Allow images from R2 public URL and Supabase storage
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   images: {
     remotePatterns: [
       {
@@ -19,12 +14,6 @@ const nextConfig: NextConfig = {
     ],
   },
 
-  // Ensure the AWS SDK and Node built-ins only run on the server
-  experimental: {
-    serverComponentsExternalPackages: ['@aws-sdk/client-s3', '@aws-sdk/s3-request-presigner'],
-  },
-
-  // Headers for security hardening
   async headers() {
     return [
       {

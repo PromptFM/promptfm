@@ -41,3 +41,4 @@ export interface UploadUrlResponse {
   publicUrl: string;
   key: string;
 }
+

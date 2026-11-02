@@ -123,3 +123,4 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 export async function GET(): Promise<NextResponse> {
   return NextResponse.json({ error: 'Method Not Allowed' }, { status: 405 });
 }
+

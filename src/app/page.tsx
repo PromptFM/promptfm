@@ -1,13 +1,27 @@
 // src/app/page.tsx — Landing / Home page
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { Radio, Music2, Upload } from 'lucide-react';
+import LogoMark from '@/components/LogoMark';
 
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center text-center px-4 pb-28 gap-8">
       {/* Hero */}
       <div className="space-y-4 max-w-2xl">
+        {/* Logo mark — AI-generated icon with neon glow */}
+        <div className="flex justify-center mb-2">
+          <Image
+            src="/logo-mark.png"
+            alt="PromptFM icon"
+            width={120}
+            height={120}
+            className="rounded-2xl drop-shadow-[0_0_32px_rgba(52,211,153,0.45)]"
+            priority
+          />
+        </div>
+
         <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold px-3 py-1.5 rounded-full">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
           LIVE 24/7
@@ -60,3 +74,4 @@ export default function HomePage() {
     </main>
   );
 }
+

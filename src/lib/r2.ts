@@ -26,3 +26,4 @@ export function getPublicUrl(key: string): string {
   if (!base) throw new Error('Missing NEXT_PUBLIC_R2_PUBLIC_URL env var');
   return `${base}/${key}`;
 }
+

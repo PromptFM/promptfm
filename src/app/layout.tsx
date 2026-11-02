@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+import Image from 'next/image';
 import './globals.css';
 import AudioPlayer from '@/components/AudioPlayer';
 
@@ -18,6 +19,12 @@ export const metadata: Metadata = {
     locale: 'en_US',
     siteName: 'PromptFM',
   },
+  // Next.js App Router picks up src/app/icon.png automatically as the favicon.
+  // The explicit entries below add extra sizes for PWA / Apple touch icon.
+  icons: {
+    icon: '/icon.png',
+    apple: '/icon.png',
+  },
 };
 
 export default function RootLayout({
@@ -33,9 +40,20 @@ export default function RootLayout({
           <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
             <a
               href="/"
-              className="font-bold text-lg tracking-tight text-white hover:text-emerald-400 transition-colors"
+              className="flex items-center gap-2 group"
+              aria-label="PromptFM home"
             >
-              Prompt<span className="text-emerald-400">FM</span>
+              <Image
+                src="/logo-mark.png"
+                alt="PromptFM logo mark"
+                width={30}
+                height={30}
+                className="rounded-md transition-opacity group-hover:opacity-80"
+                priority
+              />
+              <span className="font-bold text-lg tracking-tight text-white group-hover:text-emerald-400 transition-colors">
+                Prompt<span className="text-emerald-400">FM</span>
+              </span>
             </a>
 
             <div className="flex items-center gap-6 text-sm font-medium">
@@ -64,3 +82,4 @@ export default function RootLayout({
     </html>
   );
 }
+
