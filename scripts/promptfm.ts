@@ -15,6 +15,7 @@
 //   npm run promptfm listen
 
 import { createBroadcastDrop, fetchLiveHeadlines } from '../src/lib/dj/engine';
+import { getNextAirplayItem } from '../src/lib/dj/rotation';
 import { createAdminClient } from '../src/lib/supabase/server';
 import { broadcastToCommunity } from '../src/lib/chat/bridge';
 import { getR2Client, getBucketName, getPublicUrl } from '../src/lib/r2';
@@ -45,6 +46,7 @@ Tracks & Playlists:
                           Flags: --title "Name" --artist "Artist" --tool "Suno"
 
 Airplay Queue ("Up Next"):
+  next                    Test the rotation clock: calculate what plays next (music, news, or weather)
   queue list              View the upcoming songs scheduled to play next
   queue next <trackId>    Bump a track to the very top of the live queue
   queue remove <queueId>  Remove an item from the upcoming queue
@@ -68,6 +70,17 @@ Moderation & Schedule:
   }
 
   switch (command) {
+    case 'next': {
+      console.log('📻 Calculating next item on the PromptFM clock wheel...');
+      const item = await getNextAirplayItem('main');
+      console.log(`\n🎧 Up Next on Air:`);
+      console.log(`• Type: [${item.type.toUpperCase()}]`);
+      console.log(`• Title: "${item.title}"`);
+      console.log(`• Artist / Host: ${item.artist}`);
+      console.log(`• Stream URL: ${item.audio_url}`);
+      break;
+    }
+
     case 'upload': {
       const filePath = args[1];
       if (!filePath || filePath.startsWith('--')) {
