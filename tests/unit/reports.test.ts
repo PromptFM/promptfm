@@ -2,7 +2,7 @@
 // Unit tests for the Content Reporting System
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { submitContentReport, getRecentReports } from '@/lib/safety/reports';
+import { submitContentReport, getRecentReports, resolveContentReport } from '@/lib/safety/reports';
 import { REASON_LABELS } from '@/types/database';
 
 describe('Content Reporting Service', () => {
@@ -89,5 +89,31 @@ describe('Content Reporting Service', () => {
     expect(recent.some((r) => r.id === discordRep.reportId)).toBe(true);
     expect(recent.some((r) => r.id === telegramRep.reportId)).toBe(true);
     expect(recent.some((r) => r.id === mcpRep.reportId)).toBe(true);
+  });
+
+  it('resolves a content report with actioned or dismissed status', async () => {
+    const rep = await submitContentReport({
+      target_type: 'track',
+      target_id: 'track-to-resolve-1',
+      reason: 'spam_abuse',
+      details: 'Spam flooding track',
+      reporter_platform: 'web',
+    });
+
+    const resActioned = await resolveContentReport(rep.reportId, 'actioned', 'Track removed from rotation');
+    expect(resActioned.success).toBe(true);
+    expect(resActioned.status).toBe('actioned');
+
+    const reportsAfterAction = await getRecentReports(10);
+    const updatedRep = reportsAfterAction.find((r) => r.id === rep.reportId);
+    expect(updatedRep?.status).toBe('actioned');
+
+    const resDismissed = await resolveContentReport(rep.reportId, 'dismissed', 'False report');
+    expect(resDismissed.success).toBe(true);
+    expect(resDismissed.status).toBe('dismissed');
+
+    const reportsAfterDismiss = await getRecentReports(10);
+    const dismissedRep = reportsAfterDismiss.find((r) => r.id === rep.reportId);
+    expect(dismissedRep?.status).toBe('dismissed');
   });
 });

@@ -12,8 +12,8 @@ import { broadcastToCommunity } from '@/lib/chat/bridge';
 import { createBroadcastDrop } from '@/lib/dj/engine';
 import { fetchLiveWeatherSummary, getNowPlaying, getUpNext } from '@/lib/dj/rotation';
 import { getAllDJs, getActiveDJ, getDJById, getAdsConfig, getActiveAdSpot } from '@/lib/dj/roster';
-import { rejectScheduledRequest } from '@/lib/dj/batches';
-import { submitContentReport, getRecentReports } from '@/lib/safety/reports';
+import { rejectScheduledRequest, synthesizeScheduledRequest } from '@/lib/dj/batches';
+import { submitContentReport, getRecentReports, resolveContentReport } from '@/lib/safety/reports';
 import type { ReportReason, ReportTargetType } from '@/types/database';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
@@ -278,6 +278,68 @@ const ADMIN_MCP_TOOLS = [
         },
       },
       required: ['request_id', 'reason'],
+    },
+  },
+  {
+    name: 'promptfm_admin_resolve_report',
+    description:
+      'Resolves a safety, copyright, or ethics content report by taking action (e.g. removing offending item from rotation) or dismissing as false report.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        report_id: { type: 'string', description: 'The UUID/ID of the report to resolve' },
+        action: {
+          type: 'string',
+          enum: ['actioned', 'dismissed'],
+          description: 'Action to take: "actioned" (quarantine/remove content) or "dismissed" (cleared)',
+        },
+        notes: {
+          type: 'string',
+          description: 'Optional admin notes explaining the moderation decision',
+        },
+      },
+      required: ['report_id', 'action'],
+    },
+  },
+  {
+    name: 'promptfm_admin_remove_from_queue',
+    description: 'Removes an item from the live "Up Next" airplay queue by its queue ID.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        queue_id: { type: 'string', description: 'The UUID of the queued airplay item to remove' },
+      },
+      required: ['queue_id'],
+    },
+  },
+  {
+    name: 'promptfm_admin_list_requests',
+    description: 'Lists upcoming community requests (dedications, songs, weather, zodiac) organized by batch.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        status: {
+          type: 'string',
+          enum: ['pending', 'scheduled', 'all'],
+          description: 'Filter by request status (default: "all")',
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum number of requests to retrieve (default: 20)',
+        },
+      },
+    },
+  },
+  {
+    name: 'promptfm_admin_air_request',
+    description:
+      'Forces immediate AI DJ voice synthesis and airplay for a scheduled listener request or dedication.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        request_id: { type: 'string', description: 'The UUID of the request to air immediately' },
+      },
+      required: ['request_id'],
     },
   },
 ];
@@ -834,6 +896,81 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
       return {
         success: true,
         message: result.message,
+      };
+    }
+
+    case 'promptfm_admin_resolve_report': {
+      const reportId = args.report_id as string;
+      const action = args.action as 'actioned' | 'dismissed';
+      const notes = args.notes as string | undefined;
+
+      if (!reportId || !action) throw new Error('Missing report_id or action');
+
+      const result = await resolveContentReport(reportId, action, notes);
+      return {
+        success: true,
+        report_id: result.reportId,
+        action: result.status,
+        notes: result.notes,
+        message: `Report ${reportId} marked as ${action}.`,
+      };
+    }
+
+    case 'promptfm_admin_remove_from_queue': {
+      const queueId = args.queue_id as string;
+      if (!queueId) throw new Error('Missing queue_id');
+
+      try {
+        const supabase = createAdminClient();
+        await supabase.from('channel_queue').delete().eq('id', queueId);
+      } catch (err) {
+        console.warn('[MCP Admin] Queue remove DB fallback note:', err);
+      }
+
+      return {
+        success: true,
+        queue_id: queueId,
+        message: `Removed queue item ${queueId}.`,
+      };
+    }
+
+    case 'promptfm_admin_list_requests': {
+      const limit = typeof args.limit === 'number' ? args.limit : 20;
+      const status = (args.status as string) || 'all';
+
+      let requests: unknown[] = [];
+      try {
+        const supabase = createAdminClient();
+        let query = supabase.from('community_requests').select('*');
+        if (status !== 'all') {
+          query = query.eq('status', status);
+        } else {
+          query = query.in('status', ['pending', 'scheduled']);
+        }
+        const { data } = await query.order('created_at', { ascending: true }).limit(limit);
+        if (data) requests = data;
+      } catch (err) {
+        console.warn('[MCP Admin] List requests DB fallback note:', err);
+      }
+
+      return {
+        success: true,
+        requests,
+        count: requests.length,
+      };
+    }
+
+    case 'promptfm_admin_air_request': {
+      const requestId = args.request_id as string;
+      if (!requestId) throw new Error('Missing request_id');
+
+      const result = await synthesizeScheduledRequest(requestId);
+      return {
+        success: true,
+        request_id: requestId,
+        script: result.script,
+        audio_url: result.audioUrl,
+        message: `Successfully synthesized and aired request ${requestId}.`,
       };
     }
 

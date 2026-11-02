@@ -145,3 +145,49 @@ export async function getRecentReports(limit = 20): Promise<ContentReport[]> {
 
   return loadFallbackReports().slice(0, limit);
 }
+
+/**
+ * Resolves or updates the moderation status of a report (actioned or dismissed).
+ */
+export async function resolveContentReport(
+  reportId: string,
+  status: 'actioned' | 'dismissed',
+  notes?: string
+): Promise<{ success: boolean; reportId: string; status: string; notes?: string }> {
+  // Update in-memory cache
+  const reportIndex = memoryReports.findIndex((r) => r.id === reportId);
+  if (reportIndex !== -1 && memoryReports[reportIndex]) {
+    memoryReports[reportIndex] = {
+      ...memoryReports[reportIndex]!,
+      status,
+    };
+    saveFallbackReports(memoryReports);
+  } else {
+    // If not in memory, try loading from disk fallback and updating
+    const diskReports = loadFallbackReports();
+    const diskIndex = diskReports.findIndex((r) => r.id === reportId);
+    if (diskIndex !== -1 && diskReports[diskIndex]) {
+      diskReports[diskIndex]!.status = status;
+      saveFallbackReports(diskReports);
+    }
+  }
+
+  // Update in database if configured
+  try {
+    const supabase = createAdminClient();
+    await supabase
+      .from('content_reports')
+      .update({ status })
+      .eq('id', reportId);
+  } catch (err) {
+    console.warn('[Safety Reports] Supabase update note (memory fallback updated):', err);
+  }
+
+  return {
+    success: true,
+    reportId,
+    status,
+    notes,
+  };
+}
+

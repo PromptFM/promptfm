@@ -20,7 +20,7 @@ import { synthesizeScheduledRequest, rejectScheduledRequest } from '../src/lib/d
 import { getAllDJs, getActiveDJ, getDJById, getAdsConfig, getActiveAdSpot } from '../src/lib/dj/roster';
 import { createAdminClient } from '../src/lib/supabase/server';
 import { broadcastToCommunity, castVoteForTrack } from '../src/lib/chat/bridge';
-import { submitContentReport, getRecentReports } from '../src/lib/safety/reports';
+import { submitContentReport, getRecentReports, resolveContentReport } from '../src/lib/safety/reports';
 import type { ReportReason } from '../src/types/database';
 import { getR2Client, getBucketName, getPublicUrl } from '../src/lib/r2';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
@@ -717,7 +717,23 @@ Moderation & Schedule:
         return;
       }
 
-      console.log('Report commands: npm run promptfm -- report list | report file <id> [reason] [details]');
+      if (sub === 'resolve' || sub === 'action') {
+        const reportId = args[2];
+        const action = (parseArg('--action') || 'actioned') as 'actioned' | 'dismissed';
+        const notes = parseArg('--notes') || 'Resolved via PromptFM Admin CLI';
+
+        if (!reportId) {
+          console.error('Usage: npm run promptfm -- report resolve <reportId> [--action actioned|dismissed] [--notes "explanation"]');
+          return;
+        }
+
+        const res = await resolveContentReport(reportId, action, notes);
+        console.log(`✅ Report ${res.reportId} marked as ${res.status.toUpperCase()}!`);
+        if (res.notes) console.log(`   Notes: "${res.notes}"`);
+        return;
+      }
+
+      console.log('Report commands: npm run promptfm -- report list | report file <id> [reason] [details] | report resolve <id> [--action actioned|dismissed]');
       break;
     }
 
