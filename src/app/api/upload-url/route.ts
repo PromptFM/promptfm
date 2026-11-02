@@ -13,7 +13,7 @@ import type { UploadUrlRequest, UploadUrlResponse } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
 
-/** Audio MIME types accepted for upload. */
+/** Audio & media container MIME types accepted for airplay upload. */
 const ALLOWED_CONTENT_TYPES = new Set([
   'audio/mpeg',
   'audio/mp3',
@@ -23,7 +23,9 @@ const ALLOWED_CONTENT_TYPES = new Set([
   'audio/flac',
   'audio/aac',
   'audio/x-m4a',
+  'audio/m4a',
   'audio/mp4',
+  'video/mp4',
 ]);
 
 /** Presigned URL validity in seconds (5 minutes). */
@@ -83,9 +85,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // ── 3. Generate a unique, path-safe object key ───────────────────────────
-  // We ignore the original filename and derive the extension from the MIME type
-  // to guarantee safe filenames and prevent collisions.
-  const extension = normalizedContentType.split('/')[1]?.replace('x-', '') ?? 'mp3';
+  // Derive safe extension from MIME type or original filename for audio/video media
+  let extension = 'mp3';
+  if (normalizedContentType === 'video/mp4' || normalizedContentType === 'audio/mp4' || filename.toLowerCase().endsWith('.mp4')) {
+    extension = 'mp4';
+  } else if (normalizedContentType === 'audio/mpeg' || normalizedContentType === 'audio/mp3') {
+    extension = 'mp3';
+  } else if (normalizedContentType === 'audio/x-m4a' || normalizedContentType === 'audio/m4a' || filename.toLowerCase().endsWith('.m4a')) {
+    extension = 'm4a';
+  } else if (normalizedContentType === 'audio/wav' || normalizedContentType === 'audio/x-wav') {
+    extension = 'wav';
+  } else if (normalizedContentType === 'audio/ogg') {
+    extension = 'ogg';
+  } else if (normalizedContentType === 'audio/flac') {
+    extension = 'flac';
+  } else if (normalizedContentType === 'audio/aac') {
+    extension = 'aac';
+  }
+
   const key = `tracks/${user.id}/${randomUUID()}.${extension}`;
 
   // ── 4. Create presigned PUT URL ──────────────────────────────────────────

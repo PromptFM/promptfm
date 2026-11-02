@@ -97,8 +97,11 @@ export default function SubmitPage() {
 
     if (!file) return;
 
-    if (!file.type.includes('audio') && !file.name.toLowerCase().endsWith('.mp3')) {
-      setFileError('Only audio files are accepted (.mp3 recommended).');
+    const isAcceptedMedia = file.type.includes('audio') || 
+                            file.type.includes('video/mp4') || 
+                            /\.(mp3|mp4|m4a|wav|ogg|flac|aac)$/i.test(file.name);
+    if (!isAcceptedMedia) {
+      setFileError('Only audio and media files (.mp3, .mp4, .m4a, .wav) are accepted.');
       return;
     }
 
@@ -122,9 +125,10 @@ export default function SubmitPage() {
   const uploadFileToR2 = useCallback(
     (presignedUrl: string, file: File): Promise<void> =>
       new Promise((resolve, reject) => {
+        const effectiveContentType = file.type || (file.name.toLowerCase().endsWith('.mp4') ? 'video/mp4' : 'audio/mpeg');
         const xhr = new XMLHttpRequest();
         xhr.open('PUT', presignedUrl, true);
-        xhr.setRequestHeader('Content-Type', file.type || 'audio/mpeg');
+        xhr.setRequestHeader('Content-Type', effectiveContentType);
 
         xhr.upload.addEventListener('progress', (e) => {
           if (e.lengthComputable) {
@@ -185,9 +189,10 @@ export default function SubmitPage() {
       setSubmitStatus('uploading');
       setUploadProgress(0);
 
+      const effectiveContentType = selectedFile.type || (selectedFile.name.toLowerCase().endsWith('.mp4') ? 'video/mp4' : 'audio/mpeg');
       const uploadPayload: UploadUrlRequest = {
         filename: selectedFile.name,
-        contentType: selectedFile.type || 'audio/mpeg',
+        contentType: effectiveContentType,
       };
 
       const urlRes = await fetch('/api/upload-url', {
@@ -382,7 +387,7 @@ export default function SubmitPage() {
           {/* File upload */}
           <div className="space-y-1.5">
             <span className="block text-sm font-medium text-zinc-300">
-              Audio File (.mp3, max {MAX_FILE_SIZE_MB} MB) <span className="text-red-400">*</span>
+              Audio File (.mp3 or .mp4, max {MAX_FILE_SIZE_MB} MB) <span className="text-red-400">*</span>
             </span>
 
             {!selectedFile ? (
@@ -397,13 +402,13 @@ export default function SubmitPage() {
               >
                 <FileAudio className="w-8 h-8 text-zinc-500" />
                 <span className="text-sm text-zinc-400 text-center">
-                  Click to browse or drag & drop your .mp3 file here
+                  Click to browse or drag & drop your .mp3 or .mp4 file here
                 </span>
                 <input
                   id="audioFile"
                   ref={fileInputRef}
                   type="file"
-                  accept="audio/mpeg,audio/mp3,.mp3"
+                  accept="audio/mpeg,audio/mp3,.mp3,video/mp4,audio/mp4,.mp4,audio/x-m4a,audio/m4a,.m4a,audio/wav,.wav"
                   className="sr-only"
                   onChange={handleFileChange}
                 />

@@ -199,16 +199,39 @@ Moderation & Schedule:
       }
 
       const fileBuffer = readFileSync(filePath);
-      const fileName = basename(filePath);
-      const defaultTitle = fileName.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+      const rawFileName = basename(filePath);
+      const cleanFileName = rawFileName.replace(/^["']|["']$/g, '');
+      const defaultTitle = cleanFileName.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
 
       const title = parseArg('--title') || defaultTitle;
-      const artist = parseArg('--artist') || 'Station DJ';
+      const artist = parseArg('--artist') || 'PromptFM Resident';
       const tool = (parseArg('--tool') || 'Suno') as 'Suno' | 'Udio' | 'Stable Audio' | 'Other';
 
-      console.log(`📤 Uploading "${fileName}" (${(fileBuffer.length / (1024 * 1024)).toFixed(2)} MB) to Cloudflare R2...`);
+      // Detect media extension and MIME type
+      const lowerName = cleanFileName.toLowerCase();
+      let ext = 'mp3';
+      let contentType = 'audio/mpeg';
 
-      const key = `tracks/admin/${randomUUID()}.mp3`;
+      if (lowerName.endsWith('.mp4')) {
+        ext = 'mp4';
+        contentType = 'video/mp4';
+      } else if (lowerName.endsWith('.m4a')) {
+        ext = 'm4a';
+        contentType = 'audio/mp4';
+      } else if (lowerName.endsWith('.wav')) {
+        ext = 'wav';
+        contentType = 'audio/wav';
+      } else if (lowerName.endsWith('.ogg')) {
+        ext = 'ogg';
+        contentType = 'audio/ogg';
+      } else if (lowerName.endsWith('.flac')) {
+        ext = 'flac';
+        contentType = 'audio/flac';
+      }
+
+      console.log(`📤 Uploading "${cleanFileName}" (${(fileBuffer.length / (1024 * 1024)).toFixed(2)} MB, ${contentType}) to Cloudflare R2...`);
+
+      const key = `tracks/admin/${randomUUID()}.${ext}`;
       const s3 = getR2Client();
 
       await s3.send(
@@ -216,7 +239,7 @@ Moderation & Schedule:
           Bucket: getBucketName(),
           Key: key,
           Body: fileBuffer,
-          ContentType: 'audio/mpeg',
+          ContentType: contentType,
         })
       );
 

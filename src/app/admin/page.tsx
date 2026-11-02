@@ -312,13 +312,15 @@ export default function AdminDashboard() {
     setUploadSuccess(false);
 
     try {
+      const effectiveContentType = uploadFile.type || (uploadFile.name.toLowerCase().endsWith('.mp4') ? 'video/mp4' : 'audio/mpeg');
+
       // Get presigned URL
       const urlRes = await fetch('/api/upload-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           filename: uploadFile.name,
-          contentType: uploadFile.type || 'audio/mpeg',
+          contentType: effectiveContentType,
         }),
       });
 
@@ -330,7 +332,7 @@ export default function AdminDashboard() {
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('PUT', presignedUrl, true);
-        xhr.setRequestHeader('Content-Type', uploadFile.type || 'audio/mpeg');
+        xhr.setRequestHeader('Content-Type', effectiveContentType);
         xhr.upload.onprogress = (evt) => {
           if (evt.lengthComputable) {
             setUploadProgress(40 + Math.round((evt.loaded / evt.total) * 50));
@@ -929,11 +931,11 @@ export default function AdminDashboard() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1">Local MP3 File</label>
+                <label className="block text-xs font-medium text-zinc-300 mb-1">Local Audio File (.mp3 or .mp4)</label>
                 <input
                   type="file"
                   required
-                  accept="audio/mpeg,audio/mp3,.mp3"
+                  accept="audio/mpeg,audio/mp3,.mp3,video/mp4,audio/mp4,.mp4,audio/x-m4a,audio/m4a,.m4a,audio/wav,.wav"
                   onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
                   className="w-full text-xs text-zinc-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-zinc-800 file:text-emerald-400 hover:file:bg-zinc-700 cursor-pointer"
                 />
