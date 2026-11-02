@@ -24,3 +24,4 @@ echo "Starting Icecast and Liquidsoap..."
 docker-compose up -d
 
 echo "✅ PromptFM Streamer is live on port 8000!"
+

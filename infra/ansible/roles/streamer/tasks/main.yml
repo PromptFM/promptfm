@@ -1,0 +1,83 @@
+---
+# infra/ansible/roles/streamer/tasks/main.yml
+# Automated tasks for installing Docker, configuring Liquidsoap & Icecast, and managing services.
+
+- name: Update apt cache and install core packages
+  apt:
+    name:
+      - docker.io
+      - docker-compose
+      - curl
+      - ufw
+    state: present
+    update_cache: yes
+
+- name: Ensure Docker service is running and enabled
+  systemd:
+    name: docker
+    state: started
+    enabled: yes
+
+- name: Create PromptFM streamer application directory
+  file:
+    path: "{{ app_dir }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+
+- name: Deploy Icecast 2 configuration
+  template:
+    src: icecast.xml.j2
+    dest: "{{ app_dir }}/icecast.xml"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+
+- name: Deploy Liquidsoap radio script
+  template:
+    src: radio.liq.j2
+    dest: "{{ app_dir }}/radio.liq"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+
+- name: Deploy Docker Compose configuration
+  template:
+    src: docker-compose.yml.j2
+    dest: "{{ app_dir }}/docker-compose.yml"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+
+- name: Download ambient emergency fallback audio loop
+  get_url:
+    url: "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3"
+    dest: "{{ app_dir }}/fallback.mp3"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+    force: false
+
+- name: Launch Icecast and Liquidsoap streaming containers
+  command: docker-compose up -d
+  args:
+    chdir: "{{ app_dir }}"
+  environment:
+    CLOUDFLARE_TUNNEL_TOKEN: "{{ lookup('env', 'CLOUDFLARE_TUNNEL_TOKEN') | default('', true) }}"
+
+- name: Wait for Icecast port 8000 to become available
+  wait_for:
+    port: "{{ icecast_port | default(8000) }}"
+    delay: 3
+    timeout: 30
+
+- name: Verify Icecast audio stream is live
+  uri:
+    url: "http://localhost:{{ icecast_port | default(8000) }}/status.xsl"
+    status_code: [200, 400]
+  register: stream_health
+
+- name: Display stream operational status
+  debug:
+    msg: "✅ PromptFM Icecast audio stream is LIVE on port {{ icecast_port | default(8000) }}!"

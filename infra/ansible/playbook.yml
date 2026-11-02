@@ -1,0 +1,12 @@
+---
+# infra/ansible/playbook.yml
+# Provisions and configures the PromptFM 24/7 continuous stream server stack.
+
+- name: Configure PromptFM 24/7 Stream Server
+  hosts: streamer
+  become: true
+  vars:
+    app_dir: "/opt/promptfm/streamer"
+
+  roles:
+    - streamer

@@ -7,8 +7,9 @@ This document tracks upcoming features, architectural milestones, and infrastruc
 ## 🎯 Active Milestones & Backlog
 
 ### 1. 24/7 Continuous Audio Stream Server (GCP Free Tier)
-- [ ] **GCP Always Free `e2-micro` VM Setup**: Provision a free-tier Compute Engine instance (`us-central1`, 1 GB RAM, 30 GB PD) running Docker.
-- [ ] **Icecast 2 / Liquidsoap Continuous Broadcaster**: Configure Liquidsoap script that queries PromptFM's clock wheel, fetches R2 MP3s & Gemini DJ voice drops, and outputs a continuous 128 kbps MP3 stream.
+- [x] **GCP Always Free `e2-micro` VM Setup**: Provision a free-tier Compute Engine instance (`us-central1`, 1 GB RAM, 30 GB PD) running Docker.
+- [x] **Icecast 2 / Liquidsoap Continuous Broadcaster**: Configure Liquidsoap script that queries PromptFM's clock wheel, fetches R2 MP3s & Gemini DJ voice drops, and outputs a continuous 128 kbps MP3 stream.
+- [x] **Terraform & Ansible Infrastructure Code**: Complete IaC suite with GCS free remote state and 1-click Makefile state machine.
 - [ ] **Zero-Egress Proxy via Cloudflare Tunnel (`cloudflared`)**: Connect the Icecast mount point (`/stream.mp3`) to Cloudflare CDN to avoid GCP egress charges and provide HTTPS streaming.
 - [ ] **AudioPlayer Live Stream Sync**: Connect web frontend [`AudioPlayer.tsx`](src/components/AudioPlayer.tsx) to the live continuous mount with seamless fallback.
 

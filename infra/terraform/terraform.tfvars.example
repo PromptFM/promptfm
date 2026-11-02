@@ -1,0 +1,12 @@
+# PromptFM Terraform Variables Configuration
+# Copy this file to terraform.tfvars and customize if needed.
+
+project_id        = "promptfm-radio-1793623670"
+region            = "us-central1"
+zone              = "us-central1-a"
+instance_name     = "promptfm-streamer"
+machine_type      = "e2-micro"      # Strictly e2-micro for Always Free
+disk_type         = "pd-standard"   # Strictly pd-standard for Always Free (NOT pd-balanced/ssd)
+disk_size_gb      = 30              # Max 30 GB standard disk for Always Free
+ssh_user          = "ubuntu"
+ssh_pub_key_path  = "~/.ssh/google_compute_engine.pub"
