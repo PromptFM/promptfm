@@ -209,4 +209,33 @@ CREATE POLICY "Public can read and send chat messages"
 -- Enable Supabase Realtime publication on chat
 ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_messages;
 
+-- ----------------------------------------------------------------
+-- 9. COMMUNITY REQUESTS & INTERSTITIAL BATCH SLOTS
+-- Handles Discord/Telegram listener requests, dedications, weather, and zodiac
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.community_requests (
+  id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  platform            TEXT        NOT NULL CHECK (platform IN ('discord', 'telegram', 'web')),
+  platform_user_id    TEXT        NOT NULL,
+  platform_user_name  TEXT        NOT NULL,
+  platform_message_id TEXT,       -- Used to add checkmark reactions or reply in chat
+  type                TEXT        NOT NULL CHECK (type IN ('song', 'dedication', 'weather', 'news', 'zodiac')),
+  content             TEXT        NOT NULL, -- Prompt, message, or request details
+  target              TEXT,       -- Dedicated person (for dedications) or City (for weather) or Zodiac sign
+  batch_id            TEXT,       -- e.g. "batch-15:30"
+  status              TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'scheduled', 'aired', 'rejected')),
+  estimated_air_time  TIMESTAMPTZ,
+  aired_at            TIMESTAMPTZ,
+  audio_url           TEXT,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_community_requests_status_type
+  ON public.community_requests (status, type, created_at ASC);
+
+ALTER TABLE public.community_requests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public read and submit community requests"
+  ON public.community_requests FOR ALL USING (true) WITH CHECK (true);
+
+
 
