@@ -82,6 +82,8 @@ export default function ChannelsGrid({ className = '' }: ChannelsGridProps) {
         return <Moon className="w-5 h-5 text-teal-400" />;
       case 'Gamepad2':
         return <Gamepad2 className="w-5 h-5 text-amber-400" />;
+      case 'Flame':
+        return <Flame className="w-5 h-5 text-rose-400" />;
       case 'Radio':
       default:
         return <Radio className="w-5 h-5 text-emerald-400" />;
@@ -102,6 +104,10 @@ export default function ChannelsGrid({ className = '' }: ChannelsGridProps) {
         return isActive
           ? 'border-amber-400 bg-gradient-to-b from-amber-950/40 via-zinc-900 to-zinc-950 ring-1 ring-amber-400 shadow-[0_0_24px_rgba(251,191,36,0.25)]'
           : 'border-zinc-800 hover:border-amber-400/50 bg-zinc-900/60 hover:bg-zinc-900/90';
+      case 'afterdark':
+        return isActive
+          ? 'border-rose-500 bg-gradient-to-b from-rose-950/40 via-zinc-900 to-zinc-950 ring-1 ring-rose-500 shadow-[0_0_24px_rgba(244,63,94,0.25)]'
+          : 'border-zinc-800 hover:border-rose-500/50 bg-zinc-900/60 hover:bg-zinc-900/90';
       case 'main':
       default:
         return isActive
@@ -127,6 +133,10 @@ export default function ChannelsGrid({ className = '' }: ChannelsGridProps) {
         return isActive
           ? 'bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/30'
           : 'bg-zinc-800 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:border-amber-400';
+      case 'afterdark':
+        return isActive
+          ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/30'
+          : 'bg-zinc-800 hover:bg-rose-600/20 text-rose-300 border border-rose-500/30 hover:border-rose-400';
       case 'main':
       default:
         return isActive
@@ -142,7 +152,7 @@ export default function ChannelsGrid({ className = '' }: ChannelsGridProps) {
         <div>
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mb-2">
             <Radio className="w-3.5 h-3.5 animate-pulse" />
-            <span>4 LIVE THEME CHANNELS</span>
+            <span>5 LIVE THEME CHANNELS</span>
           </div>
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
             Choose Your Radio Station
@@ -155,7 +165,7 @@ export default function ChannelsGrid({ className = '' }: ChannelsGridProps) {
       </div>
 
       {/* Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-5">
         {OFFICIAL_CHANNELS.map((channel) => {
           const isActive = activeChannelSlug === channel.slug;
           const isCurrentChannelPlaying = isActive && isPlayerPlaying;
@@ -207,7 +217,12 @@ export default function ChannelsGrid({ className = '' }: ChannelsGridProps) {
                   <span className="font-semibold text-zinc-300 flex items-center gap-1">
                     🎙️ {channel.djName}
                   </span>
-                  {channel.isFamilySafe ? (
+                  {channel.requiresAgeGate ? (
+                    <span className="inline-flex items-center gap-0.5 text-rose-400 font-bold">
+                      <Flame className="w-3 h-3" />
+                      18+ Explicit
+                    </span>
+                  ) : channel.isFamilySafe ? (
                     <span className="inline-flex items-center gap-0.5 text-emerald-400 font-medium">
                       <ShieldCheck className="w-3 h-3" />
                       Family Safe

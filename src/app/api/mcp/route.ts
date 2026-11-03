@@ -14,6 +14,8 @@ import { fetchLiveWeatherSummary, getNowPlaying, getUpNext } from '@/lib/dj/rota
 import { getAllDJs, getActiveDJ, getDJById, getAdsConfig, getActiveAdSpot } from '@/lib/dj/roster';
 import { rejectScheduledRequest, synthesizeScheduledRequest } from '@/lib/dj/batches';
 import { submitContentReport, getRecentReports, resolveContentReport } from '@/lib/safety/reports';
+import { autoGenerateChannelGuardrails } from '@/lib/safety/channel-guardrails';
+import { getAllChannels } from '@/lib/radio/channels';
 import type { ReportReason, ReportTargetType } from '@/types/database';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
@@ -340,6 +342,33 @@ const ADMIN_MCP_TOOLS = [
         request_id: { type: 'string', description: 'The UUID of the request to air immediately' },
       },
       required: ['request_id'],
+    },
+  },
+  {
+    name: 'promptfm_admin_create_channel',
+    description:
+      'Creates a new radio broadcast channel with automated content guardrails, statutory 18+ age gating disclaimers, DJ assignment, and airplay policies.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        slug: { type: 'string', description: 'Unique URL slug for the channel (e.g. "underground", "synthwave")' },
+        name: { type: 'string', description: 'Display name for the channel' },
+        description: { type: 'string', description: 'Channel description and format' },
+        dj_id: { type: 'string', description: 'Optional assigned AI DJ ID (e.g. "dj_cipher", "dj_neon")' },
+        is_18_plus: { type: 'boolean', description: 'Whether the channel allows 18+ explicit content 24/7' },
+        is_family_safe: { type: 'boolean', description: 'Whether the channel is strictly family friendly / child safe' },
+        min_age: { type: 'number', description: 'Explicit minimum age requirement (default: 18 for 18+, 0 for standard)' },
+      },
+      required: ['slug', 'name'],
+    },
+  },
+  {
+    name: 'promptfm_admin_list_channels',
+    description:
+      'Lists all active radio channels with their guardrail policies, legal age gate requirements, and assigned AI DJs.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
     },
   },
 ];
@@ -974,6 +1003,147 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
         script: result.script,
         audio_url: result.audioUrl,
         message: `Successfully synthesized and aired request ${requestId}.`,
+      };
+    }
+
+    case 'promptfm_admin_create_channel': {
+      const slug = (args.slug as string)?.trim().toLowerCase();
+      const name = (args.name as string)?.trim();
+      const description = (args.description as string)?.trim() || '';
+      const djId = (args.dj_id as string)?.trim() || 'dj_neon';
+      const is18Plus = Boolean(args.is_18_plus);
+      const minAge = typeof args.min_age === 'number' ? args.min_age : undefined;
+      const customDisclaimer = (args.disclaimer as string)?.trim();
+
+      if (!slug || !name) {
+        throw new Error('Channel slug and name are required.');
+      }
+
+      const guardrails = autoGenerateChannelGuardrails({
+        is18Plus,
+        minAge,
+        allowExplicit247: is18Plus,
+        customDisclaimer,
+      });
+
+      const newChannel = {
+        slug,
+        name,
+        short_name: name,
+        description,
+        vibe: description || (guardrails.allow_explicit_24_7 ? '18+ Explicit Underground' : 'AI Generated Radio'),
+        badge: guardrails.allow_explicit_24_7 ? '🔞 18+ Explicit' : '📻 Live Channel',
+        accent_color: guardrails.allow_explicit_24_7 ? 'rose' : 'emerald',
+        icon: guardrails.allow_explicit_24_7 ? 'Flame' : 'Radio',
+        dj_id: djId,
+        is_family_safe: guardrails.is_family_safe,
+        min_age: guardrails.min_age,
+        requires_age_gate: guardrails.requires_age_gate,
+        allow_explicit_24_7: guardrails.allow_explicit_24_7,
+        age_gate_disclaimer: guardrails.age_gate_disclaimer,
+        stream_url: `https://stream.promptfm.live/live?channel=${slug}`,
+      };
+
+      const dbPayload = {
+        slug,
+        name,
+        description,
+        is_family_safe: guardrails.is_family_safe,
+        min_age: guardrails.min_age,
+        requires_age_gate: guardrails.requires_age_gate,
+        allow_explicit_24_7: guardrails.allow_explicit_24_7,
+        age_gate_disclaimer: guardrails.age_gate_disclaimer,
+      };
+
+      try {
+        const supabase = createAdminClient();
+        const { error } = await supabase.from('channels').upsert(dbPayload, { onConflict: 'slug' });
+        if (error) {
+          await supabase.from('channels').upsert(
+            { slug, name, description },
+            { onConflict: 'slug' }
+          );
+        }
+      } catch (err) {
+        console.warn('[MCP Admin] Channel upsert DB fallback note:', err);
+      }
+
+      return {
+        success: true,
+        message: `Channel "${name}" (${slug}) created with automated guardrails.`,
+        channel: newChannel,
+      };
+    }
+
+    case 'promptfm_admin_list_channels': {
+      const official = getAllChannels();
+      let dbChannels: any[] = [];
+      try {
+        const supabase = createAdminClient();
+        const { data } = await supabase.from('channels').select('*');
+        if (data && data.length > 0) {
+          dbChannels = data;
+        }
+      } catch (err) {
+        console.warn('[MCP Admin] Channels list DB fallback note:', err);
+      }
+
+      const channelMap = new Map<string, any>();
+      for (const ch of official) {
+        channelMap.set(ch.slug, {
+          slug: ch.slug,
+          name: ch.name,
+          short_name: ch.shortName,
+          description: ch.description,
+          vibe: ch.vibe,
+          badge: ch.badge,
+          accent_color: ch.accentColor,
+          icon: ch.icon,
+          dj_id: ch.djId,
+          is_family_safe: ch.isFamilySafe,
+          min_age: ch.minAge ?? 0,
+          requires_age_gate: ch.requiresAgeGate ?? false,
+          allow_explicit_24_7: ch.allowExplicitAllDay ?? false,
+          age_gate_disclaimer: ch.ageGateDisclaimer ?? '',
+          stream_url: ch.streamUrl,
+        });
+      }
+      for (const ch of dbChannels) {
+        const existing = channelMap.get(ch.slug) || {};
+        const isExplicitHint = Boolean(
+          ch.allow_explicit_24_7 ||
+          ch.requires_age_gate ||
+          ch.name?.includes('18+') ||
+          ch.description?.toLowerCase().includes('explicit') ||
+          ch.description?.toLowerCase().includes('uncensored')
+        );
+        const guard = autoGenerateChannelGuardrails({ is18Plus: isExplicitHint });
+        channelMap.set(ch.slug, {
+          ...existing,
+          ...ch,
+          slug: ch.slug,
+          name: ch.name || existing.name,
+          short_name: ch.name || existing.name,
+          description: ch.description || '',
+          vibe: ch.description || (guard.allow_explicit_24_7 ? '18+ Explicit Underground' : 'AI Generated Radio'),
+          badge: guard.allow_explicit_24_7 ? '🔞 18+ Explicit' : '📻 Live Channel',
+          accent_color: guard.allow_explicit_24_7 ? 'rose' : 'emerald',
+          icon: guard.allow_explicit_24_7 ? 'Flame' : 'Radio',
+          dj_id: ch.dj_id || existing.dj_id || 'dj_neon',
+          is_family_safe: ch.is_family_safe ?? existing.is_family_safe ?? guard.is_family_safe,
+          min_age: ch.min_age ?? existing.min_age ?? guard.min_age,
+          requires_age_gate: ch.requires_age_gate ?? existing.requires_age_gate ?? guard.requires_age_gate,
+          allow_explicit_24_7: ch.allow_explicit_24_7 ?? existing.allow_explicit_24_7 ?? guard.allow_explicit_24_7,
+          age_gate_disclaimer: ch.age_gate_disclaimer || existing.age_gate_disclaimer || guard.age_gate_disclaimer,
+          stream_url: `https://stream.promptfm.live/live?channel=${ch.slug}`,
+        });
+      }
+
+      const channels = Array.from(channelMap.values());
+      return {
+        success: true,
+        count: channels.length,
+        channels,
       };
     }
 

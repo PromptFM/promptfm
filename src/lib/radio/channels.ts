@@ -16,6 +16,10 @@ export interface RadioChannel {
   djId: string;
   djName: string;
   isFamilySafe: boolean;
+  minAge?: number;
+  requiresAgeGate?: boolean;
+  allowExplicitAllDay?: boolean;
+  ageGateDisclaimer?: string;
   streamUrl: string;
 }
 
@@ -34,6 +38,9 @@ export const OFFICIAL_CHANNELS: readonly RadioChannel[] = [
     djId: 'dj_neon',
     djName: 'DJ Neon',
     isFamilySafe: true,
+    minAge: 0,
+    requiresAgeGate: false,
+    allowExplicitAllDay: false,
     streamUrl: DEFAULT_STREAM_URL,
   },
   {
@@ -48,6 +55,9 @@ export const OFFICIAL_CHANNELS: readonly RadioChannel[] = [
     djId: 'dj_cipher',
     djName: 'DJ Cipher',
     isFamilySafe: false,
+    minAge: 0,
+    requiresAgeGate: false,
+    allowExplicitAllDay: false,
     streamUrl: `${DEFAULT_STREAM_URL}?channel=cyberpunk`,
   },
   {
@@ -62,6 +72,9 @@ export const OFFICIAL_CHANNELS: readonly RadioChannel[] = [
     djId: 'dj_luna',
     djName: 'DJ Luna',
     isFamilySafe: true,
+    minAge: 0,
+    requiresAgeGate: false,
+    allowExplicitAllDay: false,
     streamUrl: `${DEFAULT_STREAM_URL}?channel=chillout`,
   },
   {
@@ -76,7 +89,28 @@ export const OFFICIAL_CHANNELS: readonly RadioChannel[] = [
     djId: 'dj_pixel',
     djName: 'DJ Pixel',
     isFamilySafe: true,
+    minAge: 0,
+    requiresAgeGate: false,
+    allowExplicitAllDay: false,
     streamUrl: `${DEFAULT_STREAM_URL}?channel=kids`,
+  },
+  {
+    slug: 'afterdark',
+    name: 'After Dark (18+ Explicit)',
+    shortName: 'After Dark 18+',
+    description: '24/7 uncensored AI music, explicit lyrics, dark electronic, and raw underground bass.',
+    vibe: 'Explicit 18+ · Uncensored 24/7 · Raw Underground',
+    badge: '🔞 18+ Explicit',
+    accentColor: 'rose',
+    icon: 'Flame',
+    djId: 'dj_cipher',
+    djName: 'DJ Cipher',
+    isFamilySafe: false,
+    minAge: 18,
+    requiresAgeGate: true,
+    allowExplicitAllDay: true,
+    ageGateDisclaimer: 'LEGAL AGE CONFIRMATION & CONSENT: This channel broadcasts uncensored audio containing adult language, profanity, and mature themes 24 hours a day. By proceeding, you certify under penalty of law that you are at least 18 years of age (or the legal age of majority in your jurisdiction), understand the adult nature of the programming, and affirmatively consent to receiving explicit broadcast content. If you are under 18, please select a Family Safe channel.',
+    streamUrl: `${DEFAULT_STREAM_URL}?channel=afterdark`,
   },
 ] as const;
 

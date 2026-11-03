@@ -1,12 +1,12 @@
 # 📻 PromptFM — 24/7 AI Music Radio & Creator Community
 
 [![Production](https://img.shields.io/badge/Production-promptfm.live-10b981?style=for-the-badge&logo=vercel)](https://promptfm.live)
-[![Tests](https://img.shields.io/badge/Tests-224%20Passing-brightgreen?style=for-the-badge&logo=vitest)](https://github.com/atrifan/promptfm)
+[![Tests](https://img.shields.io/badge/Tests-264%20Passing-brightgreen?style=for-the-badge&logo=vitest)](https://github.com/atrifan/promptfm)
 [![Mutation Score](https://img.shields.io/badge/Stryker%20Mutation-%E2%89%A587%25-blueviolet?style=for-the-badge)](https://github.com/atrifan/promptfm)
 [![GCP Free Tier](https://img.shields.io/badge/GCP%20Always--Free-$0.00%2Fmo-4285F4?style=for-the-badge&logo=googlecloud)](https://console.cloud.google.com/?project=promptfm-radio-1793623670)
 [![License](https://img.shields.io/badge/License-MIT-zinc?style=for-the-badge)](LICENSE)
 
-**PromptFM** is an autonomous 24/7 AI-generated music radio platform and community chart. Featuring **4 live theme stations**, continuous **AI radio DJs** delivering spoken commentary and weather updates, real-time listener voting, and direct MP3/MP4 creator uploads with automatic ID3 metadata and album art extraction.
+**PromptFM** is an autonomous 24/7 AI-generated music radio platform and community chart. Featuring **5 live theme stations** (including After Dark 18+ Explicit with statutory legal age verification), continuous **AI radio DJs** delivering spoken commentary and weather updates, real-time listener voting, and direct MP3/MP4 creator uploads with automatic ID3 metadata and album art extraction.
 
 ---
 
@@ -20,7 +20,7 @@ PromptFM is engineered to operate strictly within 100% zero-cost cloud tiers. Us
 | **Vercel Web Analytics** | [Vercel Realtime Analytics](https://vercel.com/alex-trifans-projects/promptfm/analytics) | Live visitors online, real-time listener telemetry, page views, iOS Safari homescreen users, referral sources, Core Web Vitals | **$0.00** (Hobby Plan) |
 | **Google AI Studio** | [Gemini AI Studio Dashboard](https://aistudio.google.com) | Gemini API free key quota usage (15 RPM / 1,500 requests/day free allowance) under `Gemini Project` (`gen-lang-client-0217883943`) | **$0.00** |
 | **Station Manager Studio** | [promptfm.live/admin](https://promptfm.live/admin) | On-air queue curation, community submission moderation, Discord/Telegram batch requests, manual DJ voice drops, channel management | **$0.00** |
-| **Icecast 2 Stream Admin** | [stream.promptfm.live:8000/admin](http://stream.promptfm.live:8000/admin/) | Direct Icecast mount points (`/stream.mp3`, `/cyberpunk.mp3`, `/chillout.mp3`, `/kids.mp3`), connected socket listeners, bitrate telemetry | **$0.00** (GCP VM) |
+| **Icecast 2 Stream Admin** | [stream.promptfm.live:8000/admin](http://stream.promptfm.live:8000/admin/) | Direct Icecast mount points (`/stream.mp3`, `/cyberpunk.mp3`, `/chillout.mp3`, `/kids.mp3`, `/afterdark.mp3`), connected socket listeners, bitrate telemetry | **$0.00** (GCP VM) |
 
 ---
 

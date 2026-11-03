@@ -399,6 +399,11 @@ export function isContentAllowedForAirplay(
     const config = getParentalControlConfig();
     if (!config.enabled) return true;
 
+    // 0. Dedicated 24/7 18+ channels (e.g. afterdark) permit explicit tracks all day long
+    if (channelSlug === 'afterdark') {
+      return true;
+    }
+
     // 1. Safe channels (e.g. kids, chillout) strictly forbid explicit 18+ content 24/7
     if (config.safeChannels.includes(channelSlug)) {
       return false;

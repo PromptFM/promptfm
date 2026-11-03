@@ -46,11 +46,12 @@ describe('SEO & Structured Data Service', () => {
     it('generates complete sitemap items with canonical URLs, change frequencies, and priorities', () => {
       const testDate = new Date('2026-11-03T00:00:00Z');
       const sitemap = generateSitemapUrls(testDate);
-      expect(sitemap.length).toBe(12);
+      expect(sitemap.length).toBe(13);
 
       const urls = sitemap.map((s) => s.url);
       expect(urls).toContain('https://promptfm.live');
       expect(urls).toContain('https://promptfm.live/channels');
+      expect(urls).toContain('https://promptfm.live/channels?channel=afterdark');
       expect(urls).toContain('https://promptfm.live/top');
       expect(urls).toContain('https://promptfm.live/submit');
       expect(urls).toContain('https://promptfm.live/terms');

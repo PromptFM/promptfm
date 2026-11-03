@@ -20,15 +20,16 @@ describe('Radio Channels Service', () => {
   });
 
   describe('getAllChannels', () => {
-    it('returns all 4 official PromptFM theme channels with proper metadata', () => {
+    it('returns all 5 official PromptFM theme channels with proper metadata', () => {
       const channels = getAllChannels();
-      expect(channels).toHaveLength(4);
+      expect(channels).toHaveLength(5);
 
       const slugs = channels.map((c) => c.slug);
       expect(slugs).toContain('main');
       expect(slugs).toContain('cyberpunk');
       expect(slugs).toContain('chillout');
       expect(slugs).toContain('kids');
+      expect(slugs).toContain('afterdark');
 
       for (const ch of channels) {
         expect(ch.name).toBeTruthy();

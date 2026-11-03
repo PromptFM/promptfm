@@ -22,8 +22,10 @@ import {
   Sparkles,
   Users,
   ListMusic,
+  Flame,
 } from 'lucide-react';
 import ReportModal from '@/components/ReportModal';
+import AgeGateModal from '@/components/AgeGateModal';
 import {
   createStreamPlayerController,
   StreamPlayerController,
@@ -107,6 +109,11 @@ export default function AudioPlayer() {
   const [upNextList, setUpNextList] = useState<NowPlayingInfo[]>([]);
   const [listenersCount, setListenersCount] = useState<number | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
+  const [isAgeGateOpen, setIsAgeGateOpen] = useState(false);
+  const [pendingAgeGateChannel, setPendingAgeGateChannel] = useState<{
+    slug: string;
+    autoPlay: boolean;
+  } | null>(null);
 
   const currentChannel = getChannelBySlug(currentChannelSlug);
 
@@ -208,8 +215,7 @@ export default function AudioPlayer() {
   };
 
   // ── Switch Channel Method ─────────────────────────────────────────────────
-  const switchChannel = useCallback((slug: string, autoPlay = false) => {
-    const validSlug = isValidChannelSlug(slug) ? slug.toLowerCase().trim() : DEFAULT_CHANNEL_SLUG;
+  const executeChannelSwitch = useCallback((validSlug: string, autoPlay = false) => {
     setCurrentChannelSlug(validSlug);
     setShowChannelMenu(false);
 
@@ -239,6 +245,31 @@ export default function AudioPlayer() {
     // Refresh Now Playing immediately for the selected channel
     fetchNowPlaying(validSlug);
   }, [fetchNowPlaying]);
+
+  const switchChannel = useCallback((slug: string, autoPlay = false) => {
+    const targetChannel = getChannelBySlug(slug);
+    const validSlug = targetChannel.slug;
+
+    if (targetChannel.requiresAgeGate && typeof window !== 'undefined') {
+      let verified = false;
+      try {
+        verified =
+          localStorage.getItem('promptfm_age_verified_18') === 'true' ||
+          localStorage.getItem(`promptfm_age_verified_channel_${validSlug}`) === 'true';
+      } catch {
+        // Ignore storage errors
+      }
+
+      if (!verified) {
+        setPendingAgeGateChannel({ slug: validSlug, autoPlay });
+        setIsAgeGateOpen(true);
+        setShowChannelMenu(false);
+        return;
+      }
+    }
+
+    executeChannelSwitch(validSlug, autoPlay);
+  }, [executeChannelSwitch]);
 
   // ── Stream player controller setup ───────────────────────────────────────
   useEffect(() => {
@@ -350,6 +381,8 @@ export default function AudioPlayer() {
         return <Moon className="w-3.5 h-3.5 text-teal-400" />;
       case 'kids':
         return <Gamepad2 className="w-3.5 h-3.5 text-amber-400" />;
+      case 'afterdark':
+        return <Flame className="w-3.5 h-3.5 text-rose-400" />;
       case 'main':
       default:
         return <Radio className="w-3.5 h-3.5 text-emerald-400" />;
@@ -700,6 +733,26 @@ export default function AudioPlayer() {
             : `Live Radio Stream: ${currentChannel.name}`
         }
       />
+
+      {/* Statutory 18+ Age Verification Modal */}
+      {pendingAgeGateChannel && (
+        <AgeGateModal
+          isOpen={isAgeGateOpen}
+          channelName={getChannelBySlug(pendingAgeGateChannel.slug).name}
+          disclaimer={getChannelBySlug(pendingAgeGateChannel.slug).ageGateDisclaimer}
+          minAge={getChannelBySlug(pendingAgeGateChannel.slug).minAge ?? 18}
+          onConfirm={() => {
+            setIsAgeGateOpen(false);
+            const { slug, autoPlay } = pendingAgeGateChannel;
+            setPendingAgeGateChannel(null);
+            executeChannelSwitch(slug, autoPlay);
+          }}
+          onCancel={() => {
+            setIsAgeGateOpen(false);
+            setPendingAgeGateChannel(null);
+          }}
+        />
+      )}
     </>
   );
 }

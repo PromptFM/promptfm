@@ -108,7 +108,7 @@ describe('Live Listener Telemetry & Telemetry Counter', () => {
       const initialStats = getLiveListenerStats('cyberpunk', fixedTime);
 
       expect(initialStats.channelSlug).toBe('cyberpunk');
-      expect(initialStats.activeChannelsCount).toBe(4);
+      expect(initialStats.activeChannelsCount).toBe(5);
       expect(initialStats.timestamp).toBe(fixedTime);
 
       // Add 3 listeners to cyberpunk and 2 to chillout

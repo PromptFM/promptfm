@@ -25,9 +25,14 @@ import {
   ShieldCheck,
   Flag,
   HeartHandshake,
+  Flame,
+  Plus,
+  Lock,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { type Track, type AITool, type ContentReport, REASON_LABELS } from '@/types/database';
+import { OFFICIAL_CHANNELS, type RadioChannel, getAllChannels } from '@/lib/radio/channels';
+import { autoGenerateChannelGuardrails } from '@/lib/safety/channel-guardrails';
 import type { User } from '@supabase/supabase-js';
 import AuthButton from '@/components/AuthButton';
 
@@ -61,11 +66,21 @@ export default function AdminDashboard() {
   const [authChecking, setAuthChecking] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'submissions' | 'queue' | 'batches' | 'reports' | 'upload'>('submissions');
+  const [activeTab, setActiveTab] = useState<'submissions' | 'queue' | 'batches' | 'reports' | 'channels' | 'upload'>('submissions');
   const [pendingTracks, setPendingTracks] = useState<Track[]>([]);
   const [queueItems, setQueueItems] = useState<QueuedItem[]>([]);
   const [communityRequests, setCommunityRequests] = useState<CommunityRequestRow[]>([]);
   const [reports, setReports] = useState<ContentReport[]>([]);
+  const [channels, setChannels] = useState<RadioChannel[]>(() => getAllChannels());
+  const [channelForm, setChannelForm] = useState({
+    slug: '',
+    name: '',
+    description: '',
+    djId: 'dj_cipher',
+    is18Plus: false,
+  });
+  const [channelCreating, setChannelCreating] = useState(false);
+  const [channelSuccess, setChannelSuccess] = useState<string | null>(null);
   const [rejectingRequestId, setRejectingRequestId] = useState<string | null>(null);
   const [customRejectReason, setCustomRejectReason] = useState<string>('Religious hostility violates broadcast standards');
   const [loading, setLoading] = useState(true);
@@ -138,6 +153,48 @@ export default function AdminDashboard() {
       }
     } catch (e) {
       console.warn('Could not load reports:', e);
+    }
+
+    // Fetch channels with guardrails
+    try {
+      const { data: dbCh } = await supabase.from('channels').select('*');
+      const official = getAllChannels();
+      const chMap = new Map<string, RadioChannel>();
+      for (const ch of official) chMap.set(ch.slug, ch);
+      if (dbCh && dbCh.length > 0) {
+        for (const item of dbCh) {
+          const isExplicitHint = Boolean(
+            item.allow_explicit_24_7 ||
+            item.requires_age_gate ||
+            item.name?.includes('18+') ||
+            item.description?.toLowerCase().includes('explicit') ||
+            item.description?.toLowerCase().includes('uncensored')
+          );
+          const guard = autoGenerateChannelGuardrails({ is18Plus: isExplicitHint });
+          const existing = chMap.get(item.slug);
+          chMap.set(item.slug, {
+            slug: item.slug,
+            name: item.name || existing?.name || item.slug,
+            shortName: item.name || existing?.shortName || item.slug,
+            description: item.description || existing?.description || '',
+            vibe: item.description || existing?.vibe || (guard.allow_explicit_24_7 ? '18+ Explicit Underground' : 'AI Generated Radio'),
+            badge: guard.allow_explicit_24_7 ? '🔞 18+ Explicit' : existing?.badge || '📻 Channel',
+            accentColor: guard.allow_explicit_24_7 ? 'rose' : existing?.accentColor || 'emerald',
+            icon: guard.allow_explicit_24_7 ? 'Flame' : existing?.icon || 'Radio',
+            djId: item.dj_id || existing?.djId || 'dj_neon',
+            djName: existing?.djName || 'AI Host',
+            isFamilySafe: item.is_family_safe ?? existing?.isFamilySafe ?? guard.is_family_safe,
+            minAge: item.min_age ?? existing?.minAge ?? guard.min_age,
+            requiresAgeGate: item.requires_age_gate ?? existing?.requiresAgeGate ?? guard.requires_age_gate,
+            allowExplicitAllDay: item.allow_explicit_24_7 ?? existing?.allowExplicitAllDay ?? guard.allow_explicit_24_7,
+            ageGateDisclaimer: item.age_gate_disclaimer || existing?.ageGateDisclaimer || guard.age_gate_disclaimer,
+            streamUrl: `https://stream.promptfm.live/live?channel=${item.slug}`,
+          });
+        }
+      }
+      setChannels(Array.from(chMap.values()));
+    } catch (e) {
+      console.warn('Could not load channels:', e);
     }
 
     setLoading(false);
@@ -369,6 +426,52 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleCreateChannel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!channelForm.slug || !channelForm.name) return;
+
+    setChannelCreating(true);
+    setChannelSuccess(null);
+
+    const slug = channelForm.slug.toLowerCase().trim();
+    const name = channelForm.name.trim();
+    const desc = channelForm.description.trim();
+
+    try {
+      const res = await fetch('/api/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: `admin-ui-${Date.now()}`,
+          method: 'tools/call',
+          params: {
+            name: 'promptfm_admin_create_channel',
+            arguments: {
+              slug,
+              name,
+              description: desc,
+              dj_id: channelForm.djId,
+              is_18_plus: channelForm.is18Plus,
+            },
+          },
+        }),
+      });
+
+      if (res.ok) {
+        setChannelSuccess(`Channel "${name}" (${slug}) created with automated guardrails!`);
+        setChannelForm({ slug: '', name: '', description: '', djId: 'dj_cipher', is18Plus: false });
+        refreshData();
+      } else {
+        throw new Error('Failed to create channel via admin API');
+      }
+    } catch (err: unknown) {
+      alert(`Error creating channel: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setChannelCreating(false);
+    }
+  };
+
   if (authChecking) {
     return (
       <main className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-6">
@@ -462,6 +565,17 @@ export default function AdminDashboard() {
               Reports ({reports.filter((r) => r.status === 'pending').length})
             </button>
             <button
+              onClick={() => setActiveTab('channels')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+                activeTab === 'channels'
+                  ? 'bg-emerald-500 text-black shadow-sm'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <Radio className="w-3.5 h-3.5 text-rose-400" />
+              Channels & Guardrails ({channels.length})
+            </button>
+            <button
               onClick={() => setActiveTab('upload')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
                 activeTab === 'upload'
@@ -481,7 +595,7 @@ export default function AdminDashboard() {
             <span className="text-zinc-400">Station Telemetry</span>
             <span className="text-emerald-400 font-bold flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              4 Live Channels Active
+              {channels.length} Live Channels Active
             </span>
           </div>
           <a
@@ -941,7 +1055,230 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* ── TAB 5: DIRECT LOCAL MP3 UPLOAD ──────────────────────────────── */}
+        {/* ── TAB 5: CHANNELS & AUTOMATED GUARDRAILS ───────────────────────── */}
+        {activeTab === 'channels' && (
+          <div className="space-y-8">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-white flex items-center gap-2">
+                  <Radio className="w-4 h-4 text-rose-400" />
+                  Broadcast Channels & Legal Guardrails
+                </h2>
+                <p className="text-xs text-zinc-400">
+                  Manage live broadcast streams, AI DJ host assignments, and statutory 18+ age verification policies.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  {channels.length} Total Channels
+                </span>
+              </div>
+            </div>
+
+            {channelSuccess && (
+              <div className="p-3 bg-emerald-950/60 border border-emerald-800 rounded-xl text-emerald-300 text-xs flex items-center gap-2">
+                <Check className="w-4 h-4" />
+                {channelSuccess}
+              </div>
+            )}
+
+            {/* Channels Roster Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {channels.map((ch) => (
+                <div
+                  key={ch.slug}
+                  className={`p-4 rounded-2xl border bg-zinc-900/80 transition-all ${
+                    ch.requiresAgeGate
+                      ? 'border-rose-500/40 shadow-lg shadow-rose-950/20'
+                      : 'border-zinc-800'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white text-sm">{ch.name}</span>
+                        <span className="px-1.5 py-0.5 rounded bg-zinc-800 font-mono text-[10px] text-zinc-400">
+                          /{ch.slug}
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-400">{ch.vibe || ch.description}</p>
+                    </div>
+
+                    {ch.requiresAgeGate ? (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1">
+                        <Flame className="w-3 h-3" />
+                        18+ Explicit 24/7
+                      </span>
+                    ) : ch.isFamilySafe ? (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                        <ShieldCheck className="w-3 h-3" />
+                        Family Safe
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1">
+                        <ShieldAlert className="w-3 h-3" />
+                        16+ Cyber
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-[11px] pt-3 border-t border-zinc-800/80 text-zinc-300">
+                    <div>
+                      <span className="text-zinc-500 block text-[10px] uppercase font-mono">Assigned AI Host</span>
+                      <span className="font-semibold">{ch.djName || ch.djId}</span>
+                    </div>
+                    <div>
+                      <span className="text-zinc-500 block text-[10px] uppercase font-mono">Age Gate Policy</span>
+                      <span className={ch.requiresAgeGate ? 'text-rose-400 font-semibold' : 'text-zinc-300'}>
+                        {ch.requiresAgeGate ? 'Affirmative Consent' : 'All Ages Open'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {ch.ageGateDisclaimer && (
+                    <div className="mt-3 p-2.5 rounded-xl bg-zinc-950/70 border border-zinc-800/80 text-[10px] text-zinc-400 leading-relaxed font-sans">
+                      <span className="text-rose-400 font-semibold block mb-0.5">Statutory Legal Disclaimer:</span>
+                      {ch.ageGateDisclaimer}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Create Channel with Automated Guardrails Form */}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-5">
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Plus className="w-4 h-4 text-emerald-400" />
+                  Provision New Broadcast Channel with Automated Guardrails
+                </h3>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Automates statutory legal disclaimer generation, age gate configuration, and 24/7 explicit airplay permissions.
+                </p>
+              </div>
+
+              <form onSubmit={handleCreateChannel} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-300 mb-1">Channel Slug</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. synthwave"
+                      value={channelForm.slug}
+                      onChange={(e) =>
+                        setChannelForm({ ...channelForm, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, '') })
+                      }
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-300 mb-1">Display Name</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Synthwave Night"
+                      value={channelForm.name}
+                      onChange={(e) => setChannelForm({ ...channelForm, name: e.target.value })}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-zinc-300 mb-1">Description & Musical Vibe</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 24/7 dark driving retrowave and analog arpeggios"
+                    value={channelForm.description}
+                    onChange={(e) => setChannelForm({ ...channelForm, description: e.target.value })}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-zinc-300 mb-1">Host AI DJ</label>
+                  <select
+                    value={channelForm.djId}
+                    onChange={(e) => setChannelForm({ ...channelForm, djId: e.target.value })}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  >
+                    <option value="dj_neon">DJ Neon (Synthwave & Primetime)</option>
+                    <option value="dj_luna">DJ Luna (Chillout & Lo-Fi)</option>
+                    <option value="dj_cipher">DJ Cipher (Cyberpunk & 18+ Underground)</option>
+                    <option value="dj_pixel">DJ Pixel (Kids & Gaming)</option>
+                    <option value="dj_vance">DJ Vance (Late Night Beats)</option>
+                  </select>
+                </div>
+
+                {/* 18+ Adult Toggle */}
+                <label className="flex items-start gap-3 p-3 rounded-xl bg-zinc-950/60 border border-zinc-800 hover:border-zinc-700 cursor-pointer transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={channelForm.is18Plus}
+                    onChange={(e) => setChannelForm({ ...channelForm, is18Plus: e.target.checked })}
+                    className="mt-0.5 w-4 h-4 accent-rose-500 rounded cursor-pointer"
+                  />
+                  <div className="space-y-0.5">
+                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <Flame className="w-3.5 h-3.5 text-rose-400" />
+                      18+ Explicit Adult Channel (24/7 Uncensored)
+                    </span>
+                    <p className="text-[11px] text-zinc-400">
+                      Enforces statutory legal affirmative consent modal, protects station under COPPA/Section 230, and permits explicit music all day long without watershed restriction.
+                    </p>
+                  </div>
+                </label>
+
+                {/* Live Guardrails Policy Preview */}
+                <div className="p-3.5 rounded-xl bg-zinc-950/80 border border-zinc-800 space-y-1.5 text-xs">
+                  <span className="text-zinc-500 font-mono text-[10px] uppercase font-bold flex items-center gap-1">
+                    <Lock className="w-3 h-3 text-emerald-400" />
+                    Automated Guardrail Generation Preview
+                  </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] pt-1">
+                    <div>
+                      <span className="text-zinc-500 block text-[10px]">Min Age</span>
+                      <span className="font-mono font-bold text-white">
+                        {channelForm.is18Plus ? '18+ Statutory' : '0 (All Ages)'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-zinc-500 block text-[10px]">Age Gate Modal</span>
+                      <span className={channelForm.is18Plus ? 'text-rose-400 font-semibold' : 'text-zinc-400'}>
+                        {channelForm.is18Plus ? 'Mandatory Consent' : 'Disabled'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-zinc-500 block text-[10px]">24/7 Explicit</span>
+                      <span className={channelForm.is18Plus ? 'text-emerald-400 font-semibold' : 'text-zinc-400'}>
+                        {channelForm.is18Plus ? 'Permitted 24/7' : 'Watershed Only'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-zinc-500 block text-[10px]">Family Safe</span>
+                      <span className={channelForm.is18Plus ? 'text-zinc-400' : 'text-emerald-400 font-semibold'}>
+                        {channelForm.is18Plus ? 'No (Adult)' : 'Yes'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={channelCreating || !channelForm.slug || !channelForm.name}
+                  className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-xs transition-colors flex items-center justify-center gap-2 disabled:opacity-40"
+                >
+                  {channelCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                  Provision Channel with Guardrails
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ── TAB 6: DIRECT LOCAL MP3 UPLOAD ──────────────────────────────── */}
         {activeTab === 'upload' && (
           <div className="max-w-xl mx-auto space-y-6 bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
             <div>

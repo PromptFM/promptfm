@@ -108,5 +108,65 @@ describe('MCP Admin Tools Integration', () => {
     expect(data.success).toBe(true);
     expect(Array.isArray(data.requests)).toBe(true);
   });
+
+  it('creates an 18+ channel with automated guardrails via promptfm_admin_create_channel', async () => {
+    const req = new NextRequest('http://localhost:3000/api/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'req-mcp-admin-create-ch',
+        method: 'tools/call',
+        params: {
+          name: 'promptfm_admin_create_channel',
+          arguments: {
+            slug: 'underground',
+            name: 'Underground Beats',
+            description: 'Unfiltered electronic tracks',
+            is_18_plus: true,
+          },
+        },
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.result).toBeDefined();
+
+    const data = JSON.parse(json.result.content[0].text);
+    expect(data.success).toBe(true);
+    expect(data.channel.slug).toBe('underground');
+    expect(data.channel.requires_age_gate).toBe(true);
+    expect(data.channel.allow_explicit_24_7).toBe(true);
+    expect(data.channel.min_age).toBe(18);
+    expect(data.channel.age_gate_disclaimer).toContain('18 years of age');
+  });
+
+  it('lists channels with guardrail policies via promptfm_admin_list_channels', async () => {
+    const req = new NextRequest('http://localhost:3000/api/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'req-mcp-admin-list-ch',
+        method: 'tools/call',
+        params: {
+          name: 'promptfm_admin_list_channels',
+          arguments: {},
+        },
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.result).toBeDefined();
+
+    const data = JSON.parse(json.result.content[0].text);
+    expect(data.success).toBe(true);
+    expect(Array.isArray(data.channels)).toBe(true);
+    expect(data.channels.length).toBeGreaterThanOrEqual(4);
+  });
 });
 

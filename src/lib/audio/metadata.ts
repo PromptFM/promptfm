@@ -3,7 +3,7 @@
 // Extracts ID3/MP4 metadata (Title, Artist, Category/Genre, Prompt Description, Lyrics, Cover Art)
 // Supports both client-side File/Blob in the browser and Node Buffer in the CLI.
 
-import { STATION_CATEGORIES, StationCategory } from '@/types/database';
+import { STATION_CATEGORIES, StationCategory } from '../../types/database';
 
 export const DEFAULT_TRACK_ICON = '/logo-mark.png';
 

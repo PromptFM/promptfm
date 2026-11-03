@@ -10,11 +10,11 @@ import {
 } from '@/lib/radio/channels';
 
 describe('Channel Navigation & Selection Logic', () => {
-  it('contains exactly 4 curated theme stations', () => {
+  it('contains exactly 5 curated theme stations including afterdark 18+', () => {
     const channels = getAllChannels();
-    expect(channels).toHaveLength(4);
+    expect(channels).toHaveLength(5);
     const slugs = channels.map((c) => c.slug);
-    expect(slugs).toEqual(['main', 'cyberpunk', 'chillout', 'kids']);
+    expect(slugs).toEqual(['main', 'cyberpunk', 'chillout', 'kids', 'afterdark']);
   });
 
   it('assigns unique DJs and stream configurations to all stations', () => {
@@ -38,6 +38,7 @@ describe('Channel Navigation & Selection Logic', () => {
     expect(getChannelBySlug('CYBERPUNK').slug).toBe('cyberpunk');
     expect(getChannelBySlug('chillout').slug).toBe('chillout');
     expect(getChannelBySlug('kids').slug).toBe('kids');
+    expect(getChannelBySlug('afterdark').slug).toBe('afterdark');
     expect(getChannelBySlug('unknown-pirate-radio').slug).toBe(DEFAULT_CHANNEL_SLUG);
     expect(getChannelBySlug(null).slug).toBe(DEFAULT_CHANNEL_SLUG);
   });
@@ -47,11 +48,13 @@ describe('Channel Navigation & Selection Logic', () => {
     const cyberpunkStream = getStreamUrlForChannel('cyberpunk');
     const chilloutStream = getStreamUrlForChannel('chillout');
     const kidsStream = getStreamUrlForChannel('kids');
+    const afterdarkStream = getStreamUrlForChannel('afterdark');
 
     expect(mainStream).not.toContain('channel=');
     expect(cyberpunkStream).toContain('channel=cyberpunk');
     expect(chilloutStream).toContain('channel=chillout');
     expect(kidsStream).toContain('channel=kids');
+    expect(afterdarkStream).toContain('channel=afterdark');
   });
 
   it('correctly flags family-safe channels for parents and classrooms', () => {
@@ -59,10 +62,14 @@ describe('Channel Navigation & Selection Logic', () => {
     const chillout = getChannelBySlug('chillout');
     const main = getChannelBySlug('main');
     const cyberpunk = getChannelBySlug('cyberpunk');
+    const afterdark = getChannelBySlug('afterdark');
 
     expect(kids.isFamilySafe).toBe(true);
     expect(chillout.isFamilySafe).toBe(true);
     expect(main.isFamilySafe).toBe(true);
     expect(cyberpunk.isFamilySafe).toBe(false);
+    expect(afterdark.isFamilySafe).toBe(false);
+    expect(afterdark.requiresAgeGate).toBe(true);
+    expect(afterdark.allowExplicitAllDay).toBe(true);
   });
 });

@@ -103,6 +103,21 @@ export interface ContentReport {
   created_at: string;
 }
 
+export interface DatabaseChannel {
+  id: string;
+  slug: string;
+  name: string;
+  description?: string | null;
+  is_private: boolean;
+  invite_token?: string | null;
+  is_family_safe: boolean;
+  min_age: number;
+  requires_age_gate: boolean;
+  allow_explicit_24_7: boolean;
+  age_gate_disclaimer?: string | null;
+  created_at: string;
+}
+
 /** Payload accepted by POST /api/upload-url */
 export interface UploadUrlRequest {
   filename: string;
