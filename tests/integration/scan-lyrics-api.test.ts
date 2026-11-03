@@ -10,6 +10,21 @@ describe('POST /api/scan-lyrics API Integration', () => {
   });
 
   it('scans clean lyrics and returns allowed channels', async () => {
+    const fakeFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        candidates: [
+          {
+            content: {
+              parts: [{ text: JSON.stringify({ is_explicit: false, family_friendly: true, flags: [] }) }],
+            },
+          },
+        ],
+        usageMetadata: { totalTokenCount: 22 },
+      }),
+    });
+    global.fetch = fakeFetch as unknown as typeof fetch;
+
     // Dynamic import to allow route creation
     const { POST } = await import('@/app/api/scan-lyrics/route');
 

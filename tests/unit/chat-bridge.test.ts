@@ -147,6 +147,29 @@ describe('Community Chat Bridge (Discord & Telegram)', () => {
       });
       expect(result).toBe(false);
     });
+
+    it('routes now_playing to DISCORD_NOW_PLAYING_WEBHOOK_URL and feeds to DISCORD_FEED_WEBHOOK_URL', async () => {
+      process.env.DISCORD_NOW_PLAYING_WEBHOOK_URL = 'https://discord.com/api/webhooks/now_playing';
+      process.env.DISCORD_FEED_WEBHOOK_URL = 'https://discord.com/api/webhooks/radio_feed';
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      // Now playing routes to now_playing webhook
+      await sendDiscordNotification({
+        title: 'Song On Air',
+        message: 'Playing now',
+        category: 'now_playing',
+      });
+      expect(fetchMock.mock.calls[0]![0]).toBe('https://discord.com/api/webhooks/now_playing');
+
+      // News or announcements route to radio_feed webhook
+      await sendDiscordNotification({
+        title: 'Station News',
+        message: 'Breaking tech drop',
+        category: 'news',
+      });
+      expect(fetchMock.mock.calls[1]![0]).toBe('https://discord.com/api/webhooks/radio_feed');
+    });
   });
 
   describe('sendTelegramNotification', () => {

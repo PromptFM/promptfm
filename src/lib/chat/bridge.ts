@@ -69,7 +69,10 @@ export async function castVoteForTrack(
  * Includes direct 1-click vote buttons and formatted spoken transcripts.
  */
 export async function sendDiscordNotification(payload: BroadcastNotification): Promise<boolean> {
-  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+  const webhookUrl =
+    payload.category === 'now_playing'
+      ? process.env.DISCORD_NOW_PLAYING_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL
+      : process.env.DISCORD_FEED_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL;
   if (!webhookUrl) return false;
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://promptfm.live';
