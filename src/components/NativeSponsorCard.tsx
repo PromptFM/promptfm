@@ -16,7 +16,7 @@ interface NativeSponsorCardProps {
 }
 
 export default function NativeSponsorCard({
-  campaignId = 'suno_creator',
+  campaignId = 'promptfm_creator',
   className = '',
 }: NativeSponsorCardProps) {
   const banner: SponsorBanner =
@@ -84,3 +84,4 @@ export default function NativeSponsorCard({
     </div>
   );
 }
+

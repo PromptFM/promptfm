@@ -154,13 +154,13 @@ export const DEFAULT_ADS: AdsConfig = {
   minIntervalMinutes: 12,
   spots: [
     {
-      id: 'suno_promo',
-      sponsor: 'Suno AI',
-      title: 'Create Songs with Suno v3',
+      id: 'promptfm_creator_drop',
+      sponsor: 'PromptFM Creators',
+      title: 'Submit Your AI Tracks for Airplay',
       type: 'ai_read',
-      copy: 'PromptFM is proudly powered by generative sound. Turn your wildest lyrics and prompts into full studio tracks in seconds with Suno. Check out suno.com and hear what the future sounds like.',
+      copy: 'Calling all prompt producers and generative musicians. Have a track you created with AI? Submit it right now at promptfm.live to get featured in our daily rotation and weekly leaderboard.',
       durationSeconds: 15,
-      weight: 3,
+      weight: 4,
       active: true,
     },
     {

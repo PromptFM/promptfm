@@ -112,7 +112,7 @@ Rules: Under 30 words. No stage directions. Only the spoken words.`;
     prompt = `You are ${dj.name} on PromptFM. Deliver this announcement to your listeners in your style (${dj.stylePrompt}): "${options.topicOrText}". Under 40 words. No bracketed cues.`;
   }
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -121,6 +121,9 @@ Rules: Under 30 words. No stage directions. Only the spoken words.`;
       generationConfig: {
         temperature: 0.85,
         maxOutputTokens: 200,
+        thinkingConfig: {
+          thinkingBudget: 0,
+        },
       },
     }),
   });
@@ -136,16 +139,72 @@ Rules: Under 30 words. No stage directions. Only the spoken words.`;
 }
 
 /**
- * 3. Converts script to high-definition MP3 audio using Google Cloud Text-to-Speech
- * tailored to the DJ's configured voice profile.
+ * Wraps 16-bit linear PCM audio in a standard 44-byte RIFF WAVE container.
+ */
+export function pcmToWav(pcmBuffer: Buffer, sampleRate = 24000, numChannels = 1): Buffer {
+  const header = Buffer.alloc(44);
+  const dataLength = pcmBuffer.length;
+  header.write('RIFF', 0);
+  header.writeUInt32LE(36 + dataLength, 4);
+  header.write('WAVE', 8);
+  header.write('fmt ', 12);
+  header.writeUInt32LE(16, 16); // SubChunk1Size (16 for PCM)
+  header.writeUInt16LE(1, 20); // AudioFormat 1 = PCM
+  header.writeUInt16LE(numChannels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(sampleRate * numChannels * 2, 28); // ByteRate
+  header.writeUInt16LE(numChannels * 2, 32); // BlockAlign
+  header.writeUInt16LE(16, 34); // BitsPerSample
+  header.write('data', 36);
+  header.writeUInt32LE(dataLength, 40);
+  return Buffer.concat([header, pcmBuffer]);
+}
+
+/**
+ * 3. Converts script to high-definition broadcast audio.
+ * Supports:
+ *   A) Gemini 2.5 Flash Native Voice Synthesis (100% $0 Free via Gemini API Key)
+ *   B) Google Cloud Text-to-Speech API fallback (Journey/Neural2 profiles)
  */
 export async function synthesizeDJVoice(text: string, voiceConfig?: Partial<DJVoiceConfig>): Promise<Buffer> {
-  const apiKey = process.env.GOOGLE_TTS_API_KEY || process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('Missing GOOGLE_TTS_API_KEY or GEMINI_API_KEY.');
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const ttsKey = process.env.GOOGLE_TTS_API_KEY;
+
+  if (!geminiKey && !ttsKey) {
+    throw new Error('Missing GEMINI_API_KEY or GOOGLE_TTS_API_KEY.');
   }
 
-  const endpoint = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`;
+  // 1. Primary: Native Gemini Audio Model (Free via Google AI Studio Key)
+  if (geminiKey) {
+    try {
+      const geminiTtsEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${geminiKey}`;
+      const ttsRes = await fetch(geminiTtsEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text }] }],
+          generationConfig: {
+            responseModalities: ['AUDIO'],
+          },
+        }),
+      });
+
+      if (ttsRes.ok) {
+        const json = await ttsRes.json();
+        const base64Audio = json.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        if (base64Audio) {
+          const rawPcm = Buffer.from(base64Audio, 'base64');
+          return pcmToWav(rawPcm, 24000, 1);
+        }
+      }
+    } catch {
+      // Fall through to GCP Cloud TTS
+    }
+  }
+
+  // 2. Fallback: Google Cloud Text-to-Speech REST API
+  const activeKey = ttsKey || geminiKey;
+  const endpoint = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${activeKey}`;
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

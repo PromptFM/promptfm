@@ -35,18 +35,18 @@ describe('PromptFM Website Ads & Sponsor Banner Service', () => {
       }
     });
 
-    it('includes Suno, ElevenLabs, and PromptFM Community Club campaigns with exact attributes', () => {
-      const suno = DEFAULT_SPONSOR_CAMPAIGNS.find((c) => c.id === 'suno_creator')!;
-      expect(suno.sponsor).toBe('Suno AI');
-      expect(suno.title).toBe('Create Studio Songs in Seconds');
-      expect(suno.tagline).toBe('Generative AI Audio Engine');
-      expect(suno.description).toBe('Transform prompts and lyrics into radio-ready songs across any musical style.');
-      expect(suno.ctaText).toBe('Try Suno v3');
-      expect(suno.targetUrl).toBe('https://suno.com/?ref=promptfm');
-      expect(suno.badge).toBe('Official Partner');
-      expect(suno.placements).toEqual(['header_ribbon', 'in_feed']);
-      expect(suno.weight).toBe(3);
-      expect(suno.active).toBe(true);
+    it('includes PromptFM Creator Spotlight, ElevenLabs, and PromptFM Community Club campaigns with exact attributes', () => {
+      const creator = DEFAULT_SPONSOR_CAMPAIGNS.find((c) => c.id === 'promptfm_creator')!;
+      expect(creator.sponsor).toBe('PromptFM Creators');
+      expect(creator.title).toBe('Broadcast Your AI Music Live on Air');
+      expect(creator.tagline).toBe('Community Submissions Open');
+      expect(creator.description).toBe('Transform prompts into studio tracks and get played to a global 24/7 radio audience.');
+      expect(creator.ctaText).toBe('Submit Your Track');
+      expect(creator.targetUrl).toBe('https://promptfm.live/submit');
+      expect(creator.badge).toBe('Creator Spotlight');
+      expect(creator.placements).toEqual(['header_ribbon', 'in_feed']);
+      expect(creator.weight).toBe(4);
+      expect(creator.active).toBe(true);
 
       const eleven = DEFAULT_SPONSOR_CAMPAIGNS.find((c) => c.id === 'elevenlabs_ai')!;
       expect(eleven.sponsor).toBe('ElevenLabs');
@@ -100,9 +100,9 @@ describe('PromptFM Website Ads & Sponsor Banner Service', () => {
 
   describe('getBannerById', () => {
     it('returns the matching banner by ID', () => {
-      const banner = getBannerById('suno_creator');
+      const banner = getBannerById('promptfm_creator');
       expect(banner).toBeDefined();
-      expect(banner?.sponsor).toBe('Suno AI');
+      expect(banner?.sponsor).toBe('PromptFM Creators');
     });
 
     it('returns undefined when ID is not found or empty', () => {

@@ -27,16 +27,16 @@ export interface AdStats {
 
 export const DEFAULT_SPONSOR_CAMPAIGNS: SponsorBanner[] = [
   {
-    id: 'suno_creator',
-    sponsor: 'Suno AI',
-    title: 'Create Studio Songs in Seconds',
-    tagline: 'Generative AI Audio Engine',
-    description: 'Transform prompts and lyrics into radio-ready songs across any musical style.',
-    ctaText: 'Try Suno v3',
-    targetUrl: 'https://suno.com/?ref=promptfm',
-    badge: 'Official Partner',
+    id: 'promptfm_creator',
+    sponsor: 'PromptFM Creators',
+    title: 'Broadcast Your AI Music Live on Air',
+    tagline: 'Community Submissions Open',
+    description: 'Transform prompts into studio tracks and get played to a global 24/7 radio audience.',
+    ctaText: 'Submit Your Track',
+    targetUrl: 'https://promptfm.live/submit',
+    badge: 'Creator Spotlight',
     placements: ['header_ribbon', 'in_feed'],
-    weight: 3,
+    weight: 4,
     active: true,
   },
   {
@@ -132,3 +132,4 @@ export function getAdStats(adId: string): AdStats {
     ctrPercent: Math.round(ctr * 100) / 100,
   };
 }
+
