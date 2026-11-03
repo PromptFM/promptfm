@@ -1,0 +1,4 @@
+# PromptFM Authorized Digital Sellers (ads.txt)
+# Domain: promptfm.live
+# Contact: contact@promptfm.live
+google.com, pub-7299057534028491, DIRECT, f08c47fec0942fa0

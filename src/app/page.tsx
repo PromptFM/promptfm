@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Radio, Music2, Upload } from 'lucide-react';
 import ChannelsGrid from '@/components/ChannelsGrid';
+import AdSenseDisplayUnit from '@/components/AdSenseDisplayUnit';
 
 export default function HomePage() {
   return (
@@ -78,6 +79,9 @@ export default function HomePage() {
           ))}
         </div>
       </div>
+
+      {/* Google AdSense Display Banner */}
+      <AdSenseDisplayUnit slotId="home_middle_banner" className="my-2 max-w-3xl" />
 
       {/* Live Radio Stations Section */}
       <ChannelsGrid />

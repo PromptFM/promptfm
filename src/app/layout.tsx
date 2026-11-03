@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import Image from 'next/image';
+import Script from 'next/script';
 import './globals.css';
 import AudioPlayer from '@/components/AudioPlayer';
 import AuthButton from '@/components/AuthButton';
@@ -86,6 +87,9 @@ export const metadata: Metadata = {
     icon: '/icon.png',
     apple: '/icon.png',
   },
+  other: {
+    'google-adsense-account': 'ca-pub-7299057534028491',
+  },
 };
 
 export default function RootLayout({
@@ -96,6 +100,15 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <body className="bg-zinc-950 font-sans antialiased">
+        {/* Google AdSense Universal Tag */}
+        <Script
+          id="google-adsense"
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7299057534028491"
+          crossOrigin="anonymous"
+          strategy="afterInteractive"
+        />
+
         {/* Schema.org Search Engine Structured Data */}
         <JsonLd />
 
