@@ -15,6 +15,13 @@ import { submitContentReport, getRecentReports, resolveContentReport } from '../
 import { autoGenerateChannelGuardrails } from '../src/lib/safety/channel-guardrails';
 import { getAllChannels } from '../src/lib/radio/channels';
 import { findTracksByVibe, indexTrackEmbedding } from '../src/lib/dj/rag';
+import {
+  registerTelegramWebhook,
+  getTelegramWebhookInfo,
+  registerTelegramBotCommands,
+  sendTelegramTestMessage,
+  sendDiscordTestMessage,
+} from '../src/lib/community/bot-registration';
 import type { ReportReason } from '../src/types/database';
 import { extractMetadataFromBuffer, DEFAULT_TRACK_ICON } from '../src/lib/audio/metadata';
 import { getR2Client, getBucketName, getPublicUrl } from '../src/lib/r2';
@@ -65,6 +72,12 @@ AI Voice & Broadcast:
   ads inject [id]         Force-inject a sponsor ad spot to play NEXT on stream
   broadcast <message>     Push notification to connected Discord & Telegram channels
   listen                  Launch the live audio stream in terminal (mpv/ffplay)
+
+Bots & Community Integrations:
+  bot telegram setup [tok] Register Telegram webhook and command autocomplete menu
+  bot telegram status [tok] Inspect live Telegram webhook health, pending updates, and errors
+  bot telegram test [tok]  Send test announcement to Telegram channel / chat ID
+  bot discord test [url]   Send test embed to Discord channel webhook
 
 Moderation & Schedule:
   channels list           List radio broadcast channels, assigned DJs & guardrail policies
@@ -1009,6 +1022,84 @@ Moderation & Schedule:
       }
 
       console.log('Channels subcommands: npm run promptfm -- channels list | channels create <slug> <name> [--18plus]');
+      break;
+    }
+
+    case 'bot': {
+      const sub = args[1];
+      const action = args[2];
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://promptfm.live';
+
+      if (sub === 'telegram') {
+        const token = args[3] || process.env.TELEGRAM_BOT_TOKEN;
+        if (!token) {
+          console.error('Error: TELEGRAM_BOT_TOKEN required via argument or .env.local:');
+          console.log('Usage: npm run promptfm -- bot telegram setup <TOKEN>');
+          return;
+        }
+
+        if (action === 'setup') {
+          console.log(`Setting up Telegram Webhook -> ${siteUrl}/api/bot/webhook...`);
+          const res = await registerTelegramWebhook(token, `${siteUrl}/api/bot/webhook`);
+          console.log('Webhook Setup Result:', res);
+
+          console.log('\nRegistering official command autocomplete menu (/nowplaying, /next, /song, etc.)...');
+          const cmdRes = await registerTelegramBotCommands(token);
+          console.log('Commands Menu Result:', cmdRes);
+          return;
+        }
+
+        if (action === 'status') {
+          console.log('Fetching live Telegram Webhook info...');
+          const info = await getTelegramWebhookInfo(token);
+          console.log('Telegram Webhook Info:', JSON.stringify(info, null, 2));
+          return;
+        }
+
+        if (action === 'test') {
+          const chatId = args[4] || process.env.TELEGRAM_CHAT_ID;
+          if (!chatId) {
+            console.error('Error: TELEGRAM_CHAT_ID required via argument or .env.local:');
+            console.log('Usage: npm run promptfm -- bot telegram test <TOKEN> <CHAT_ID>');
+            return;
+          }
+          console.log(`Sending test announcement to chat ${chatId}...`);
+          const testRes = await sendTelegramTestMessage(token, chatId);
+          console.log('Telegram Test Result:', testRes);
+          return;
+        }
+
+        console.log('Telegram subcommands:');
+        console.log('  npm run promptfm -- bot telegram setup [token]');
+        console.log('  npm run promptfm -- bot telegram status [token]');
+        console.log('  npm run promptfm -- bot telegram test [token] [chatId]');
+        return;
+      }
+
+      if (sub === 'discord') {
+        if (action === 'test') {
+          const webhookUrl = args[3] || process.env.DISCORD_WEBHOOK_URL;
+          if (!webhookUrl) {
+            console.error('Error: DISCORD_WEBHOOK_URL required via argument or .env.local:');
+            console.log('Usage: npm run promptfm -- bot discord test <WEBHOOK_URL>');
+            return;
+          }
+          console.log(`Sending test embed to Discord webhook...`);
+          const res = await sendDiscordTestMessage(webhookUrl);
+          console.log('Discord Test Result:', res);
+          return;
+        }
+
+        console.log('Discord subcommands:');
+        console.log('  npm run promptfm -- bot discord test [webhookUrl]');
+        return;
+      }
+
+      console.log('Bot commands:');
+      console.log('  npm run promptfm -- bot telegram setup [token]');
+      console.log('  npm run promptfm -- bot telegram status [token]');
+      console.log('  npm run promptfm -- bot telegram test [token] [chatId]');
+      console.log('  npm run promptfm -- bot discord test [webhookUrl]');
       break;
     }
 

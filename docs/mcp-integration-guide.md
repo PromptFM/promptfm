@@ -180,3 +180,4 @@ curl -X POST https://promptfm.live/api/mcp \
 | `promptfm_admin_inject_interstitial` | `type` ("news" \| "weather" \| "announcement"), `prompt?`, `city?` | Forces an interstitial audio drop to play next on air. |
 | `promptfm_admin_inject_ad` | `sponsor?`, `copy?`, `dj_id?` | Injects a sponsor read or audio commercial into the live broadcast stream. |
 | `promptfm_admin_reject_request` | `request_id`, `reason` | Rejects a listener dedication and sends an automated polite explanation to Discord/Telegram. |
+

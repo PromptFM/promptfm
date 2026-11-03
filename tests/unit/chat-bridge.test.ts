@@ -43,7 +43,7 @@ describe('Community Chat Bridge (Discord & Telegram)', () => {
       });
 
       expect(result).toBe(true);
-      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      const body = JSON.parse(fetchMock.mock.calls[0]![1].body);
       expect(body.embeds[0].footer.text).toBe('PromptFM Live 24/7');
       expect(body.embeds[0].fields).toBeUndefined();
       expect(body.components).toBeUndefined();
@@ -84,7 +84,7 @@ describe('Community Chat Bridge (Discord & Telegram)', () => {
       expect(result).toBe(true);
       expect(fetchMock).toHaveBeenCalledTimes(1);
 
-      const [url, options] = fetchMock.mock.calls[0];
+      const [url, options] = fetchMock.mock.calls[0]!;
       expect(url).toBe('https://discord.com/api/webhooks/test/123');
       expect(options.method).toBe('POST');
 
@@ -132,7 +132,7 @@ describe('Community Chat Bridge (Discord & Telegram)', () => {
         });
 
         const lastCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
-        const body = JSON.parse(lastCall[1].body);
+        const body = JSON.parse(lastCall![1].body);
         expect(body.embeds[0].color).toBe(expectedColor);
       }
     });
@@ -162,7 +162,7 @@ describe('Community Chat Bridge (Discord & Telegram)', () => {
       });
 
       expect(result).toBe(true);
-      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      const body = JSON.parse(fetchMock.mock.calls[0]![1].body);
       expect(body.reply_markup).toBeUndefined();
       expect(body.text).toContain('Simple Station Notice');
       expect(body.text).not.toContain('Live DJ Transcript');
@@ -211,7 +211,7 @@ describe('Community Chat Bridge (Discord & Telegram)', () => {
         })
       );
 
-      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      const body = JSON.parse(fetchMock.mock.calls[0]![1].body);
       expect(body.chat_id).toBe('-100987654321');
       expect(body.parse_mode).toBe('Markdown');
       expect(body.text).toContain('Cyberpunk Awakening');
