@@ -268,25 +268,90 @@ Moderation & Schedule:
       if (lyrics) console.log(`• Lyrics:      "${lyrics.slice(0, 60)}..."`);
       console.log(`• Cover Icon:  ${meta.hasCoverArt ? 'Embedded Picture Found (Saved)' : 'PromptFM Default Brand Icon'}`);
 
-      console.log(`\n📤 Uploading "${cleanFileName}" (${(fileBuffer.length / (1024 * 1024)).toFixed(2)} MB, ${contentType}) to Cloudflare R2...`);
+      console.log(`\n📤 Uploading "${cleanFileName}" (${(fileBuffer.length / (1024 * 1024)).toFixed(2)} MB, ${contentType})...`);
 
-      const key = `tracks/admin/${randomUUID()}.${ext}`;
-      const s3 = getR2Client();
+      const supabase = createAdminClient();
+      let publicUrl = '';
 
-      await s3.send(
-        new PutObjectCommand({
-          Bucket: getBucketName(),
-          Key: key,
-          Body: fileBuffer,
-          ContentType: contentType,
-        })
+      // 1. Try Cloudflare R2 if configured and valid
+      const isR2Configured = Boolean(
+        process.env.R2_ACCOUNT_ID &&
+        process.env.R2_ACCOUNT_ID !== 'your-cloudflare-account-id' &&
+        process.env.R2_ACCESS_KEY_ID &&
+        process.env.R2_SECRET_ACCESS_KEY
       );
 
-      const publicUrl = getPublicUrl(key);
-      console.log(`✅ Stored on R2: ${publicUrl}`);
+      if (isR2Configured) {
+        try {
+          const key = `tracks/admin/${randomUUID()}.${ext}`;
+          const s3 = getR2Client();
+          await s3.send(
+            new PutObjectCommand({
+              Bucket: getBucketName(),
+              Key: key,
+              Body: fileBuffer,
+              ContentType: contentType,
+            })
+          );
+          publicUrl = getPublicUrl(key);
+          console.log(`✅ Stored on Cloudflare R2: ${publicUrl}`);
+        } catch (r2Err) {
+          console.warn(`R2 upload skipped, falling back to Supabase:`, r2Err);
+        }
+      }
+
+      // 2. Default to Supabase Storage
+      if (!publicUrl) {
+        const storageFileName = `${cleanFileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+        const { error: uploadError } = await supabase.storage
+          .from('tracks')
+          .upload(storageFileName, fileBuffer, {
+            contentType,
+            upsert: true,
+          });
+
+        if (uploadError) {
+          console.error('Error uploading to Supabase Storage:', uploadError.message);
+          process.exit(1);
+        }
+
+        const { data: urlData } = supabase.storage.from('tracks').getPublicUrl(storageFileName);
+        publicUrl = urlData?.publicUrl || '';
+        console.log(`✅ Stored on Supabase Storage CDN: ${publicUrl}`);
+      }
+
+      // 3. Upload embedded album cover art if present
+      let coverArtUrl = DEFAULT_TRACK_ICON;
+      if (meta.hasCoverArt && meta.coverArtUrl) {
+        if (meta.coverArtUrl.startsWith('data:image/')) {
+          const base64Data = meta.coverArtUrl.split(',')[1];
+          if (base64Data) {
+            const coverBuffer = Buffer.from(base64Data, 'base64');
+            const coverFileName = `covers/${cleanFileName.replace(/\.[^.]+$/, '')}-cover.jpg`;
+            const { error: coverErr } = await supabase.storage
+              .from('tracks')
+              .upload(coverFileName, coverBuffer, {
+                contentType: 'image/jpeg',
+                upsert: true,
+              });
+
+            if (!coverErr) {
+              const { data: cUrl } = supabase.storage.from('tracks').getPublicUrl(coverFileName);
+              coverArtUrl = cUrl?.publicUrl || DEFAULT_TRACK_ICON;
+              console.log(`🖼️ Stored album cover art: ${coverArtUrl}`);
+            }
+          }
+        } else {
+          coverArtUrl = meta.coverArtUrl;
+        }
+      }
+
+      const votesArg = parseArg('--votes');
+      const initialVotes = votesArg ? parseInt(votesArg, 10) : 25;
+      const familyFriendly = parseArg('--family-friendly') !== 'false';
+      const isExplicit = parseArg('--explicit') === 'true';
 
       console.log(`💾 Adding to Supabase as an APPROVED rotation track...`);
-      const supabase = createAdminClient();
       const { data, error } = await supabase
         .from('tracks')
         .insert({
@@ -297,8 +362,11 @@ Moderation & Schedule:
           audio_url: publicUrl,
           description: description || null,
           lyrics: lyrics || null,
-          cover_art_url: meta.hasCoverArt ? meta.coverArtUrl : DEFAULT_TRACK_ICON,
+          cover_art_url: coverArtUrl,
           status: 'approved',
+          family_friendly: familyFriendly,
+          is_explicit: isExplicit,
+          upvotes_count: initialVotes,
         })
         .select()
         .single();
@@ -312,6 +380,8 @@ Moderation & Schedule:
       console.log(`• ID: ${data.id}`);
       console.log(`• Title: "${data.title}" by ${data.artist_name}`);
       console.log(`• Tool: ${data.tool_used}`);
+      console.log(`• Category: ${data.category}`);
+      console.log(`• Upvotes: ${data.upvotes_count}`);
 
       console.log(`\n🤖 Generating 768-dim pgvector embedding for semantic vibe search...`);
       try {
