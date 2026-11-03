@@ -69,8 +69,8 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: `${SITE_NAME} — ${SITE_TAGLINE}`,
     description: SITE_DESCRIPTION,
-    site: '@PromptFM',
-    creator: '@PromptFM',
+    site: '@promptfm_live',
+    creator: '@promptfm_live',
     images: ['/opengraph-image'],
   },
   robots: {

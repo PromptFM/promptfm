@@ -32,6 +32,8 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: '24/7 Broadcast Schedule — PromptFM',
     description: 'Full day AI DJ shifts, synthwave themes, and community airplay schedule.',
+    site: '@promptfm_live',
+    creator: '@promptfm_live',
     images: ['https://promptfm.live/og-image.png'],
   },
 };
