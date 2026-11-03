@@ -11,6 +11,7 @@ import { scheduleListenerRequest, type RequestType } from '@/lib/dj/batches';
 import { getNowPlaying, getUpNext } from '@/lib/dj/rotation';
 import { castVoteForTrack } from '@/lib/chat/bridge';
 import { submitContentReport } from '@/lib/safety/reports';
+import { getBotHelpText } from '@/lib/community/commands';
 
 export const dynamic = 'force-dynamic';
 
@@ -88,6 +89,33 @@ export async function POST(req: NextRequest) {
       const from = body.message.from?.username || body.message.from?.first_name || 'Telegram Listener';
       const userId = String(body.message.from?.id || 'anon');
       const chatId = body.message.chat?.id;
+
+      // /help or /start or /commands
+      if (
+        text === '/help' ||
+        text === '/start' ||
+        text === '/commands' ||
+        text.startsWith('/help@') ||
+        text.startsWith('/start@') ||
+        text.startsWith('/commands@')
+      ) {
+        const helpText = getBotHelpText('markdown_v1');
+        if (botToken && chatId) {
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              reply_to_message_id: body.message.message_id,
+              text: helpText,
+              parse_mode: 'Markdown',
+              disable_web_page_preview: true,
+            }),
+          });
+        }
+
+        return NextResponse.json({ success: true, help_text: helpText });
+      }
 
       // /nowplaying or /np command
       if (text === '/nowplaying' || text === '/np' || text.startsWith('/nowplaying@') || text.startsWith('/np@')) {
@@ -360,6 +388,16 @@ export async function POST(req: NextRequest) {
           data: {
             content: `🛡️ **Report Logged (Ticket: \`${rep.reportId}\`)**\n• Target: **${target}**\n• Reason: _${reason}_\nPromptFM station moderators have been alerted.`,
             flags: 64,
+          },
+        });
+      }
+
+      // /help or /commands slash command
+      if (commandName === 'help' || commandName === 'commands') {
+        return NextResponse.json({
+          type: 4,
+          data: {
+            content: getBotHelpText('discord'),
           },
         });
       }

@@ -150,6 +150,30 @@ describe('Discord & Telegram Interactive Bot Commands Integration', () => {
       expect(json.slot.batchId).toBe('BATCH-12:30');
       expect(json.slot.confirmationMessage).toContain('song');
     });
+
+    it('handles Telegram /help and /start commands returning interactive commands guide and schedule slots', async () => {
+      const req = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: {
+            message_id: 105,
+            from: { id: 777, username: 'new_listener' },
+            chat: { id: 888 },
+            text: '/help',
+          },
+        }),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(json.help_text).toBeDefined();
+      expect(json.help_text).toContain('/song');
+      expect(json.help_text).toContain('/queue');
+      expect(json.help_text).toContain(':45'); // Mentions listener showcase slot
+    });
   });
 
   describe('Discord Interactive Components & Slash Commands', () => {
@@ -198,6 +222,30 @@ describe('Discord & Telegram Interactive Bot Commands Integration', () => {
       expect(json.type).toBe(4);
       expect(json.data.content).toContain('Now Playing on PromptFM');
       expect(json.data.components).toBeDefined();
+    });
+
+    it('handles Discord /help slash command returning listener guide and schedule details', async () => {
+      const req = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 2, // ApplicationCommand
+          data: {
+            name: 'help',
+          },
+          member: {
+            user: { id: 'discord_listener_55', username: 'RadioExplorer' },
+          },
+        }),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.type).toBe(4);
+      expect(json.data.content).toContain('/song');
+      expect(json.data.content).toContain('/queue');
+      expect(json.data.content).toContain(':45');
     });
   });
 });

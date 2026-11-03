@@ -233,6 +233,7 @@ All community submissions via `/submit` are saved with `status: 'pending'`. They
 
 PromptFM exposes a streamable **Model Context Protocol (MCP)** server at [`https://promptfm.live/api/mcp`](https://promptfm.live/api/mcp) supporting both Public Listener Mode and Station Admin Mode.
 
+- **Listener Commands & Schedule Guide:** [`docs/listener-guide.md`](docs/listener-guide.md) (Discord & Telegram prompts, clock wheels, and queueing).
 - **MCP Integration Guide:** [`docs/mcp-integration-guide.md`](file:///Users/trifan/DEVELOPMENT/promptfm/docs/mcp-integration-guide.md) (Claude Desktop, Cursor, Antigravity, Windsurf).
 - **Public Tools:** Natural language vibe search (`promptfm_search_tracks_by_vibe`), chart rankings, live DJ status, song requests, and safety reporting.
 - **Admin Tools (`ADMIN_API_KEY`):** Moderation review, voice drop generation, live broadcast alerts, sponsor injection, and channel provisioning.
