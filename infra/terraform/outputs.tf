@@ -53,4 +53,32 @@ output "vercel_analytics_url" {
   value       = "https://vercel.com/alex-trifans-projects/promptfm/analytics"
 }
 
+# ── OAuth 2.0 & Multi-Cloud Identity Outputs ──────────────────────────────────
+
+output "oauth_secret_manager_client_id_name" {
+  description = "Google Secret Manager secret storing the Google OAuth Client ID"
+  value       = google_secret_manager_secret.oauth_client_id.secret_id
+}
+
+output "oauth_secret_manager_client_secret_name" {
+  description = "Google Secret Manager secret storing the Google OAuth Client Secret"
+  value       = google_secret_manager_secret.oauth_client_secret.secret_id
+}
+
+output "oauth_brand_spec" {
+  description = "Standardized OAuth 2.0 Consent Screen metadata and verification exemption specification"
+  value       = local.oauth_brand_specification
+}
+
+output "oauth_supabase_provider_wiring" {
+  description = "Declarative JSON wiring for Supabase Auth Google Provider"
+  value       = local.supabase_google_provider_wiring
+}
+
+output "oauth_authorized_redirect_uris" {
+  description = "List of authorized OAuth 2.0 redirect callbacks for Google Console and external cloud IDPs"
+  value       = var.oauth_authorized_redirect_uris
+}
+
+
 

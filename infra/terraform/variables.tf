@@ -52,3 +52,48 @@ variable "ssh_pub_key_path" {
   default     = "~/.ssh/google_compute_engine.pub"
 }
 
+# ── OAuth 2.0 Client & Multi-Cloud Identity Wiring ────────────────────────────
+
+variable "oauth_app_name" {
+  description = "Brand display name for the OAuth Consent Screen"
+  type        = string
+  default     = "PromptFM"
+}
+
+variable "oauth_support_email" {
+  description = "Support contact email for OAuth Consent Screen"
+  type        = string
+  default     = "trifan.alex.criss@gmail.com"
+}
+
+variable "oauth_authorized_javascript_origins" {
+  description = "Authorized JavaScript origins for OAuth 2.0 Web Client"
+  type        = list(string)
+  default = [
+    "https://promptfm.live",
+    "https://oxfacfdpxbxilucooijy.supabase.co",
+    "http://localhost:3000"
+  ]
+}
+
+variable "oauth_authorized_redirect_uris" {
+  description = "Authorized redirect URIs for OAuth 2.0 Web Client (Supabase, local dev, production)"
+  type        = list(string)
+  default = [
+    "https://oxfacfdpxbxilucooijy.supabase.co/auth/v1/callback",
+    "https://promptfm.live",
+    "http://localhost:3000"
+  ]
+}
+
+variable "oauth_scopes" {
+  description = "Non-sensitive OAuth scopes enabling instant 0-cost General Availability without Google App Verification"
+  type        = list(string)
+  default = [
+    "openid",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile"
+  ]
+}
+
+
