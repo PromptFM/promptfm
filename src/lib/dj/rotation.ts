@@ -589,14 +589,19 @@ export async function getNextAirplayItem(channelSlug = 'main'): Promise<AirplayI
   // Fetch top approved tracks ordered by upvotes
   const { data: rawTracks } = await supabase
     .from('tracks')
-    .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, description, lyrics, is_explicit')
+    .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, description, lyrics, is_explicit, family_friendly')
     .eq('status', 'approved')
     .order('upvotes_count', { ascending: false })
     .limit(40);
 
   // Filter against parental controls and channel rating restrictions
   const tracks = (rawTracks || []).filter((t) =>
-    isContentAllowedForAirplay((t as unknown as { is_explicit?: boolean }).is_explicit ?? false, channelSlug, now)
+    isContentAllowedForAirplay(
+      (t as unknown as { is_explicit?: boolean }).is_explicit ?? false,
+      channelSlug,
+      now,
+      (t as unknown as { family_friendly?: boolean }).family_friendly
+    )
   );
 
   if (tracks && tracks.length > 0) {

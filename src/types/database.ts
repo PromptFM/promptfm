@@ -34,6 +34,8 @@ export interface Track {
   lyrics?: string | null;
   cover_art_url?: string | null;
   is_explicit?: boolean;
+  family_friendly?: boolean;
+  scan_flags?: string[];
   rejection_reason?: string | null;
 }
 

@@ -13,10 +13,11 @@
 
 import React, { useCallback, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Upload, CheckCircle2, AlertCircle, FileAudio, X, ShieldAlert, Shield, Scale, FileText, Music, Sparkles, Image as ImageIcon } from 'lucide-react';
+import { Upload, CheckCircle2, AlertCircle, FileAudio, X, ShieldAlert, Shield, Scale, FileText, Music, Sparkles, Image as ImageIcon, HeartHandshake, Bot } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { evaluateHeuristicGuardrails } from '@/lib/safety/guardrails';
 import { extractMetadataFromBlob, DEFAULT_TRACK_ICON, ExtractedAudioMetadata } from '@/lib/audio/metadata';
+import { type LyricScanResult } from '@/lib/safety/lyric-scanner';
 import { STATION_CATEGORIES, StationCategory, AITool, UploadUrlRequest, UploadUrlResponse } from '@/types/database';
 import AgreementsModal from '@/components/AgreementsModal';
 
@@ -75,6 +76,10 @@ export default function SubmitPage() {
   const [isParsingMetadata, setIsParsingMetadata] = useState<boolean>(false);
   const [extractedMeta, setExtractedMeta] = useState<ExtractedAudioMetadata | null>(null);
 
+  // AI Lyric & Content Scan state (Gemini 3.5 Flash)
+  const [lyricScan, setLyricScan] = useState<LyricScanResult | null>(null);
+  const [isScanningLyrics, setIsScanningLyrics] = useState<boolean>(false);
+
   const [agreementsOpen, setAgreementsOpen] = useState(false);
   const [agreementsTab, setAgreementsTab] = useState<'terms' | 'copyright' | 'ethics' | 'watershed' | 'dmca'>('terms');
 
@@ -88,6 +93,33 @@ export default function SubmitPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [submitStatus, setSubmitStatus] = useState<SubmitStatus>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // ── AI Lyric & Content Scan Trigger ────────────────────────────────────────
+  const performLyricScan = async (title: string, lyrics?: string, description?: string): Promise<LyricScanResult | null> => {
+    if (!title && !lyrics && !description) return null;
+    setIsScanningLyrics(true);
+    try {
+      const res = await fetch('/api/scan-lyrics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, lyrics, description }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const scan = data.scan as LyricScanResult;
+        setLyricScan(scan);
+        if (scan.is_explicit) {
+          setForm((prev) => ({ ...prev, isExplicit: true }));
+        }
+        return scan;
+      }
+    } catch (e) {
+      console.warn('Lyric scan error:', e);
+    } finally {
+      setIsScanningLyrics(false);
+    }
+    return null;
+  };
 
   // ── Field handlers ────────────────────────────────────────────────────────
 
@@ -127,9 +159,10 @@ export default function SubmitPage() {
     extractMetadataFromBlob(file, file.name)
       .then((meta) => {
         setExtractedMeta(meta);
+        const resolvedTitle = meta.title || file.name.replace(/\.[^/.]+$/, '');
         setForm((prev) => ({
           ...prev,
-          title: prev.title || meta.title,
+          title: prev.title || resolvedTitle,
           artistName: prev.artistName || meta.artist,
           category: prev.category === 'Synthwave & Electro' ? meta.category : prev.category,
           description: prev.description || meta.description || '',
@@ -137,6 +170,13 @@ export default function SubmitPage() {
         }));
         setCoverArtUrl(meta.coverArtUrl);
         setHasCoverArt(meta.hasCoverArt);
+
+        // Run automated AI lyric & audio scan immediately upon parsing tags
+        performLyricScan(
+          resolvedTitle,
+          meta.lyrics || undefined,
+          meta.description || undefined
+        );
       })
       .catch((err) => {
         console.warn('Metadata parse error:', err);
@@ -153,6 +193,7 @@ export default function SubmitPage() {
     setCoverArtUrl(DEFAULT_TRACK_ICON);
     setHasCoverArt(false);
     setExtractedMeta(null);
+    setLyricScan(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -255,7 +296,12 @@ export default function SubmitPage() {
         data: { user },
       } = await supabase.auth.getUser();
 
-      const isExplicitFinal = form.isExplicit || safety.is18Plus;
+      // Ensure we have the latest lyric scan results before final insert
+      const latestScan = lyricScan || await performLyricScan(form.title, form.lyrics, form.description);
+
+      const isExplicitFinal = form.isExplicit || safety.is18Plus || (latestScan?.is_explicit ?? false);
+      const isFamilyFriendlyFinal = !isExplicitFinal && (latestScan?.family_friendly ?? true);
+      const scanFlags = latestScan?.flags || [];
 
       const { error: insertError } = await supabase.from('tracks').insert({
         title: form.title.trim(),
@@ -269,6 +315,8 @@ export default function SubmitPage() {
         user_id: user?.id ?? null,
         status: 'pending',
         is_explicit: isExplicitFinal,
+        family_friendly: isFamilyFriendlyFinal,
+        scan_flags: scanFlags,
       });
 
       if (insertError) throw new Error(insertError.message);
@@ -564,10 +612,79 @@ export default function SubmitPage() {
               maxLength={2000}
               value={form.lyrics}
               onChange={handleFieldChange as unknown as React.ChangeEventHandler<HTMLTextAreaElement>}
+              onBlur={() => {
+                if (form.lyrics.trim() || form.title.trim()) {
+                  performLyricScan(form.title, form.lyrics, form.description);
+                }
+              }}
               placeholder="Paste generated song lyrics here..."
               className={inputCls}
             />
           </div>
+
+          {/* Automated AI Lyric & Content Scan Results */}
+          {(isScanningLyrics || lyricScan) && (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-200">
+                  <Bot className="w-4 h-4 text-emerald-400" />
+                  <span>AI Lyric & Safety Analysis (Gemini 3.5 Flash)</span>
+                </div>
+                {isScanningLyrics ? (
+                  <span className="text-[11px] text-zinc-400 animate-pulse flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                    Scanning lyrics…
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-zinc-500 font-mono">
+                    {lyricScan?.method === 'heuristic_zero_token'
+                      ? '⚡ 0-token instant filter'
+                      : `⚡ Compact scan (${lyricScan?.tokens_used ?? 0} tokens)`}
+                  </span>
+                )}
+              </div>
+
+              {lyricScan && (
+                <div className="space-y-2 pt-1 text-xs">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {lyricScan.family_friendly && !form.isExplicit && !lyricScan.is_explicit ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-semibold text-[11px]">
+                        <HeartHandshake className="w-3 h-3" /> Child-Friendly & Uplifting
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-zinc-800 text-zinc-300 border border-zinc-700 text-[11px]">
+                        General Audience
+                      </span>
+                    )}
+
+                    {(form.isExplicit || lyricScan.is_explicit) && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold text-[11px]">
+                        <ShieldAlert className="w-3 h-3" /> Explicit / 18+ Advisory
+                      </span>
+                    )}
+
+                    {lyricScan.flags && lyricScan.flags.length > 0 && (
+                      <span className="text-[10px] text-zinc-500">
+                        Flags: {lyricScan.flags.join(', ')}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="text-[11px] text-zinc-400 flex items-center gap-1.5 flex-wrap">
+                    <span className="text-zinc-500">Permitted Channels:</span>
+                    {lyricScan.allowed_channels.map((ch) => (
+                      <span
+                        key={ch}
+                        className="px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-zinc-300 font-mono text-[10px]"
+                      >
+                        {ch === 'main' ? 'Ch 1 (Main Stage)' : ch === 'cyberpunk' ? 'Ch 2 (Cyberpunk)' : ch === 'chillout' ? 'Ch 3 (Chillout)' : ch === 'kids' ? 'Ch 4 (Kids & Family)' : ch}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Upload progress */}
           {isSubmitting && submitStatus === 'uploading' && (
@@ -657,6 +774,14 @@ export default function SubmitPage() {
               </a>
               , and agree to <strong>indemnify and hold harmless PromptFM</strong> from and against any copyright or third-party claims arising from this submission.
             </label>
+          </div>
+
+          {/* Station Review Gatekeeper Policy Card */}
+          <div className="p-3.5 bg-zinc-900/80 border border-zinc-800 rounded-xl text-xs text-zinc-400 flex items-start gap-2.5">
+            <Shield className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+            <p className="leading-relaxed">
+              <strong className="text-zinc-200">Station Gatekeeper:</strong> All community submissions are queued with status <code className="text-emerald-400 bg-zinc-950 px-1.5 py-0.5 rounded font-mono">pending</code>. A station admin must review and approve your track before it enters the 24/7 on-air playlist and live stream rotation.
+            </p>
           </div>
 
           {/* Global error */}

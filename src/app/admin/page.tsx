@@ -24,6 +24,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Flag,
+  HeartHandshake,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { type Track, type AITool, type ContentReport, REASON_LABELS } from '@/types/database';
@@ -531,57 +532,90 @@ export default function AdminDashboard() {
                 <p className="text-xs text-zinc-500">No pending submissions awaiting review right now.</p>
               </div>
             ) : (
-              <div className="space-y-2.5">
+              <div className="space-y-3">
                 {pendingTracks.map((track) => (
                   <div
                     key={track.id}
-                    className="flex items-center justify-between gap-4 p-4 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 transition-colors"
+                    className="p-4 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 transition-colors space-y-3"
                   >
-                    {/* Left: Play button + Info */}
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      <button
-                        onClick={() => togglePreview(track.id, track.audio_url)}
-                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ${
-                          playingId === track.id
-                            ? 'bg-emerald-400 text-black'
-                            : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
-                        }`}
-                      >
-                        {playingId === track.id ? (
-                          <Pause className="w-4 h-4" />
-                        ) : (
-                          <Play className="w-4 h-4 translate-x-0.5" />
-                        )}
-                      </button>
+                    <div className="flex items-center justify-between gap-4">
+                      {/* Left: Play button + Info */}
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <button
+                          onClick={() => togglePreview(track.id, track.audio_url)}
+                          className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ${
+                            playingId === track.id
+                              ? 'bg-emerald-400 text-black'
+                              : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                          }`}
+                        >
+                          {playingId === track.id ? (
+                            <Pause className="w-4 h-4" />
+                          ) : (
+                            <Play className="w-4 h-4 translate-x-0.5" />
+                          )}
+                        </button>
 
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-white truncate">{track.title}</p>
-                        <p className="text-xs text-zinc-400 truncate">
-                          {track.artist_name} • <span className="text-emerald-400">{track.tool_used}</span>
-                        </p>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-semibold text-white truncate">{track.title}</p>
+                            {track.family_friendly && !track.is_explicit && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-semibold">
+                                <HeartHandshake className="w-2.5 h-2.5" /> Family Friendly
+                              </span>
+                            )}
+                            {track.is_explicit && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-semibold">
+                                <ShieldAlert className="w-2.5 h-2.5" /> Explicit 18+
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-zinc-400 truncate mt-0.5">
+                            {track.artist_name} • <span className="text-emerald-400">{track.tool_used}</span>
+                            {track.category ? ` • ${track.category}` : ''}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Right: Actions */}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => handleModerate(track.id, 'approved')}
+                          disabled={actionLoadingId === track.id}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500 hover:text-black text-xs font-semibold transition-all disabled:opacity-40"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          Approve for Airplay
+                        </button>
+
+                        <button
+                          onClick={() => handleModerate(track.id, 'rejected')}
+                          disabled={actionLoadingId === track.id}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-950/40 border border-red-800/60 text-red-400 hover:bg-red-600 hover:text-white text-xs font-semibold transition-all disabled:opacity-40"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          Decline
+                        </button>
                       </div>
                     </div>
 
-                    {/* Right: Actions */}
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
-                        onClick={() => handleModerate(track.id, 'approved')}
-                        disabled={actionLoadingId === track.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500 hover:text-black text-xs font-semibold transition-all disabled:opacity-40"
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                        Approve
-                      </button>
-
-                      <button
-                        onClick={() => handleModerate(track.id, 'rejected')}
-                        disabled={actionLoadingId === track.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-950/40 border border-red-800/60 text-red-400 hover:bg-red-600 hover:text-white text-xs font-semibold transition-all disabled:opacity-40"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                        Decline
-                      </button>
-                    </div>
+                    {/* Metadata, Scan Flags & Lyrics Excerpt */}
+                    {(track.lyrics || (track.scan_flags && track.scan_flags.length > 0)) && (
+                      <div className="pt-2 border-t border-zinc-800/60 flex flex-col gap-1.5 text-xs text-zinc-400">
+                        {track.scan_flags && track.scan_flags.length > 0 && (
+                          <div className="flex items-center gap-1 text-[11px] text-zinc-400">
+                            <span className="text-zinc-500">Scan Flags:</span>
+                            <span className="font-mono text-zinc-300">{track.scan_flags.join(', ')}</span>
+                          </div>
+                        )}
+                        {track.lyrics && (
+                          <div className="p-2.5 bg-zinc-950/60 border border-zinc-800/80 rounded-lg text-[11px] text-zinc-400 font-mono whitespace-pre-wrap max-h-24 overflow-y-auto">
+                            <span className="text-zinc-500 block text-[10px] uppercase font-sans font-bold tracking-wider mb-1">Embedded Lyrics Preview</span>
+                            {track.lyrics}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

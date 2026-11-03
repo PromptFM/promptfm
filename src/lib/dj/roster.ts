@@ -387,29 +387,37 @@ export function getParentalControlConfig(): ParentalControlConfig {
 }
 
 /**
- * Checks whether an explicit or 18+ track is permitted to air on the given channel right now.
+ * Checks whether a track (explicit/clean/family-friendly) is permitted to air on the given channel right now.
  */
 export function isContentAllowedForAirplay(
   isExplicit = false,
   channelSlug = 'main',
-  date = new Date()
+  date = new Date(),
+  familyFriendly?: boolean
 ): boolean {
-  if (!isExplicit) return true;
+  if (isExplicit) {
+    const config = getParentalControlConfig();
+    if (!config.enabled) return true;
 
-  const config = getParentalControlConfig();
-  if (!config.enabled) return true;
+    // 1. Safe channels (e.g. kids, chillout) strictly forbid explicit 18+ content 24/7
+    if (config.safeChannels.includes(channelSlug)) {
+      return false;
+    }
 
-  // 1. Safe channels (e.g. kids, chillout) strictly forbid explicit 18+ content 24/7
-  if (config.safeChannels.includes(channelSlug)) {
+    // 2. If late night watershed is enabled, only permit 18+ between lateNightStartUtc and lateNightEndUtc
+    if (config.allowExplicitLateNight) {
+      const currentHour = date.getUTCHours();
+      const isLateNight = currentHour >= config.lateNightStartUtc || currentHour < config.lateNightEndUtc;
+      return isLateNight;
+    }
+
     return false;
   }
 
-  // 2. If late night watershed is enabled, only permit 18+ between lateNightStartUtc and lateNightEndUtc
-  if (config.allowExplicitLateNight) {
-    const currentHour = date.getUTCHours();
-    const isLateNight = currentHour >= config.lateNightStartUtc || currentHour < config.lateNightEndUtc;
-    return isLateNight;
+  // 3. For Channel 4 ('kids'), explicitly non-family-friendly content is blocked
+  if (channelSlug === 'kids' && familyFriendly === false) {
+    return false;
   }
 
-  return false;
+  return true;
 }

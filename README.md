@@ -174,3 +174,30 @@ NEXT_PUBLIC_ADSENSE_CLIENT_ID="ca-pub-7299057534028491"
 - **Privacy Policy:** [`https://promptfm.live/privacy`](https://promptfm.live/privacy)
 - **Terms of Service:** [`https://promptfm.live/terms`](https://promptfm.live/terms)
 - **IAB Ads.txt:** [`https://promptfm.live/ads.txt`](https://promptfm.live/ads.txt)
+
+---
+
+## 🛡️ Automated AI Lyric & Audio Scan & Family-Friendly Safeguards
+
+PromptFM integrates an ultra-token-efficient content scanner powered by **Gemini 3.5 Flash** and zero-token local heuristics:
+
+### 1. Multi-Tier Token & Cost Optimization (Zero-Cost Focus)
+1. **Tier 1 (0 Tokens) Instrumental Detection:** Detects empty lyrics or instrumental audio immediately without calling any external API.
+2. **Tier 2 (0 Tokens) Local Profanity Pre-Filter:** Instant regex inspection for severe obscenity/profanity. Instantly flags `is_explicit: true` and blocks from safe channels with 0 Gemini tokens consumed.
+3. **Tier 3 (~50 Tokens) Compact Gemini 3.5 Flash Analysis:**
+   - Truncates sample to $\le 350$ characters.
+   - Configured with `thinkingBudget: 0` (no CoT token overhead) and `maxOutputTokens: 25`.
+   - Returns structured JSON `{ "explicit": boolean, "family_friendly": boolean }`.
+   - Well within Google AI Studio's 1,500 daily free tier requests ($0 cost).
+
+### 2. Multi-Channel Permitted Broadcast Matrix
+| Channel | Slug | Safe Policy | Explicit Allowed? | Family-Friendly Required? |
+|---|---|---|---|---|
+| **Ch 1: Main Stage** | `main` | General audience | Only late night (22:00–06:00 UTC) | No (allows both general clean & family) |
+| **Ch 2: Cyberpunk & Synth** | `cyberpunk` | High energy / gritty | Only late night (22:00–06:00 UTC) | No |
+| **Ch 3: Chillout & Ambient** | `chillout` | Safe / relaxing | ❌ Blocked 24/7 | No (clean required) |
+| **Ch 4: Kids & Family** | `kids` | Strictly child-safe | ❌ Blocked 24/7 | ✅ Strictly required (`family_friendly: true`) |
+
+### 3. Station Gatekeeper Review
+All community submissions via `/submit` are saved with `status: 'pending'`. They never enter the active radio airplay rotation until a station admin reviews the audio preview, ID3 metadata, embedded lyrics, and AI safety badges in `/admin` and clicks **Approve for Airplay**.
+
