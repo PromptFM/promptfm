@@ -17,6 +17,7 @@ Designed to operate strictly within the **GCP Always Free Tier ($0.00 / Month)**
 8. [One-Click Quickstart (`make deploy`)](#8-one-click-quickstart-make-deploy)
 9. [Operational Command Reference](#9-operational-command-reference)
 10. [Troubleshooting & FAQs](#10-troubleshooting--faqs)
+11. [0-Cost Telemetry & Dashboards](#11-0-cost-telemetry--dashboards)
 
 ---
 
@@ -278,3 +279,19 @@ curl -sI https://stream.promptfm.live/stream.mp3
 # Play stream directly in terminal
 mpv https://stream.promptfm.live/stream.mp3
 ```
+
+---
+
+## 11. 0-Cost Telemetry & Dashboards
+
+The stream server, API quotas, and live audience telemetry are monitored through 100% zero-cost cloud dashboards:
+
+| Service | Console URL | Purpose | Cost |
+| :--- | :--- | :--- | :--- |
+| **Google Cloud Monitoring** | [PromptFM 0-Cost Telemetry](https://console.cloud.google.com/monitoring/dashboards/builder/ce33f584-e48f-407a-b2e7-1d1fa9e990ff?project=promptfm-radio-1793623670) | Gemini 3.5 & 2.5 Flash TTS requests, latencies, GCS operations | **$0.00** |
+| **Vercel Web Analytics** | [Vercel Realtime Analytics](https://vercel.com/alex-trifans-projects/promptfm/analytics) | Real-time web visitors, iPhone PWA users, top referrers, Web Vitals | **$0.00** |
+| **Station Manager Studio** | [promptfm.live/admin](https://promptfm.live/admin) | Queue curation, batch requests, and telemetry quick-bar | **$0.00** |
+| **Icecast 2 Admin** | [stream.promptfm.live:8000/admin](http://stream.promptfm.live:8000/admin/) | Mountpoint listener sockets, bandwidth telemetry | **$0.00** |
+
+Provisioned via Terraform resource `google_monitoring_dashboard.telemetry_dashboard` from [`config/gcp-dashboard.json`](../config/gcp-dashboard.json).
+

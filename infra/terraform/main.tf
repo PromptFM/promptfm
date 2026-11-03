@@ -115,3 +115,10 @@ resource "google_compute_instance" "streamer" {
   }
 }
 
+# 4. Zero-Cost Cloud Monitoring Dashboard (Gemini API quotas, synthesis latency, storage)
+# Provisions the PromptFM 24/7 AI Radio telemetry dashboard at $0 cost (150 MiB metric limit free monthly).
+resource "google_monitoring_dashboard" "telemetry_dashboard" {
+  dashboard_json = file("${path.module}/../../config/gcp-dashboard.json")
+}
+
+

@@ -56,4 +56,8 @@ terraform output
 * `external_ip`: Public IP of the stream server.
 * `icecast_stream_url`: `http://<IP>:8000/stream.mp3`
 * `icecast_admin_url`: `http://<IP>:8000/admin/`
+* `monitoring_dashboard_id`: ID of the 0-cost Google Cloud Monitoring Dashboard.
+* `monitoring_dashboard_url`: Direct console URL to view telemetry and API quotas.
+* `vercel_analytics_url`: Direct console URL to view real-time web audience telemetry.
+
 
