@@ -7,6 +7,7 @@
 import { createAdminClient } from '../supabase/server';
 import { createBroadcastDrop, fetchLiveHeadlines } from './engine';
 import { getActiveDJ, getAdsConfig, getActiveAdSpot, isContentAllowedForAirplay, DJProfile } from './roster';
+import { getStationSchedule } from '../radio/schedule';
 import { broadcastToCommunity } from '../chat/bridge';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
@@ -505,8 +506,10 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
   const currentMinute = now.getUTCMinutes();
   const currentHour = now.getUTCHours();
 
-  // 1. Identify which AI DJ is currently on air for this hour & channel
+  // 1. Identify which AI DJ is currently on air for this hour & channel, and get active schedule milestones
   const activeDJ: DJProfile = getActiveDJ(channelSlug, now);
+  const stationSchedule = getStationSchedule(channelSlug, now);
+  const activeMilestones = stationSchedule.current_show?.clock_milestones || [];
 
   const finishAndBroadcast = (item: AirplayItem): AirplayItem => {
     pendingAirplayItem = item;
@@ -535,7 +538,36 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
     return item;
   };
 
-  // ── 1. Check for Listener Prompt Requests in the Channel Queue ─────────────
+  // ── 1. Top of the Hour (:00 to :03) News Broadcast (When Scheduled in Milestones) ──
+  const newsMilestone = activeMilestones.find(
+    (m) => m.type === 'news' && Math.abs(currentMinute - m.minute) <= 3
+  );
+  if (newsMilestone && tracksSinceLastInterstitial > 0) {
+    tracksSinceLastInterstitial = 0;
+    try {
+      const headlines = await fetchLiveHeadlines();
+      const drop = await createBroadcastDrop({
+        type: 'news',
+        headlines,
+        topicOrText: `PromptFM Hourly News at ${currentHour}:00 UTC`,
+        dj: activeDJ,
+      });
+      return finishAndBroadcast({
+        id: `news-${Date.now()}`,
+        type: 'news',
+        title: `PromptFM Hourly AI News Briefing`,
+        artist: `${activeDJ.name} (${activeDJ.title})`,
+        audio_url: drop.audioUrl,
+        duration_hint_seconds: 45,
+        transcript: drop.script,
+        dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
+      });
+    } catch (e) {
+      console.warn('Failed to generate top-of-hour news, falling back to music:', e);
+    }
+  }
+
+  // ── 2. Check for Listener Prompt Requests in the Channel Queue ─────────────
   const { data: channel } = await supabase.from('channels').select('id').eq('slug', channelSlug).maybeSingle();
 
   if (channel) {
@@ -567,9 +599,120 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
     }
   }
 
-  // ── 2. Standard Music Rotation: Pick from Top Approved Community Tracks ────
-  // Pure music focus: Interstitial news/weather/banter prompt drops are removed from automatic rotation
-  // to ensure 24/7 continuous stream playback with zero quota failures.
+  // ── 3. Sponsor & Ad Slot Check (When Scheduled in Milestones or Clock Breaks) ─
+  const adsConfig = getAdsConfig();
+  const timeSinceLastAdSec = (Date.now() - lastAdTimestamp) / 1000;
+  const isClockAdTime = adsConfig.clockMinutes.some((m) => Math.abs(currentMinute - m) <= 1);
+  const isTrackAdTime = tracksSinceLastAd >= adsConfig.frequencyTracks;
+  const hasAdMilestone = activeMilestones.some((m) => m.type === 'ad');
+
+  if (adsConfig.enabled && hasAdMilestone && (isTrackAdTime || (isClockAdTime && timeSinceLastAdSec > 600))) {
+    const adSpot = getActiveAdSpot();
+    if (adSpot) {
+      tracksSinceLastAd = 0;
+      lastAdTimestamp = Date.now();
+
+      // Case A: Pre-recorded audio ad
+      if (adSpot.type === 'pre_recorded' && adSpot.audioUrl) {
+        return finishAndBroadcast({
+          id: `ad-${adSpot.id}-${Date.now()}`,
+          type: 'ad',
+          title: `[Sponsor] ${adSpot.title}`,
+          artist: adSpot.sponsor,
+          audio_url: adSpot.audioUrl,
+          duration_hint_seconds: adSpot.durationSeconds,
+          transcript: `[Pre-recorded audio commercial for ${adSpot.sponsor}]`,
+        });
+      }
+
+      // Case B: Dynamic AI-read sponsor spot in active DJ's voice & persona!
+      try {
+        const drop = await createBroadcastDrop({
+          type: 'ad',
+          topicOrText: adSpot.copy || `PromptFM sponsor message from ${adSpot.sponsor}: ${adSpot.title}`,
+          dj: activeDJ,
+        });
+
+        return finishAndBroadcast({
+          id: `ad-${adSpot.id}-${Date.now()}`,
+          type: 'ad',
+          title: `[Sponsor Break] ${adSpot.title}`,
+          artist: `${activeDJ.name} for ${adSpot.sponsor}`,
+          audio_url: drop.audioUrl,
+          duration_hint_seconds: adSpot.durationSeconds,
+          transcript: drop.script,
+          dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
+        });
+      } catch (e) {
+        console.warn('Failed to synthesize AI sponsor ad, falling through:', e);
+      }
+    }
+  }
+
+  // ── 4. Interstitial Check: [Weather / DJ Banter / Trivia] (When Scheduled) ───
+  const weatherMilestone = activeMilestones.find(
+    (m) => m.type === 'weather' && Math.abs(currentMinute - m.minute) <= 3
+  );
+  const banterMilestone = activeMilestones.find(
+    (m) => m.type === 'dj_banter' && Math.abs(currentMinute - m.minute) <= 3
+  );
+  const hasScheduledInterstitials = activeMilestones.some(
+    (m) => m.type === 'weather' || m.type === 'dj_banter'
+  );
+
+  if (hasScheduledInterstitials && tracksSinceLastInterstitial >= 3) {
+    tracksSinceLastInterstitial = 0;
+
+    const shouldPlayWeather =
+      weatherMilestone != null || (!banterMilestone && Math.random() < 0.5);
+
+    if (shouldPlayWeather) {
+      try {
+        const weatherInfo = await fetchLiveWeatherSummary();
+        const drop = await createBroadcastDrop({
+          type: 'custom_prompt',
+          topicOrText: `Give a 15-second radio station weather check for our listeners in ${weatherInfo.city}: "${weatherInfo.text}". Tell listeners to keep voting for their favorite tracks on PromptFM.`,
+          dj: activeDJ,
+        });
+        return finishAndBroadcast({
+          id: `weather-${Date.now()}`,
+          type: 'weather',
+          title: `${activeDJ.name} Weather Check (${weatherInfo.city})`,
+          artist: activeDJ.name,
+          audio_url: drop.audioUrl,
+          duration_hint_seconds: 20,
+          transcript: drop.script,
+          dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
+        });
+      } catch (err) {
+        console.warn('Weather drop failed:', err);
+      }
+    } else {
+      // DJ Music Trivia / Persona Banter
+      try {
+        const drop = await createBroadcastDrop({
+          type: 'custom_prompt',
+          topicOrText: `Share a witty 15-second thought in your personality style about AI music, studio prompts, or the live community charts.`,
+          dj: activeDJ,
+        });
+        return finishAndBroadcast({
+          id: `dj-${Date.now()}`,
+          type: 'dj_banter',
+          title: `${activeDJ.name} Station Banter`,
+          artist: activeDJ.name,
+          audio_url: drop.audioUrl,
+          duration_hint_seconds: 20,
+          transcript: drop.script,
+          dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
+        });
+      } catch (err) {
+        console.warn('DJ drop failed:', err);
+      }
+    }
+  }
+
+  // ── 5. Standard Music Rotation: Pick from Top Approved Community Tracks ────
+  // When schedule has only music milestones, PromptFM streams 100% music without interruptions.
   tracksSinceLastInterstitial++;
   tracksSinceLastAd++;
 
