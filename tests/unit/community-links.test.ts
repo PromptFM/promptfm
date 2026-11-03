@@ -15,18 +15,20 @@ describe('Community Links Directory', () => {
     process.env = originalEnv;
   });
 
-  it('provides verified default links for Discord, Telegram Channel, and Telegram Bot', () => {
+  it('provides verified default links for Discord, Telegram Channel, Telegram Bot, X, and GitHub', () => {
     delete process.env.NEXT_PUBLIC_DISCORD_INVITE_URL;
     delete process.env.NEXT_PUBLIC_TELEGRAM_CHANNEL_URL;
     delete process.env.NEXT_PUBLIC_TELEGRAM_BOT_URL;
     delete process.env.NEXT_PUBLIC_X_URL;
     delete process.env.NEXT_PUBLIC_TWITTER_URL;
+    delete process.env.NEXT_PUBLIC_GITHUB_REPO_URL;
 
     const links = getCommunityLinks();
     expect(links.discord).toBe('https://discord.gg/promptfm');
     expect(links.telegramChannel).toBe('https://t.me/promptfm_live');
     expect(links.telegramBot).toBe('https://t.me/PromptFMLiveBot');
     expect(links.xTwitter).toBe('https://x.com/promptfm_live');
+    expect(links.github).toBe('https://github.com/atrifan/promptfm');
     expect(links.mcpProtocol).toBe('/api/mcp');
   });
 
@@ -35,12 +37,14 @@ describe('Community Links Directory', () => {
     process.env.NEXT_PUBLIC_TELEGRAM_CHANNEL_URL = 'https://t.me/custom_channel';
     process.env.NEXT_PUBLIC_TELEGRAM_BOT_URL = 'https://t.me/custom_bot';
     process.env.NEXT_PUBLIC_X_URL = 'https://x.com/custom_handle';
+    process.env.NEXT_PUBLIC_GITHUB_REPO_URL = 'https://github.com/custom/promptfm';
 
     const links = getCommunityLinks();
     expect(links.discord).toBe('https://discord.gg/custom-invite');
     expect(links.telegramChannel).toBe('https://t.me/custom_channel');
     expect(links.telegramBot).toBe('https://t.me/custom_bot');
     expect(links.xTwitter).toBe('https://x.com/custom_handle');
+    expect(links.github).toBe('https://github.com/custom/promptfm');
   });
 });
 

@@ -10,7 +10,7 @@ import {
   getOAuthProviderDisplay,
 } from '@/lib/auth/providers';
 
-describe('Social OAuth Auth Providers (Google, Discord, X/Twitter)', () => {
+describe('Social OAuth Auth Providers (Google, Discord, X/Twitter, GitHub)', () => {
   it('builds valid OAuth redirect URL back to station origin', () => {
     expect(buildOAuthRedirectUrl('https://promptfm.live')).toBe('https://promptfm.live/');
     expect(buildOAuthRedirectUrl('https://promptfm.live/')).toBe('https://promptfm.live/');
@@ -23,10 +23,11 @@ describe('Social OAuth Auth Providers (Google, Discord, X/Twitter)', () => {
   });
 
   it('validates supported OAuth providers for PromptFM', () => {
-    expect(SUPPORTED_OAUTH_PROVIDERS).toEqual(['google', 'discord', 'twitter']);
+    expect(SUPPORTED_OAUTH_PROVIDERS).toEqual(['google', 'discord', 'twitter', 'github']);
     expect(SUPPORTED_OAUTH_PROVIDERS).toContain('google');
     expect(SUPPORTED_OAUTH_PROVIDERS).toContain('discord');
     expect(SUPPORTED_OAUTH_PROVIDERS).toContain('twitter');
+    expect(SUPPORTED_OAUTH_PROVIDERS).toContain('github');
   });
 
   it('provides correct display label and metadata for each provider', () => {
@@ -44,6 +45,11 @@ describe('Social OAuth Auth Providers (Google, Discord, X/Twitter)', () => {
       id: 'twitter',
       label: 'Continue with X',
       shortName: 'X',
+    });
+    expect(getOAuthProviderDisplay('github')).toEqual({
+      id: 'github',
+      label: 'Continue with GitHub',
+      shortName: 'GitHub',
     });
   });
 });

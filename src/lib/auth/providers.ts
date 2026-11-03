@@ -1,7 +1,7 @@
 // src/lib/auth/providers.ts
 // Configuration, helpers, and display metadata for supported social OAuth providers
 
-export const SUPPORTED_OAUTH_PROVIDERS = ['google', 'discord', 'twitter'] as const;
+export const SUPPORTED_OAUTH_PROVIDERS = ['google', 'discord', 'twitter', 'github'] as const;
 
 export type OAuthProvider = (typeof SUPPORTED_OAUTH_PROVIDERS)[number];
 
@@ -40,5 +40,12 @@ export function getOAuthProviderDisplay(provider: OAuthProvider): OAuthProviderD
         label: 'Continue with X',
         shortName: 'X',
       };
+    case 'github':
+      return {
+        id: 'github',
+        label: 'Continue with GitHub',
+        shortName: 'GitHub',
+      };
   }
 }
+
