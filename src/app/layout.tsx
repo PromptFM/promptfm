@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import Image from 'next/image';
 import Script from 'next/script';
+import { Analytics } from '@vercel/analytics/react';
 import './globals.css';
 import AudioPlayer from '@/components/AudioPlayer';
 import AuthButton from '@/components/AuthButton';
@@ -84,11 +85,22 @@ export const metadata: Metadata = {
   },
   manifest: '/manifest.webmanifest',
   icons: {
-    icon: '/icon.png',
-    apple: '/icon.png',
+    icon: [
+      { url: '/icon.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+      { url: '/apple-touch-icon-precomposed.png', sizes: '180x180', type: 'image/png' },
+    ],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'PromptFM',
   },
   other: {
     'google-adsense-account': 'ca-pub-7299057534028491',
+    'apple-mobile-web-app-capable': 'yes',
   },
 };
 
@@ -174,6 +186,9 @@ export default function RootLayout({
 
         {/* Sticky live stream player */}
         <AudioPlayer />
+
+        {/* Vercel 0-Cost Real-Time Web Analytics */}
+        <Analytics />
       </body>
     </html>
   );

@@ -1,0 +1,59 @@
+{
+  "displayName": "PromptFM 24/7 AI Radio — 0-Cost Telemetry & Usage",
+  "gridLayout": {
+    "columns": "2",
+    "widgets": [
+      {
+        "title": "📻 PromptFM 0-Cost Telemetry Overview",
+        "text": {
+          "content": "# PromptFM 24/7 AI Radio Monitoring\n- **Project:** promptfm-radio-1793623670\n- **Billing Target:** $0.00 / month\n- **Voice Model:** Gemini 2.5 Flash Preview TTS & Gemini 3.5 Flash\n- **Live Web Analytics:** [Vercel Realtime Web Analytics](https://vercel.com/alex-trifans-projects/promptfm/analytics)\n- **Stream Mounts:** 4 Theme Channels (Main, Cyberpunk, Chillout, Kids)"
+        }
+      },
+      {
+        "title": "Gemini API Request Count (0-Cost Tier)",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"serviceruntime.googleapis.com/api/request_count\" resource.type=\"consumed_api\" resource.label.\"service\"=\"generativelanguage.googleapis.com\""
+                }
+              },
+              "plotType": "LINE"
+            }
+          ]
+        }
+      },
+      {
+        "title": "Gemini & TTS API Latencies",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"serviceruntime.googleapis.com/api/request_latencies\" resource.type=\"consumed_api\" resource.label.\"service\"=\"generativelanguage.googleapis.com\""
+                }
+              },
+              "plotType": "LINE"
+            }
+          ]
+        }
+      },
+      {
+        "title": "Cloud Storage & Media Assets Activity",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"serviceruntime.googleapis.com/api/request_count\" resource.type=\"consumed_api\" resource.label.\"service\"=\"storage.googleapis.com\""
+                }
+              },
+              "plotType": "LINE"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

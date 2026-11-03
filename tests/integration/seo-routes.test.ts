@@ -46,7 +46,7 @@ describe('Next.js App Router Metadata Routes Integration', () => {
     expect(home?.changeFrequency).toBe('hourly');
   });
 
-  it('manifest() generates valid PWA Web App Manifest', () => {
+  it('manifest() generates valid PWA Web App Manifest with touch and maskable icons', () => {
     const result = manifest();
     expect(result.name).toContain('PromptFM');
     expect(result.short_name).toBe('PromptFM');
@@ -54,6 +54,13 @@ describe('Next.js App Router Metadata Routes Integration', () => {
     expect(result.display).toBe('standalone');
     expect(result.theme_color).toBe('#10b981');
     expect(result.background_color).toBe('#09090b');
-    expect(result.icons?.length).toBeGreaterThanOrEqual(2);
+    expect(result.icons?.length).toBeGreaterThanOrEqual(3);
+
+    const maskableIcon = result.icons?.find((icon) => icon.purpose === 'maskable');
+    expect(maskableIcon).toBeDefined();
+
+    const appleIcon = result.icons?.find((icon) => icon.src.includes('apple-touch-icon'));
+    expect(appleIcon).toBeDefined();
+    expect(appleIcon?.sizes).toBe('180x180');
   });
 });

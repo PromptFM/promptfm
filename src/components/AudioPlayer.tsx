@@ -20,6 +20,8 @@ import {
   Moon,
   Gamepad2,
   Sparkles,
+  Users,
+  ListMusic,
 } from 'lucide-react';
 import ReportModal from '@/components/ReportModal';
 import {
@@ -101,6 +103,9 @@ export default function AudioPlayer() {
   const [nowPlaying, setNowPlaying] = useState<NowPlayingInfo | null>(null);
   const [voted, setVoted] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
+  const [showUpNext, setShowUpNext] = useState(false);
+  const [upNextList, setUpNextList] = useState<NowPlayingInfo[]>([]);
+  const [listenersCount, setListenersCount] = useState<number | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
 
   const currentChannel = getChannelBySlug(currentChannelSlug);
@@ -112,6 +117,22 @@ export default function AudioPlayer() {
       const res = await fetch(`/api/radio/now?channel=${encodeURIComponent(targetSlug)}`);
       if (res.ok) {
         const data = await res.json();
+        if (typeof data.listeners_count === 'number') {
+          setListenersCount(data.listeners_count);
+        }
+        if (Array.isArray(data.up_next)) {
+          setUpNextList(
+            data.up_next.map((item: any) => ({
+              id: item.id,
+              type: item.type,
+              title: item.title,
+              artist: item.artist,
+              cover_art_url: item.cover_art_url || '/logo-mark.png',
+              category: item.category,
+              upvotes_count: item.upvotes_count,
+            }))
+          );
+        }
         if (data.now_playing) {
           const trackId = data.now_playing.id;
           if (trackId && typeof window !== 'undefined') {
@@ -417,6 +438,54 @@ export default function AudioPlayer() {
           </div>
         )}
 
+        {/* Up Next Popover Modal */}
+        {showUpNext && (
+          <div className="absolute bottom-full right-3 sm:right-6 mb-2 max-w-[calc(100vw-24px)] sm:max-w-sm w-full bg-zinc-900 border border-zinc-700 rounded-xl p-3 shadow-2xl z-50 space-y-2 animate-in fade-in slide-in-from-bottom-2">
+            <div className="flex items-center justify-between text-[11px] font-semibold text-emerald-400">
+              <span className="flex items-center gap-1.5">
+                <ListMusic className="w-3.5 h-3.5" />
+                Up Next on {currentChannel.name}
+              </span>
+              <button
+                onClick={() => setShowUpNext(false)}
+                className="text-zinc-500 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            {upNextList.length === 0 ? (
+              <p className="text-xs text-zinc-400 py-2">
+                Automated rotation selecting from top-voted community tracks.
+              </p>
+            ) : (
+              <div className="space-y-1.5">
+                {upNextList.slice(0, 3).map((item, i) => (
+                  <div
+                    key={item.id || i}
+                    className="flex items-center gap-2.5 p-1.5 bg-zinc-950/70 border border-zinc-800 rounded-lg text-xs"
+                  >
+                    <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-1.5 py-0.5 rounded">
+                      #{i + 1}
+                    </span>
+                    <img
+                      src={item.cover_art_url || '/logo-mark.png'}
+                      alt={item.title}
+                      className="w-8 h-8 rounded object-cover border border-zinc-800 flex-shrink-0"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = '/logo-mark.png';
+                      }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-white truncate">{item.title}</p>
+                      <p className="text-[11px] text-zinc-400 truncate">{item.artist}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Left: Play/Pause + station & Now Playing info */}
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
           <button
@@ -538,8 +607,35 @@ export default function AudioPlayer() {
           </div>
         </div>
 
-        {/* Right: Quick Upvote, Report & Volume controls */}
+        {/* Right: Quick Upvote, Up Next, Report & Volume controls */}
         <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+          {/* Live Listener Badge */}
+          {listenersCount !== null && (
+            <span
+              className="hidden lg:inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400 bg-emerald-950/40 border border-emerald-500/20 px-2 py-1 rounded-lg"
+              title={`${listenersCount} live listeners connected to ${currentChannel.name}`}
+            >
+              <Users className="w-3 h-3 text-emerald-400" />
+              <span>{listenersCount}</span>
+            </span>
+          )}
+
+          {/* Up Next Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setShowUpNext((prev) => !prev)}
+            aria-label="Toggle Up Next airplay queue"
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition-all border ${
+              showUpNext
+                ? 'bg-emerald-500 text-black border-emerald-400 shadow-md shadow-emerald-500/20'
+                : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700 hover:text-white'
+            }`}
+            title="See upcoming tracks"
+          >
+            <ListMusic className={`w-3.5 h-3.5 ${showUpNext ? 'text-black' : 'text-emerald-400'}`} />
+            <span className="hidden sm:inline">Up Next</span>
+          </button>
+
           {nowPlaying?.id && (
             <button
               type="button"

@@ -29,3 +29,4 @@ export function validateAdsTxtContent(content: string): boolean {
   const expectedEntry = `google.com, ${ADSENSE_PUBLISHER_ID}, DIRECT, ${GOOGLE_TAG_CERT_AUTHORITY}`;
   return content.includes(expectedEntry);
 }
+

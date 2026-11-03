@@ -474,6 +474,39 @@ export default function AdminDashboard() {
           </div>
         </div>
 
+        {/* Zero-Cost Telemetry & Monitoring Quick Bar */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-zinc-900/60 border border-zinc-800 rounded-2xl text-xs">
+          <div className="flex items-center justify-between p-2.5 bg-zinc-950/60 border border-zinc-800/80 rounded-xl">
+            <span className="text-zinc-400">Station Telemetry</span>
+            <span className="text-emerald-400 font-bold flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              4 Live Channels Active
+            </span>
+          </div>
+          <a
+            href="https://vercel.com/alex-trifans-projects/promptfm/analytics"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between p-2.5 bg-zinc-950/60 hover:bg-zinc-850/80 border border-zinc-800/80 rounded-xl transition-colors group"
+          >
+            <span className="text-zinc-300">Vercel Web Analytics</span>
+            <span className="text-zinc-400 group-hover:text-emerald-400 text-[11px] font-semibold">
+              $0 Real-time ↗
+            </span>
+          </a>
+          <a
+            href="https://console.cloud.google.com/monitoring/dashboards/builder/ce33f584-e48f-407a-b2e7-1d1fa9e990ff?project=promptfm-radio-1793623670"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between p-2.5 bg-zinc-950/60 hover:bg-zinc-850/80 border border-zinc-800/80 rounded-xl transition-colors group"
+          >
+            <span className="text-zinc-300">Google Cloud Monitoring</span>
+            <span className="text-zinc-400 group-hover:text-emerald-400 text-[11px] font-semibold">
+              $0 Quota & Latency ↗
+            </span>
+          </a>
+        </div>
+
         {/* ── TAB 1: PENDING SUBMISSIONS ──────────────────────────────────── */}
         {activeTab === 'submissions' && (
           <div className="space-y-4">

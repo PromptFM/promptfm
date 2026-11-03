@@ -24,3 +24,4 @@ describe('GET /ads.txt Route Integration', () => {
     expect(cacheControl).toContain('max-age=86400');
   });
 });
+

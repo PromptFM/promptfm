@@ -5,6 +5,8 @@ import Image from 'next/image';
 import { Radio, Music2, Upload } from 'lucide-react';
 import ChannelsGrid from '@/components/ChannelsGrid';
 import AdSenseDisplayUnit from '@/components/AdSenseDisplayUnit';
+import LiveListenersBadge from '@/components/LiveListenersBadge';
+import UpNextSection from '@/components/UpNextSection';
 
 export default function HomePage() {
   return (
@@ -23,10 +25,8 @@ export default function HomePage() {
           />
         </div>
 
-        <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold px-3 py-1.5 rounded-full">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          4 LIVE CHANNELS · 24/7 BROADCAST
-        </div>
+        {/* Real-time live listeners telemetry badge */}
+        <LiveListenersBadge />
 
         <h1 className="text-3xl sm:text-5xl md:text-6xl font-extrabold tracking-tight leading-tight">
           The AI Music Radio <br />
@@ -85,6 +85,9 @@ export default function HomePage() {
 
       {/* Live Radio Stations Section */}
       <ChannelsGrid />
+
+      {/* Up Next on Air Section */}
+      <UpNextSection />
     </main>
   );
 }

@@ -5,6 +5,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, Radio } from 'lucide-react';
 import ChannelsGrid from '@/components/ChannelsGrid';
+import UpNextSection from '@/components/UpNextSection';
 import AdSenseDisplayUnit from '@/components/AdSenseDisplayUnit';
 
 export const metadata: Metadata = {
@@ -39,6 +40,9 @@ export default function ChannelsPage() {
 
         {/* Stations Directory */}
         <ChannelsGrid />
+
+        {/* Up Next on Air Section */}
+        <UpNextSection />
 
         {/* Google AdSense Display Banner */}
         <AdSenseDisplayUnit slotId="channels_footer_banner" className="mt-8 max-w-4xl" />
