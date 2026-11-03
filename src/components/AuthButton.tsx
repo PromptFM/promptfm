@@ -10,6 +10,7 @@ import { createPortal } from 'react-dom';
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 import { LogIn, LogOut, User as UserIcon, X, Loader2, Disc, Mail } from 'lucide-react';
+import { type OAuthProvider } from '@/lib/auth/providers';
 
 export default function AuthButton() {
   const [user, setUser] = useState<User | null>(null);
@@ -53,7 +54,7 @@ export default function AuthButton() {
     };
   }, [isOpen]);
 
-  const handleOAuthSignIn = async (provider: 'google' | 'discord') => {
+  const handleOAuthSignIn = async (provider: OAuthProvider) => {
     setAuthLoading(true);
     setStatusMsg(null);
     try {
@@ -175,6 +176,18 @@ export default function AuthButton() {
               <path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,45.91,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,45.91,96.12,53,91.08,65.69,84.69,65.69Z" />
             </svg>
             <span>Continue with Discord</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleOAuthSignIn('twitter')}
+            disabled={authLoading}
+            className="w-full flex items-center justify-center gap-2.5 py-2.5 rounded-xl border border-zinc-700 bg-zinc-800/80 hover:bg-zinc-800 text-white font-medium text-xs transition-colors"
+          >
+            <svg className="w-3.5 h-3.5 fill-white" viewBox="0 0 24 24">
+              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+            </svg>
+            <span>Continue with X</span>
           </button>
         </div>
 

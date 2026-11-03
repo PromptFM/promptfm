@@ -9,11 +9,13 @@ import Link from 'next/link';
 import { Shield, Flag, Scale, Radio, MessageSquare, Terminal, Cookie, Send } from 'lucide-react';
 import AgreementsModal from '@/components/AgreementsModal';
 import ReportModal from '@/components/ReportModal';
+import { getCommunityLinks } from '@/lib/community/links';
 
 export default function Footer() {
   const [agreementsOpen, setAgreementsOpen] = useState(false);
   const [agreementsTab, setAgreementsTab] = useState<'terms' | 'copyright' | 'ethics' | 'watershed' | 'dmca'>('terms');
   const [reportOpen, setReportOpen] = useState(false);
+  const links = getCommunityLinks();
 
   const openTab = (tab: 'terms' | 'copyright' | 'ethics' | 'watershed' | 'dmca') => {
     setAgreementsTab(tab);
@@ -120,7 +122,7 @@ export default function Footer() {
           <p>© {new Date().getFullYear()} PromptFM. All rights reserved. Music generated via Suno, Udio, Stable Audio.</p>
           <div className="flex flex-wrap items-center justify-center sm:justify-end gap-x-4 gap-y-2">
             <a
-              href={process.env.NEXT_PUBLIC_DISCORD_INVITE_URL || 'https://discord.gg/promptfm'}
+              href={links.discord}
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-indigo-400 transition-colors flex items-center gap-1"
@@ -129,7 +131,7 @@ export default function Footer() {
               <span>Discord</span>
             </a>
             <a
-              href={process.env.NEXT_PUBLIC_TELEGRAM_CHANNEL_URL || 'https://t.me/promptfm_live'}
+              href={links.telegramChannel}
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-sky-400 transition-colors flex items-center gap-1"
@@ -138,7 +140,7 @@ export default function Footer() {
               <span>Telegram Channel</span>
             </a>
             <a
-              href={process.env.NEXT_PUBLIC_TELEGRAM_BOT_URL || 'https://t.me/PromptFMLiveBot'}
+              href={links.telegramBot}
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-sky-400 transition-colors flex items-center gap-1"
@@ -147,7 +149,18 @@ export default function Footer() {
               <span>Telegram Bot</span>
             </a>
             <a
-              href="/api/mcp"
+              href={links.xTwitter}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-white transition-colors flex items-center gap-1"
+            >
+              <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+              </svg>
+              <span>X</span>
+            </a>
+            <a
+              href={links.mcpProtocol}
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-emerald-400 transition-colors flex items-center gap-1"

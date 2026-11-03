@@ -5,6 +5,7 @@ export interface CommunityLinks {
   discord: string;
   telegramChannel: string;
   telegramBot: string;
+  xTwitter: string;
   mcpProtocol: string;
 }
 
@@ -13,7 +14,7 @@ export function getCommunityLinks(): CommunityLinks {
     discord: process.env.NEXT_PUBLIC_DISCORD_INVITE_URL || 'https://discord.gg/promptfm',
     telegramChannel: process.env.NEXT_PUBLIC_TELEGRAM_CHANNEL_URL || 'https://t.me/promptfm_live',
     telegramBot: process.env.NEXT_PUBLIC_TELEGRAM_BOT_URL || 'https://t.me/PromptFMLiveBot',
+    xTwitter: process.env.NEXT_PUBLIC_X_URL || process.env.NEXT_PUBLIC_TWITTER_URL || 'https://x.com/promptfm_live',
     mcpProtocol: '/api/mcp',
   };
 }
-

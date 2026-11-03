@@ -93,6 +93,18 @@ export default function Navbar() {
             >
               <Send className="w-4 h-4" />
             </a>
+            <a
+              href={links.xTwitter}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-zinc-400 hover:text-white p-1 transition-colors"
+              title="PromptFM on X"
+              aria-label="PromptFM on X"
+            >
+              <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+              </svg>
+            </a>
           </div>
         </div>
 
@@ -163,12 +175,12 @@ export default function Navbar() {
           </div>
 
           {/* Community Links in Mobile Drawer */}
-          <div className="pt-3 border-t border-zinc-900 flex items-center justify-around gap-2 text-xs font-semibold">
+          <div className="pt-3 border-t border-zinc-900 grid grid-cols-3 gap-2 text-xs font-semibold">
             <a
               href={links.discord}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition-colors"
+              className="flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition-colors"
             >
               <MessageSquare className="w-3.5 h-3.5" />
               <span>Discord</span>
@@ -177,10 +189,21 @@ export default function Navbar() {
               href={links.telegramChannel}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/30 transition-colors"
+              className="flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/30 transition-colors"
             >
               <Send className="w-3.5 h-3.5" />
               <span>Telegram</span>
+            </a>
+            <a
+              href={links.xTwitter}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl bg-zinc-800/60 hover:bg-zinc-800 text-zinc-200 border border-zinc-700/60 transition-colors"
+            >
+              <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+              </svg>
+              <span>X</span>
             </a>
           </div>
         </div>

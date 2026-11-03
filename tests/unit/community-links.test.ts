@@ -19,11 +19,14 @@ describe('Community Links Directory', () => {
     delete process.env.NEXT_PUBLIC_DISCORD_INVITE_URL;
     delete process.env.NEXT_PUBLIC_TELEGRAM_CHANNEL_URL;
     delete process.env.NEXT_PUBLIC_TELEGRAM_BOT_URL;
+    delete process.env.NEXT_PUBLIC_X_URL;
+    delete process.env.NEXT_PUBLIC_TWITTER_URL;
 
     const links = getCommunityLinks();
     expect(links.discord).toBe('https://discord.gg/promptfm');
     expect(links.telegramChannel).toBe('https://t.me/promptfm_live');
     expect(links.telegramBot).toBe('https://t.me/PromptFMLiveBot');
+    expect(links.xTwitter).toBe('https://x.com/promptfm_live');
     expect(links.mcpProtocol).toBe('/api/mcp');
   });
 
@@ -31,11 +34,13 @@ describe('Community Links Directory', () => {
     process.env.NEXT_PUBLIC_DISCORD_INVITE_URL = 'https://discord.gg/custom-invite';
     process.env.NEXT_PUBLIC_TELEGRAM_CHANNEL_URL = 'https://t.me/custom_channel';
     process.env.NEXT_PUBLIC_TELEGRAM_BOT_URL = 'https://t.me/custom_bot';
+    process.env.NEXT_PUBLIC_X_URL = 'https://x.com/custom_handle';
 
     const links = getCommunityLinks();
     expect(links.discord).toBe('https://discord.gg/custom-invite');
     expect(links.telegramChannel).toBe('https://t.me/custom_channel');
     expect(links.telegramBot).toBe('https://t.me/custom_bot');
+    expect(links.xTwitter).toBe('https://x.com/custom_handle');
   });
 });
 
