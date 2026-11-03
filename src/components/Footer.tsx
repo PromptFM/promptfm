@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Shield, Flag, Scale, Radio, MessageSquare, Terminal } from 'lucide-react';
+import { Shield, Flag, Scale, Radio, MessageSquare, Terminal, Cookie } from 'lucide-react';
 import AgreementsModal from '@/components/AgreementsModal';
 import ReportModal from '@/components/ReportModal';
 
@@ -75,6 +75,18 @@ export default function Footer() {
             >
               Privacy
             </Link>
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  window.dispatchEvent(new CustomEvent('promptfm-open-cookie-preferences'));
+                }
+              }}
+              className="hover:text-emerald-400 transition-colors flex items-center gap-1"
+            >
+              <Cookie className="w-3.5 h-3.5" />
+              <span>Cookies</span>
+            </button>
             <button
               type="button"
               onClick={() => openTab('watershed')}

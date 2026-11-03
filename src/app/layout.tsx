@@ -6,6 +6,7 @@ import { Analytics } from '@vercel/analytics/react';
 import './globals.css';
 import AudioPlayer from '@/components/AudioPlayer';
 import AuthButton from '@/components/AuthButton';
+import CookieConsentBanner from '@/components/CookieConsentBanner';
 import Footer from '@/components/Footer';
 import JsonLd from '@/components/JsonLd';
 import SponsorBanner from '@/components/SponsorBanner';
@@ -186,6 +187,9 @@ export default function RootLayout({
 
         {/* Sticky live stream player */}
         <AudioPlayer />
+
+        {/* AdSense & GDPR / CCPA Cookie Consent Manager */}
+        <CookieConsentBanner />
 
         {/* Vercel 0-Cost Real-Time Web Analytics */}
         <Analytics />

@@ -189,3 +189,83 @@ export function validateCounterNoticePayload(payload: CounterNoticePayload): Val
   };
 }
 
+// ── Google AdSense & Cookie Compliance Specifications ─────────────────────────
+
+export type CookieConsentChoice = 'accepted' | 'essential_only' | 'unset';
+
+export interface AdSensePrivacyDisclosure {
+  publisherClientId: string;
+  thirdPartyVendorNotice: string;
+  advertisingCookieNotice: string;
+  optOutLinks: {
+    googleAdsSettings: string;
+    aboutAds: string;
+    yourOnlineChoices: string;
+  };
+  ccpaNotice: string;
+  gdprNotice: string;
+  summaryText: string;
+}
+
+export const ADSENSE_PRIVACY_DISCLOSURE: AdSensePrivacyDisclosure = {
+  publisherClientId: 'ca-pub-7299057534028491',
+  thirdPartyVendorNotice:
+    'Third party vendors, including Google, use cookies to serve ads based on a user\'s prior visits to your website or other websites.',
+  advertisingCookieNotice:
+    'Google\'s use of advertising cookies enables it and its partners to serve ads to your users based on their visit to your sites and/or other sites on the Internet.',
+  optOutLinks: {
+    googleAdsSettings: 'https://www.google.com/settings/ads',
+    aboutAds: 'https://www.aboutads.info/choices/',
+    yourOnlineChoices: 'https://www.youronlinechoices.com',
+  },
+  ccpaNotice:
+    'Under the California Consumer Privacy Act (CCPA/CPRA), California residents have the right to opt-out of the "sale" or "sharing" of personal information for cross-context behavioral advertising (Do Not Sell or Share My Personal Information). We honor Global Privacy Control (GPC) signals and provide cookie preferences to restrict non-essential tracking.',
+  gdprNotice:
+    'For users in the European Economic Area (EEA), United Kingdom, and Switzerland, PromptFM adheres to the Google EU User Consent Policy. We obtain affirmative consent prior to setting non-essential advertising cookies or processing personal data for personalized advertising.',
+  summaryText:
+    'PromptFM partners with Google AdSense (publisher account ca-pub-7299057534028491) to serve advertisements that fund 24/7 autonomous broadcast operations and infrastructure. Cookies and local identifiers may be used to serve personalized and non-personalized advertisements.',
+};
+
+export interface CookieCategory {
+  name: string;
+  description: string;
+  examples: readonly string[];
+}
+
+export interface CookieConsentPolicy {
+  storageKey: string;
+  categories: {
+    essential: CookieCategory;
+    advertising: CookieCategory;
+  };
+}
+
+export const COOKIE_CONSENT_POLICY: CookieConsentPolicy = {
+  storageKey: 'promptfm_cookie_consent',
+  categories: {
+    essential: {
+      name: 'Strictly Necessary & Functional',
+      description: 'Required for core radio stream playback, channel switching, volume, and statutory age gating.',
+      examples: ['active_channel', 'player_volume', 'promptfm_age_verified_18', 'promptfm_cookie_consent'],
+    },
+    advertising: {
+      name: 'Advertising & Measurement',
+      description: 'Used by Google AdSense and ad partners to frequency-cap ads, measure ad performance, and serve relevant promotions.',
+      examples: ['__gads', '__gpi', 'IDE', 'test_cookie'],
+    },
+  },
+};
+
+export function resolveCookieConsent(val: unknown): CookieConsentChoice {
+  if (val === 'accepted' || val === 'essential_only') {
+    return val;
+  }
+  return 'unset';
+}
+
+export function allowsPersonalizedAds(choice: CookieConsentChoice): boolean {
+  return choice === 'accepted';
+}
+
+
+

@@ -216,6 +216,12 @@ describe('PromptFM Legal & Copyright Protection Policies', () => {
       expect(result.errors).toContain('Track ID or URL of removed material is required');
     });
 
+    it('accepts counter-notice with leading or trailing whitespace in email', () => {
+      const withPaddedEmail = { ...validCounter, uploaderEmail: ' artist@suno-tracks.io ' };
+      const result = validateCounterNoticePayload(withPaddedEmail);
+      expect(result.valid).toBe(true);
+    });
+
     it('rejects whitespace-only fields in counter notice', () => {
       const whitespaceOnly: CounterNoticePayload = {
         uploaderName: '   ',
