@@ -641,7 +641,7 @@ export default function AudioPlayer() {
         </div>
 
         {/* Right: Quick Upvote, Up Next, Report & Volume controls */}
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
           {/* Live Listener Badge */}
           {listenersCount !== null && (
             <span
@@ -658,7 +658,7 @@ export default function AudioPlayer() {
             type="button"
             onClick={() => setShowUpNext((prev) => !prev)}
             aria-label="Toggle Up Next airplay queue"
-            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition-all border ${
+            className={`flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-lg text-xs font-semibold transition-all border ${
               showUpNext
                 ? 'bg-emerald-500 text-black border-emerald-400 shadow-md shadow-emerald-500/20'
                 : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700 hover:text-white'
@@ -675,7 +675,7 @@ export default function AudioPlayer() {
               onClick={handleQuickVote}
               disabled={voted}
               aria-label="Upvote currently playing track"
-              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition-all border ${
+              className={`flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-lg text-xs font-bold transition-all border ${
                 voted
                   ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
                   : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700 hover:text-white'
@@ -686,19 +686,19 @@ export default function AudioPlayer() {
             </button>
           )}
 
-          {/* Report button */}
+          {/* Report button (visible on sm+) */}
           <button
             type="button"
             onClick={() => setReportOpen(true)}
             aria-label="Report current broadcast"
             title="Report track or broadcast violation"
-            className="text-zinc-500 hover:text-amber-400 p-1.5 rounded-lg hover:bg-zinc-800 transition-colors"
+            className="hidden sm:inline-flex text-zinc-500 hover:text-amber-400 p-1.5 rounded-lg hover:bg-zinc-800 transition-colors"
           >
             <Flag className="w-3.5 h-3.5" />
           </button>
 
-          {/* Volume controls (desktop & tablet) */}
-          <div className="flex items-center gap-1.5">
+          {/* Volume controls (desktop & tablet only — mobile uses hardware volume) */}
+          <div className="hidden sm:flex items-center gap-1.5">
             <button
               onClick={handleMuteToggle}
               aria-label={muted ? 'Unmute' : 'Mute'}
@@ -715,7 +715,7 @@ export default function AudioPlayer() {
               value={muted ? 0 : volume}
               onChange={handleVolumeChange}
               aria-label="Volume"
-              className="hidden sm:inline-block w-20 md:w-24 h-1 rounded-full accent-emerald-400 cursor-pointer appearance-none bg-zinc-700"
+              className="w-20 md:w-24 h-1 rounded-full accent-emerald-400 cursor-pointer appearance-none bg-zinc-700"
             />
           </div>
         </div>

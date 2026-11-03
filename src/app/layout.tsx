@@ -5,13 +5,11 @@ import Script from 'next/script';
 import { Analytics } from '@vercel/analytics/react';
 import './globals.css';
 import AudioPlayer from '@/components/AudioPlayer';
-import AuthButton from '@/components/AuthButton';
 import CookieConsentBanner from '@/components/CookieConsentBanner';
 import Footer from '@/components/Footer';
 import JsonLd from '@/components/JsonLd';
+import Navbar from '@/components/Navbar';
 import SponsorBanner from '@/components/SponsorBanner';
-import { MessageSquare, Send } from 'lucide-react';
-import { getCommunityLinks } from '@/lib/community/links';
 import { SITE_URL, SITE_NAME, SITE_TAGLINE, SITE_DESCRIPTION } from '@/lib/seo/structured-data';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
@@ -127,78 +125,8 @@ export default function RootLayout({
         {/* Schema.org Search Engine Structured Data */}
         <JsonLd />
 
-        {/* Navigation */}
-        <nav className="sticky top-0 z-40 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur-md">
-          <div className="max-w-5xl mx-auto px-3 sm:px-4 h-14 flex items-center justify-between">
-            <a
-              href="/"
-              className="flex items-center gap-2 group flex-shrink-0"
-              aria-label="PromptFM home"
-            >
-              <Image
-                src="/logo-mark.png"
-                alt="PromptFM logo mark"
-                width={28}
-                height={28}
-                className="rounded-md transition-opacity group-hover:opacity-80"
-                priority
-              />
-              <span className="font-bold text-base sm:text-lg tracking-tight text-white group-hover:text-emerald-400 transition-colors">
-                Prompt<span className="text-emerald-400">FM</span>
-              </span>
-            </a>
-
-            <div className="flex items-center gap-2 sm:gap-4 md:gap-6 text-xs sm:text-sm font-medium">
-              <a
-                href="/#channels"
-                className="text-zinc-400 hover:text-white transition-colors py-1 px-1 flex items-center gap-1"
-              >
-                <span>Channels</span>
-              </a>
-              <a
-                href="/top"
-                className="text-zinc-400 hover:text-white transition-colors py-1 px-1"
-              >
-                Charts
-              </a>
-              <a
-                href="/admin"
-                className="text-zinc-400 hover:text-emerald-400 transition-colors text-[11px] sm:text-xs font-semibold px-2 py-1 sm:px-2.5 rounded-md border border-zinc-800 hover:border-zinc-700 bg-zinc-900/50"
-              >
-                Studio
-              </a>
-              <a
-                href="/submit"
-                className="bg-emerald-500 hover:bg-emerald-400 text-black px-2.5 py-1.5 sm:px-3 rounded-lg font-semibold text-xs transition-colors whitespace-nowrap"
-              >
-                Submit<span className="hidden sm:inline"> Track</span>
-              </a>
-              <AuthButton />
-              <div className="hidden sm:flex items-center gap-1.5 border-l border-zinc-800 pl-2 sm:pl-3">
-                <a
-                  href={getCommunityLinks().discord}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-zinc-400 hover:text-indigo-400 p-1 transition-colors"
-                  title="PromptFM Discord Community"
-                  aria-label="PromptFM Discord Community"
-                >
-                  <MessageSquare className="w-4 h-4" />
-                </a>
-                <a
-                  href={getCommunityLinks().telegramChannel}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-zinc-400 hover:text-sky-400 p-1 transition-colors"
-                  title="PromptFM Telegram Channel"
-                  aria-label="PromptFM Telegram Channel"
-                >
-                  <Send className="w-4 h-4" />
-                </a>
-              </div>
-            </div>
-          </div>
-        </nav>
+        {/* Navigation Bar (Desktop + Mobile Hamburger Drawer) */}
+        <Navbar />
 
         {/* Top Sponsor Ribbon */}
         <SponsorBanner />

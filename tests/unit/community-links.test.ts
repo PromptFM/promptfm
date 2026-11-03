@@ -38,3 +38,4 @@ describe('Community Links Directory', () => {
     expect(links.telegramBot).toBe('https://t.me/custom_bot');
   });
 });
+

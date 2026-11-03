@@ -16,3 +16,4 @@ export function getCommunityLinks(): CommunityLinks {
     mcpProtocol: '/api/mcp',
   };
 }
+

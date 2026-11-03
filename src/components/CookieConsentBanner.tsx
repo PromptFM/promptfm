@@ -62,35 +62,39 @@ export default function CookieConsentBanner() {
     <div
       role="region"
       aria-label="Cookie consent banner"
-      className="fixed bottom-24 sm:bottom-20 left-3 right-3 sm:left-auto sm:right-6 sm:max-w-lg z-50 bg-zinc-900/95 backdrop-blur-md border border-zinc-700/80 rounded-2xl p-4 sm:p-5 shadow-2xl text-zinc-200 transition-all animate-in fade-in slide-in-from-bottom-4 duration-300"
+      className="fixed bottom-20 sm:bottom-20 left-2 right-2 sm:left-auto sm:right-6 sm:max-w-md z-50 bg-zinc-900/98 backdrop-blur-xl border border-zinc-700/80 rounded-2xl p-3.5 sm:p-5 shadow-2xl text-zinc-200 transition-all animate-in fade-in slide-in-from-bottom-4 duration-300 max-h-[85vh] overflow-y-auto"
     >
-      <div className="flex items-start gap-3">
-        <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex-shrink-0 mt-0.5">
-          <Cookie className="w-5 h-5" />
+      <div className="flex items-start gap-2.5 sm:gap-3">
+        <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex-shrink-0 mt-0.5">
+          <Cookie className="w-4 h-4 sm:w-5 sm:h-5" />
         </div>
-        <div className="space-y-1.5 flex-1 min-w-0">
+        <div className="space-y-1 sm:space-y-1.5 flex-1 min-w-0">
           <div className="flex items-center justify-between">
-            <h3 className="font-bold text-sm text-white flex items-center gap-1.5">
+            <h3 className="font-bold text-xs sm:text-sm text-white flex items-center gap-1.5">
               <span>Cookie & Ad Preferences</span>
-              <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
+              <span className="text-[9px] sm:text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
                 AdSense & GDPR
               </span>
             </h3>
-            {currentChoice !== 'unset' && (
-              <button
-                type="button"
-                onClick={() => setIsOpen(false)}
-                className="text-zinc-500 hover:text-zinc-300 p-1"
-                aria-label="Close cookie settings"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (currentChoice === 'unset') {
+                  saveConsent('essential_only');
+                } else {
+                  setIsOpen(false);
+                }
+              }}
+              className="text-zinc-500 hover:text-zinc-300 p-1 -mr-1"
+              aria-label="Dismiss cookie settings"
+              title="Close and remember essential cookies"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-          <p className="text-xs text-zinc-300 leading-relaxed">
-            PromptFM uses essential local storage to keep live radio playing and remember stream preferences.
-            We and our advertising partners (such as Google AdSense) use cookies to measure reach and serve
-            relevant ads that fund free 24/7 broadcasting.
+          <p className="text-[11px] sm:text-xs text-zinc-300 leading-relaxed">
+            PromptFM uses essential storage to keep live radio playing and remember volume/channels.
+            Ad partners (Google AdSense) use cookies to support free 24/7 broadcasting.
           </p>
         </div>
       </div>
