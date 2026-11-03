@@ -4,7 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
-import { rejectScheduledRequest, synthesizeScheduledRequest } from '@/lib/dj/batches';
+import { rejectScheduledRequest, synthesizeScheduledRequest, synthesizeBatchAnnouncement } from '@/lib/dj/batches';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +51,15 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { action, requestId, reason, moderator } = body;
+
+    if (action === 'air_batch') {
+      const { batchId } = body;
+      if (!batchId) {
+        return NextResponse.json({ error: 'Missing batchId' }, { status: 400 });
+      }
+      const result = await synthesizeBatchAnnouncement(batchId);
+      return NextResponse.json({ success: true, ...result });
+    }
 
     if (!requestId) {
       return NextResponse.json({ error: 'Missing requestId' }, { status: 400 });

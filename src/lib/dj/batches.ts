@@ -282,3 +282,70 @@ Deliver this dedication on air with high radio warmth, charisma, and enthusiasm.
 
   return { audioUrl, script };
 }
+
+/**
+ * 4. Batches all scheduled community requests (dedications, weather, shoutouts)
+ * into ONE single concise radio announcement by the active DJ.
+ * Airs only when scheduled in the programming clock, preventing continuous interruptions.
+ */
+export async function synthesizeBatchAnnouncement(
+  batchId: string
+): Promise<{ audioUrl: string; script: string; count: number }> {
+  const supabase = createAdminClient();
+
+  const { data: requests, error } = await supabase
+    .from('community_requests')
+    .select('*')
+    .eq('batch_id', batchId)
+    .in('status', ['scheduled', 'pending'])
+    .order('created_at', { ascending: true })
+    .limit(10);
+
+  if (error || !requests || requests.length === 0) {
+    return { audioUrl: '', script: '', count: 0 };
+  }
+
+  // Build a single consolidated prompt
+  const itemsText = requests
+    .map((r) => {
+      if (r.type === 'dedication') {
+        return `@${r.platform_user_name} dedicates: "${r.content}" to ${r.target || 'friends'}`;
+      }
+      if (r.type === 'weather') {
+        return `@${r.platform_user_name} asks for weather in ${r.target || r.content}`;
+      }
+      if (r.type === 'zodiac') {
+        return `@${r.platform_user_name} requests horoscope for ${r.target || r.content}`;
+      }
+      return `@${r.platform_user_name}: "${r.content}"`;
+    })
+    .join('; ');
+
+  const promptForGemini = `Here are this hour's community listener shoutouts from Telegram & Discord: [${itemsText}].
+Deliver them warmly together in ONE single seamless radio host announcement. Keep it upbeat, fun, and concise (under 45 words). No brackets.`;
+
+  const activeDJ = getActiveDJ();
+  const { script, audioUrl, dj } = await createBroadcastDrop({
+    type: 'custom_prompt',
+    topicOrText: promptForGemini,
+    dj: activeDJ,
+  });
+
+  const requestIds = requests.map((r) => r.id);
+  await supabase
+    .from('community_requests')
+    .update({
+      status: 'aired',
+      audio_url: audioUrl,
+      aired_at: new Date().toISOString(),
+    })
+    .in('id', requestIds);
+
+  await broadcastToCommunity({
+    title: `ON AIR NOW: Community Batch Shoutout (${batchId})`,
+    message: `🎙️ "${script}"\n\nFeaturing shoutouts from: ${requests.map((r) => `@${r.platform_user_name}`).join(', ')}\nTune in: https://promptfm.live`,
+    author: dj.name,
+  });
+
+  return { audioUrl, script, count: requests.length };
+}

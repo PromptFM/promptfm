@@ -7,7 +7,7 @@ loadEnvConfig(process.cwd());
 
 import { createBroadcastDrop, fetchLiveHeadlines } from '../src/lib/dj/engine';
 import { getNextAirplayItem, fetchLiveWeatherSummary, getNowPlaying, getUpNext } from '../src/lib/dj/rotation';
-import { synthesizeScheduledRequest, rejectScheduledRequest } from '../src/lib/dj/batches';
+import { synthesizeScheduledRequest, rejectScheduledRequest, synthesizeBatchAnnouncement } from '../src/lib/dj/batches';
 import { getAllDJs, getActiveDJ, getDJById, getAdsConfig, getActiveAdSpot } from '../src/lib/dj/roster';
 import { createAdminClient } from '../src/lib/supabase/server';
 import { broadcastToCommunity, castVoteForTrack } from '../src/lib/chat/bridge';
@@ -154,6 +154,24 @@ Moderation & Schedule:
         console.log(`🎙️  Synthesizing voice drop for request ${targetId}...`);
         const result = await synthesizeScheduledRequest(targetId);
         console.log(`\n✨ Synthesized Script:\n"${result.script}"\n`);
+        console.log(`🔗 Audio URL: ${result.audioUrl}`);
+        console.log(`📢 Dispatched "ON AIR NOW" alert to community Discord/Telegram.`);
+        return;
+      }
+
+      if (sub === 'air-batch' || sub === 'batch') {
+        const batchId = targetId;
+        if (!batchId) {
+          console.error('Provide batch ID: npm run promptfm requests air-batch <batchId>');
+          return;
+        }
+        console.log(`🎙️  Synthesizing consolidated batch announcement for ${batchId}...`);
+        const result = await synthesizeBatchAnnouncement(batchId);
+        if (result.count === 0) {
+          console.log(`• Batch ${batchId} has no pending scheduled requests.`);
+          return;
+        }
+        console.log(`\n✨ Consolidated Announcement (${result.count} requests batched into 1 voice drop):\n"${result.script}"\n`);
         console.log(`🔗 Audio URL: ${result.audioUrl}`);
         console.log(`📢 Dispatched "ON AIR NOW" alert to community Discord/Telegram.`);
         return;
