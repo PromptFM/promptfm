@@ -7,6 +7,7 @@ import ChannelsGrid from '@/components/ChannelsGrid';
 import AdSenseDisplayUnit from '@/components/AdSenseDisplayUnit';
 import LiveListenersBadge from '@/components/LiveListenersBadge';
 import UpNextSection from '@/components/UpNextSection';
+import CommunitySection from '@/components/CommunitySection';
 
 export default function HomePage() {
   return (
@@ -85,6 +86,9 @@ export default function HomePage() {
 
       {/* Live Radio Stations Section */}
       <ChannelsGrid />
+
+      {/* Discord & Telegram Community Section */}
+      <CommunitySection />
 
       {/* Up Next on Air Section */}
       <UpNextSection />

@@ -10,6 +10,8 @@ import CookieConsentBanner from '@/components/CookieConsentBanner';
 import Footer from '@/components/Footer';
 import JsonLd from '@/components/JsonLd';
 import SponsorBanner from '@/components/SponsorBanner';
+import { MessageSquare, Send } from 'lucide-react';
+import { getCommunityLinks } from '@/lib/community/links';
 import { SITE_URL, SITE_NAME, SITE_TAGLINE, SITE_DESCRIPTION } from '@/lib/seo/structured-data';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
@@ -172,6 +174,28 @@ export default function RootLayout({
                 Submit<span className="hidden sm:inline"> Track</span>
               </a>
               <AuthButton />
+              <div className="hidden sm:flex items-center gap-1.5 border-l border-zinc-800 pl-2 sm:pl-3">
+                <a
+                  href={getCommunityLinks().discord}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-zinc-400 hover:text-indigo-400 p-1 transition-colors"
+                  title="PromptFM Discord Community"
+                  aria-label="PromptFM Discord Community"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                </a>
+                <a
+                  href={getCommunityLinks().telegramChannel}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-zinc-400 hover:text-sky-400 p-1 transition-colors"
+                  title="PromptFM Telegram Channel"
+                  aria-label="PromptFM Telegram Channel"
+                >
+                  <Send className="w-4 h-4" />
+                </a>
+              </div>
             </div>
           </div>
         </nav>

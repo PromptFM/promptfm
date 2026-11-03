@@ -122,7 +122,16 @@ export default function Footer() {
               <span>Discord</span>
             </a>
             <a
-              href={process.env.NEXT_PUBLIC_TELEGRAM_BOT_URL || 'https://t.me/PromptFMBot'}
+              href={process.env.NEXT_PUBLIC_TELEGRAM_CHANNEL_URL || 'https://t.me/promptfm_live'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-sky-400 transition-colors flex items-center gap-1"
+            >
+              <Send className="w-3 h-3 text-sky-400" />
+              <span>Telegram Channel</span>
+            </a>
+            <a
+              href={process.env.NEXT_PUBLIC_TELEGRAM_BOT_URL || 'https://t.me/PromptFMLiveBot'}
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-sky-400 transition-colors flex items-center gap-1"
