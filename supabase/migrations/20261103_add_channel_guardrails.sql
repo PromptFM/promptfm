@@ -39,3 +39,4 @@ ON CONFLICT (slug) DO UPDATE SET
 
 COMMENT ON COLUMN public.channels.requires_age_gate IS 'When true, client player must verify user age or require legal consent before playback';
 COMMENT ON COLUMN public.channels.allow_explicit_24_7 IS 'When true, channel permits explicit tracks all day long without watershed restriction';
+

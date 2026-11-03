@@ -14,6 +14,7 @@ import { broadcastToCommunity, castVoteForTrack } from '../src/lib/chat/bridge';
 import { submitContentReport, getRecentReports, resolveContentReport } from '../src/lib/safety/reports';
 import { autoGenerateChannelGuardrails } from '../src/lib/safety/channel-guardrails';
 import { getAllChannels } from '../src/lib/radio/channels';
+import { findTracksByVibe, indexTrackEmbedding } from '../src/lib/dj/rag';
 import type { ReportReason } from '../src/types/database';
 import { extractMetadataFromBuffer, DEFAULT_TRACK_ICON } from '../src/lib/audio/metadata';
 import { getR2Client, getBucketName, getPublicUrl } from '../src/lib/r2';
@@ -47,10 +48,11 @@ Airplay Queue ("Up Next"):
   now                     Show what is currently playing on stream and active DJ
   next                    Test the rotation clock: calculate what plays next (music, news, or weather)
   vote <trackId>          Cast an upvote for a track from terminal
+  vibe <prompt>           pgvector semantic RAG search: discover tracks matching any vibe prompt
   queue list              View the upcoming songs scheduled to play next
   queue next <trackId>    Bump a track to the very top of the live queue
   queue remove <queueId>  Remove an item from the upcoming queue
-  queue <prompt>          Find & queue a track matching a text vibe
+  queue <prompt>          Find & queue a track matching a text vibe using semantic RAG
 
 AI Voice & Broadcast:
   djs                     View full AI DJ roster, voices, and who is currently LIVE
@@ -297,6 +299,24 @@ Moderation & Schedule:
       console.log(`• ID: ${data.id}`);
       console.log(`• Title: "${data.title}" by ${data.artist_name}`);
       console.log(`• Tool: ${data.tool_used}`);
+
+      console.log(`\n🤖 Generating 768-dim pgvector embedding for semantic vibe search...`);
+      try {
+        const indexRes = await indexTrackEmbedding(data.id, {
+          title: data.title,
+          artist_name: data.artist_name,
+          category: data.category,
+          description: data.description || undefined,
+          lyrics: data.lyrics || undefined,
+        });
+        if (indexRes.success) {
+          console.log(`✨ Successfully indexed track embedding for RAG vibe search!`);
+        } else {
+          console.log(`ℹ️ Track indexing skipped or offline: ${indexRes.error}`);
+        }
+      } catch (embErr) {
+        console.warn('Embedding indexing error:', embErr);
+      }
       break;
     }
 
@@ -378,22 +398,20 @@ Moderation & Schedule:
         return;
       }
 
-      // Default: prompt-search
+      // Default: semantic RAG prompt-search
       const query = args.slice(1).join(' ');
       if (!query) {
-        console.error('Provide search prompt: npm run promptfm queue "cyberpunk"');
+        console.error('Provide search prompt: npm run promptfm queue "dark metal about love"');
         return;
       }
 
-      console.log(`🔎 Searching approved tracks matching: "${query}"...`);
-      const { data: tracks } = await supabase
-        .from('tracks')
-        .select('id, title, artist_name, tool_used')
-        .eq('status', 'approved')
-        .ilike('title', `%${query}%`)
-        .limit(1);
+      console.log(`🔎 Performing semantic RAG vibe search for: "${query}"...`);
+      const matches = await findTracksByVibe(query, {
+        limit: 1,
+        matchThreshold: 0.15,
+      });
 
-      const selected = tracks?.[0];
+      const selected = matches?.[0];
       if (selected) {
         const { data: channel } = await supabase.from('channels').select('id').eq('slug', 'main').single();
         if (channel) {
@@ -401,12 +419,44 @@ Moderation & Schedule:
             channel_id: channel.id,
             track_id: selected.id,
             prompt_used: query,
-            requested_by: 'Terminal Listener',
+            requested_by: 'Terminal Listener (Semantic RAG)',
           });
-          console.log(`✅ Queued for airplay: "${selected.title}" by ${selected.artist_name} (${selected.tool_used})`);
+          const scorePercent = Math.round(selected.similarity * 100);
+          console.log(`✅ Queued for airplay: "${selected.title}" by ${selected.artist_name} (${selected.tool_used}) [Match: ${scorePercent}% via ${selected.matchMethod}]`);
         }
       } else {
         console.log(`No matching track found for "${query}".`);
+      }
+      break;
+    }
+
+    case 'vibe': {
+      const query = args.slice(1).join(' ');
+      if (!query) {
+        console.error('Provide a vibe prompt: npm run promptfm vibe "dark metal about love"');
+        return;
+      }
+
+      console.log(`\n🧠 PromptFM pgvector Semantic RAG Search:`);
+      console.log(`Query: "${query}"`);
+      console.log(`--------------------------------------------------------------------------------`);
+
+      const matches = await findTracksByVibe(query, {
+        limit: 5,
+        matchThreshold: 0.1,
+      });
+
+      if (matches.length === 0) {
+        console.log('No approved tracks matched this vibe.');
+      } else {
+        matches.forEach((m, idx) => {
+          const scorePercent = Math.round(m.similarity * 100);
+          console.log(`${idx + 1}. [${scorePercent}% Match | ${m.matchMethod}] "${m.title}" by ${m.artist_name}`);
+          if (m.category) console.log(`   Genre: ${m.category} | Tool: ${m.tool_used} | Upvotes: ${m.upvotes_count}`);
+          if (m.description) console.log(`   Vibe:  "${m.description}"`);
+          if (m.lyrics) console.log(`   Lyric: "${m.lyrics.slice(0, 80).replace(/\n/g, ' ')}..."`);
+          console.log(`   Audio: ${m.audio_url}\n`);
+        });
       }
       break;
     }

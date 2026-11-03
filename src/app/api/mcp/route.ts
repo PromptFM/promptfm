@@ -16,6 +16,7 @@ import { rejectScheduledRequest, synthesizeScheduledRequest } from '@/lib/dj/bat
 import { submitContentReport, getRecentReports, resolveContentReport } from '@/lib/safety/reports';
 import { autoGenerateChannelGuardrails } from '@/lib/safety/channel-guardrails';
 import { getAllChannels } from '@/lib/radio/channels';
+import { findTracksByVibe, indexTrackEmbedding } from '@/lib/dj/rag';
 import type { ReportReason, ReportTargetType } from '@/types/database';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
@@ -67,6 +68,33 @@ const PUBLIC_MCP_TOOLS = [
         requested_by: {
           type: 'string',
           description: 'Name or handle of the user making the request (default: "AI Assistant Listener")',
+        },
+        channel: {
+          type: 'string',
+          description: 'Target broadcast channel slug (e.g. "main", "cyberpunk", "chillout", "kids", "afterdark")',
+        },
+      },
+      required: ['prompt'],
+    },
+  },
+  {
+    name: 'promptfm_search_tracks_by_vibe',
+    description:
+      'Performs a pgvector semantic RAG similarity search across the PromptFM music catalog based on natural language vibe prompts (e.g. "dark heavy metal about lost love", "chill morning lo-fi study", "high energy cyberpunk synth"). Returns top matching tracks with similarity scores.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        prompt: {
+          type: 'string',
+          description: 'The natural language vibe, genre, emotion, or thematic description to match.',
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum number of tracks to return (default: 5, max: 15)',
+        },
+        channel: {
+          type: 'string',
+          description: 'Target broadcast channel slug (e.g. "main", "cyberpunk", "chillout", "kids", "afterdark")',
         },
       },
       required: ['prompt'],
@@ -553,16 +581,17 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
     case 'promptfm_queue_song_request': {
       const prompt = args.prompt as string;
       const requester = (args.requested_by as string) || 'AI Agent';
+      const channelSlug = (args.channel as string) || 'main';
       if (!prompt) throw new Error('Missing prompt');
 
-      const { data: matches } = await supabase
-        .from('tracks')
-        .select('id, title, artist_name, tool_used, audio_url')
-        .eq('status', 'approved')
-        .ilike('title', `%${prompt}%`)
-        .limit(1);
+      // Use pgvector Semantic RAG to find the best matching vibe
+      const vibeMatches = await findTracksByVibe(prompt, {
+        channelSlug,
+        limit: 1,
+        matchThreshold: 0.2,
+      });
 
-      let selected = matches?.[0];
+      let selected: any = vibeMatches[0];
       if (!selected) {
         const { data: top } = await supabase
           .from('tracks')
@@ -571,7 +600,17 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
           .order('upvotes_count', { ascending: false })
           .limit(1)
           .single();
-        selected = top || undefined;
+        if (top) {
+          selected = {
+            id: top.id,
+            title: top.title,
+            artist_name: top.artist_name,
+            tool_used: top.tool_used,
+            audio_url: top.audio_url,
+            similarity: 0,
+            matchMethod: 'lexical_fallback',
+          };
+        }
       }
 
       if (!selected) {
@@ -581,7 +620,7 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
       const { data: channel } = await supabase
         .from('channels')
         .select('id')
-        .eq('slug', 'main')
+        .eq('slug', channelSlug)
         .single();
 
       if (channel) {
@@ -595,9 +634,42 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
 
       return {
         success: true,
-        message: `Queued "${selected.title}" by ${selected.artist_name} for airplay!`,
+        message: `Queued "${selected.title}" by ${selected.artist_name} for airplay on ${channelSlug}!`,
         track: selected,
         prompt_used: prompt,
+        similarity_score: selected.similarity,
+        match_engine: selected.matchMethod,
+      };
+    }
+
+    case 'promptfm_search_tracks_by_vibe': {
+      const prompt = args.prompt as string;
+      const limit = typeof args.limit === 'number' ? Math.min(Math.max(args.limit, 1), 15) : 5;
+      const channelSlug = (args.channel as string) || 'main';
+      if (!prompt) throw new Error('Missing prompt');
+
+      const matches = await findTracksByVibe(prompt, {
+        channelSlug,
+        limit,
+        matchThreshold: 0.15,
+      });
+
+      return {
+        success: true,
+        prompt,
+        channel: channelSlug,
+        count: matches.length,
+        tracks: matches.map((m) => ({
+          id: m.id,
+          title: m.title,
+          artist: m.artist_name,
+          category: m.category,
+          vibe_description: m.description,
+          similarity_score: m.similarity,
+          match_engine: m.matchMethod,
+          audio_url: m.audio_url,
+          upvotes: m.upvotes_count,
+        })),
       };
     }
 
@@ -760,6 +832,18 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
         .single();
 
       if (error) throw new Error(error.message);
+
+      if (action === 'approved') {
+        // Asynchronously embed and index track in pgvector
+        indexTrackEmbedding(updated.id, {
+          title: updated.title,
+          artist_name: updated.artist_name,
+          category: updated.category,
+          description: updated.description,
+          lyrics: updated.lyrics,
+        }).catch((err) => console.warn('[RAG Index Error]', err));
+      }
+
       return {
         success: true,
         message: `Track "${updated.title}" marked as ${action.toUpperCase()}`,
