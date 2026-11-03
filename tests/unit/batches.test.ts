@@ -14,11 +14,48 @@ import { getDJById } from '@/lib/dj/roster';
 
 // Mock Supabase admin client
 const mockRequestsTable: any[] = [];
+const mockQueueTable: any[] = [];
 
 vi.mock('@/lib/supabase/server', () => {
   return {
     createAdminClient: () => ({
       from: (table: string) => {
+        if (table === 'channel_queue') {
+          return {
+            insert: (data: any) => {
+              mockQueueTable.push(data);
+              return Promise.resolve({ data, error: null });
+            },
+          };
+        }
+
+        if (table === 'channels') {
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({ data: { id: 'channel-main' }, error: null }),
+              }),
+            }),
+          };
+        }
+
+        if (table === 'tracks') {
+          return {
+            select: () => ({
+              eq: () => ({
+                ilike: () => ({
+                  limit: () => ({
+                    maybeSingle: async () => ({
+                      data: { id: 'track-101', title: 'Sunset Grooves', artist_name: 'Deep House' },
+                      error: null,
+                    }),
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+
         if (table === 'community_requests') {
           return {
             insert: (data: any) => {
@@ -79,6 +116,12 @@ vi.mock('@/lib/safety/guardrails', () => ({
   evaluateContentSafety: vi.fn().mockResolvedValue({ safe: true }),
 }));
 
+vi.mock('@/lib/dj/rag', () => ({
+  findTracksByVibe: vi.fn().mockResolvedValue([
+    { id: 'track-101', title: 'Sunset Grooves', artist_name: 'Deep House', similarity: 0.95 },
+  ]),
+}));
+
 vi.mock('@/lib/dj/engine', () => ({
   createBroadcastDrop: vi.fn().mockResolvedValue({
     script: 'Consolidated radio announcement',
@@ -91,6 +134,7 @@ describe('Listener Request Batch Scheduling & Consolidation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRequestsTable.length = 0;
+    mockQueueTable.length = 0;
   });
 
   describe('calculateNextBatchSlot', () => {
@@ -115,6 +159,88 @@ describe('Listener Request Batch Scheduling & Consolidation', () => {
       expect(result.batchId).toMatch(/^BATCH-/);
       expect(result.confirmationMessage).toContain('Dedication accepted');
       expect(result.isRejected).toBeFalsy();
+    });
+
+    it('enqueues matched track into channel_queue when a listener requests a song via /song', async () => {
+      const result = await scheduleListenerRequest({
+        platform: 'telegram',
+        platform_user_id: '12345',
+        platform_user_name: 'alex',
+        type: 'song',
+        content: 'sunset grooves',
+      });
+
+      expect(result.confirmationMessage).toContain('Sunset Grooves');
+      expect(mockQueueTable.length).toBe(1);
+      expect(mockQueueTable[0].track_id).toBe('track-101');
+      expect(mockQueueTable[0].requested_by).toContain('@alex');
+    });
+
+    it('handles requests for weather, zodiac, and explicit/unsafe content upfront', async () => {
+      const weatherRes = await scheduleListenerRequest({
+        platform: 'discord',
+        platform_user_id: '456',
+        platform_user_name: 'sarah',
+        type: 'weather',
+        content: 'London',
+      });
+      expect(weatherRes.confirmationMessage).toContain('Weather check');
+
+      const zodiacRes = await scheduleListenerRequest({
+        platform: 'telegram',
+        platform_user_id: '789',
+        platform_user_name: 'leo',
+        type: 'zodiac',
+        content: 'Leo',
+      });
+      expect(zodiacRes.confirmationMessage).toContain('Cosmic AI Zodiac');
+    });
+  });
+
+  describe('rejectScheduledRequest', () => {
+    it('declines a scheduled request and notifies the community', async () => {
+      mockRequestsTable.push({
+        id: 'req-to-decline',
+        platform: 'telegram',
+        platform_user_id: 'user-123',
+        platform_user_name: 'spammer',
+        content: 'Bad message',
+        batch_id: 'BATCH-14:00',
+        status: 'scheduled',
+      });
+
+      const result = await rejectScheduledRequest('req-to-decline', 'Broadcast standards violation');
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('Declined request');
+
+      const item = mockRequestsTable.find((r) => r.id === 'req-to-decline');
+      expect(item?.status).toBe('rejected');
+    });
+
+    it('throws error when request id does not exist', async () => {
+      await expect(rejectScheduledRequest('non-existent', 'reason')).rejects.toThrow('Request not found');
+    });
+  });
+
+  describe('synthesizeScheduledRequest', () => {
+    it('synthesizes a single dedication drop and marks it aired', async () => {
+      mockRequestsTable.push({
+        id: 'req-single',
+        platform: 'discord',
+        platform_user_name: 'listener1',
+        type: 'dedication',
+        content: 'Love the stream!',
+        target: 'All listeners',
+        status: 'scheduled',
+      });
+
+      const drop = await synthesizeScheduledRequest('req-single');
+      expect(drop.audioUrl).toBe('https://example.com/batch-announcement.mp3');
+      expect(drop.script).toBe('Consolidated radio announcement');
+
+      const item = mockRequestsTable.find((r) => r.id === 'req-single');
+      expect(item?.status).toBe('aired');
+      expect(item?.audio_url).toBe(drop.audioUrl);
     });
   });
 

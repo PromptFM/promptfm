@@ -9,6 +9,7 @@ import { fetchLiveWeatherSummary } from './rotation';
 import { getActiveDJ } from './roster';
 import { broadcastToCommunity } from '../chat/bridge';
 import { evaluateContentSafety } from '../safety/guardrails';
+import { findTracksByVibe } from './rag';
 
 export type RequestType = 'song' | 'dedication' | 'weather' | 'news' | 'zodiac';
 
@@ -116,6 +117,54 @@ export async function scheduleListenerRequest(payload: ListenerRequestPayload): 
     throw new Error(`Failed to log request: ${error?.message}`);
   }
 
+  // ── C. Auto-Enqueue Matching Approved Track for Song Requests ──────────────
+  let matchedTrack: { id: string; title: string; artist_name?: string } | null = null;
+  if (payload.type === 'song') {
+    try {
+      const vibeMatches = await findTracksByVibe(payload.content, { limit: 1 });
+      if (vibeMatches && vibeMatches.length > 0 && vibeMatches[0]) {
+        matchedTrack = vibeMatches[0];
+      }
+    } catch {
+      // Vibe semantic search fallback
+    }
+
+    if (!matchedTrack) {
+      try {
+        const { data: directMatch } = await supabase
+          .from('tracks')
+          .select('id, title, artist_name')
+          .eq('status', 'approved')
+          .ilike('title', `%${payload.content}%`)
+          .limit(1)
+          .maybeSingle();
+
+        if (directMatch) {
+          matchedTrack = directMatch;
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
+    if (matchedTrack) {
+      const { data: channel } = await supabase
+        .from('channels')
+        .select('id')
+        .eq('slug', 'main')
+        .maybeSingle();
+
+      if (channel) {
+        await supabase.from('channel_queue').insert({
+          channel_id: channel.id,
+          track_id: matchedTrack.id,
+          prompt_used: payload.content,
+          requested_by: `@${payload.platform_user_name} (${payload.platform})`,
+        });
+      }
+    }
+  }
+
   const activeDJ = getActiveDJ(undefined, airDate);
   let confirmText = '';
   switch (payload.type) {
@@ -129,7 +178,11 @@ export async function scheduleListenerRequest(payload: ListenerRequestPayload): 
       confirmText = `✨ Cosmic AI Zodiac reading for ${payload.target || payload.content} locked in for ${batchId} (~${displayTime}) with ${activeDJ.name}.`;
       break;
     case 'song':
-      confirmText = `🎵 Track request "${payload.content}" added to airplay queue for ${batchId} (~${displayTime}).`;
+      if (matchedTrack) {
+        confirmText = `🎵 Track "${matchedTrack.title}"${matchedTrack.artist_name ? ` by ${matchedTrack.artist_name}` : ''} queued for live airplay! Scheduled for ${batchId} (~${displayTime}).`;
+      } else {
+        confirmText = `🎵 Track request "${payload.content}" added to airplay queue for ${batchId} (~${displayTime}).`;
+      }
       break;
     default:
       confirmText = `📢 Request scheduled for airplay in ${batchId} (~${displayTime}) with ${activeDJ.name}.`;
