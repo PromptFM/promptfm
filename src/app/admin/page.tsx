@@ -28,6 +28,7 @@ import {
   Flame,
   Plus,
   Lock,
+  Music,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { type Track, type AITool, type ContentReport, REASON_LABELS } from '@/types/database';
@@ -66,8 +67,9 @@ export default function AdminDashboard() {
   const [authChecking, setAuthChecking] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'submissions' | 'queue' | 'batches' | 'reports' | 'channels' | 'upload'>('submissions');
+  const [activeTab, setActiveTab] = useState<'submissions' | 'library' | 'queue' | 'batches' | 'reports' | 'channels' | 'upload'>('submissions');
   const [pendingTracks, setPendingTracks] = useState<Track[]>([]);
+  const [libraryTracks, setLibraryTracks] = useState<Track[]>([]);
   const [queueItems, setQueueItems] = useState<QueuedItem[]>([]);
   const [communityRequests, setCommunityRequests] = useState<CommunityRequestRow[]>([]);
   const [reports, setReports] = useState<ContentReport[]>([]);
@@ -116,6 +118,15 @@ export default function AdminDashboard() {
       .order('created_at', { ascending: false });
 
     if (pending) setPendingTracks(pending as Track[]);
+
+    // Fetch approved library tracks
+    const { data: approved } = await supabase
+      .from('tracks')
+      .select('*')
+      .eq('status', 'approved')
+      .order('upvotes_count', { ascending: false });
+
+    if (approved) setLibraryTracks(approved as Track[]);
 
     // Fetch upcoming queue
     const { data: qData } = await supabase
@@ -303,6 +314,27 @@ export default function AdminDashboard() {
       const { error } = await supabase.from('channel_queue').delete().eq('id', queueId);
       if (!error) {
         setQueueItems((prev) => prev.filter((item) => item.id !== queueId));
+      }
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // ── 4b. Queue Track for Airplay from Library ─────────────────────────────
+
+  const handleQueueTrack = async (track: Track, channelSlug = 'main') => {
+    setActionLoadingId(`queue-${track.id}`);
+    try {
+      const { data: ch } = await supabase.from('channels').select('id').eq('slug', channelSlug).maybeSingle();
+      if (!ch?.id) return;
+      const { error } = await supabase.from('channel_queue').insert({
+        channel_id: ch.id,
+        track_id: track.id,
+        requested_by: user?.email || 'Station Admin',
+        prompt_used: `Priority airplay requested from Station Studio Library`,
+      });
+      if (!error) {
+        await refreshData();
       }
     } finally {
       setActionLoadingId(null);
@@ -532,6 +564,17 @@ export default function AdminDashboard() {
               Submissions ({pendingTracks.length})
             </button>
             <button
+              onClick={() => setActiveTab('library')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+                activeTab === 'library'
+                  ? 'bg-emerald-500 text-black shadow-sm'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <Music className="w-3.5 h-3.5" />
+              Library ({libraryTracks.length})
+            </button>
+            <button
               onClick={() => setActiveTab('queue')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
                 activeTab === 'queue'
@@ -732,6 +775,121 @@ export default function AdminDashboard() {
                     )}
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── TAB: MUSIC LIBRARY ──────────────────────────────────────────── */}
+        {activeTab === 'library' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-zinc-200">Station Music Library ({libraryTracks.length})</h2>
+                <p className="text-xs text-zinc-400">All approved songs circulating in the 24/7 radio playlist and weekly charts.</p>
+              </div>
+              <button
+                onClick={refreshData}
+                className="text-xs text-zinc-400 hover:text-emerald-400 transition-colors"
+              >
+                Refresh
+              </button>
+            </div>
+
+            {loading ? (
+              <div className="flex justify-center py-16 text-zinc-500">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            ) : libraryTracks.length === 0 ? (
+              <div className="text-center py-16 bg-zinc-900/50 border border-zinc-800/80 rounded-2xl space-y-2">
+                <Music className="w-8 h-8 text-zinc-600 mx-auto" />
+                <p className="text-sm font-medium text-white">No tracks in library yet</p>
+                <p className="text-xs text-zinc-500">Upload an MP3 or approve pending community submissions.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {libraryTracks.map((track, index) => {
+                  const isAnthem = track.title.toLowerCase().includes('ambient ai anthem') || track.artist_name === 'PromptFM Core';
+                  return (
+                    <div
+                      key={track.id}
+                      className={`p-4 rounded-xl border transition-colors space-y-3 ${
+                        isAnthem
+                          ? 'bg-emerald-950/20 border-emerald-500/40 hover:border-emerald-500/60'
+                          : 'bg-zinc-900 border border-zinc-800 hover:border-zinc-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-4">
+                        {/* Left: Rank + Play button + Info */}
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <span className="text-xs font-mono font-bold text-zinc-500 w-4 text-center">
+                            #{index + 1}
+                          </span>
+
+                          <button
+                            onClick={() => togglePreview(track.id, track.audio_url)}
+                            aria-label={playingId === track.id ? 'Pause track preview' : 'Play track preview'}
+                            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ${
+                              playingId === track.id
+                                ? 'bg-emerald-400 text-black'
+                                : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                            }`}
+                          >
+                            {playingId === track.id ? (
+                              <Pause className="w-4 h-4" />
+                            ) : (
+                              <Play className="w-4 h-4 translate-x-0.5" />
+                            )}
+                          </button>
+
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-semibold text-white truncate">{track.title}</p>
+                              {isAnthem && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold">
+                                  <Sparkles className="w-2.5 h-2.5 text-emerald-400" /> Station Anthem & Fallback
+                                </span>
+                              )}
+                              {track.family_friendly && !track.is_explicit && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-semibold">
+                                  <HeartHandshake className="w-2.5 h-2.5" /> Family Safe
+                                </span>
+                              )}
+                              {track.is_explicit && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-semibold">
+                                  <ShieldAlert className="w-2.5 h-2.5" /> Explicit 18+
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-zinc-400 truncate mt-0.5">
+                              {track.artist_name} • <span className="text-emerald-400">{track.tool_used}</span>
+                              {track.category ? ` • ${track.category}` : ''}
+                              <span className="text-zinc-500 ml-2">🔥 {track.upvotes_count || 0} votes</span>
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Right: Actions */}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <button
+                            onClick={() => handleQueueTrack(track, 'main')}
+                            disabled={actionLoadingId === `queue-${track.id}`}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500 hover:text-black text-xs font-semibold transition-all disabled:opacity-40"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Queue on Air</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {track.description && (
+                        <p className="text-xs text-zinc-400 italic pt-1 border-t border-zinc-800/60">
+                          {track.description}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
