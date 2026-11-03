@@ -392,3 +392,4 @@ export function getStationSchedule(channelSlug = 'main', referenceDate = new Dat
 export function getAllChannelsSchedule(referenceDate = new Date()): StationSchedule[] {
   return OFFICIAL_CHANNELS.map((ch) => getStationSchedule(ch.slug, referenceDate));
 }
+

@@ -52,6 +52,15 @@ vi.mock('@/lib/chat/bridge', () => ({
   broadcastToCommunity: vi.fn().mockResolvedValue({ discord: true, telegram: true }),
 }));
 
+// Mock DJ voice engine to prevent real network calls to Gemini TTS in unit tests
+vi.mock('@/lib/dj/engine', () => ({
+  createBroadcastDrop: vi.fn().mockResolvedValue({
+    script: 'Mock broadcast script',
+    audioUrl: 'https://example.com/drop.mp3',
+  }),
+  fetchLiveHeadlines: vi.fn().mockResolvedValue(['Mock Headline 1', 'Mock Headline 2']),
+}));
+
 describe('Liquidsoap Synchronization & Track Started Flow', () => {
   beforeEach(() => {
     vi.clearAllMocks();

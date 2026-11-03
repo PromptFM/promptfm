@@ -42,3 +42,4 @@ describe('GET /api/radio/schedule', () => {
     expect(data.channels.length).toBeGreaterThanOrEqual(4);
   });
 });
+
