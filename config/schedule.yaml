@@ -191,12 +191,12 @@ crons:
 # ─────────────────────────────────────────────────────────────────────────────
 programming:
   - time: "06:00 - 10:00"
-    show: "Morning Beats & AI Briefings"
+    show: "Morning Beats & Sunrise Synth"
     dj_id: "dj_neon"
     genre: "Upbeat Electro, Lofi Coffee, Pop Synth"
     ai_tools: ["Suno", "Udio"]
     dj_prompt_style: "High morning energy, optimistic, coffee-vibes"
-    dj_banter_frequency_minutes: 20
+    dj_banter_frequency_minutes: 0
 
   - time: "10:00 - 15:00"
     show: "Deep Focus & Generative Ambient"

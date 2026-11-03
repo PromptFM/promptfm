@@ -13,6 +13,7 @@ import {
   Sparkles,
   Volume2,
   Mic,
+  Music,
   CloudSun,
   Megaphone,
   ShieldAlert,
@@ -136,7 +137,7 @@ export default function ScheduleView({ initialChannelSlug = 'main', onTuneIn }: 
             24/7 Broadcast Schedule
           </h2>
           <p className="text-xs sm:text-sm text-zinc-400">
-            Continuous AI DJ shifts, generative music themes, news flashes, and hourly drops.
+            Continuous 24/7 AI-generated music, uninterrupted soundscapes, and community charts.
           </p>
         </div>
 
@@ -284,7 +285,7 @@ export default function ScheduleView({ initialChannelSlug = 'main', onTuneIn }: 
                 <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 mb-2">
                   Hourly Clock Wheel Cadence (:00 to :59)
                 </p>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {schedule.current_show.clock_milestones.map((m) => (
                     <div
                       key={m.minute}
@@ -292,6 +293,7 @@ export default function ScheduleView({ initialChannelSlug = 'main', onTuneIn }: 
                     >
                       <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-400">
                         <span>:{String(m.minute).padStart(2, '0')}</span>
+                        {m.type === 'music' && <Music className="w-3 h-3 text-emerald-400" />}
                         {m.type === 'news' && <Radio className="w-3 h-3 text-sky-400" />}
                         {m.type === 'weather' && <CloudSun className="w-3 h-3 text-amber-400" />}
                         {m.type === 'ad' && <Sparkles className="w-3 h-3 text-purple-400" />}

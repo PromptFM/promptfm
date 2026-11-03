@@ -9,7 +9,7 @@ import { getAllDJs, getDJById, DJProfile } from '../dj/roster';
 export interface ClockMilestone {
   minute: number;
   title: string;
-  type: 'news' | 'weather' | 'ad' | 'dj_banter' | 'recap';
+  type: 'music' | 'news' | 'weather' | 'ad' | 'dj_banter' | 'recap';
   icon: string;
   description: string;
 }
@@ -39,38 +39,31 @@ export interface StationSchedule {
 const STANDARD_HOURLY_MILESTONES: ClockMilestone[] = [
   {
     minute: 0,
-    title: 'Top of the Hour AI News Flash',
-    type: 'news',
+    title: 'Hourly Community Top 40 Countdown',
+    type: 'music',
     icon: 'Radio',
-    description: 'Live generative AI breakthroughs, open weights, and community charts.',
+    description: 'Top upvoted community AI music productions headlining the hour.',
   },
   {
     minute: 15,
-    title: 'Global Weather Check',
-    type: 'weather',
-    icon: 'CloudSun',
-    description: 'Live temperatures and atmospheric updates from listener cities worldwide.',
-  },
-  {
-    minute: 20,
-    title: 'Creator & Sponsor Spotlight',
-    type: 'ad',
+    title: 'Deep Cut & Indie AI Showcase',
+    type: 'music',
     icon: 'Sparkles',
-    description: 'Live AI-voiced spot spotlighting community track submissions & creator tools.',
+    description: 'Hidden gems, new releases, and undiscovered community creations.',
   },
   {
-    minute: 40,
-    title: 'Community Showcase Ad',
-    type: 'ad',
-    icon: 'Megaphone',
-    description: 'Prompts from creators and listeners featured across the network.',
+    minute: 30,
+    title: 'Mid-Hour Rhythm & Vibe Transition',
+    type: 'music',
+    icon: 'Music',
+    description: 'Fresh instrumental beats and tempo shifts keeping the flow uninterrupted.',
   },
   {
     minute: 45,
-    title: 'AI DJ Banter & Music Lore',
-    type: 'dj_banter',
-    icon: 'Mic',
-    description: 'Spontaneous witty observations, prompt engineering tips, and artist trivia.',
+    title: 'Listener Requested Airplay Block',
+    type: 'music',
+    icon: 'Headphones',
+    description: 'Community queue picks and listener favorite tracks streamed back-to-back.',
   },
 ];
 
@@ -101,7 +94,7 @@ function getMainStageBlocks(refHourUtc: number): ScheduleBlock[] {
       time_utc: '06:00 - 10:00 UTC',
       start_hour_utc: 6,
       end_hour_utc: 10,
-      show: 'Morning Beats & AI Briefings',
+      show: 'Morning Beats & Sunrise Synth',
       dj: djNeon,
       genre: 'Upbeat Electro, Lofi Coffee, Pop Synth',
       ai_tools: ['Suno', 'Udio'],

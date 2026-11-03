@@ -27,7 +27,7 @@ describe('Station 24/7 Schedule Service', () => {
     const morningDate = new Date('2026-11-03T08:30:00Z');
     const morningSchedule = getStationSchedule('main', morningDate);
     expect(morningSchedule.current_show).toBeDefined();
-    expect(morningSchedule.current_show?.show).toBe('Morning Beats & AI Briefings');
+    expect(morningSchedule.current_show?.show).toBe('Morning Beats & Sunrise Synth');
     expect(morningSchedule.current_show?.is_live).toBe(true);
 
     // 13:00 UTC -> Deep Focus (DJ Luna)
@@ -43,17 +43,59 @@ describe('Station 24/7 Schedule Service', () => {
     expect(nightSchedule.current_show?.dj.name).toBe('DJ Cipher');
   });
 
-  it('resolves hourly clock milestones within each block', () => {
+  it('resolves hourly clock milestones within each block as 100% pure music', () => {
     const schedule = getStationSchedule('main');
     const firstBlock = schedule.blocks[0] as ScheduleBlock;
 
     expect(firstBlock.clock_milestones).toBeDefined();
-    expect(firstBlock.clock_milestones.length).toBeGreaterThanOrEqual(3);
+    expect(firstBlock.clock_milestones.length).toBe(4);
+
+    expect(firstBlock.clock_milestones[0]).toEqual({
+      minute: 0,
+      title: 'Hourly Community Top 40 Countdown',
+      type: 'music',
+      icon: 'Radio',
+      description: 'Top upvoted community AI music productions headlining the hour.',
+    });
+    expect(firstBlock.clock_milestones[1]).toEqual({
+      minute: 15,
+      title: 'Deep Cut & Indie AI Showcase',
+      type: 'music',
+      icon: 'Sparkles',
+      description: 'Hidden gems, new releases, and undiscovered community creations.',
+    });
+    expect(firstBlock.clock_milestones[2]).toEqual({
+      minute: 30,
+      title: 'Mid-Hour Rhythm & Vibe Transition',
+      type: 'music',
+      icon: 'Music',
+      description: 'Fresh instrumental beats and tempo shifts keeping the flow uninterrupted.',
+    });
+    expect(firstBlock.clock_milestones[3]).toEqual({
+      minute: 45,
+      title: 'Listener Requested Airplay Block',
+      type: 'music',
+      icon: 'Headphones',
+      description: 'Community queue picks and listener favorite tracks streamed back-to-back.',
+    });
+
+    const types = firstBlock.clock_milestones.map((m) => m.type);
+    expect(types.every((t) => t === 'music')).toBe(true);
+    expect(types).not.toContain('news');
+    expect(types).not.toContain('weather');
+    expect(types).not.toContain('dj_banter');
 
     const minutes = firstBlock.clock_milestones.map((m) => m.minute);
-    expect(minutes).toContain(0);
-    expect(minutes).toContain(15);
-    expect(minutes).toContain(20);
+    expect(minutes).toEqual([0, 15, 30, 45]);
+  });
+
+  it('orders upcoming_shows correctly following current live show', () => {
+    const morningDate = new Date('2026-11-03T08:30:00Z'); // index 0
+    const schedule = getStationSchedule('main', morningDate);
+    expect(schedule.upcoming_shows.length).toBe(schedule.blocks.length - 1);
+    expect(schedule.upcoming_shows[0]?.id).toBe('main-deep-focus');
+    expect(schedule.upcoming_shows[1]?.id).toBe('main-cyberpunk-rush');
+    expect(schedule.upcoming_shows[2]?.id).toBe('main-night-shift');
   });
 
   it('provides specialized channel schedules for Cyberpunk, Chillout, and Kids', () => {

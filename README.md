@@ -1,12 +1,12 @@
 # 📻 PromptFM — 24/7 AI Music Radio & Creator Community
 
 [![Production](https://img.shields.io/badge/Production-promptfm.live-10b981?style=for-the-badge&logo=vercel)](https://promptfm.live)
-[![Tests](https://img.shields.io/badge/Tests-264%20Passing-brightgreen?style=for-the-badge&logo=vitest)](https://github.com/atrifan/promptfm)
+[![Tests](https://img.shields.io/badge/Tests-377%20Passing-brightgreen?style=for-the-badge&logo=vitest)](https://github.com/atrifan/promptfm)
 [![Mutation Score](https://img.shields.io/badge/Stryker%20Mutation-%E2%89%A587%25-blueviolet?style=for-the-badge)](https://github.com/atrifan/promptfm)
 [![GCP Free Tier](https://img.shields.io/badge/GCP%20Always--Free-$0.00%2Fmo-4285F4?style=for-the-badge&logo=googlecloud)](https://console.cloud.google.com/?project=promptfm-radio-1793623670)
 [![License](https://img.shields.io/badge/License-MIT-zinc?style=for-the-badge)](LICENSE)
 
-**PromptFM** is an autonomous 24/7 AI-generated music radio platform and community chart. Featuring **5 live theme stations** (including After Dark 18+ Explicit with statutory legal age verification), continuous **AI radio DJs** delivering spoken commentary and weather updates, real-time listener voting, and direct MP3/MP4 creator uploads with automatic ID3 metadata and album art extraction.
+**PromptFM** is an autonomous 24/7 AI-generated music radio platform and community chart. Featuring **5 live theme stations** (including After Dark 18+ Explicit with statutory legal age verification), continuous uninterrupted **100% pure music rotation**, real-time listener voting, and direct MP3/M4A creator uploads with automatic ID3 metadata and album art extraction.
 
 ---
 
@@ -133,6 +133,32 @@ npm run typecheck
 
 # Production Next.js build
 npm run build
+```
+
+---
+
+## 💻 Unified PromptFM CLI (`npm run promptfm`)
+
+Station managers, creators, and operators can manage the station directly from the terminal via [`scripts/promptfm.ts`](scripts/promptfm.ts):
+
+```bash
+# Upload an audio track into active rotation (auto-extracts ID3, album art, lyrics, pgvector)
+npm run promptfm -- upload /path/to/song.mp3 --title "Title" --artist "Artist" --category "Synthwave & Electro" --votes 32
+
+# Check what's playing live on air right now
+npm run promptfm -- now
+
+# View the upcoming airplay queue
+npm run promptfm -- next
+
+# Display 24/7 musical programming schedule & clock wheels
+npm run promptfm -- schedule
+
+# Search tracks by natural language vibe (768-dim pgvector RAG)
+npm run promptfm -- vibe "dreamy synthwave with nostalgic vocals"
+
+# Stream live radio audio directly in terminal (requires mpv or ffplay)
+npm run promptfm -- listen
 ```
 
 ---
