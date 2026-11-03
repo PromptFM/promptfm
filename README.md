@@ -119,7 +119,7 @@ make deploy
 PromptFM enforces strict **Test-Driven Development (TDD)** and mutation testing across all business logic:
 
 ```bash
-# Run Vitest test suite (224 unit & integration tests)
+# Run Vitest test suite (250 unit & integration tests)
 npm test
 
 # Run test suite with code coverage
