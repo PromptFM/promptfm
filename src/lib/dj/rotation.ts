@@ -146,11 +146,11 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
     type: 'music',
     title: 'PromptFM Ambient AI Anthem',
     artist: 'PromptFM Core',
-    audio_url: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3',
+    audio_url: 'https://oxfacfdpxbxilucooijy.supabase.co/storage/v1/object/public/tracks/promptfm_ambient_ai_anthem.mp3',
     cover_art_url: '/logo-mark.png',
     category: 'Ambient & Lo-Fi',
-    tool_used: 'Other',
-    upvotes_count: 0,
+    tool_used: 'Stable Audio',
+    upvotes_count: 20,
     dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
   };
 
@@ -636,10 +636,10 @@ export async function getNextAirplayItem(channelSlug = 'main'): Promise<AirplayI
     type: 'music',
     title: 'PromptFM Ambient AI Anthem',
     artist: 'PromptFM Core',
-    audio_url: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3',
+    audio_url: 'https://oxfacfdpxbxilucooijy.supabase.co/storage/v1/object/public/tracks/promptfm_ambient_ai_anthem.mp3',
     cover_art_url: '/logo-mark.png',
     category: 'Ambient & Lo-Fi',
-    tool_used: 'Other',
-    upvotes_count: 0,
+    tool_used: 'Stable Audio',
+    upvotes_count: 20,
   });
 }
