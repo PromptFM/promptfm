@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Shield, Flag, Scale, Radio, MessageSquare, Terminal, Cookie } from 'lucide-react';
+import { Shield, Flag, Scale, Radio, MessageSquare, Terminal, Cookie, Send } from 'lucide-react';
 import AgreementsModal from '@/components/AgreementsModal';
 import ReportModal from '@/components/ReportModal';
 
@@ -111,12 +111,30 @@ export default function Footer() {
         {/* Subfooter */}
         <div className="max-w-5xl mx-auto mt-6 pt-4 border-t border-zinc-900 flex flex-col sm:flex-row items-center justify-between gap-3 text-zinc-500 text-[11px] text-center sm:text-left">
           <p>© {new Date().getFullYear()} PromptFM. All rights reserved. Music generated via Suno, Udio, Stable Audio.</p>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-x-4 gap-y-2">
+            <a
+              href={process.env.NEXT_PUBLIC_DISCORD_INVITE_URL || 'https://discord.gg/promptfm'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-indigo-400 transition-colors flex items-center gap-1"
+            >
+              <MessageSquare className="w-3 h-3 text-indigo-400" />
+              <span>Discord</span>
+            </a>
+            <a
+              href={process.env.NEXT_PUBLIC_TELEGRAM_BOT_URL || 'https://t.me/PromptFMBot'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-sky-400 transition-colors flex items-center gap-1"
+            >
+              <Send className="w-3 h-3 text-sky-400" />
+              <span>Telegram Bot</span>
+            </a>
             <a
               href="/api/mcp"
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-zinc-300 transition-colors flex items-center gap-1"
+              className="hover:text-emerald-400 transition-colors flex items-center gap-1"
             >
               <Terminal className="w-3 h-3 text-emerald-400" />
               <span>MCP Protocol</span>

@@ -201,3 +201,16 @@ PromptFM integrates an ultra-token-efficient content scanner powered by **Gemini
 ### 3. Station Gatekeeper Review
 All community submissions via `/submit` are saved with `status: 'pending'`. They never enter the active radio airplay rotation until a station admin reviews the audio preview, ID3 metadata, embedded lyrics, and AI safety badges in `/admin` and clicks **Approve for Airplay**.
 
+---
+
+## 🤖 Model Context Protocol (MCP) & Community Bridges
+
+PromptFM exposes a streamable **Model Context Protocol (MCP)** server at [`https://promptfm.live/api/mcp`](https://promptfm.live/api/mcp) supporting both Public Listener Mode and Station Admin Mode.
+
+- **MCP Integration Guide:** [`docs/mcp-integration-guide.md`](file:///Users/trifan/DEVELOPMENT/promptfm/docs/mcp-integration-guide.md) (Claude Desktop, Cursor, Antigravity, Windsurf).
+- **Public Tools:** Natural language vibe search (`promptfm_search_tracks_by_vibe`), chart rankings, live DJ status, song requests, and safety reporting.
+- **Admin Tools (`ADMIN_API_KEY`):** Moderation review, voice drop generation, live broadcast alerts, sponsor injection, and channel provisioning.
+- **Discord Community:** [`https://discord.gg/promptfm`](https://discord.gg/promptfm) (Now Playing updates, live DJ transcripts, 1-click voting).
+- **Telegram Bot:** [`https://t.me/PromptFMBot`](https://t.me/PromptFMBot) (Interactive `/nowplaying`, `/song`, `/dedicate`, `/weather`, and inline upvoting).
+
+
