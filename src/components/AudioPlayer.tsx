@@ -5,6 +5,7 @@
 // 1-click in-player voting, live spoken transcript viewer, and live theme channel switcher.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import {
   Volume2,
   VolumeX,
@@ -23,6 +24,7 @@ import {
   Users,
   ListMusic,
   Flame,
+  Calendar,
 } from 'lucide-react';
 import ReportModal from '@/components/ReportModal';
 import AgeGateModal from '@/components/AgeGateModal';
@@ -516,6 +518,15 @@ export default function AudioPlayer() {
                 ))}
               </div>
             )}
+
+            <Link
+              href={`/schedule?channel=${currentChannel.slug}`}
+              onClick={() => setShowUpNext(false)}
+              className="mt-2.5 flex items-center justify-center gap-1.5 text-center text-xs text-emerald-400 hover:text-emerald-300 font-medium py-1.5 px-2 rounded-lg bg-zinc-950/70 border border-zinc-800 hover:border-emerald-500/30 transition-colors"
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span>Full 24-Hour Broadcast Schedule &rarr;</span>
+            </Link>
           </div>
         )}
 

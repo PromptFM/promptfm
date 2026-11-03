@@ -3,16 +3,31 @@
 // Called by Liquidsoap, AzuraCast AutoDJ, or the web player to fetch the next audio item.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getNextAirplayItem } from '@/lib/dj/rotation';
+import { getNextAirplayItem, formatLiquidsoapAnnotateUri } from '@/lib/dj/rotation';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const channelSlug = req.nextUrl.searchParams.get('channel') || 'main';
   const format = req.nextUrl.searchParams.get('format')?.toLowerCase();
+  const isLiquidsoap = format === 'annotate' || format === 'liquidsoap';
 
   try {
-    const nextItem = await getNextAirplayItem(channelSlug);
+    // Liquidsoap pre-fetches tracks to buffer; do not immediately promote to now-playing
+    const nextItem = isLiquidsoap
+      ? await getNextAirplayItem(channelSlug, false)
+      : await getNextAirplayItem(channelSlug);
+
+    if (isLiquidsoap) {
+      const annotateString = formatLiquidsoapAnnotateUri(nextItem);
+      return new NextResponse(annotateString, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        },
+      });
+    }
 
     if (format === 'uri' || format === 'raw') {
       return new NextResponse(nextItem?.audio_url || '', {
@@ -33,7 +48,7 @@ export async function GET(req: NextRequest) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('Error fetching next airplay item:', message);
 
-    if (format === 'uri' || format === 'raw') {
+    if (isLiquidsoap || format === 'uri' || format === 'raw') {
       return new NextResponse('', {
         status: 500,
         headers: {

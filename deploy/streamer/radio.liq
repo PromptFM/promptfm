@@ -2,21 +2,26 @@
 # PromptFM 24/7 Dynamic Radio Stream Engine
 # Connects to PromptFM /api/radio/next to query upcoming tracks and DJ drops,
 # downloads R2 MP3s, crossfades, and streams 128 kbps MP3 to Icecast.
+# Synchronizes track transitions via native HTTP requests and ICY metadata.
 
 # Settings
 settings.log.stdout.set(true)
 settings.log.level.set(3)
 
 # 1. Fallback ambient audio loop in case of API or network disconnect
-emergency_fallback = mksafe(single("/etc/liquidsoap/fallback.mp3"))
+emergency_fallback = mksafe(single("annotate:title=\"PromptFM Ambient AI Anthem\",artist=\"PromptFM Core\",promptfm_id=\"demo-fallback\":/etc/liquidsoap/fallback.mp3"))
 
-# 2. Dynamic track fetcher from PromptFM API
+# 2. Dynamic track fetcher from PromptFM API with annotate metadata
 def get_next_promptfm_track() =
-  # Call PromptFM API endpoint
-  result = process.read("curl -s 'https://promptfm.live/api/radio/next?format=uri'")
+  # Call PromptFM API endpoint with native HTTP GET
+  result = try
+    http.get("https://promptfm.live/api/radio/next?format=annotate")
+  catch _ do
+    ""
+  end
   uri = string.trim(result)
   target = if uri == "" then
-    "/etc/liquidsoap/fallback.mp3"
+    "annotate:title=\"PromptFM Ambient AI Anthem\",artist=\"PromptFM Core\",promptfm_id=\"demo-fallback\":/etc/liquidsoap/fallback.mp3"
   else
     uri
   end
@@ -32,7 +37,24 @@ stream = crossfade(duration=1.5, dynamic_stream)
 # Fallback safely if dynamic stream fails
 radio = fallback(track_sensitive=false, [stream, emergency_fallback])
 
-# 4. Stream to Icecast
+# 4. On-Air Transition Hook: Notifies PromptFM when the track actually airs
+def on_airplay_start(meta) =
+  let item_id = meta["promptfm_id"]
+  let title = meta["title"]
+  let artist = meta["artist"]
+  print(">>> [AIRPLAY TRANSITION] #{title} by #{artist} (ID: #{item_id})")
+  if item_id != "" then
+    try
+      ignore(http.post(data="{\"channel\":\"main\",\"item_id\":\"" ^ item_id ^ "\"}", headers=[("Content-Type", "application/json")], "https://promptfm.live/api/radio/started"))
+    catch _ do
+      ()
+    end
+  end
+end
+
+radio = source.on_track(radio, on_airplay_start)
+
+# 5. Stream to Icecast
 output.icecast(
   %mp3(bitrate=128, samplerate=44100),
   host="icecast",
@@ -45,4 +67,3 @@ output.icecast(
   genre="AI Music / Electronic / Ambient",
   radio
 )
-

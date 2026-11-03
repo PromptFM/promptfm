@@ -50,6 +50,13 @@ export default function Footer() {
           {/* Legal Agreements & Safety Links */}
           <div className="flex flex-wrap items-center justify-center gap-y-2 gap-x-4 text-xs font-medium">
             <Link
+              href="/schedule"
+              className="hover:text-emerald-400 transition-colors flex items-center gap-1"
+            >
+              <Radio className="w-3.5 h-3.5" />
+              <span>Broadcast Schedule</span>
+            </Link>
+            <Link
               href="/terms"
               className="hover:text-emerald-400 transition-colors flex items-center gap-1"
             >

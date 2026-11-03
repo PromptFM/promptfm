@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Menu, X, Radio, Music2, Shield, Upload, MessageSquare, Send, Sparkles } from 'lucide-react';
+import { Menu, X, Radio, Music2, Shield, Upload, MessageSquare, Send, Sparkles, Calendar } from 'lucide-react';
 import AuthButton from '@/components/AuthButton';
 import { getCommunityLinks } from '@/lib/community/links';
 
@@ -46,6 +46,12 @@ export default function Navbar() {
             className="text-zinc-400 hover:text-white transition-colors py-1 flex items-center gap-1"
           >
             Channels
+          </Link>
+          <Link
+            href="/schedule"
+            className="text-zinc-400 hover:text-white transition-colors py-1 flex items-center gap-1"
+          >
+            Schedule
           </Link>
           <Link
             href="/top"
@@ -123,6 +129,14 @@ export default function Navbar() {
             >
               <Radio className="w-4 h-4 text-emerald-400" />
               <span>Broadcast Channels</span>
+            </Link>
+            <Link
+              href="/schedule"
+              onClick={closeMenu}
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-900 transition-colors"
+            >
+              <Calendar className="w-4 h-4 text-emerald-400" />
+              <span>24/7 Broadcast Schedule</span>
             </Link>
             <Link
               href="/top"
