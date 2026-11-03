@@ -129,6 +129,12 @@ export async function sendDiscordNotification(payload: BroadcastNotification): P
           label: '📻 Listen Live',
           url: siteUrl,
         },
+        {
+          type: 2,
+          style: 5,
+          label: '📅 Schedule',
+          url: `${siteUrl}/schedule`,
+        },
       ],
     });
   }
@@ -155,7 +161,9 @@ export async function sendDiscordNotification(payload: BroadcastNotification): P
             color,
             fields: fields.length > 0 ? fields : undefined,
             footer: {
-              text: payload.author ? `On Air: ${payload.author}` : 'PromptFM Live 24/7',
+              text: payload.author
+                ? `On Air: ${payload.author} • /song to queue • /help for guide`
+                : 'PromptFM Live 24/7 • /song to queue • /help for guide',
             },
             timestamp: new Date().toISOString(),
           },
@@ -187,6 +195,10 @@ export async function sendTelegramNotification(payload: BroadcastNotification): 
     text += `\n\n🎙️ *Live DJ Transcript (${payload.author || 'AI Host'}):*\n> _"${payload.transcript}"_`;
   }
 
+  if (payload.category === 'now_playing') {
+    text += `\n\n_💡 Send /song <vibe> to queue a track • /help for guide_`;
+  }
+
   text += `\n\n[Tune in to PromptFM Live](${payload.url || siteUrl})`;
 
   // Telegram Inline Keyboard for Now Playing votes & reports
@@ -207,6 +219,10 @@ export async function sendTelegramNotification(payload: BroadcastNotification): 
         {
           text: '🌐 View Chart',
           url: `${siteUrl}/top`,
+        },
+        {
+          text: '📅 24/7 Schedule',
+          url: `${siteUrl}/schedule`,
         },
       ],
     ];

@@ -44,7 +44,7 @@ describe('Community Chat Bridge (Discord & Telegram)', () => {
 
       expect(result).toBe(true);
       const body = JSON.parse(fetchMock.mock.calls[0]![1].body);
-      expect(body.embeds[0].footer.text).toBe('PromptFM Live 24/7');
+      expect(body.embeds[0].footer.text).toContain('PromptFM Live 24/7');
       expect(body.embeds[0].fields).toBeUndefined();
       expect(body.components).toBeUndefined();
     });
@@ -249,6 +249,7 @@ describe('Community Chat Bridge (Discord & Telegram)', () => {
         ],
         [
           { text: '🌐 View Chart', url: 'https://promptfm.live/top' },
+          { text: '📅 24/7 Schedule', url: 'https://promptfm.live/schedule' },
         ],
       ]);
     });

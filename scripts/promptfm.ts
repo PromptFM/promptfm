@@ -21,6 +21,8 @@ import {
   registerTelegramBotCommands,
   sendTelegramTestMessage,
   sendDiscordTestMessage,
+  broadcastGuideToDiscord,
+  broadcastGuideToTelegram,
 } from '../src/lib/community/bot-registration';
 import type { ReportReason } from '../src/types/database';
 import { extractMetadataFromBuffer, DEFAULT_TRACK_ICON } from '../src/lib/audio/metadata';
@@ -77,7 +79,9 @@ Bots & Community Integrations:
   bot telegram setup [tok] Register Telegram webhook and command autocomplete menu
   bot telegram status [tok] Inspect live Telegram webhook health, pending updates, and errors
   bot telegram test [tok]  Send test announcement to Telegram channel / chat ID
+  bot telegram post-guide [tok] [chatId] Post Listener Commands & Schedule Guide to Telegram
   bot discord test [url]   Send test embed to Discord channel webhook
+  bot discord post-guide [url] Post Listener Commands & Schedule Guide embed to Discord
 
 Moderation & Schedule:
   channels list           List radio broadcast channels, assigned DJs & guardrail policies
@@ -1157,10 +1161,24 @@ Moderation & Schedule:
           return;
         }
 
+        if (action === 'post-guide') {
+          const chatId = args[4] || process.env.TELEGRAM_CHAT_ID;
+          if (!chatId) {
+            console.error('Error: TELEGRAM_CHAT_ID required via argument or .env.local:');
+            console.log('Usage: npm run promptfm -- bot telegram post-guide <TOKEN> <CHAT_ID>');
+            return;
+          }
+          console.log(`Broadcasting Listener Command & Schedule Guide to Telegram chat ${chatId}...`);
+          const guideRes = await broadcastGuideToTelegram(token, chatId);
+          console.log('Telegram Guide Result:', guideRes);
+          return;
+        }
+
         console.log('Telegram subcommands:');
         console.log('  npm run promptfm -- bot telegram setup [token]');
         console.log('  npm run promptfm -- bot telegram status [token]');
         console.log('  npm run promptfm -- bot telegram test [token] [chatId]');
+        console.log('  npm run promptfm -- bot telegram post-guide [token] [chatId]');
         return;
       }
 
@@ -1178,8 +1196,22 @@ Moderation & Schedule:
           return;
         }
 
+        if (action === 'post-guide') {
+          const webhookUrl = args[3] || process.env.DISCORD_WEBHOOK_URL;
+          if (!webhookUrl) {
+            console.error('Error: DISCORD_WEBHOOK_URL required via argument or .env.local:');
+            console.log('Usage: npm run promptfm -- bot discord post-guide <WEBHOOK_URL>');
+            return;
+          }
+          console.log(`Broadcasting Listener Command & Schedule Guide embed to Discord webhook...`);
+          const res = await broadcastGuideToDiscord(webhookUrl);
+          console.log('Discord Guide Result:', res);
+          return;
+        }
+
         console.log('Discord subcommands:');
         console.log('  npm run promptfm -- bot discord test [webhookUrl]');
+        console.log('  npm run promptfm -- bot discord post-guide [webhookUrl]');
         return;
       }
 
@@ -1187,7 +1219,9 @@ Moderation & Schedule:
       console.log('  npm run promptfm -- bot telegram setup [token]');
       console.log('  npm run promptfm -- bot telegram status [token]');
       console.log('  npm run promptfm -- bot telegram test [token] [chatId]');
+      console.log('  npm run promptfm -- bot telegram post-guide [token] [chatId]');
       console.log('  npm run promptfm -- bot discord test [webhookUrl]');
+      console.log('  npm run promptfm -- bot discord post-guide [webhookUrl]');
       break;
     }
 

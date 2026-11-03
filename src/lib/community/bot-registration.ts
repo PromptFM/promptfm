@@ -1,6 +1,8 @@
 // src/lib/community/bot-registration.ts
 // Programmatic Telegram & Discord Bot Setup, Webhook Registration, and Health Verification
 
+import { getBotHelpText } from './commands';
+
 export interface TelegramWebhookResult {
   ok: boolean;
   description?: string;
@@ -27,12 +29,14 @@ export interface TelegramCommand {
 
 export const TELEGRAM_BOT_COMMANDS: TelegramCommand[] = [
   { command: 'nowplaying', description: 'Check current on-air track and active AI DJ' },
+  { command: 'queue', description: 'View upcoming tracks and listener requests' },
   { command: 'next', description: 'View upcoming tracks in rotation' },
-  { command: 'song', description: 'Request a song by musical vibe' },
+  { command: 'song', description: 'Request an approved AI track into the live queue' },
   { command: 'dedicate', description: 'Dedicate a song on air to a friend' },
   { command: 'weather', description: 'Request live weather report for your city' },
   { command: 'zodiac', description: 'Request your cosmic AI zodiac reading' },
   { command: 'report', description: 'Report a track for safety or copyright review' },
+  { command: 'help', description: 'Commands cheat sheet and airplay schedule guide' },
 ];
 
 /**
@@ -158,5 +162,95 @@ export async function sendDiscordTestMessage(
   });
 
   return { ok: res.ok, status: res.status };
+}
+
+/**
+ * Dispatches a formatted Listener Command & Airplay Guide embed to Discord.
+ */
+export async function broadcastGuideToDiscord(
+  webhookUrl: string
+): Promise<{ ok: boolean; status: number }> {
+  if (!webhookUrl || !webhookUrl.trim()) {
+    throw new Error('Discord webhook URL is required');
+  }
+
+  const guideContent = getBotHelpText('discord');
+  const res = await fetch(webhookUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username: 'PromptFM DJ Bot',
+      avatar_url: 'https://promptfm.live/logo-mark.png',
+      embeds: [
+        {
+          title: '📻 PromptFM Listener Command & Airplay Guide',
+          description: guideContent,
+          color: 0x34d399,
+          url: 'https://promptfm.live/schedule',
+          footer: { text: 'PromptFM Autonomous Radio • Type /help in chat' },
+          timestamp: new Date().toISOString(),
+        },
+      ],
+      components: [
+        {
+          type: 1,
+          components: [
+            {
+              type: 2,
+              style: 5,
+              label: '📻 Tune In Live',
+              url: 'https://promptfm.live',
+            },
+            {
+              type: 2,
+              style: 5,
+              label: '📅 24/7 Schedule',
+              url: 'https://promptfm.live/schedule',
+            },
+          ],
+        },
+      ],
+    }),
+  });
+
+  return { ok: res.ok, status: res.status };
+}
+
+/**
+ * Dispatches the Listener Command & Airplay Guide to Telegram channel / chat.
+ */
+export async function broadcastGuideToTelegram(
+  botToken: string,
+  chatId: string
+): Promise<TelegramWebhookResult> {
+  if (!botToken || !botToken.trim()) {
+    throw new Error('Telegram bot token is required');
+  }
+  if (!chatId || !chatId.trim()) {
+    throw new Error('Chat ID is required');
+  }
+
+  const guideText = getBotHelpText('markdown_v1');
+  const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text: guideText,
+      parse_mode: 'Markdown',
+      disable_web_page_preview: true,
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '📻 Tune In Live', url: 'https://promptfm.live' },
+            { text: '📅 24/7 Schedule', url: 'https://promptfm.live/schedule' },
+          ],
+        ],
+      },
+    }),
+  });
+
+  const json = (await res.json()) as TelegramWebhookResult;
+  return json;
 }
 

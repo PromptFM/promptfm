@@ -8,6 +8,8 @@ import {
   registerTelegramBotCommands,
   sendTelegramTestMessage,
   sendDiscordTestMessage,
+  broadcastGuideToDiscord,
+  broadcastGuideToTelegram,
   TELEGRAM_BOT_COMMANDS,
 } from '@/lib/community/bot-registration';
 
@@ -102,15 +104,17 @@ describe('Bot Registration & Webhook Management Service', () => {
   });
 
   describe('registerTelegramBotCommands', () => {
-    it('defines the standard 7 commands with exact descriptions', () => {
+    it('defines the standard 9 commands including help and queue', () => {
       expect(TELEGRAM_BOT_COMMANDS).toEqual([
         { command: 'nowplaying', description: 'Check current on-air track and active AI DJ' },
+        { command: 'queue', description: 'View upcoming tracks and listener requests' },
         { command: 'next', description: 'View upcoming tracks in rotation' },
-        { command: 'song', description: 'Request a song by musical vibe' },
+        { command: 'song', description: 'Request an approved AI track into the live queue' },
         { command: 'dedicate', description: 'Dedicate a song on air to a friend' },
         { command: 'weather', description: 'Request live weather report for your city' },
         { command: 'zodiac', description: 'Request your cosmic AI zodiac reading' },
         { command: 'report', description: 'Report a track for safety or copyright review' },
+        { command: 'help', description: 'Commands cheat sheet and airplay schedule guide' },
       ]);
     });
 
@@ -200,6 +204,54 @@ describe('Bot Registration & Webhook Management Service', () => {
       expect(bodyCustom.username).toBe('PromptFM DJ Bot');
       expect(bodyCustom.embeds[0].description).toBe('Custom test broadcast');
       expect(bodyCustom.embeds[0].color).toBe(0x34d399);
+    });
+  });
+
+  describe('broadcastGuideToDiscord', () => {
+    it('throws error when webhook URL is missing', async () => {
+      await expect(broadcastGuideToDiscord('')).rejects.toThrow('Discord webhook URL is required');
+    });
+
+    it('dispatches a rich commands and schedule guide embed to Discord', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 204,
+      });
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      const res = await broadcastGuideToDiscord('https://discord.com/api/webhooks/test/guide');
+      expect(res.ok).toBe(true);
+
+      const call = fetchMock.mock.calls[0]!;
+      const body = JSON.parse(call[1].body);
+      expect(body.embeds[0].title).toContain('Listener Command & Airplay Guide');
+      expect(body.embeds[0].description).toContain('/song');
+      expect(body.embeds[0].description).toContain(':45');
+    });
+  });
+
+  describe('broadcastGuideToTelegram', () => {
+    it('throws error when token or chatId is missing', async () => {
+      await expect(broadcastGuideToTelegram('', '123')).rejects.toThrow('Telegram bot token is required');
+      await expect(broadcastGuideToTelegram('token', '')).rejects.toThrow('Chat ID is required');
+    });
+
+    it('dispatches guide message with inline keyboard links to Telegram channel', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true }),
+      });
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      const res = await broadcastGuideToTelegram('test-tok', '@promptfm_live');
+      expect(res.ok).toBe(true);
+
+      const call = fetchMock.mock.calls[0]!;
+      const body = JSON.parse(call[1].body);
+      expect(body.text).toContain('/song');
+      expect(body.text).toContain(':45');
+      expect(body.reply_markup.inline_keyboard).toBeDefined();
     });
   });
 });
