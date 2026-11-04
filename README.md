@@ -216,13 +216,94 @@ PromptFM integrates an ultra-token-efficient content scanner powered by **Gemini
    - Returns structured JSON `{ "explicit": boolean, "family_friendly": boolean }`.
    - Well within Google AI Studio's 1,500 daily free tier requests ($0 cost).
 
-### 2. Multi-Channel Permitted Broadcast Matrix
-| Channel | Slug | Safe Policy | Explicit Allowed? | Family-Friendly Required? |
+### 2. Multi-Channel Permitted Broadcast Matrix & Main Stage Eligibility
+
+PromptFM routes tracks strictly based on station guardrails and parental control rules in [`src/lib/dj/roster.ts`](src/lib/dj/roster.ts) and [`src/lib/safety/channel-guardrails.ts`](src/lib/safety/channel-guardrails.ts):
+
+| Channel | Slug | Audience / Policy | Explicit (18+) Allowed? | Kids Songs Allowed? |
 |---|---|---|---|---|
-| **Ch 1: Main Stage** | `main` | General audience | Only late night (22:00–06:00 UTC) | No (allows both general clean & family) |
-| **Ch 2: Cyberpunk & Synth** | `cyberpunk` | High energy / gritty | Only late night (22:00–06:00 UTC) | No |
-| **Ch 3: Chillout & Ambient** | `chillout` | Safe / relaxing | ❌ Blocked 24/7 | No (clean required) |
-| **Ch 4: Kids & Family** | `kids` | Strictly child-safe | ❌ Blocked 24/7 | ✅ Strictly required (`family_friendly: true`) |
+| **Ch 1: Main Stage** | `main` | General audience prime rotation | Only during Late Night Watershed (22:00–05:00 UTC) | ❌ Excluded (Isolated strictly to `kids`) |
+| **Ch 2: Cyberpunk & Synth** | `cyberpunk` | High energy, gritty industrial | Only during Late Night Watershed (22:00–05:00 UTC) | ❌ Excluded |
+| **Ch 3: Chillout & Ambient** | `chillout` | Safe, relaxing, study beats | ❌ Blocked 24/7 | ❌ Excluded |
+| **Ch 4: Kids & Family** | `kids` | COPPA-compliant, child-safe | ❌ Blocked 24/7 | ✅ Allowed & Prioritized (`family_friendly: true`) |
+| **Ch 5: After Dark** | `afterdark` | 🔞 18+ Mature, uncensored | ✅ Permitted 24/7 (Mandatory Age Gate) | ❌ Excluded |
+
+#### How Main Stage Selection Works:
+1. **Approval Gatekeeper:** Only tracks marked `status: 'approved'` in the database are ever selected.
+2. **Category Isolation (Kids vs Main Stage):** Educational, nursery, and children's tracks (e.g. category `Kids & Family` or titled `Alphabet Song`) are **strictly isolated to `kids`**. They never air on Main Stage or general theme channels.
+3. **Queue Hierarchy on Main Stage:**
+   - **Priority 1 (Live Listener Requests):** Pending `/song <vibe>` requests queued by listeners on Telegram, Discord, or Web via [`src/lib/dj/batches.ts`](src/lib/dj/batches.ts).
+   - **Priority 2 (Top-Chart Community Rotation):** Filtered against `isContentAllowedForAirplay()` and ordered by `upvotes_count DESC`.
+   - **Priority 3 (Weighted Random Rotation):** Tracks in the top 5 receive 4x selection weight, ranks 6–15 receive 2x weight, and remaining top-40 library tracks receive 1x weight.
+
+---
+
+## 💬 Discord Bot & Interactions Webhook Integration Guide
+
+PromptFM supports native Discord Application Slash Commands and Button Interactions through a single serverless endpoint at `https://promptfm.live/api/bot/webhook`.
+
+### How to Connect Discord:
+1. **Discord Developer Portal:**
+   - Go to [discord.com/developers/applications](https://discord.com/developers/applications) and select your Application.
+   - In **General Information**, find **"Interactions Endpoint URL"**.
+   - Enter `https://promptfm.live/api/bot/webhook` and click **Save Changes**.
+   - *PromptFM automatically handles Discord's cryptographic Ping/Pong verification (`type: 1 -> { type: 1 }`).*
+2. **Bot Permissions & OAuth2 Scopes:**
+   - Go to **OAuth2 -> URL Generator**.
+   - Scopes: `bot`, `applications.commands`.
+   - Bot Permissions: `Send Messages`, `Embed Links`, `Read Message History`, `Use Slash Commands`.
+   - Use the generated URL to invite the bot to your Discord server.
+3. **Configure Environment Variables (`.env.local`):**
+   ```bash
+   DISCORD_APPLICATION_ID="your-discord-app-id"
+   DISCORD_BOT_TOKEN="your-discord-bot-token"
+   DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/..." # For channel broadcast cards in #now-playing
+   ```
+4. **Register Slash Commands & Shorthands:**
+   Run the unified CLI command to register all 10 slash commands and 9 shorthands with Discord's REST API:
+   ```bash
+   npm run promptfm -- bot discord setup <DISCORD_APPLICATION_ID> <DISCORD_BOT_TOKEN>
+   ```
+   Users can now type `/nowplaying`, `/song <vibe>`, `/queue`, `/dedicate`, `/help` or shorthands (`/np`, `/q`, `/s`, `/d`, `/w`, `/z`, `/r`, `/h`) in `#now-playing`!
+
+---
+
+## 🐦 Multi-Platform Admin Broadcasting (X / Twitter, Discord, Telegram)
+
+Station admins and AI agents can automatically post live announcements, chart updates, and on-air alerts to **X (formerly Twitter)** `@promptfm_live`, Discord, and Telegram across 3 unified interfaces:
+
+### 1. Terminal CLI (`npm run promptfm`)
+```bash
+# Post directly to X (Twitter):
+npm run promptfm -- x post "Tune in live on PromptFM: DJ Neon is spinning the weekly Top 10! https://promptfm.live"
+
+# Broadcast to Discord, Telegram, and X simultaneously:
+npm run promptfm -- broadcast "Live broadcast update: Fresh AI synth tracks added!" --x
+```
+
+### 2. Web Studio Admin Console (`/admin`)
+- Navigate to **`https://promptfm.live/admin`** -> click the **Social Broadcast (X / Discord / Telegram)** tab.
+- Compose your message with a real-time 280-character countdown for X.
+- Toggle destinations: `[x] X (Twitter)`, `[x] Discord`, `[x] Telegram`.
+- Click **"Post Broadcast to Selected Networks"**.
+
+### 3. Model Context Protocol (MCP) Tools
+AI agents (Cursor, Claude Desktop, Antigravity, Windsurf) can publish broadcasts autonomously:
+```json
+// Tool: promptfm_admin_post_tweet
+{
+  "text": "Top 10 AI Tracks of the week are live now on PromptFM Main Stage! Tune in: https://promptfm.live/top"
+}
+
+// Tool: promptfm_admin_broadcast (with post_to_x: true)
+{
+  "message": "Breaking music drop: New tracks added to Cyberpunk rotation!",
+  "post_to_x": true
+}
+```
+
+> [!NOTE]
+> **Zero-Cost & Dev Fallback Mode:** When X API credentials (`X_API_KEY`, `X_ACCESS_TOKEN`, or `X_BEARER_TOKEN`) are not yet present in `.env.local`, PromptFM automatically provides a clean simulated log (`[X:DevFallback]`), allowing full end-to-end testing with $0 cloud cost. Simply add your keys to go live on production!
 
 ### 3. Station Gatekeeper Review
 All community submissions via `/submit` are saved with `status: 'pending'`. They never enter the active radio airplay rotation until a station admin reviews the audio preview, ID3 metadata, embedded lyrics, and AI safety badges in `/admin` and clicks **Approve for Airplay**.

@@ -17,6 +17,7 @@ import { submitContentReport, getRecentReports, resolveContentReport } from '@/l
 import { autoGenerateChannelGuardrails } from '@/lib/safety/channel-guardrails';
 import { getAllChannels } from '@/lib/radio/channels';
 import { findTracksByVibe, indexTrackEmbedding } from '@/lib/dj/rag';
+import { postTweetToX } from '@/lib/social/x-client';
 import type { ReportReason, ReportTargetType } from '@/types/database';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
@@ -228,13 +229,29 @@ const ADMIN_MCP_TOOLS = [
   },
   {
     name: 'promptfm_admin_broadcast',
-    description: 'Pushes a live announcement to connected community Discord & Telegram channels.',
+    description: 'Pushes a live announcement to connected community Discord & Telegram channels, and optionally X (Twitter).',
     inputSchema: {
       type: 'object',
       properties: {
         message: { type: 'string', description: 'The message to broadcast' },
+        post_to_x: {
+          type: 'boolean',
+          description: 'Whether to post this broadcast to X (Twitter) @promptfm_live',
+        },
       },
       required: ['message'],
+    },
+  },
+  {
+    name: 'promptfm_admin_post_tweet',
+    description: 'Publishes a station announcement or now-playing update tweet directly to X (formerly Twitter) @promptfm_live.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        text: { type: 'string', description: 'Tweet text to publish (maximum 280 characters)' },
+        url: { type: 'string', description: 'Optional URL link to include at the end of the tweet' },
+      },
+      required: ['text'],
     },
   },
   {
@@ -853,13 +870,28 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
 
     case 'promptfm_admin_broadcast': {
       const message = args.message as string;
+      const postToX = Boolean(args.post_to_x);
       if (!message) throw new Error('Missing message');
-      await broadcastToCommunity({
-        title: 'Station Announcement (via Admin MCP)',
-        message,
-        author: 'AI Agent Admin',
-      });
-      return { success: true, message: 'Dispatched broadcast to community channels.' };
+      await broadcastToCommunity(
+        {
+          title: 'Station Announcement (via Admin MCP)',
+          message,
+          author: 'AI Agent Admin',
+        },
+        { postToX }
+      );
+      return {
+        success: true,
+        message: `Dispatched broadcast to community channels${postToX ? ' and X (Twitter)' : ''}.`,
+      };
+    }
+
+    case 'promptfm_admin_post_tweet': {
+      const text = args.text as string;
+      const url = args.url as string | undefined;
+      if (!text) throw new Error('Missing tweet text');
+      const result = await postTweetToX(text, { url });
+      return result;
     }
 
     case 'promptfm_admin_voice_drop': {

@@ -28,6 +28,7 @@ import {
   TELEGRAM_BOT_SHORTHAND_COMMANDS,
   ALL_TELEGRAM_COMMANDS,
 } from '../src/lib/community/bot-registration';
+import { postTweetToX, isXConfigured } from '../src/lib/social/x-client';
 import type { ReportReason } from '../src/types/database';
 import { extractMetadataFromBuffer, DEFAULT_TRACK_ICON } from '../src/lib/audio/metadata';
 import { getR2Client, getBucketName, getPublicUrl } from '../src/lib/r2';
@@ -76,7 +77,8 @@ AI Voice & Broadcast:
   inject <type> <text>    Force-inject (news|weather|announcement) to play NEXT on air
   ads list                List active sponsor campaigns, frequency, and ad spots
   ads inject [id]         Force-inject a sponsor ad spot to play NEXT on stream
-  broadcast <message>     Push notification to connected Discord & Telegram channels
+  broadcast <message> [--x] Push notification to connected Discord & Telegram channels (optionally X)
+  x post <text>           Post a live announcement tweet to X (Twitter) @promptfm_live
   listen                  Launch the live audio stream in terminal (mpv/ffplay)
 
 Bots & Community Integrations:
@@ -801,18 +803,53 @@ Moderation & Schedule:
     }
 
     case 'broadcast': {
-      const message = args.slice(1).join(' ');
+      const includeX = args.includes('--x');
+      const filtered = args.slice(1).filter((a) => a !== '--x');
+      const message = filtered.join(' ');
       if (!message) {
-        console.error('Error: Provide message to broadcast to Discord/Telegram.');
+        console.error('Error: Provide message to broadcast to Discord/Telegram/X.');
         process.exit(1);
       }
-      console.log(`📢 Broadcasting to connected community channels (Discord/Telegram)...`);
-      await broadcastToCommunity({
-        title: 'PromptFM Live Announcement',
-        message,
-        author: 'Station Admin',
-      });
+      console.log(`📢 Broadcasting to community channels (Discord/Telegram${includeX ? '/X' : ''})...`);
+      await broadcastToCommunity(
+        {
+          title: 'PromptFM Live Announcement',
+          message,
+          author: 'Station Admin',
+        },
+        { postToX: includeX }
+      );
       console.log(`✅ Broadcast sent.`);
+      break;
+    }
+
+    case 'x':
+    case 'tweet': {
+      const sub = args[1];
+      const textArgs = sub === 'post' ? args.slice(2) : args.slice(1);
+      const text = textArgs.join(' ');
+      if (!text) {
+        console.error('Error: Provide tweet text to post to X.');
+        console.log('Usage: npm run promptfm -- x post "Tune in live on PromptFM: https://promptfm.live"');
+        process.exit(1);
+      }
+      console.log(`🐦 Posting tweet to X (@promptfm_live)...`);
+      try {
+        const res = await postTweetToX(text);
+        if (res.success) {
+          if (res.simulated) {
+            console.log(`✅ Simulated tweet posted in dev/fallback mode (ID: ${res.tweetId})`);
+            console.log(`   Configure X_API_KEY / X_ACCESS_TOKEN or X_BEARER_TOKEN in .env.local for live production posting.`);
+          } else {
+            console.log(`🎉 Live Tweet posted successfully to X! Tweet ID: ${res.tweetId}`);
+          }
+          console.log(`   Tweet text: "${res.text}"`);
+        } else {
+          console.error(`❌ Failed to post tweet to X: ${res.error}`);
+        }
+      } catch (err: unknown) {
+        console.error(`❌ Error posting tweet:`, err instanceof Error ? err.message : err);
+      }
       break;
     }
 

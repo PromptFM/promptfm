@@ -29,6 +29,8 @@ import {
   Plus,
   Lock,
   Music,
+  Share2,
+  Send,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { type Track, type AITool, type ContentReport, REASON_LABELS } from '@/types/database';
@@ -67,7 +69,7 @@ export default function AdminDashboard() {
   const [authChecking, setAuthChecking] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'submissions' | 'library' | 'queue' | 'batches' | 'reports' | 'channels' | 'upload'>('submissions');
+  const [activeTab, setActiveTab] = useState<'submissions' | 'library' | 'queue' | 'batches' | 'reports' | 'channels' | 'upload' | 'social'>('submissions');
   const [pendingTracks, setPendingTracks] = useState<Track[]>([]);
   const [libraryTracks, setLibraryTracks] = useState<Track[]>([]);
   const [queueItems, setQueueItems] = useState<QueuedItem[]>([]);
@@ -87,6 +89,16 @@ export default function AdminDashboard() {
   const [customRejectReason, setCustomRejectReason] = useState<string>('Religious hostility violates broadcast standards');
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+
+  // Social & X (Twitter) broadcast state
+  const [socialMessage, setSocialMessage] = useState('');
+  const [socialTitle, setSocialTitle] = useState('PromptFM Live Broadcast');
+  const [socialUrl, setSocialUrl] = useState('https://promptfm.live');
+  const [postToX, setPostToX] = useState(true);
+  const [postToDiscord, setPostToDiscord] = useState(true);
+  const [postToTelegram, setPostToTelegram] = useState(true);
+  const [socialBroadcasting, setSocialBroadcasting] = useState(false);
+  const [socialResult, setSocialResult] = useState<{ success: boolean; message: string } | null>(null);
 
   // Audio preview state
   const [playingId, setPlayingId] = useState<string | null>(null);
@@ -504,6 +516,54 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleSocialBroadcast = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!socialMessage.trim()) return;
+    setSocialBroadcasting(true);
+    setSocialResult(null);
+
+    try {
+      const res = await fetch('/api/admin/broadcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: socialTitle,
+          message: socialMessage,
+          url: socialUrl,
+          postToX,
+          postToDiscord,
+          postToTelegram,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        const xStatus = data.results?.x?.simulated
+          ? '(X: Simulated dev fallback)'
+          : data.results?.x?.success
+          ? '(Posted to X!)'
+          : '';
+        setSocialResult({
+          success: true,
+          message: `Broadcast successfully dispatched! ${xStatus}`,
+        });
+        setSocialMessage('');
+      } else {
+        setSocialResult({
+          success: false,
+          message: data.error || 'Failed to dispatch broadcast',
+        });
+      }
+    } catch (err: unknown) {
+      setSocialResult({
+        success: false,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setSocialBroadcasting(false);
+    }
+  };
+
   if (authChecking) {
     return (
       <main className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-6">
@@ -628,6 +688,17 @@ export default function AdminDashboard() {
             >
               <Upload className="w-3.5 h-3.5" />
               Upload MP3
+            </button>
+            <button
+              onClick={() => setActiveTab('social')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+                activeTab === 'social'
+                  ? 'bg-emerald-500 text-black shadow-sm'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <Share2 className="w-3.5 h-3.5 text-sky-400" />
+              Social Broadcast (X / Discord / Telegram)
             </button>
           </div>
         </div>
@@ -1525,6 +1596,131 @@ export default function AdminDashboard() {
               >
                 {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                 Add Track to Station
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* ── Social Broadcast Tab (X / Discord / Telegram) ───────────────────── */}
+        {activeTab === 'social' && (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-xl mx-auto space-y-5">
+            <div>
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <Share2 className="w-4 h-4 text-sky-400" />
+                Multi-Platform Social Broadcast
+              </h2>
+              <p className="text-xs text-zinc-400 mt-1">
+                Post station announcements, chart results, and live updates directly to X (Twitter), Discord, and Telegram in one click.
+              </p>
+            </div>
+
+            {socialResult && (
+              <div
+                className={`p-3 rounded-xl border text-xs flex items-center gap-2 ${
+                  socialResult.success
+                    ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300'
+                    : 'bg-rose-950/40 border-rose-500/30 text-rose-300'
+                }`}
+              >
+                {socialResult.success ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                <span>{socialResult.message}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSocialBroadcast} className="space-y-4">
+              <div>
+                <label className="block text-xs text-zinc-400 mb-1">Broadcast Title</label>
+                <input
+                  type="text"
+                  value={socialTitle}
+                  onChange={(e) => setSocialTitle(e.target.value)}
+                  placeholder="e.g. Weekly Top 10 Chart Live"
+                  className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-xs text-zinc-400">Announcement Message</label>
+                  <span
+                    className={`text-[10px] font-mono ${
+                      socialMessage.length > 280 ? 'text-rose-400 font-bold' : 'text-zinc-500'
+                    }`}
+                  >
+                    {280 - socialMessage.length} chars left for X
+                  </span>
+                </div>
+                <textarea
+                  rows={4}
+                  value={socialMessage}
+                  onChange={(e) => setSocialMessage(e.target.value)}
+                  placeholder="What's happening on air? Announce fresh tracks, upcoming DJ shifts, or chart milestones..."
+                  required
+                  className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-zinc-400 mb-1">Attached URL</label>
+                <input
+                  type="url"
+                  value={socialUrl}
+                  onChange={(e) => setSocialUrl(e.target.value)}
+                  placeholder="https://promptfm.live"
+                  className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 font-mono text-[11px]"
+                />
+              </div>
+
+              <div className="p-3 bg-zinc-950/70 border border-zinc-800 rounded-xl space-y-2">
+                <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block">
+                  Broadcast Destinations
+                </span>
+                <label className="flex items-center gap-2.5 text-xs text-zinc-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={postToX}
+                    onChange={(e) => setPostToX(e.target.checked)}
+                    className="rounded border-zinc-700 bg-zinc-900 text-sky-500 focus:ring-0"
+                  />
+                  <span className="flex items-center gap-1.5">
+                    🐦 <strong className="text-sky-400">X (Twitter)</strong> — @promptfm_live
+                  </span>
+                </label>
+                <label className="flex items-center gap-2.5 text-xs text-zinc-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={postToDiscord}
+                    onChange={(e) => setPostToDiscord(e.target.checked)}
+                    className="rounded border-zinc-700 bg-zinc-900 text-indigo-500 focus:ring-0"
+                  />
+                  <span className="flex items-center gap-1.5">
+                    💬 <strong className="text-indigo-400">Discord</strong> — #now-playing & announcements
+                  </span>
+                </label>
+                <label className="flex items-center gap-2.5 text-xs text-zinc-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={postToTelegram}
+                    onChange={(e) => setPostToTelegram(e.target.checked)}
+                    className="rounded border-zinc-700 bg-zinc-900 text-blue-500 focus:ring-0"
+                  />
+                  <span className="flex items-center gap-1.5">
+                    ✈️ <strong className="text-blue-400">Telegram</strong> — Channel & group subscribers
+                  </span>
+                </label>
+              </div>
+
+              <button
+                type="submit"
+                disabled={socialBroadcasting || !socialMessage.trim() || socialMessage.length > 280}
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-sky-500 via-indigo-500 to-emerald-500 hover:opacity-90 text-black font-bold text-xs transition-opacity flex items-center justify-center gap-2 disabled:opacity-40 shadow-lg shadow-sky-500/10"
+              >
+                {socialBroadcasting ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-black" />
+                ) : (
+                  <Send className="w-4 h-4 text-black" />
+                )}
+                Post Broadcast to Selected Networks
               </button>
             </form>
           </div>

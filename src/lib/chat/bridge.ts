@@ -3,6 +3,7 @@
 // Broadcasts Now Playing updates, live spoken transcripts, and enables 1-click in-chat voting.
 
 import { createAdminClient } from '../supabase/server';
+import { postTweetToX } from '../social/x-client';
 
 export interface BroadcastNotification {
   title: string;
@@ -16,6 +17,7 @@ export interface BroadcastNotification {
   upvotesCount?: number;
   transcript?: string;
   coverUrl?: string;
+  postToX?: boolean;
 }
 
 let fallbackDemoVotes = 0;
@@ -248,11 +250,22 @@ export async function sendTelegramNotification(payload: BroadcastNotification): 
 }
 
 /**
- * Unified broadcaster that notifies both Discord and Telegram in parallel.
+ * Unified broadcaster that notifies Discord, Telegram, and optionally X (Twitter) in parallel.
  */
-export async function broadcastToCommunity(payload: BroadcastNotification) {
-  return Promise.allSettled([
+export async function broadcastToCommunity(
+  payload: BroadcastNotification,
+  options?: { postToX?: boolean }
+) {
+  const tasks: Promise<unknown>[] = [
     sendDiscordNotification(payload),
     sendTelegramNotification(payload),
-  ]);
+  ];
+
+  if (options?.postToX || payload.postToX) {
+    const rawText = `${payload.title ? `${payload.title}: ` : ''}${payload.message}`;
+    const truncated = rawText.length > 270 ? `${rawText.slice(0, 267)}...` : rawText;
+    tasks.push(postTweetToX(truncated, { url: payload.url }));
+  }
+
+  return Promise.allSettled(tasks);
 }

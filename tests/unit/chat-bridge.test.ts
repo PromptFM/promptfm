@@ -281,8 +281,29 @@ describe('Community Chat Bridge (Discord & Telegram)', () => {
       });
 
       expect(results).toHaveLength(2);
-      expect(results[0].status).toBe('fulfilled');
-      expect(results[1].status).toBe('fulfilled');
+      expect(results[0]?.status).toBe('fulfilled');
+      expect(results[1]?.status).toBe('fulfilled');
+    });
+
+    it('dispatches to Discord, Telegram, and X when postToX is requested', async () => {
+      process.env.DISCORD_WEBHOOK_URL = 'https://discord.com/webhook';
+      process.env.TELEGRAM_BOT_TOKEN = 'token';
+      process.env.TELEGRAM_CHAT_ID = 'chat';
+
+      global.fetch = vi.fn().mockResolvedValue({ ok: true });
+
+      const results = await broadcastToCommunity(
+        {
+          title: 'Station ID',
+          message: 'PromptFM is online',
+        },
+        { postToX: true }
+      );
+
+      expect(results).toHaveLength(3);
+      expect(results[0]?.status).toBe('fulfilled');
+      expect(results[1]?.status).toBe('fulfilled');
+      expect(results[2]?.status).toBe('fulfilled');
     });
   });
 
