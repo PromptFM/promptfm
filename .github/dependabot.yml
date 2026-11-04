@@ -1,0 +1,51 @@
+# .github/dependabot.yml
+# Automated weekly dependency & vulnerability updates for PromptFM
+
+version: 2
+updates:
+  # ── NPM Supply Chain & Package Dependencies ───────────────────
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "security"
+    groups:
+      dev-dependencies:
+        patterns:
+          - "@types/*"
+          - "eslint*"
+          - "vitest*"
+          - "@vitest/*"
+          - "@playwright/*"
+          - "postcss*"
+          - "tailwindcss*"
+
+  # ── GitHub Actions CI/CD Pipeline Workflows ────────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    labels:
+      - "ci"
+      - "github-actions"
+
+  # ── Terraform Cloud Infrastructure Providers ──────────────────
+  - package-ecosystem: "terraform"
+    directory: "/infra/terraform"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    labels:
+      - "infrastructure"
+      - "terraform"
