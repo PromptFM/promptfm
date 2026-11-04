@@ -1,4 +1,7 @@
-.env.example
-.env.local.example
-tests/unit/local-dev-config.test.ts
-docker/local-dev/init-db.sql
+# .gitleaksignore
+# Documented public IDs, test fixtures, and false positives
+f8bcb20481cb49e11a0286e56800b2ae4049f5b6:src/lib/community/discord-verify.ts:discord-api-token:14
+a0eed758d1b82510da222c7eeb332d18f969ffd2:src/lib/legal/policies.ts:generic-api-key:211
+bf2f0d62d6342fcc8689b36369a254b3e300ef4d:README.md:generic-api-key:166
+d1829142092bd302b5e84f283226a3fc8dcd777a:src/app/layout.tsx:generic-api-key:107
+d1829142092bd302b5e84f283226a3fc8dcd777a:src/lib/ads/adsense.ts:generic-api-key:4
