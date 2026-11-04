@@ -1,7 +1,10 @@
 # .github/FUNDING.yml
-# GitHub Sponsors & Community Funding Configuration for PromptFM
+# GitHub Sponsors & Multi-Rail Community Funding Configuration for PromptFM
 
 github: [atrifan]
 ko_fi: promptfm
-custom: ['https://promptfm.live/#contribute', 'https://ko-fi.com/promptfm']
-
+custom:
+  - 'https://promptfm.live/status'
+  - 'https://donate.stripe.com/6oUaEYdUpa9zgEA2H3cQU00'
+  - 'https://paypal.me/promptfm'
+  - 'https://ko-fi.com/promptfm'

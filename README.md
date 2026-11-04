@@ -1,8 +1,9 @@
 # 📻 PromptFM — 24/7 AI Music Radio & Creator Community
 
 [![Production](https://img.shields.io/badge/Production-promptfm.live-10b981?style=for-the-badge&logo=vercel)](https://promptfm.live)
+[![System Status](https://img.shields.io/endpoint?url=https://promptfm.live/api/status?format=badge&style=for-the-badge)](https://promptfm.live/status)
 [![CI Quality & Security Gate](https://img.shields.io/badge/CI-Passing-brightgreen?style=for-the-badge&logo=githubactions)](https://github.com/PromptFM/promptfm/actions)
-[![Tests](https://img.shields.io/badge/Tests-450%20Passing-brightgreen?style=for-the-badge&logo=vitest)](https://github.com/PromptFM/promptfm)
+[![Tests](https://img.shields.io/badge/Tests-477%20Passing-brightgreen?style=for-the-badge&logo=vitest)](https://github.com/PromptFM/promptfm)
 [![Mutation Score](https://img.shields.io/badge/Stryker%20Mutation-%E2%89%A585%25-blueviolet?style=for-the-badge)](https://github.com/PromptFM/promptfm)
 [![GCP Free Tier](https://img.shields.io/badge/GCP%20Always--Free-$0.00%2Fmo-4285F4?style=for-the-badge&logo=googlecloud)](https://console.cloud.google.com/?project=promptfm-radio-1793623670)
 [![License](https://img.shields.io/badge/License-Community%20Source--Available-purple?style=for-the-badge)](LICENSE)
@@ -334,5 +335,58 @@ PromptFM welcomes open community development, bug fixes, and feature proposals!
 - **GitHub Organization:** Community development is hosted under the `promptfm` organization.
 - **Continuous Deployment:** Merging a verified PR to `main` automatically triggers Vercel production deployment to [promptfm.live](https://promptfm.live). Terraform and Ansible changes are executed manually by the Board Admin.
 - **Security & Secret Sharing:** Never post secrets or API keys in PRs or issues. For new environment variables, use ephemeral links ([Password Pusher](https://pwpush.com)) shared directly with @atrifan.
+
+---
+
+## 🩺 System Status & Health Telemetry
+
+PromptFM features real-time operational health checks probing all 5 core station systems:
+- **Live Status Webpage:** [`https://promptfm.live/status`](https://promptfm.live/status) — Interactive status dashboard with real-time response latency metrics (ms) and 30-day uptime percentage.
+- **Health Check JSON API:** `GET https://promptfm.live/api/status` — Returns machine-readable JSON status report (`operational`, `degraded`, `outage`) with edge-caching (`s-maxage=10`).
+- **Dynamic Shields.io Badge:** `GET https://promptfm.live/api/status?format=badge` — Generates a live SVG badge for GitHub readmes and external dashboards.
+- **Automated Uptime Actions:** [`.github/workflows/uptime.yml`](.github/workflows/uptime.yml) executes a 30-minute health probe workflow completely free on the GitHub Actions public repository tier.
+
+---
+
+## 💰 Transparent Funding, Music Licensing & Multi-Rail Donations
+
+PromptFM is an independent project. To maintain 100% legal compliance and operational transparency, all community contributions and sponsorships are directly budgeted:
+
+| Allocation | Percentage | Purpose |
+| :--- | :--- | :--- |
+| **Radio & Music Royalties** | **35%** | Statutory licensing fees (ASCAP, BMI, SESAC, SoundExchange / StreamLicensing) to legally broadcast commercial licensed tracks alongside AI-generated music. |
+| **Cloud & Audio Streaming** | **25%** | 24/7 continuous Icecast audio streaming servers, GCP Cloud Run compute, audio object storage, and Vercel edge delivery. |
+| **Generative AI & Voice Compute** | **20%** | Gemini 1.5/2.0 API prompt tokens for real-time DJ banter scripting, weather/news synthesizers, and neural TTS voice generation credits. |
+| **Engineering & Development** | **15%** | Dedicated development time maintaining audio pipelines, listener bots, Discord & Telegram bridges, and mobile apps. |
+| **Maintainer Fuel (Coffee)** | **5%** | Espresso and coffee powering late-night bug triage, production monitoring, and community support. |
+
+### Supported Donation Rails
+- **Stripe Checkout:** Direct card, Apple Pay, and Google Pay support via [Stripe Donation](https://donate.stripe.com/6oUaEYdUpa9zgEA2H3cQU00).
+- **PayPal.Me:** Direct 1-click tips via [paypal.me/promptfm](https://paypal.me/promptfm).
+- **GitHub Sponsors:** 0% platform fee developer patronage at [github.com/sponsors/PromptFM](https://github.com/sponsors/PromptFM).
+- **Ko-fi:** 1-click tips via Apple Pay, Google Pay, and PayPal at [ko-fi.com/promptfm](https://ko-fi.com/promptfm).
+- **Bitcoin (BTC):** Direct on-chain contribution on Bitcoin Mainnet only to `bc1qaplta50757v7c4vrk7vnry0vfd6c47rpmyvnj9` ([View on Mempool](https://mempool.space/address/bc1qaplta50757v7c4vrk7vnry0vfd6c47rpmyvnj9)).
+- **Ethereum / USDC:** Direct ERC-20 & ETH contribution on Ethereum Mainnet only to `0x9581F969727Ff987958d050C80662578C50F6A9f` ([View on Etherscan](https://etherscan.io/address/0x9581F969727Ff987958d050C80662578C50F6A9f)).
+
+---
+
+## 📡 $0-Cost Structured Logging & Distributed Tracing
+
+PromptFM maximizes observability without incurring third-party SaaS fees (no Datadog or Splunk bills):
+- **Google Cloud Logging (50 GB/month FREE):** Ingests single-line JSON logs emitted to stdout/stderr. Automatically indexes `severity`, `logging.googleapis.com/trace`, `httpRequest`, and `serviceContext` attributes.
+- **Vercel Runtime Logs ($0 Hobby / Pro):** Streams real-time function execution logs in the Vercel dashboard. Parsed as structured JSON attributes directly from stdout.
+- **W3C Distributed Tracing:** All incoming requests are assigned or inherit a 32-hex `traceId` and 16-hex `spanId` (via `traceparent`, `x-request-id`, or `x-cloud-trace-context`). Propagated across Next.js APIs, Icecast streamer, and AI generation calls for instant end-to-end trace correlation.
+- **Isomorphic Logger:** Accessible via [`src/lib/telemetry/logger.ts`](src/lib/telemetry/logger.ts) supporting `logger.info()`, `logger.warn()`, `logger.error()`, and contextual child loggers `logger.child({ traceId, component })`.
+
+---
+
+## 🚀 Zero-Friction Release Automation & Vercel Production Gate
+
+To eliminate release bottlenecks and manual token hurdles:
+1. **Continuous Deployment on `main`:** Pull Requests merged into `main` automatically deploy to Vercel production preview/live with zero manual intervention.
+2. **Automated Release Tags:** Pushing a semantic version tag (e.g. `git tag v1.0.0 && git push origin v1.0.0`) triggers [`.github/workflows/release.yml`](.github/workflows/release.yml).
+3. **GitHub Deployment Status (Checkmark!):** The workflow packages the release, executes the quality gate (Vitest + Typecheck), triggers/verifies Vercel production deployment, and stamps the Git tag with an official green checkmark (`Environment: Production – Active`).
+4. **Automated Changelog:** GitHub Release notes are automatically generated from commit history with zero manual release drafting friction.
+
 
 
