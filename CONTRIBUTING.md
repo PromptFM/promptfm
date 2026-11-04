@@ -11,7 +11,7 @@ Before contributing, please read this guide and our [`LICENSE`](./LICENSE) to un
 PromptFM is governed by the **PromptFM Community Source-Available License (Version 1.0)**:
 - **You are welcome to:** Fork the repository, explore the codebase, test locally, submit bug fixes, propose new radio features, and contribute pull requests to the official project.
 - **Strictly Prohibited:** You may **not** copy, extract, resell, or reuse this codebase or its AI DJ personas to launch a competing or commercial radio/streaming service.
-- **Contribution Grant:** By submitting a Pull Request, you grant PromptFM and Alexander Trifan full rights to integrate, deploy, and maintain your contributions within PromptFM.
+- **Contribution Grant:** By submitting a Pull Request, you grant PromptFM full rights to integrate, deploy, and maintain your contributions within PromptFM.
 
 ---
 

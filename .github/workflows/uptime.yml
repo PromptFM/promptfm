@@ -1,0 +1,28 @@
+name: ⏱️ 24/7 Zero-Cost Uptime & Health Monitor
+
+on:
+  schedule:
+    # Run every 30 minutes (free tier on GitHub Actions for public repositories)
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  uptime-check:
+    name: 🩺 Probe PromptFM Radio Live Status
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🌐 Ping Health Check API
+        run: |
+          echo "Probing PromptFM status endpoint..."
+          STATUS_URL="https://promptfm.live/api/status"
+          HTTP_STATUS=$(curl -s -o response.json -w "%{http_code}" "$STATUS_URL" || echo "000")
+          echo "HTTP Response: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" -eq 200 ] || [ "$HTTP_STATUS" -eq 503 ]; then
+            cat response.json
+          else
+            echo "::warning ::Status endpoint returned code $HTTP_STATUS"
+          fi
+

@@ -102,6 +102,12 @@ export function generateSitemapUrls(now = new Date()): SitemapEntry[] {
       changeFrequency: 'monthly',
       priority: 0.7,
     },
+    {
+      url: `${SITE_URL}/status`,
+      lastModified: now,
+      changeFrequency: 'daily',
+      priority: 0.8,
+    },
   ];
 
   const channelRoutes: SitemapEntry[] = OFFICIAL_CHANNELS.map((ch) => ({

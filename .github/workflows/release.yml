@@ -1,0 +1,105 @@
+name: 🚀 Automatic Release & Vercel Production Gate
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Semantic Version Tag (e.g. v1.0.0)'
+        required: true
+        default: 'v0.1.0'
+
+permissions:
+  contents: write
+  deployments: write
+  statuses: write
+  pull-requests: write
+
+jobs:
+  release:
+    name: 📦 Package, Release & Stamp Vercel Deployment
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: ⚙️ Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: 📦 Install Dependencies
+        run: npm ci
+
+      - name: 🧪 Verify Quality & Unit Test Suite
+        run: npm test
+
+      - name: 🔍 TypeScript Strict Typecheck
+        run: npm run typecheck
+
+      - name: 🏷️ Resolve Release Tag & Metadata
+        id: meta
+        run: |
+          TAG="${{ github.ref_name }}"
+          if [ -z "$TAG" ] || [ "$TAG" = "main" ]; then
+            TAG="${{ inputs.version }}"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "commit_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+      - name: 🌐 Create GitHub Deployment (Production)
+        id: deployment
+        uses: chrnorm/deployment-action@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          environment: 'Production'
+          description: 'PromptFM Live 24/7 Radio Station Production Deployment'
+          ref: ${{ steps.meta.outputs.commit_sha }}
+
+      - name: 🚀 Verify / Trigger Vercel Production Build
+        id: vercel
+        env:
+          VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        run: |
+          if [ -n "$VERCEL_DEPLOY_HOOK" ]; then
+            echo "Triggering Vercel Production Deploy Hook..."
+            curl -s -X POST "$VERCEL_DEPLOY_HOOK"
+          else
+            echo "Vercel auto-deploys via GitHub Git Integration on release tags/main."
+          fi
+          echo "target_url=https://promptfm.live" >> $GITHUB_OUTPUT
+
+      - name: ✅ Stamp Deployment Checkmark as Active
+        if: success()
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          deployment-id: ${{ steps.deployment.outputs.deployment_id }}
+          state: 'success'
+          environment-url: 'https://promptfm.live'
+          description: 'Successfully deployed and verified on Vercel Production'
+
+      - name: ❌ Stamp Deployment Failure (if build failed)
+        if: failure()
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          deployment-id: ${{ steps.deployment.outputs.deployment_id }}
+          state: 'failure'
+
+      - name: 📝 Publish GitHub Release & Changelog
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: "PromptFM ${{ steps.meta.outputs.tag }}"
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

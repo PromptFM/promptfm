@@ -94,6 +94,12 @@ export const metadata: Metadata = {
       { url: '/apple-touch-icon-precomposed.png', sizes: '180x180', type: 'image/png' },
     ],
   },
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || 'google-site-verification-token',
+    other: {
+      'msvalidate.01': process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION || '',
+    },
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',

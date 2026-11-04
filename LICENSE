@@ -1,7 +1,7 @@
 # PromptFM Community Source-Available License
 Version 1.0 (Non-Commercial, No-Resale, Contribution-Permitted)
 
-Copyright (c) 2026 PromptFM Project & Alexander Trifan. All rights reserved.
+Copyright (c) 2026 PromptFM Project. All rights reserved.
 
 ---
 
@@ -25,10 +25,9 @@ You may **NOT**, under any circumstances, do any of the following without prior 
 ### 3. Contribution Terms (Inbound = Outbound)
 By submitting any contribution (including Pull Requests, code, documentation, scripts, or assets) to the PromptFM repository or project maintainers:
 1. You represent that the contribution is your original work and that you have full legal right to submit it.
-2. You grant to the PromptFM Project and Alexander Trifan an irrevocable, perpetual, worldwide, transferable, royalty-free, and fully sublicensable license to use, reproduce, modify, adapt, publish, translate, create derivative works from, distribute, execute, and display your contribution in connection with PromptFM and its services.
+2. You grant to the PromptFM Project an irrevocable, perpetual, worldwide, transferable, royalty-free, and fully sublicensable license to use, reproduce, modify, adapt, publish, translate, create derivative works from, distribute, execute, and display your contribution in connection with PromptFM and its services.
 
 ---
 
 ### 4. Disclaimer of Warranty & Limitation of Liability
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
