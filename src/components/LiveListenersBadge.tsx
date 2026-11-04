@@ -45,7 +45,12 @@ export default function LiveListenersBadge() {
       {listenerCount !== null && (
         <>
           <span className="text-emerald-500/40">·</span>
-          <span className="text-white font-bold">{listenerCount} LISTENING NOW</span>
+          <span
+            className="text-white font-bold"
+            title={`${listenerCount} total live listeners across all PromptFM channels`}
+          >
+            {listenerCount} NETWORK LISTENERS
+          </span>
         </>
       )}
     </div>

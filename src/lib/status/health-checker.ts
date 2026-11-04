@@ -67,6 +67,30 @@ async function runProbe(
 /**
  * Aggregates health checks across all 5 PromptFM service components.
  */
+/**
+ * Probes the Icecast audio mount point with a lightweight Range request.
+ * Icecast 2.4.x returns HTTP 400 Bad Request to HEAD requests on audio mount points.
+ * Using GET with Range: bytes=0-1 safely validates mount availability and immediately cancels the body.
+ */
+export async function probeStreamEndpoint(streamUrl: string, timeoutMs = 2500): Promise<void> {
+  const res = await fetch(streamUrl, {
+    method: 'GET',
+    headers: { Range: 'bytes=0-1' },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+
+  try {
+    await res.body?.cancel();
+  } catch {
+    // Ignore cancel failure
+  }
+
+  // Icecast returns 200 or 206 for stream audio, or 302 redirect
+  if (!res.ok && res.status !== 206 && res.status !== 302) {
+    throw new Error(`HTTP ${res.status}`);
+  }
+}
+
 export async function checkSystemHealth(
   options?: HealthCheckOptions
 ): Promise<SystemHealthReport> {
@@ -87,11 +111,7 @@ export async function checkSystemHealth(
           return;
         }
         const streamUrl = process.env.NEXT_PUBLIC_STREAM_URL || 'http://localhost:8000/stream';
-        // HEAD request to verify stream response headers without consuming full stream
-        const res = await fetch(streamUrl, { method: 'HEAD', signal: AbortSignal.timeout(timeout) });
-        if (!res.ok && res.status !== 302) {
-          throw new Error(`HTTP ${res.status}`);
-        }
+        await probeStreamEndpoint(streamUrl, timeout);
       }, timeout);
 
   // 2. Database & Vector Probe (Supabase / pgvector)

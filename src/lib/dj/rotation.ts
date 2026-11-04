@@ -186,11 +186,20 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
 
   // Calculate elapsed seconds
   let elapsedSeconds = startedAtMs > 0 ? Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000)) : 0;
-  const estimatedDuration = item?.duration_hint_seconds || 180; // 3 minutes default
 
-  // Auto-progression: When current track has completed its broadcast duration,
-  // automatically advance the station to the next queued or scheduled track.
-  if (item && elapsedSeconds >= estimatedDuration) {
+  // Auto-progression Watchdog:
+  // Liquidsoap drives on-air transitions via /api/radio/started when audio tracks actually complete.
+  // We only auto-advance as a watchdog fallback:
+  // - For spoken drops / ads: after duration_hint_seconds + 15s buffer.
+  // - For music tracks: after 600s (10-minute safety ceiling) so tracks (even 3-5+ minutes) never flip
+  //   prematurely while listeners are still hearing them, or after duration_hint_seconds || 240s in DEV_FALLBACK_SIMULATION.
+  const isMusic = !item?.type || item.type === 'music';
+  const isDevSimulation = process.env.DEV_FALLBACK_SIMULATION === 'true';
+  const watchdogTimeoutSeconds = isMusic
+    ? (isDevSimulation ? (item?.duration_hint_seconds || 240) : 600)
+    : ((item?.duration_hint_seconds || 30) + 15);
+
+  if (item && elapsedSeconds >= watchdogTimeoutSeconds) {
     try {
       const nextItem = await getNextAirplayItem(channelSlug, true);
       item = nextItem;

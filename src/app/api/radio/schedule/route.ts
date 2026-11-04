@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
       now_playing: {
         ...nowPlaying.item,
         elapsed_seconds: nowPlaying.elapsedSeconds,
-        duration_seconds: nowPlaying.item.duration_hint_seconds || 180,
+        duration_seconds: nowPlaying.item.duration_hint_seconds || (nowPlaying.item.type === 'music' ? 210 : 30),
         rank: nowPlaying.rank ?? null,
       },
       timestamp: schedule.generated_at_utc,
