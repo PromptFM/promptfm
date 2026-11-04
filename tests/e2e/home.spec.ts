@@ -40,4 +40,48 @@ test.describe('PromptFM Home Page & Navigation', () => {
     await expect(page).toHaveURL(/.*\/status/);
     await expect(page.getByRole('heading', { name: /System Status/i })).toBeVisible();
   });
+
+  test('renders the Community Funding & Transparency section with allocation breakdown and payment rails', async ({ page }) => {
+    await page.goto('/');
+
+    // Hero CTA button for supporting station
+    const supportCta = page.getByRole('link', { name: /Support Station|Donate/i }).first();
+    await expect(supportCta).toBeVisible();
+    await expect(supportCta).toHaveAttribute('href', '#funding');
+
+    // Section container with id="funding"
+    const fundingSection = page.locator('#funding');
+    await expect(fundingSection).toBeVisible();
+
+    // Mission and 100% allocation transparency statement
+    await expect(fundingSection).toContainText(/Community Funding|Support PromptFM/i);
+    await expect(fundingSection).toContainText(/100%/);
+
+    // Allocation percentages
+    await expect(fundingSection).toContainText(/35%/); // Licensing & Royalties
+    await expect(fundingSection).toContainText(/25%/); // Infrastructure
+    await expect(fundingSection).toContainText(/20%/); // AI Credits
+    await expect(fundingSection).toContainText(/15%/); // Dev Time
+    await expect(fundingSection).toContainText(/5%/);  // Coffee
+
+    // Direct payment rails
+    const stripeLink = fundingSection.getByRole('link', { name: /Stripe/i });
+    await expect(stripeLink).toHaveAttribute('href', /donate\.stripe\.com/);
+
+    const paypalLink = fundingSection.getByRole('link', { name: /PayPal/i });
+    await expect(paypalLink).toHaveAttribute('href', /paypal\.me/);
+
+    const kofiLink = fundingSection.getByRole('link', { name: /Ko-fi/i });
+    await expect(kofiLink).toHaveAttribute('href', /ko-fi\.com/);
+
+    const githubLink = fundingSection.getByRole('link', { name: /GitHub Sponsors/i });
+    await expect(githubLink).toHaveAttribute('href', /github\.com\/sponsors/);
+
+    // Direct crypto cards
+    await expect(fundingSection).toContainText(/bc1qaplta50757v7c4vrk7vnry0vfd6c47rpmyvnj9/);
+    await expect(fundingSection).toContainText(/0x9581F969727Ff987958d050C80662578C50F6A9f/);
+    await expect(fundingSection).toContainText(/Bitcoin Mainnet Only/i);
+    await expect(fundingSection).toContainText(/Ethereum Mainnet Only/i);
+  });
 });
+

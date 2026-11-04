@@ -42,6 +42,21 @@ export interface FundingAllocationItem {
   percentage: number;
 }
 
+export interface FundingPillarSummary {
+  key: FundingCategory;
+  title: string;
+  shortTitle: string;
+  percentage: number;
+  description: string;
+  accentColor: string;
+}
+
+export interface FundingMissionStatement {
+  statement: string;
+  breakdownSummary: string;
+  pillars: FundingPillarSummary[];
+}
+
 export interface CryptoWalletItem {
   currency: 'BTC' | 'ETH';
   network: string;
@@ -258,3 +273,40 @@ export function getAdFormatOptions(): AdFormatOption[] {
     },
   ];
 }
+
+export function getFundingMissionStatement(): FundingMissionStatement {
+  const breakdown = getFundingBreakdown();
+  const colorMap: Record<FundingCategory, string> = {
+    commercial_licensing: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
+    infrastructure: 'text-sky-400 bg-sky-500/10 border-sky-500/30',
+    ai_compute: 'text-purple-400 bg-purple-500/10 border-purple-500/30',
+    development: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
+    coffee: 'text-rose-400 bg-rose-500/10 border-rose-500/30',
+  };
+
+  const shortTitles: Record<FundingCategory, string> = {
+    commercial_licensing: 'Music Licensing & Royalties',
+    infrastructure: 'Streaming & Infrastructure',
+    ai_compute: 'AI & Neural Voice Credits',
+    development: 'Development & Engineering',
+    coffee: 'Maintainer Fuel & Coffee',
+  };
+
+  const pillars: FundingPillarSummary[] = breakdown.map((item) => ({
+    key: item.category,
+    title: item.title,
+    shortTitle: shortTitles[item.category],
+    percentage: item.percentage,
+    description: item.description,
+    accentColor: colorMap[item.category],
+  }));
+
+  return {
+    statement:
+      '100% of community donations, sponsorships, and advertising revenues go directly towards keeping PromptFM live, legally licensed, and free worldwide without audio subscription paywalls.',
+    breakdownSummary:
+      'Funds are transparently allocated across 5 operational pillars: statutory music royalties, 24/7 streaming servers, Gemini AI tokens, continuous open-source engineering, and maintainer coffee.',
+    pillars,
+  };
+}
+

@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { Radio, Music2, Upload, Code2 } from 'lucide-react';
+import { Radio, Music2, Upload, Code2, Heart } from 'lucide-react';
 import ChannelsGrid from '@/components/ChannelsGrid';
 import AdSenseDisplayUnit from '@/components/AdSenseDisplayUnit';
 import LiveListenersBadge from '@/components/LiveListenersBadge';
 import UpNextSection from '@/components/UpNextSection';
+import FundingSection from '@/components/FundingSection';
 import ContributeSection from '@/components/ContributeSection';
 import CommunitySection from '@/components/CommunitySection';
 
@@ -57,8 +58,15 @@ export default function HomePage() {
             Weekly Charts
           </Link>
           <a
+            href="#funding"
+            className="flex items-center justify-center gap-2 border border-emerald-500/50 hover:border-emerald-400 text-emerald-300 hover:text-white font-semibold px-5 py-3 rounded-xl transition-colors text-sm sm:text-base bg-emerald-950/30 shadow-md shadow-emerald-500/10"
+          >
+            <Heart className="w-4 h-4 text-emerald-400 fill-emerald-400/20" />
+            Support Station
+          </a>
+          <a
             href="#contribute"
-            className="flex items-center justify-center gap-2 border border-emerald-500/50 hover:border-emerald-400 text-emerald-300 hover:text-white font-semibold px-5 py-3 rounded-xl transition-colors text-sm sm:text-base bg-emerald-950/30"
+            className="flex items-center justify-center gap-2 border border-zinc-700 hover:border-zinc-500 text-zinc-300 hover:text-white font-semibold px-5 py-3 rounded-xl transition-colors text-sm sm:text-base"
           >
             <Code2 className="w-4 h-4 text-emerald-400" />
             Contribute
@@ -174,6 +182,9 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Community Funding & Transparency Section */}
+      <FundingSection />
 
       {/* Community Development & Open Source Contributor Portal */}
       <ContributeSection />
