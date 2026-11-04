@@ -90,5 +90,22 @@ describe('Radio Playback Progress & Queue Card Labeling', () => {
       expect(cards[0]?.badgeLabel).toBe('#1 NEXT');
       expect(cards[1]?.badgeLabel).toBe('#2 NEXT');
     });
+
+    it('renders demo-fallback track as NOW PLAYING with progress bar when on air', () => {
+      const demoTrack = {
+        id: 'demo-fallback',
+        title: 'PromptFM Ambient AI Anthem',
+        artist: 'PromptFM Core',
+        type: 'music',
+      };
+      const cards = buildQueueDisplayItems(demoTrack, mockUpNext, 30, 180);
+
+      expect(cards.length).toBe(3);
+      expect(cards[0]?.id).toBe('demo-fallback');
+      expect(cards[0]?.badgeLabel).toBe('▶ NOW PLAYING');
+      expect(cards[0]?.isCurrent).toBe(true);
+      expect(cards[0]?.progressPercent).toBe(17);
+      expect(cards[0]?.formattedTime).toBe('0:30 / 3:00');
+    });
   });
 });

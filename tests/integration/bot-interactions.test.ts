@@ -174,6 +174,164 @@ describe('Discord & Telegram Interactive Bot Commands Integration', () => {
       expect(json.help_text).toContain('/queue');
       expect(json.help_text).toContain(':45'); // Mentions listener showcase slot
     });
+
+    it('handles all shorthand Telegram commands: /np, /q, /n, /s, /d, /w, /z, /r, /h', async () => {
+      // /np
+      const npReq = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: {
+            message_id: 201,
+            from: { id: 111, username: 'quick_user' },
+            chat: { id: 222 },
+            text: '/np',
+          },
+        }),
+      });
+      const npRes = await POST(npReq);
+      expect((await npRes.json()).success).toBe(true);
+
+      // /q
+      const qReq = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: {
+            message_id: 202,
+            from: { id: 111, username: 'quick_user' },
+            chat: { id: 222 },
+            text: '/q',
+          },
+        }),
+      });
+      const qRes = await POST(qReq);
+      expect((await qRes.json()).success).toBe(true);
+
+      // /n
+      const nReq = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: {
+            message_id: 203,
+            from: { id: 111, username: 'quick_user' },
+            chat: { id: 222 },
+            text: '/n',
+          },
+        }),
+      });
+      const nRes = await POST(nReq);
+      expect((await nRes.json()).success).toBe(true);
+
+      // /s
+      const sReq = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: {
+            message_id: 204,
+            from: { id: 111, username: 'quick_user' },
+            chat: { id: 222 },
+            text: '/s synthwave beat',
+          },
+        }),
+      });
+      const sRes = await POST(sReq);
+      const sJson = await sRes.json();
+      expect(sJson.success).toBe(true);
+      expect(sJson.slot.request.type).toBe('song');
+
+      // /d
+      const dReq = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: {
+            message_id: 205,
+            from: { id: 111, username: 'quick_user' },
+            chat: { id: 222 },
+            text: '/d Alex You rock!',
+          },
+        }),
+      });
+      const dRes = await POST(dReq);
+      const dJson = await dRes.json();
+      expect(dJson.success).toBe(true);
+      expect(dJson.slot.request.type).toBe('dedication');
+
+      // /w
+      const wReq = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: {
+            message_id: 206,
+            from: { id: 111, username: 'quick_user' },
+            chat: { id: 222 },
+            text: '/w Paris',
+          },
+        }),
+      });
+      const wRes = await POST(wReq);
+      const wJson = await wRes.json();
+      expect(wJson.success).toBe(true);
+      expect(wJson.slot.request.type).toBe('weather');
+
+      // /z
+      const zReq = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: {
+            message_id: 207,
+            from: { id: 111, username: 'quick_user' },
+            chat: { id: 222 },
+            text: '/z Leo',
+          },
+        }),
+      });
+      const zRes = await POST(zReq);
+      const zJson = await zRes.json();
+      expect(zJson.success).toBe(true);
+      expect(zJson.slot.request.type).toBe('zodiac');
+
+      // /r
+      const rReq = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: {
+            message_id: 208,
+            from: { id: 111, username: 'quick_user' },
+            chat: { id: 222 },
+            text: '/r track-999 offensive lyrics',
+          },
+        }),
+      });
+      const rRes = await POST(rReq);
+      const rJson = await rRes.json();
+      expect(rJson.success).toBe(true);
+      expect(rJson.report).toBeDefined();
+
+      // /h
+      const hReq = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: {
+            message_id: 209,
+            from: { id: 111, username: 'quick_user' },
+            chat: { id: 222 },
+            text: '/h',
+          },
+        }),
+      });
+      const hRes = await POST(hReq);
+      const hJson = await hRes.json();
+      expect(hJson.success).toBe(true);
+      expect(hJson.help_text).toBeDefined();
+    });
   });
 
   describe('Discord Interactive Components & Slash Commands', () => {
@@ -259,6 +417,146 @@ describe('Discord & Telegram Interactive Bot Commands Integration', () => {
       expect(json.data.content).toContain('/song');
       expect(json.data.content).toContain('/queue');
       expect(json.data.content).toContain(':45');
+    });
+
+    it('handles all shorthand Discord slash commands: np, q, n, s, d, w, z, r, h', async () => {
+      // np
+      const npReq = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 2,
+          data: { name: 'np' },
+          member: { user: { id: 'disc_user_1', username: 'fast_discord' } },
+        }),
+      });
+      const npRes = await POST(npReq);
+      expect((await npRes.json()).type).toBe(4);
+
+      // q
+      const qReq = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 2,
+          data: { name: 'q' },
+          member: { user: { id: 'disc_user_1', username: 'fast_discord' } },
+        }),
+      });
+      const qRes = await POST(qReq);
+      expect((await qRes.json()).data.content).toContain('Up Next');
+
+      // n
+      const nReq = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 2,
+          data: { name: 'n' },
+          member: { user: { id: 'disc_user_1', username: 'fast_discord' } },
+        }),
+      });
+      const nRes = await POST(nReq);
+      expect((await nRes.json()).data.content).toContain('Up Next');
+
+      // s
+      const sReq = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 2,
+          data: {
+            name: 's',
+            options: [{ name: 'vibe', value: 'lofi chill piano beat' }],
+          },
+          member: { user: { id: 'disc_user_1', username: 'fast_discord' } },
+        }),
+      });
+      const sRes = await POST(sReq);
+      expect((await sRes.json()).data.content).toContain('Accepted for song');
+
+      // d
+      const dReq = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 2,
+          data: {
+            name: 'd',
+            options: [
+              { name: 'to', value: 'Sarah' },
+              { name: 'message', value: 'Happy Monday!' },
+            ],
+          },
+          member: { user: { id: 'disc_user_1', username: 'fast_discord' } },
+        }),
+      });
+      const dRes = await POST(dReq);
+      expect((await dRes.json()).data.content).toContain('Accepted for dedication');
+
+      // w
+      const wReq = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 2,
+          data: {
+            name: 'w',
+            options: [{ name: 'city', value: 'Berlin' }],
+          },
+          member: { user: { id: 'disc_user_1', username: 'fast_discord' } },
+        }),
+      });
+      const wRes = await POST(wReq);
+      expect((await wRes.json()).data.content).toContain('Accepted for weather');
+
+      // z
+      const zReq = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 2,
+          data: {
+            name: 'z',
+            options: [{ name: 'sign', value: 'Aries' }],
+          },
+          member: { user: { id: 'disc_user_1', username: 'fast_discord' } },
+        }),
+      });
+      const zRes = await POST(zReq);
+      expect((await zRes.json()).data.content).toContain('Accepted for zodiac');
+
+      // r
+      const rReq = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 2,
+          data: {
+            name: 'r',
+            options: [
+              { name: 'target', value: 'current-track' },
+              { name: 'reason', value: 'copyright infringement' },
+            ],
+          },
+          member: { user: { id: 'disc_user_1', username: 'fast_discord' } },
+        }),
+      });
+      const rRes = await POST(rReq);
+      expect((await rRes.json()).data.content).toContain('Report Logged');
+
+      // h
+      const hReq = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 2,
+          data: { name: 'h' },
+          member: { user: { id: 'disc_user_1', username: 'fast_discord' } },
+        }),
+      });
+      const hRes = await POST(hReq);
+      expect((await hRes.json()).data.content).toContain('/song');
     });
   });
 });

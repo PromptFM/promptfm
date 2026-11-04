@@ -122,8 +122,42 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true, help_text: helpText });
       }
 
+      // /help, /start, /commands, or /h
+      if (
+        text === '/help' ||
+        text === '/start' ||
+        text === '/commands' ||
+        text === '/h' ||
+        text.startsWith('/help@') ||
+        text.startsWith('/h@') ||
+        text.startsWith('/start@')
+      ) {
+        const helpText = getBotHelpText('telegram');
+
+        if (botToken && chatId) {
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              reply_to_message_id: body.message.message_id,
+              text: helpText,
+              parse_mode: 'Markdown',
+              disable_web_page_preview: true,
+            }),
+          });
+        }
+
+        return NextResponse.json({ success: true, help_text: helpText });
+      }
+
       // /nowplaying or /np command
-      if (text === '/nowplaying' || text === '/np' || text.startsWith('/nowplaying@') || text.startsWith('/np@')) {
+      if (
+        text === '/nowplaying' ||
+        text === '/np' ||
+        text.startsWith('/nowplaying@') ||
+        text.startsWith('/np@')
+      ) {
         const np = await getNowPlaying();
         const rankStr = np.rank ? `\n🏆 Chart Rank: *#${np.rank}*` : '';
         const trackIdStr = np.item.id ? `\n🆔 Track ID: \`${np.item.id}\`` : '';
@@ -159,8 +193,18 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true, now_playing: np });
       }
 
-      // /next or /queue or /whatisnext command
-      if (text === '/next' || text === '/queue' || text === '/whatisnext' || text.startsWith('/next@') || text.startsWith('/queue@')) {
+      // /next or /queue or /whatisnext or /q or /n command
+      if (
+        text === '/next' ||
+        text === '/queue' ||
+        text === '/whatisnext' ||
+        text === '/q' ||
+        text === '/n' ||
+        text.startsWith('/next@') ||
+        text.startsWith('/queue@') ||
+        text.startsWith('/q@') ||
+        text.startsWith('/n@')
+      ) {
         const upcoming = await getUpNext('main', 5);
         let replyText = `⏭️ *Up Next on PromptFM:*\n\n`;
         if (upcoming.length === 0) {
@@ -208,9 +252,11 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // /report command: /report <trackId_or_keyword> <reason>
-      if (text.startsWith('/report')) {
-        const rawArg = text.replace('/report', '').trim();
+      // /report or /r command: /report <trackId_or_keyword> <reason> or /r <track> <reason>
+      if (text.startsWith('/report') || text.startsWith('/r ') || text === '/r') {
+        const rawArg = text.startsWith('/report')
+          ? text.replace('/report', '').trim()
+          : text.replace('/r', '').trim();
         const parts = rawArg.split(' ');
         const targetId = parts[0] || 'current-track';
         const reasonText = parts.slice(1).join(' ') || 'Reported for broadcast standards violation';
@@ -240,27 +286,30 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true, report: rep.report });
       }
 
-      // Batch scheduled listener requests: /dedicate, /weather, /zodiac, /song
+      // Batch scheduled listener requests: /dedicate, /weather, /zodiac, /song (with /d, /w, /z, /s shorthands)
       let type: RequestType = 'song';
       let content = text;
       let target = '';
 
-      if (text.startsWith('/dedicate')) {
+      if (text.startsWith('/dedicate') || text.startsWith('/d ') || text === '/d') {
         type = 'dedication';
-        const parts = text.replace('/dedicate', '').trim().split(' ');
+        const raw = text.startsWith('/dedicate') ? text.replace('/dedicate', '').trim() : text.replace('/d', '').trim();
+        const parts = raw.split(' ');
         target = parts[0]?.replace('@', '') || 'a friend';
         content = parts.slice(1).join(' ') || 'Sending great vibes through PromptFM!';
-      } else if (text.startsWith('/weather')) {
+      } else if (text.startsWith('/weather') || text.startsWith('/w ') || text === '/w') {
         type = 'weather';
-        target = text.replace('/weather', '').trim() || 'London';
+        const raw = text.startsWith('/weather') ? text.replace('/weather', '').trim() : text.replace('/w', '').trim();
+        target = raw || 'London';
         content = target;
-      } else if (text.startsWith('/zodiac')) {
+      } else if (text.startsWith('/zodiac') || text.startsWith('/z ') || text === '/z') {
         type = 'zodiac';
-        target = text.replace('/zodiac', '').trim() || 'Scorpio';
+        const raw = text.startsWith('/zodiac') ? text.replace('/zodiac', '').trim() : text.replace('/z', '').trim();
+        target = raw || 'Scorpio';
         content = target;
-      } else if (text.startsWith('/song')) {
+      } else if (text.startsWith('/song') || text.startsWith('/s ') || text === '/s') {
         type = 'song';
-        content = text.replace('/song', '').trim();
+        content = (text.startsWith('/song') ? text.replace('/song', '') : text.replace('/s', '')).trim();
       }
 
       const slot = await scheduleListenerRequest({
@@ -375,8 +424,8 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // /report slash command
-      if (commandName === 'report') {
+      // /report slash command (or shorthand /r)
+      if (commandName === 'report' || commandName === 'r') {
         const target = (options.find((o: { name: string }) => o.name === 'target')?.value as string) || 'current-broadcast';
         const reason = (options.find((o: { name: string }) => o.name === 'reason')?.value as string) || 'Reported for broadcast ethics or copyright violation';
         const rep = await submitContentReport({
@@ -397,8 +446,8 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // /help or /commands slash command
-      if (commandName === 'help' || commandName === 'commands') {
+      // /help or /commands slash command (or shorthand /h)
+      if (commandName === 'help' || commandName === 'commands' || commandName === 'h') {
         return NextResponse.json({
           type: 4,
           data: {
@@ -407,8 +456,13 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // /next slash command
-      if (commandName === 'next' || commandName === 'queue') {
+      // /next or /queue slash command (or shorthands /q, /n)
+      if (
+        commandName === 'next' ||
+        commandName === 'queue' ||
+        commandName === 'q' ||
+        commandName === 'n'
+      ) {
         const upcoming = await getUpNext('main', 5);
         let listText = `⏭️ **Up Next on PromptFM:**\n\n`;
         upcoming.forEach((item, index) => {
@@ -434,20 +488,20 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Scheduling commands: dedicate, weather, zodiac, song
+      // Scheduling commands: dedicate, weather, zodiac, song (including /d, /w, /z, /s shorthands)
       let type: RequestType = 'song';
       let content = '';
       let target = '';
 
-      if (commandName === 'dedicate') {
+      if (commandName === 'dedicate' || commandName === 'd') {
         type = 'dedication';
         target = options.find((o: { name: string }) => o.name === 'to')?.value || 'a friend';
         content = options.find((o: { name: string }) => o.name === 'message')?.value || 'Sending music love!';
-      } else if (commandName === 'weather') {
+      } else if (commandName === 'weather' || commandName === 'w') {
         type = 'weather';
         target = options.find((o: { name: string }) => o.name === 'city')?.value || 'Tokyo';
         content = target;
-      } else if (commandName === 'zodiac') {
+      } else if (commandName === 'zodiac' || commandName === 'z') {
         type = 'zodiac';
         target = options.find((o: { name: string }) => o.name === 'sign')?.value || 'Gemini';
         content = target;

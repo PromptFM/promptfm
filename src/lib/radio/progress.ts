@@ -87,7 +87,7 @@ export function buildQueueDisplayItems(
 ): QueueDisplayItem[] {
   const items: QueueDisplayItem[] = [];
 
-  if (nowPlaying && nowPlaying.id && nowPlaying.id !== 'demo-fallback') {
+  if (nowPlaying && nowPlaying.id) {
     const progress = calculateTrackProgress(elapsedSeconds, durationSeconds || nowPlaying.duration_hint_seconds);
     items.push({
       ...nowPlaying,

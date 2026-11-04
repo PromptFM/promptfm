@@ -65,24 +65,25 @@ export const LISTENER_COMMANDS: ListenerCommandDef[] = [
   },
 ];
 
-export function getBotHelpText(format: 'markdown_v1' | 'discord' = 'markdown_v1'): string {
+export function getBotHelpText(format: 'markdown_v1' | 'telegram' | 'discord' = 'markdown_v1'): string {
   if (format === 'discord') {
     return `📻 **PromptFM Interactive Bot & Broadcast Guide**
 
-**Live Airplay & Queue Commands:**
+**Live Airplay & Queue Commands (Canonical & Shorthands):**
 • \`/nowplaying\` or \`/np\` — View the live song, artist, AI tool, host DJ, and upvote score.
-• \`/queue\` or \`/next\` — View upcoming songs in rotation and pending listener requests.
-• \`/song <vibe or title>\` — Request an AI track from our library into the live airplay queue! (e.g. \`/song synthwave sunset\`)
+• \`/queue\` (\`/q\`) or \`/next\` (\`/n\`) — View upcoming songs in rotation and pending listener requests.
+• \`/song <vibe or title>\` or \`/s <vibe>\` — Request an AI track into the live airplay queue! (e.g. \`/s synthwave\`)
 • \`/vote <track_id>\` — Cast an upvote for any track to boost its weekly chart ranking.
 
 **Community Shoutouts & Interactive Drops:**
-• \`/dedicate <to> <message>\` — Send a dedication/shoutout to be announced on air.
-• \`/weather <city>\` — Request live regional weather check.
-• \`/zodiac <sign>\` — Request a fun AI astrological reading.
-• \`/report <track_id> <reason>\` — Alert station moderation of an issue.
+• \`/dedicate <to> <message>\` or \`/d <to> <message>\` — Send a dedication to be announced on air.
+• \`/weather <city>\` or \`/w <city>\` — Request live regional weather check.
+• \`/zodiac <sign>\` or \`/z <sign>\` — Request a fun AI astrological reading.
+• \`/report <target> <reason>\` or \`/r <target> <reason>\` — Alert station moderation of an issue.
+• \`/help\` or \`/h\` — View this commands cheat sheet.
 
 **⏰ Airplay Schedule & When Songs Play:**
-• **Song Requests (\`/song\`):** Accepted 24/7! Enqueued into \`channel_queue\` and played next in the live stream.
+• **Song Requests (\`/song\` or \`/s\`):** Accepted 24/7! Enqueued into \`channel_queue\` and played next in the live stream.
 • **Hourly Clock Wheel Cadence:**
   - \`:00 - :15\` — Top 40 Power Rotation (Top community voted hits)
   - \`:15 - :30\` — Deep Cuts & Ambient Explorations
@@ -95,27 +96,28 @@ Tune in live: https://promptfm.live`;
 
   return `📻 *PromptFM Interactive Bot & Broadcast Guide*
 
-*Live Airplay & Queue Commands:*
+*Live Airplay & Queue Commands (Canonical & Shorthands):*
 • /nowplaying or /np — View current live track, host DJ, and upvote directly with buttons.
-• /queue or /next — View upcoming songs in rotation and pending listener requests.
-• /song <vibe or title> — Request an AI track from our library into the airplay queue! (e.g. \`/song synthwave sunset\`)
-• /vote <track_id> — Cast an upvote for any track to boost its chart ranking.
+• /queue (/q) or /next (/n) — View upcoming songs in rotation and pending listener requests.
+• /song <vibe or title> or /s <prompt> — Queue an approved AI track into live broadcast next!
+• /vote <track_id> — Cast an upvote for any track to boost its chart standing.
 
 *Community Shoutouts & Interactive Drops:*
-• /dedicate <@user> <message> — Send a shoutout/dedication.
-• /weather <city> — Request live regional weather check.
-• /zodiac <sign> — Request an AI zodiac horoscope.
-• /report <track_id> <reason> — Alert station moderators.
+• /dedicate @friend <message> or /d @friend <message> — Schedule a shoutout on air.
+• /weather <city> or /w <city> — Request live weather report in next drop.
+• /zodiac <sign> or /z <sign> — Request cosmic horoscope reading.
+• /report <track_id> <reason> or /r <track_id> <reason> — Alert station moderators.
+• /help or /h — View this commands cheat sheet.
 
 *⏰ Airplay Schedule & When Songs Play:*
-• *Song Requests (/song):* Accepted 24/7! Enqueued into \`channel_queue\` and played next on the live stream.
+• *Song Requests (/song or /s):* Accepted 24/7! Enqueued and played next in live stream.
 • *Hourly Clock Wheel Cadence:*
-  - \`:00 - :15\` — Top 40 Power Rotation (Top community voted hits)
-  - \`:15 - :30\` — Deep Cuts & Ambient Explorations
-  - \`:30 - :45\` — Rhythm Transition (Breakbeats & Synthwave)
-  - \`:45 - :00\` — *Listener Showcase & Community Requests* (Dedicated time slot where listener requests take center stage!)
-• *Dedications:* Batched every 15 minutes to keep uninterrupted continuous music.
+  - :00 - :15 — Top 40 Power Rotation (Top community hits)
+  - :15 - :30 — Deep Cuts & Ambient Explorations
+  - :30 - :45 — Rhythm Transition (Breakbeats & Synthwave)
+  - :45 - :00 — *Listener Showcase & Community Requests* (Your requested tracks!)
+• *Dedications & Voice Drops:* Consolidated every 15 minutes (:00, :15, :30, :45) so music stays uninterrupted.
 
-[Tune In Live](https://promptfm.live)`;
+Tune in live: https://promptfm.live`;
 }
 

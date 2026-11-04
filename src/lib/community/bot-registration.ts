@@ -39,6 +39,23 @@ export const TELEGRAM_BOT_COMMANDS: TelegramCommand[] = [
   { command: 'help', description: 'Commands cheat sheet and airplay schedule guide' },
 ];
 
+export const TELEGRAM_BOT_SHORTHAND_COMMANDS: TelegramCommand[] = [
+  { command: 'np', description: 'Shorthand: Check current on-air track' },
+  { command: 'q', description: 'Shorthand: View upcoming queue' },
+  { command: 'n', description: 'Shorthand: View next tracks in rotation' },
+  { command: 's', description: 'Shorthand: Request an approved track' },
+  { command: 'd', description: 'Shorthand: Dedicate a song on air' },
+  { command: 'w', description: 'Shorthand: Request live weather report' },
+  { command: 'z', description: 'Shorthand: Request cosmic zodiac reading' },
+  { command: 'r', description: 'Shorthand: Report current track' },
+  { command: 'h', description: 'Shorthand: Show commands cheat sheet' },
+];
+
+export const ALL_TELEGRAM_COMMANDS: TelegramCommand[] = [
+  ...TELEGRAM_BOT_COMMANDS,
+  ...TELEGRAM_BOT_SHORTHAND_COMMANDS,
+];
+
 /**
  * Registers PromptFM's webhook with the Telegram Bot API.
  */
@@ -82,22 +99,168 @@ export async function getTelegramWebhookInfo(botToken: string): Promise<Telegram
 
 /**
  * Registers PromptFM slash commands with Telegram's autocomplete menu.
+ * Supports standard commands or combined shorthand aliases.
  */
 export async function registerTelegramBotCommands(
-  botToken: string
+  botToken: string,
+  options?: { includeShorthands?: boolean } | TelegramCommand[]
 ): Promise<TelegramWebhookResult> {
   if (!botToken || !botToken.trim()) {
     throw new Error('Telegram bot token is required');
   }
 
+  let commandsToRegister = TELEGRAM_BOT_COMMANDS;
+  if (Array.isArray(options)) {
+    commandsToRegister = options;
+  } else if (options?.includeShorthands) {
+    commandsToRegister = ALL_TELEGRAM_COMMANDS;
+  }
+
   const res = await fetch(`https://api.telegram.org/bot${botToken}/setMyCommands`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ commands: TELEGRAM_BOT_COMMANDS }),
+    body: JSON.stringify({ commands: commandsToRegister }),
   });
 
   const json = (await res.json()) as TelegramWebhookResult;
   return json;
+}
+
+/**
+ * Helper to register all 18 commands (canonical + shorthands) with Telegram.
+ */
+export async function registerTelegramShorthands(
+  botToken: string
+): Promise<TelegramWebhookResult> {
+  return registerTelegramBotCommands(botToken, { includeShorthands: true });
+}
+
+export interface DiscordSlashCommand {
+  name: string;
+  description: string;
+  options?: Array<{
+    type: number;
+    name: string;
+    description: string;
+    required?: boolean;
+  }>;
+}
+
+export const DISCORD_SLASH_COMMANDS: DiscordSlashCommand[] = [
+  { name: 'nowplaying', description: 'Check current on-air track and active AI DJ' },
+  { name: 'queue', description: 'View upcoming tracks and listener requests' },
+  { name: 'next', description: 'View upcoming tracks in rotation' },
+  {
+    name: 'song',
+    description: 'Request an approved AI track into the live queue',
+    options: [{ type: 3, name: 'vibe', description: 'Musical vibe prompt or genre', required: true }],
+  },
+  {
+    name: 'dedicate',
+    description: 'Dedicate a song on air to a friend',
+    options: [
+      { type: 3, name: 'to', description: 'Recipient name or @handle', required: true },
+      { type: 3, name: 'message', description: 'Dedication message', required: true },
+    ],
+  },
+  {
+    name: 'weather',
+    description: 'Request live weather report for your city',
+    options: [{ type: 3, name: 'city', description: 'City name', required: true }],
+  },
+  {
+    name: 'zodiac',
+    description: 'Request your cosmic AI zodiac reading',
+    options: [{ type: 3, name: 'sign', description: 'Zodiac astrological sign', required: true }],
+  },
+  {
+    name: 'report',
+    description: 'Report a track for safety or copyright review',
+    options: [
+      { type: 3, name: 'target', description: 'Track ID or song name', required: false },
+      { type: 3, name: 'reason', description: 'Report reason or details', required: false },
+    ],
+  },
+  {
+    name: 'vote',
+    description: 'Upvote a track on air',
+    options: [{ type: 3, name: 'track_id', description: 'ID of the track to upvote', required: true }],
+  },
+  { name: 'help', description: 'Commands cheat sheet and airplay schedule guide' },
+];
+
+export const DISCORD_SHORTHAND_COMMANDS: DiscordSlashCommand[] = [
+  { name: 'np', description: 'Shorthand: Check current on-air track' },
+  { name: 'q', description: 'Shorthand: View upcoming queue' },
+  { name: 'n', description: 'Shorthand: View next tracks in rotation' },
+  {
+    name: 's',
+    description: 'Shorthand: Request an approved track',
+    options: [{ type: 3, name: 'vibe', description: 'Musical vibe prompt', required: true }],
+  },
+  {
+    name: 'd',
+    description: 'Shorthand: Dedicate a song on air',
+    options: [
+      { type: 3, name: 'to', description: 'Recipient name', required: true },
+      { type: 3, name: 'message', description: 'Dedication message', required: true },
+    ],
+  },
+  {
+    name: 'w',
+    description: 'Shorthand: Request live weather report',
+    options: [{ type: 3, name: 'city', description: 'City name', required: true }],
+  },
+  {
+    name: 'z',
+    description: 'Shorthand: Request cosmic zodiac reading',
+    options: [{ type: 3, name: 'sign', description: 'Zodiac astrological sign', required: true }],
+  },
+  {
+    name: 'r',
+    description: 'Shorthand: Report current track',
+    options: [
+      { type: 3, name: 'target', description: 'Track ID or song name', required: false },
+      { type: 3, name: 'reason', description: 'Report reason', required: false },
+    ],
+  },
+  { name: 'h', description: 'Shorthand: Show commands cheat sheet' },
+];
+
+/**
+ * Registers application slash commands with Discord REST API.
+ */
+export async function registerDiscordApplicationCommands(
+  applicationId: string,
+  botToken: string,
+  options?: { includeShorthands?: boolean }
+): Promise<{ ok: boolean; status: number; data?: unknown }> {
+  if (!applicationId || !applicationId.trim()) {
+    throw new Error('Discord Application ID is required');
+  }
+  if (!botToken || !botToken.trim()) {
+    throw new Error('Discord bot token is required');
+  }
+
+  const commands = options?.includeShorthands
+    ? [...DISCORD_SLASH_COMMANDS, ...DISCORD_SHORTHAND_COMMANDS]
+    : DISCORD_SLASH_COMMANDS;
+
+  const res = await fetch(`https://discord.com/api/v10/applications/${applicationId}/commands`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bot ${botToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(commands),
+  });
+
+  const json = await res.json().catch(() => null);
+  return {
+    ok: res.ok,
+    status: res.status,
+    data: json,
+  };
 }
 
 /**

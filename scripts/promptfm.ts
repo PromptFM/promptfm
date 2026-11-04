@@ -19,10 +19,14 @@ import {
   registerTelegramWebhook,
   getTelegramWebhookInfo,
   registerTelegramBotCommands,
+  registerTelegramShorthands,
+  registerDiscordApplicationCommands,
   sendTelegramTestMessage,
   sendDiscordTestMessage,
   broadcastGuideToDiscord,
   broadcastGuideToTelegram,
+  TELEGRAM_BOT_SHORTHAND_COMMANDS,
+  ALL_TELEGRAM_COMMANDS,
 } from '../src/lib/community/bot-registration';
 import type { ReportReason } from '../src/types/database';
 import { extractMetadataFromBuffer, DEFAULT_TRACK_ICON } from '../src/lib/audio/metadata';
@@ -77,9 +81,12 @@ AI Voice & Broadcast:
 
 Bots & Community Integrations:
   bot telegram setup [tok] Register Telegram webhook and command autocomplete menu
+  bot telegram shorthands [tok] Update Telegram menu with full commands + shorthands (/np, /q, /s, /d, /w, /z, /r, /h)
+  bot telegram commands [tok] Update Telegram native autocomplete popup menu (optionally --shorthands)
   bot telegram status [tok] Inspect live Telegram webhook health, pending updates, and errors
   bot telegram test [tok]  Send test announcement to Telegram channel / chat ID
   bot telegram post-guide [tok] [chatId] Post Listener Commands & Schedule Guide to Telegram
+  bot discord setup [appId] [botTok] Register Discord slash commands & shorthands with Discord API
   bot discord test [url]   Send test embed to Discord channel webhook
   bot discord post-guide [url] Post Listener Commands & Schedule Guide embed to Discord
 
@@ -1135,8 +1142,28 @@ Moderation & Schedule:
           const res = await registerTelegramWebhook(token, `${siteUrl}/api/bot/webhook`);
           console.log('Webhook Setup Result:', res);
 
-          console.log('\nRegistering official command autocomplete menu (/nowplaying, /next, /song, etc.)...');
-          const cmdRes = await registerTelegramBotCommands(token);
+          const includeShorthands = args.includes('--shorthands');
+          console.log(`\nRegistering official command autocomplete menu (${includeShorthands ? 'with shorthands' : 'canonical 9 commands'})...`);
+          const cmdRes = await registerTelegramBotCommands(token, { includeShorthands });
+          console.log('Commands Menu Result:', cmdRes);
+          return;
+        }
+
+        if (action === 'shorthands') {
+          console.log('\nRegistering all 18 commands & shorthands (/np, /q, /s, /d, /w, /z, /r, /h)...');
+          const cmdRes = await registerTelegramShorthands(token);
+          console.log('Commands & Shorthands Menu Result:', cmdRes);
+          if (cmdRes.ok) {
+            console.log('✅ Active Telegram commands & shorthands updated successfully:');
+            ALL_TELEGRAM_COMMANDS.forEach((c) => console.log(`  • /${c.command.padEnd(12)} - ${c.description}`));
+          }
+          return;
+        }
+
+        if (action === 'commands') {
+          const includeShorthands = args.includes('--shorthands');
+          console.log(`\nUpdating Telegram command autocomplete menu (${includeShorthands ? 'with shorthands' : 'standard 9 commands'})...`);
+          const cmdRes = await registerTelegramBotCommands(token, { includeShorthands });
           console.log('Commands Menu Result:', cmdRes);
           return;
         }
@@ -1176,6 +1203,8 @@ Moderation & Schedule:
 
         console.log('Telegram subcommands:');
         console.log('  npm run promptfm -- bot telegram setup [token]');
+        console.log('  npm run promptfm -- bot telegram shorthands [token]');
+        console.log('  npm run promptfm -- bot telegram commands [token] [--shorthands]');
         console.log('  npm run promptfm -- bot telegram status [token]');
         console.log('  npm run promptfm -- bot telegram test [token] [chatId]');
         console.log('  npm run promptfm -- bot telegram post-guide [token] [chatId]');
@@ -1183,6 +1212,20 @@ Moderation & Schedule:
       }
 
       if (sub === 'discord') {
+        if (action === 'setup' || action === 'commands') {
+          const appId = args[3] || process.env.DISCORD_APPLICATION_ID;
+          const botToken = args[4] || process.env.DISCORD_BOT_TOKEN;
+          if (!appId || !botToken) {
+            console.error('Error: DISCORD_APPLICATION_ID and DISCORD_BOT_TOKEN required:');
+            console.log('Usage: npm run promptfm -- bot discord setup <APP_ID> <BOT_TOKEN>');
+            return;
+          }
+          console.log(`Registering Discord Slash Commands & Shorthands for Application ${appId}...`);
+          const res = await registerDiscordApplicationCommands(appId, botToken, { includeShorthands: true });
+          console.log('Discord Commands Registration Result:', res);
+          return;
+        }
+
         if (action === 'test') {
           const webhookUrl = args[3] || process.env.DISCORD_WEBHOOK_URL;
           if (!webhookUrl) {
@@ -1217,9 +1260,12 @@ Moderation & Schedule:
 
       console.log('Bot commands:');
       console.log('  npm run promptfm -- bot telegram setup [token]');
+      console.log('  npm run promptfm -- bot telegram shorthands [token]');
+      console.log('  npm run promptfm -- bot telegram commands [token] [--shorthands]');
       console.log('  npm run promptfm -- bot telegram status [token]');
       console.log('  npm run promptfm -- bot telegram test [token] [chatId]');
       console.log('  npm run promptfm -- bot telegram post-guide [token] [chatId]');
+      console.log('  npm run promptfm -- bot discord setup [appId] [botToken]');
       console.log('  npm run promptfm -- bot discord test [webhookUrl]');
       console.log('  npm run promptfm -- bot discord post-guide [webhookUrl]');
       break;

@@ -6,11 +6,15 @@ import {
   registerTelegramWebhook,
   getTelegramWebhookInfo,
   registerTelegramBotCommands,
+  registerTelegramShorthands,
+  registerDiscordApplicationCommands,
   sendTelegramTestMessage,
   sendDiscordTestMessage,
   broadcastGuideToDiscord,
   broadcastGuideToTelegram,
   TELEGRAM_BOT_COMMANDS,
+  TELEGRAM_BOT_SHORTHAND_COMMANDS,
+  ALL_TELEGRAM_COMMANDS,
 } from '@/lib/community/bot-registration';
 
 describe('Bot Registration & Webhook Management Service', () => {
@@ -139,6 +143,89 @@ describe('Bot Registration & Webhook Management Service', () => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ commands: TELEGRAM_BOT_COMMANDS }),
+        })
+      );
+    });
+
+    it('registers station commands including shorthands when requested', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true, result: true }),
+      });
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      expect(TELEGRAM_BOT_SHORTHAND_COMMANDS).toHaveLength(9);
+      expect(TELEGRAM_BOT_SHORTHAND_COMMANDS.map((c) => c.command)).toEqual([
+        'np',
+        'q',
+        'n',
+        's',
+        'd',
+        'w',
+        'z',
+        'r',
+        'h',
+      ]);
+      expect(ALL_TELEGRAM_COMMANDS).toHaveLength(18);
+
+      const result = await registerTelegramBotCommands('test-token', { includeShorthands: true });
+      expect(result.ok).toBe(true);
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://api.telegram.org/bottest-token/setMyCommands',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ commands: ALL_TELEGRAM_COMMANDS }),
+        })
+      );
+    });
+
+    it('registerTelegramShorthands helper registers full list with shorthands', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true, result: true }),
+      });
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      const result = await registerTelegramShorthands('test-token');
+      expect(result.ok).toBe(true);
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://api.telegram.org/bottest-token/setMyCommands',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ commands: ALL_TELEGRAM_COMMANDS }),
+        })
+      );
+    });
+  });
+
+  describe('registerDiscordApplicationCommands', () => {
+    it('throws error when appId or botToken is empty', async () => {
+      await expect(registerDiscordApplicationCommands('', 'tok')).rejects.toThrow('Discord Application ID is required');
+      await expect(registerDiscordApplicationCommands('app123', '')).rejects.toThrow('Discord bot token is required');
+    });
+
+    it('successfully calls Discord REST PUT endpoint with application slash commands', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => [{ id: 'cmd_1', name: 'nowplaying' }],
+      });
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      const res = await registerDiscordApplicationCommands('123456789', 'bot-secret-tok', { includeShorthands: true });
+      expect(res.ok).toBe(true);
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://discord.com/api/v10/applications/123456789/commands',
+        expect.objectContaining({
+          method: 'PUT',
+          headers: expect.objectContaining({
+            Authorization: 'Bot bot-secret-tok',
+            'Content-Type': 'application/json',
+          }),
         })
       );
     });
