@@ -1,10 +1,11 @@
 # 📻 PromptFM — 24/7 AI Music Radio & Creator Community
 
 [![Production](https://img.shields.io/badge/Production-promptfm.live-10b981?style=for-the-badge&logo=vercel)](https://promptfm.live)
-[![Tests](https://img.shields.io/badge/Tests-377%20Passing-brightgreen?style=for-the-badge&logo=vitest)](https://github.com/atrifan/promptfm)
-[![Mutation Score](https://img.shields.io/badge/Stryker%20Mutation-%E2%89%A587%25-blueviolet?style=for-the-badge)](https://github.com/atrifan/promptfm)
+[![CI Quality & Security Gate](https://img.shields.io/badge/CI-Passing-brightgreen?style=for-the-badge&logo=githubactions)](https://github.com/atrifan/promptfm/actions)
+[![Tests](https://img.shields.io/badge/Tests-447%20Passing-brightgreen?style=for-the-badge&logo=vitest)](https://github.com/atrifan/promptfm)
+[![Mutation Score](https://img.shields.io/badge/Stryker%20Mutation-%E2%89%A585%25-blueviolet?style=for-the-badge)](https://github.com/atrifan/promptfm)
 [![GCP Free Tier](https://img.shields.io/badge/GCP%20Always--Free-$0.00%2Fmo-4285F4?style=for-the-badge&logo=googlecloud)](https://console.cloud.google.com/?project=promptfm-radio-1793623670)
-[![License](https://img.shields.io/badge/License-MIT-zinc?style=for-the-badge)](LICENSE)
+[![License](https://img.shields.io/badge/License-Community%20Source--Available-purple?style=for-the-badge)](LICENSE)
 
 **PromptFM** is an autonomous 24/7 AI-generated music radio platform and community chart. Featuring **5 live theme stations** (including After Dark 18+ Explicit with statutory legal age verification), continuous uninterrupted **100% pure music rotation**, real-time listener voting, and direct MP3/M4A creator uploads with automatic ID3 metadata and album art extraction.
 
@@ -320,5 +321,18 @@ PromptFM exposes a streamable **Model Context Protocol (MCP)** server at [`https
 - **Admin Tools (`ADMIN_API_KEY`):** Moderation review, voice drop generation, live broadcast alerts, sponsor injection, and channel provisioning.
 - **Discord Community:** [`https://discord.gg/promptfm`](https://discord.gg/promptfm) (Now Playing updates, live DJ transcripts, 1-click voting).
 - **Telegram Bot:** [`https://t.me/PromptFMBot`](https://t.me/PromptFMBot) (Interactive `/nowplaying`, `/song`, `/dedicate`, `/weather`, and inline upvoting).
+
+---
+
+## 👥 Community Development & Governance
+
+PromptFM welcomes open community development, bug fixes, and feature proposals!
+
+- **Contributing Guide:** See [`CONTRIBUTING.md`](CONTRIBUTING.md) for full instructions on local setup, running tests, mutation testing, and submitting pull requests.
+- **Licensing:** Governed by the [`PromptFM Community Source-Available License (Version 1.0)`](LICENSE). You may inspect, fork, test, and contribute pull requests. You may **not** copy, extract, resell, or host competing radio/streaming clones.
+- **Review Board:** All pull requests require review and approval from the Board (**@atrifan**).
+- **GitHub Organization:** Community development is hosted under the `promptfm` organization.
+- **Continuous Deployment:** Merging a verified PR to `main` automatically triggers Vercel production deployment to [promptfm.live](https://promptfm.live). Terraform and Ansible changes are executed manually by the Board Admin.
+- **Security & Secret Sharing:** Never post secrets or API keys in PRs or issues. For new environment variables, use ephemeral links ([Password Pusher](https://pwpush.com)) shared directly with @atrifan.
 
 

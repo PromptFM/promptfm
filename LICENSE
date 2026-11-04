@@ -1,0 +1,33 @@
+# PromptFM Community Source-Available License
+Version 1.0 (Non-Commercial, No-Resale, Contribution-Permitted)
+
+Copyright (c) 2026 PromptFM Project & Alexander Trifan. All rights reserved.
+
+---
+
+### 1. Purpose & Grant of License
+Subject to the terms and restrictions of this License, the PromptFM Project ("Licensor") grants to each recipient a worldwide, non-exclusive, non-transferable, royalty-free license to:
+1. **View & Inspect:** Read, inspect, and evaluate the source code, architecture, and documentation.
+2. **Local Development:** Download, compile, build, test, and run the Software locally on your own private device solely for personal evaluation, debugging, and developing contributions to the official PromptFM Project.
+3. **Forks & Contributions:** Create forks on GitHub solely for the purpose of submitting contributions (pull requests, bug fixes, enhancements) back to the official upstream PromptFM repository.
+
+---
+
+### 2. Prohibited Uses (Strict Restrictions)
+You may **NOT**, under any circumstances, do any of the following without prior express written authorization from the Licensor:
+1. **No Commercial Use or Sale:** You may NOT sell, resell, lease, rent, license, sublicense, monetize, or commercially exploit this Software, source code, data, AI prompts, audio drops, or documentation, in whole or in part.
+2. **No Public or Competing Services (No Clones):** You may NOT host, deploy, stream, or serve this Software or any derivative work as a publicly accessible service, commercial website, radio station, web stream, SaaS application, or API.
+3. **No Code Copying / Extraction:** You may NOT extract, copy, adapt, or incorporate any portion of this codebase into other projects, platforms, libraries, or competing commercial or non-commercial applications.
+4. **No Asset or Voice Misuse:** Station logos, UI brand identity, trademarks ("PromptFM", "PromptFM Live"), AI DJ personas ("DJ Neon", "DJ Luna", "DJ Solaris", "DJ Echo", "DJ Aria", "DJ Cipher"), and audio assets are proprietary and strictly excluded from derivative use.
+
+---
+
+### 3. Contribution Terms (Inbound = Outbound)
+By submitting any contribution (including Pull Requests, code, documentation, scripts, or assets) to the PromptFM repository or project maintainers:
+1. You represent that the contribution is your original work and that you have full legal right to submit it.
+2. You grant to the PromptFM Project and Alexander Trifan an irrevocable, perpetual, worldwide, transferable, royalty-free, and fully sublicensable license to use, reproduce, modify, adapt, publish, translate, create derivative works from, distribute, execute, and display your contribution in connection with PromptFM and its services.
+
+---
+
+### 4. Disclaimer of Warranty & Limitation of Liability
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
