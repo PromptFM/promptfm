@@ -2,9 +2,53 @@
 // Unit tests for listener commands directory and bot help text formatting
 
 import { describe, it, expect } from 'vitest';
-import { LISTENER_COMMANDS, getBotHelpText } from '@/lib/community/commands';
+import {
+  LISTENER_COMMANDS,
+  getBotHelpText,
+  AIRPLAY_CLOCK_SEGMENTS,
+  getActiveClockSegment,
+} from '@/lib/community/commands';
 
 describe('Listener Commands Directory & Bot Help Formatter', () => {
+  describe('Airplay Clock Wheel & Live Segment Resolution', () => {
+    it('defines 4 accurate recurring quarter-hour clock segments', () => {
+      expect(AIRPLAY_CLOCK_SEGMENTS).toHaveLength(4);
+      expect(AIRPLAY_CLOCK_SEGMENTS[0]?.range).toBe(':00 – :15');
+      expect(AIRPLAY_CLOCK_SEGMENTS[0]?.title).toBe('Top 40 Power');
+
+      expect(AIRPLAY_CLOCK_SEGMENTS[1]?.range).toBe(':15 – :30');
+      expect(AIRPLAY_CLOCK_SEGMENTS[1]?.title).toBe('Deep Cuts');
+
+      expect(AIRPLAY_CLOCK_SEGMENTS[2]?.range).toBe(':30 – :45');
+      expect(AIRPLAY_CLOCK_SEGMENTS[2]?.title).toBe('Rhythm Transition');
+
+      expect(AIRPLAY_CLOCK_SEGMENTS[3]?.range).toBe(':45 – :00');
+      expect(AIRPLAY_CLOCK_SEGMENTS[3]?.title).toBe('Listener Showcase');
+    });
+
+    it('resolves active segment accurately for current minute (including 15:11 -> Top 40 Power)', () => {
+      // 15:11 -> minute 11 should be Top 40 Power (:00 - :15)
+      const segAt11 = getActiveClockSegment(11);
+      expect(segAt11.index).toBe(0);
+      expect(segAt11.title).toBe('Top 40 Power');
+      expect(segAt11.range).toBe(':00 – :15');
+
+      // Boundary tests
+      expect(getActiveClockSegment(0).index).toBe(0);
+      expect(getActiveClockSegment(14).index).toBe(0);
+
+      expect(getActiveClockSegment(15).index).toBe(1);
+      expect(getActiveClockSegment(20).index).toBe(1);
+      expect(getActiveClockSegment(29).index).toBe(1);
+
+      expect(getActiveClockSegment(30).index).toBe(2);
+      expect(getActiveClockSegment(44).index).toBe(2);
+
+      expect(getActiveClockSegment(45).index).toBe(3);
+      expect(getActiveClockSegment(55).index).toBe(3);
+      expect(getActiveClockSegment(59).index).toBe(3);
+    });
+  });
   it('contains valid definitions for all essential listener commands', () => {
     expect(LISTENER_COMMANDS.length).toBeGreaterThanOrEqual(8);
 

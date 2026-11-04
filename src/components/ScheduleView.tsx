@@ -54,6 +54,7 @@ export default function ScheduleView({ initialChannelSlug = 'main', onTuneIn }: 
   const [loading, setLoading] = useState<boolean>(true);
   const [localTimeZone, setLocalTimeZone] = useState<string>('UTC');
   const [currentTimeUtc, setCurrentTimeUtc] = useState<string>('');
+  const [currentMinuteUtc, setCurrentMinuteUtc] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [durationSeconds, setDurationSeconds] = useState<number>(180);
 
@@ -67,6 +68,7 @@ export default function ScheduleView({ initialChannelSlug = 'main', onTuneIn }: 
 
     const updateClock = () => {
       const now = new Date();
+      setCurrentMinuteUtc(now.getUTCMinutes());
       setCurrentTimeUtc(
         now.toLocaleTimeString('en-US', {
           timeZone: 'UTC',
@@ -382,23 +384,47 @@ export default function ScheduleView({ initialChannelSlug = 'main', onTuneIn }: 
                   Hourly Clock Wheel Cadence (:00 to :59)
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {schedule.current_show.clock_milestones.map((m) => (
-                    <div
-                      key={m.minute}
-                      className="p-2 bg-zinc-950/60 border border-zinc-800/80 rounded-lg text-xs space-y-0.5"
-                    >
-                      <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-400">
-                        <span>:{String(m.minute).padStart(2, '0')}</span>
-                        {m.type === 'music' && <Music className="w-3 h-3 text-emerald-400" />}
-                        {m.type === 'news' && <Radio className="w-3 h-3 text-sky-400" />}
-                        {m.type === 'weather' && <CloudSun className="w-3 h-3 text-amber-400" />}
-                        {m.type === 'ad' && <Sparkles className="w-3 h-3 text-purple-400" />}
-                        {m.type === 'dj_banter' && <Mic className="w-3 h-3 text-emerald-400" />}
+                  {schedule.current_show.clock_milestones.map((m) => {
+                    const currentMin = currentMinuteUtc;
+                    const isMilestoneActive =
+                      currentMin !== null &&
+                      currentMin >= m.minute &&
+                      (currentMin < m.minute + 15 || (m.minute === 45 && currentMin >= 45));
+
+                    return (
+                      <div
+                        key={m.minute}
+                        className={`p-2 rounded-lg text-xs space-y-0.5 transition-all ${
+                          isMilestoneActive
+                            ? 'bg-emerald-950/40 border-2 border-emerald-500 shadow-sm shadow-emerald-950/50'
+                            : 'bg-zinc-950/60 border border-zinc-800/80'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between text-[11px] font-bold">
+                          <div className="flex items-center gap-1 text-emerald-400">
+                            <span>:{String(m.minute).padStart(2, '0')}</span>
+                            {m.type === 'music' && <Music className="w-3 h-3 text-emerald-400" />}
+                            {m.type === 'news' && <Radio className="w-3 h-3 text-sky-400" />}
+                            {m.type === 'weather' && <CloudSun className="w-3 h-3 text-amber-400" />}
+                            {m.type === 'ad' && <Sparkles className="w-3 h-3 text-purple-400" />}
+                            {m.type === 'dj_banter' && <Mic className="w-3 h-3 text-emerald-400" />}
+                          </div>
+                          {isMilestoneActive && (
+                            <span className="inline-flex items-center gap-1 px-1 py-0.2 rounded text-[8px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 animate-pulse">
+                              <span className="w-1 h-1 rounded-full bg-emerald-400" />
+                              Live
+                            </span>
+                          )}
+                        </div>
+                        <p className={`text-[11px] font-medium truncate ${isMilestoneActive ? 'text-emerald-300' : 'text-white'}`}>
+                          {m.title}
+                        </p>
+                        <p className={`text-[10px] line-clamp-1 ${isMilestoneActive ? 'text-zinc-200' : 'text-zinc-400'}`}>
+                          {m.description}
+                        </p>
                       </div>
-                      <p className="text-[11px] font-medium text-white truncate">{m.title}</p>
-                      <p className="text-[10px] text-zinc-400 line-clamp-1">{m.description}</p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
