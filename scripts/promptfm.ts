@@ -34,7 +34,7 @@ import { extractMetadataFromBuffer, DEFAULT_TRACK_ICON } from '../src/lib/audio/
 import { getR2Client, getBucketName, getPublicUrl } from '../src/lib/r2';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { execSync } from 'child_process';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, appendFileSync, existsSync } from 'fs';
 import { join, basename } from 'path';
 import { randomUUID } from 'crypto';
 
