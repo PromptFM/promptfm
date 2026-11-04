@@ -100,13 +100,13 @@ Tune in live: https://promptfm.live`;
 • /nowplaying or /np — View current live track, host DJ, and upvote directly with buttons.
 • /queue (/q) or /next (/n) — View upcoming songs in rotation and pending listener requests.
 • /song <vibe or title> or /s <prompt> — Queue an approved AI track into live broadcast next!
-• /vote <track_id> — Cast an upvote for any track to boost its chart standing.
+• /vote <trackId> — Cast an upvote for any track to boost its chart standing.
 
 *Community Shoutouts & Interactive Drops:*
 • /dedicate @friend <message> or /d @friend <message> — Schedule a shoutout on air.
 • /weather <city> or /w <city> — Request live weather report in next drop.
 • /zodiac <sign> or /z <sign> — Request cosmic horoscope reading.
-• /report <track_id> <reason> or /r <track_id> <reason> — Alert station moderators.
+• /report <trackId> <reason> or /r <trackId> <reason> — Alert station moderators.
 • /help or /h — View this commands cheat sheet.
 
 *⏰ Airplay Schedule & When Songs Play:*
