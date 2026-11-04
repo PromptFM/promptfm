@@ -5,6 +5,7 @@ import { describe, it, expect } from 'vitest';
 import robots from '@/app/robots';
 import sitemap from '@/app/sitemap';
 import manifest from '@/app/manifest';
+import { generateRadioStationJsonLd } from '@/lib/seo/structured-data';
 
 describe('Next.js App Router Metadata Routes Integration', () => {
   it('robots() generates valid Next.js Robots metadata', () => {
@@ -34,11 +35,26 @@ describe('Next.js App Router Metadata Routes Integration', () => {
     expect(urls).toContain('https://promptfm.live/top');
     expect(urls).toContain('https://promptfm.live/submit');
 
+    // Static routes
+    expect(urls).toContain('https://promptfm.live/status');
+    expect(urls).toContain('https://promptfm.live/terms');
+    expect(urls).toContain('https://promptfm.live/privacy');
+    expect(urls).toContain('https://promptfm.live/dmca');
+
     // Theme radio channel URLs
     expect(urls).toContain('https://promptfm.live/channels?channel=main');
     expect(urls).toContain('https://promptfm.live/channels?channel=cyberpunk');
     expect(urls).toContain('https://promptfm.live/channels?channel=chillout');
     expect(urls).toContain('https://promptfm.live/channels?channel=kids');
+    expect(urls).toContain('https://promptfm.live/channels?channel=afterdark');
+
+    // Every entry must have valid priority, frequency, and HTTPS URL
+    result.forEach((entry) => {
+      expect(entry.url).toMatch(/^https:\/\/promptfm\.live/);
+      expect(entry.priority).toBeGreaterThanOrEqual(0.1);
+      expect(entry.priority).toBeLessThanOrEqual(1.0);
+      expect(['hourly', 'daily', 'weekly', 'monthly']).toContain(entry.changeFrequency);
+    });
 
     // Priority checks
     const home = result.find((r) => r.url === 'https://promptfm.live');
@@ -62,5 +78,15 @@ describe('Next.js App Router Metadata Routes Integration', () => {
     const appleIcon = result.icons?.find((icon) => icon.src.includes('apple-touch-icon'));
     expect(appleIcon).toBeDefined();
     expect(appleIcon?.sizes).toBe('180x180');
+  });
+
+  it('generateRadioStationJsonLd() produces compliant Schema.org RadioStation JSON-LD for Google', () => {
+    const jsonLd = generateRadioStationJsonLd();
+    expect(jsonLd['@context']).toBe('https://schema.org');
+    expect(jsonLd['@type']).toBe('RadioStation');
+    expect(jsonLd.name).toBe('PromptFM');
+    expect(jsonLd.url).toBe('https://promptfm.live');
+    expect(jsonLd.broadcastDisplayName).toBe('PromptFM AI Radio');
+    expect(jsonLd.potentialAction).toBeDefined();
   });
 });
