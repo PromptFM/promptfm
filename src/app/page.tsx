@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { Radio, Music2, Upload } from 'lucide-react';
+import { Radio, Music2, Upload, Code2 } from 'lucide-react';
 import ChannelsGrid from '@/components/ChannelsGrid';
 import AdSenseDisplayUnit from '@/components/AdSenseDisplayUnit';
 import LiveListenersBadge from '@/components/LiveListenersBadge';
 import UpNextSection from '@/components/UpNextSection';
+import ContributeSection from '@/components/ContributeSection';
 import CommunitySection from '@/components/CommunitySection';
 
 export default function HomePage() {
@@ -30,13 +31,13 @@ export default function HomePage() {
         <LiveListenersBadge />
 
         <h1 className="text-3xl sm:text-5xl md:text-6xl font-extrabold tracking-tight leading-tight">
-          The AI Music Radio <br />
-          <span className="text-emerald-400">Community</span>
+          Community-Driven <br />
+          <span className="text-emerald-400">AI Radio</span>
         </h1>
 
         <p className="text-zinc-400 text-sm sm:text-base md:text-lg max-w-xl mx-auto px-2">
-          Discover, vote on, and submit AI-generated music. Tune into 4 curated theme stations
-          live around the clock while the community decides what's hot.
+          Discover, vote on, and submit AI-generated music. Tune into 5 curated theme stations
+          live around the clock while the community and open-source developers drive the radio forward.
         </p>
 
         {/* CTAs */}
@@ -55,6 +56,13 @@ export default function HomePage() {
             <Music2 className="w-4 h-4" />
             Weekly Charts
           </Link>
+          <a
+            href="#contribute"
+            className="flex items-center justify-center gap-2 border border-emerald-500/50 hover:border-emerald-400 text-emerald-300 hover:text-white font-semibold px-5 py-3 rounded-xl transition-colors text-sm sm:text-base bg-emerald-950/30"
+          >
+            <Code2 className="w-4 h-4 text-emerald-400" />
+            Contribute
+          </a>
           <Link
             href="/submit"
             className="flex items-center justify-center gap-2 border border-zinc-700 hover:border-zinc-500 text-zinc-300 hover:text-white font-semibold px-5 py-3 rounded-xl transition-colors text-sm sm:text-base"
@@ -67,7 +75,8 @@ export default function HomePage() {
         {/* Feature pills */}
         <div className="flex flex-wrap justify-center gap-2 sm:gap-3 text-xs sm:text-sm text-zinc-400 pt-3">
           {[
-            { icon: <Radio className="w-3.5 h-3.5" />, label: '4 Icecast Stations' },
+            { icon: <Radio className="w-3.5 h-3.5" />, label: '5 Live Stations' },
+            { icon: <Code2 className="w-3.5 h-3.5 text-emerald-400" />, label: 'Open Community Development' },
             { icon: <Music2 className="w-3.5 h-3.5" />, label: 'Suno · Udio · Stable Audio' },
             { icon: <Upload className="w-3.5 h-3.5" />, label: 'Direct R2 Upload' },
           ].map(({ icon, label }) => (
@@ -165,6 +174,9 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Community Development & Open Source Contributor Portal */}
+      <ContributeSection />
 
       {/* Discord & Telegram Community Section */}
       <CommunitySection />

@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Menu, X, Radio, Music2, Shield, Upload, MessageSquare, Send, Sparkles, Calendar } from 'lucide-react';
+import { Menu, X, Radio, Music2, Shield, Upload, MessageSquare, Send, Sparkles, Calendar, Code2 } from 'lucide-react';
 import AuthButton from '@/components/AuthButton';
 import { getCommunityLinks } from '@/lib/community/links';
 
@@ -64,6 +64,12 @@ export default function Navbar() {
             className="text-zinc-400 hover:text-white transition-colors py-1"
           >
             Charts
+          </Link>
+          <Link
+            href="/#contribute"
+            className="text-zinc-400 hover:text-emerald-400 transition-colors py-1 flex items-center gap-1"
+          >
+            Contribute
           </Link>
           <Link
             href="/admin"
@@ -183,6 +189,14 @@ export default function Navbar() {
             >
               <Music2 className="w-4 h-4 text-emerald-400" />
               <span>Weekly Top 40 Charts</span>
+            </Link>
+            <Link
+              href="/#contribute"
+              onClick={closeMenu}
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-zinc-300 hover:text-emerald-400 hover:bg-zinc-900 transition-colors"
+            >
+              <Code2 className="w-4 h-4 text-emerald-400" />
+              <span>Contribute & Open Source</span>
             </Link>
             <Link
               href="/admin"
