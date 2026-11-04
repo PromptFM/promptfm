@@ -1,0 +1,76 @@
+version: '3.8'
+
+# ==============================================================
+# PromptFM — Complete Local Cloud Simulator (Docker Compose)
+#
+# Simulates the Google Cloud Platform & Cloudflare services locally:
+#   1. Icecast (Port 8000)  -> Live audio stream at http://localhost:8000/stream.mp3
+#   2. Liquidsoap          -> Radio mixer & automation
+#   3. PostgreSQL 16       -> Database with pgvector (Port 54322)
+#   4. MinIO S3            -> Cloudflare R2 Mock (Port 9000 API / 9001 Web Console)
+#
+# USAGE:
+#   docker compose -f docker-compose.local.yml up -d
+#   npm run dev
+# ==============================================================
+
+services:
+  # 1. Icecast 2 Streaming Audio Server (GCP VM Simulation)
+  icecast:
+    image: infiniteproject/icecast:latest
+    container_name: promptfm-icecast-local
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ICECAST_SOURCE_PASSWORD=hackme_local
+      - ICECAST_ADMIN_PASSWORD=admin_local
+      - ICECAST_PASSWORD=hackme_local
+    volumes:
+      - ./docker/local-dev/icecast.xml:/etc/icecast2/icecast.xml:ro
+
+  # 2. Liquidsoap Radio Streamer & Crossfader (GCP VM Simulation)
+  liquidsoap:
+    image: savonet/liquidsoap:v2.2.5
+    container_name: promptfm-liquidsoap-local
+    restart: unless-stopped
+    depends_on:
+      - icecast
+    volumes:
+      - ./docker/local-dev/radio.liq:/etc/liquidsoap/radio.liq:ro
+      - ./docker/local-dev/audio:/music:ro
+    command: ["liquidsoap", "/etc/liquidsoap/radio.liq"]
+
+  # 3. PostgreSQL 16 + pgvector (Supabase Local Simulation)
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: promptfm-postgres-local
+    restart: unless-stopped
+    ports:
+      - "54322:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    volumes:
+      - ./docker/local-dev/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+      - pgdata_local:/var/lib/postgresql/data
+
+  # 4. MinIO Local Object Storage (Cloudflare R2 Simulation)
+  minio:
+    image: minio/minio:latest
+    container_name: promptfm-minio-local
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - miniodata_local:/data
+    command: server /data --console-address ":9001"
+
+volumes:
+  pgdata_local:
+  miniodata_local:

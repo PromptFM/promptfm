@@ -23,7 +23,9 @@ Thumbs.db
 *.tsbuildinfo
 
 .vercel
-.env*
+.env*.local
+!.env.example
+!.env.local.example
 .stryker-tmp
 reports/
 coverage/

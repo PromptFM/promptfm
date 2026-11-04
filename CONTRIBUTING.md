@@ -25,12 +25,13 @@ PromptFM is governed by the **PromptFM Community Source-Available License (Versi
 
 ## 🚀 3. Quickstart: Local Development Setup
 
-PromptFM is designed with zero-cost developer fallbacks so you can run the entire radio station locally without paid API accounts.
+PromptFM is designed with **zero production dependencies** and built-in developer simulation fallbacks. You can run the entire radio station locally without paid API accounts, and your local development will never touch or affect production.
 
 ### Prerequisites
 - **Node.js**: `20.x` or higher
 - **npm**: `10.x` or higher
 - **Git**
+- *(Optional for full cloud stack simulation)*: **Docker & Docker Compose**
 
 ### Installation
 ```bash
@@ -41,13 +42,37 @@ cd promptfm
 # 2. Install dependencies:
 npm install
 
-# 3. Create your local environment file:
+# 3. Create your local environment file (pre-configured with safe mock secrets):
 cp .env.example .env.local
+```
 
-# 4. Start the development server:
+### Choose Your Development Mode:
+
+#### Option A: 100% Zero-Docker Pure UI Development (Fastest)
+If you are working on the Next.js frontend, React components, Tailwind styling, or player controls:
+```bash
 npm run dev
 ```
-Open **[http://localhost:3000](http://localhost:3000)** in your browser. The live audio player, schedule, and song submission portals will be fully operational in dev simulation mode.
+Open **[http://localhost:3000](http://localhost:3000)** in your browser. The live audio player, schedule, and song submission portals will be fully operational in dev simulation mode using local mock state and safe fallbacks.
+
+#### Option B: Full Local Cloud Simulator (Simulating GCP & Supabase with Docker)
+If you are testing audio crossfading, Icecast stream mounting, pgvector RAG queries, or S3 uploads locally:
+```bash
+# Starts Icecast (port 8000), Liquidsoap (port 1234), PostgreSQL+pgvector (port 54322), and MinIO (port 9000):
+npm run local:up
+
+# Start Next.js connected to your local stack:
+npm run dev
+```
+* **Local Icecast Audio Stream**: `http://localhost:8000/stream.mp3`
+* **Local Icecast Admin**: `http://localhost:8000/admin/` (User: `admin`, Pass: `admin_local`)
+* **Local PostgreSQL / pgvector**: `postgres://postgres:postgres@localhost:54322/postgres` (auto-seeded with test channels and tracks)
+* **Local MinIO R2 Console**: `http://localhost:9001` (User: `minioadmin`, Pass: `minioadmin`)
+
+To stop local containers:
+```bash
+npm run local:down
+```
 
 ---
 
