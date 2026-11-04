@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Shield, Flag, Scale, Radio, MessageSquare, Terminal, Cookie, Send } from 'lucide-react';
+import { Shield, Flag, Scale, Radio, MessageSquare, Terminal, Cookie, Send, Heart } from 'lucide-react';
 import AgreementsModal from '@/components/AgreementsModal';
 import ReportModal from '@/components/ReportModal';
 import { getCommunityLinks } from '@/lib/community/links';
@@ -56,6 +56,13 @@ export default function Footer() {
               className="hover:text-emerald-400 transition-colors flex items-center gap-1"
             >
               <span>About PromptFM</span>
+            </Link>
+            <Link
+              href="/#funding"
+              className="hover:text-emerald-400 transition-colors flex items-center gap-1 font-semibold text-emerald-400/90"
+            >
+              <Heart className="w-3.5 h-3.5" />
+              <span>Support Station</span>
             </Link>
             <Link
               href="/schedule"

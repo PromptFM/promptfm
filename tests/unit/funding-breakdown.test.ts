@@ -4,6 +4,7 @@ import {
   getCryptoDonationWallets,
   getStripeDonationConfig,
   getDonationOptions,
+  getFundingMissionStatement,
 } from '@/lib/community/funding';
 
 describe('Community Funding & Multi-Rail Donations', () => {
@@ -80,5 +81,27 @@ describe('Community Funding & Multi-Rail Donations', () => {
       expect(ids).toContain('kofi');
     });
   });
+
+  describe('getFundingMissionStatement', () => {
+    it('explains transparently why and what funds and ad revenues are collected for', () => {
+      const mission = getFundingMissionStatement();
+      expect(mission).toBeDefined();
+      expect(mission.statement).toMatch(/100% of community donations|ad revenues|sponsorships/i);
+      expect(mission.pillars).toHaveLength(5);
+      expect(mission.pillars.map((p: { key: string }) => p.key)).toEqual([
+        'commercial_licensing',
+        'infrastructure',
+        'ai_compute',
+        'development',
+        'coffee',
+      ]);
+      expect(mission.pillars[0]?.percentage).toBe(35);
+      expect(mission.pillars[1]?.percentage).toBe(25);
+      expect(mission.pillars[2]?.percentage).toBe(20);
+      expect(mission.pillars[3]?.percentage).toBe(15);
+      expect(mission.pillars[4]?.percentage).toBe(5);
+    });
+  });
 });
+
 
