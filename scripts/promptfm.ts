@@ -29,6 +29,7 @@ import {
   ALL_TELEGRAM_COMMANDS,
 } from '../src/lib/community/bot-registration';
 import { postTweetToX, isXConfigured, getXCredentialsStatus } from '../src/lib/social/x-client';
+import { listReceivedEmails, getReceivedEmail } from '../src/lib/email/receiving';
 import type { ReportReason } from '../src/types/database';
 import { extractMetadataFromBuffer, DEFAULT_TRACK_ICON } from '../src/lib/audio/metadata';
 import { getR2Client, getBucketName, getPublicUrl } from '../src/lib/r2';
@@ -955,6 +956,63 @@ Moderation & Schedule:
         console.error(`❌ Error posting tweet:`, err instanceof Error ? err.message : err);
       }
       break;
+    }
+
+    case 'email':
+    case 'mail': {
+      const sub = args[1] || 'list';
+      if (sub === 'list') {
+        console.log(`📬 Fetching inbound emails sent to @promptfm.live from Resend...`);
+        const emails = await listReceivedEmails();
+        if (emails.length === 0) {
+          console.log('No received emails found.');
+          return;
+        }
+        console.log(`\nFound ${emails.length} received email(s):\n`);
+        emails.forEach((e, idx) => {
+          console.log(`[${idx + 1}] ID: ${e.id}`);
+          console.log(`    From:    ${e.from}`);
+          console.log(`    To:      ${e.to.join(', ')}`);
+          console.log(`    Subject: ${e.subject}`);
+          console.log(`    Date:    ${e.createdAt}`);
+          console.log(`    Read:    npm run promptfm -- email get ${e.id}\n`);
+        });
+        return;
+      }
+
+      if (sub === 'get' || sub === 'read') {
+        const emailId = args[2];
+        if (!emailId) {
+          console.error('Error: Please provide an email ID. Usage: npm run promptfm -- email get <id>');
+          return;
+        }
+        console.log(`📬 Fetching email ${emailId}...`);
+        const email = await getReceivedEmail(emailId);
+        if (!email) {
+          console.error(`Email ${emailId} not found.`);
+          return;
+        }
+        console.log(`\n======================================================`);
+        console.log(`From:    ${email.from}`);
+        console.log(`To:      ${email.to.join(', ')}`);
+        console.log(`Subject: ${email.subject}`);
+        console.log(`Date:    ${email.createdAt}`);
+        console.log(`======================================================\n`);
+        if (email.text) {
+          console.log(email.text);
+        } else if (email.html) {
+          console.log(email.html);
+        } else {
+          console.log('(No text content)');
+        }
+        console.log(`======================================================\n`);
+        return;
+      }
+
+      console.log('Email subcommands:');
+      console.log('  npm run promptfm -- email list        List all received emails sent to dev@promptfm.live');
+      console.log('  npm run promptfm -- email get <id>    Read the full text/code of a received email');
+      return;
     }
 
     case 'schedule': {
