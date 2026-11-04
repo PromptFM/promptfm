@@ -1,6 +1,6 @@
 # PromptFM Governance & Review Board
-# Every Pull Request requires at least one approving review from the Board prior to merging.
+# Every Pull Request requires at least one approving review from the Core Team prior to merging.
 
-* @atrifan
-infra/ @atrifan
-.github/ @atrifan
+* @PromptFM/core @atrifan
+infra/ @PromptFM/core @atrifan
+.github/ @PromptFM/core @atrifan

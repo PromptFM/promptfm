@@ -42,5 +42,6 @@
 ---
 
 ### 5. Review & Governance
-- [ ] Assigned Board Reviewer: **@atrifan**
+- [ ] Assigned Core Team Reviewer: **@PromptFM/core** (or **@atrifan**)
 - [ ] Confirmed no proprietary code reuse or license violation.
+

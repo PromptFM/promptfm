@@ -28,7 +28,7 @@ describe('Community Links Directory', () => {
     expect(links.telegramChannel).toBe('https://t.me/promptfm_live');
     expect(links.telegramBot).toBe('https://t.me/PromptFMLiveBot');
     expect(links.xTwitter).toBe('https://x.com/promptfm_live');
-    expect(links.github).toBe('https://github.com/atrifan/promptfm');
+    expect(links.github).toBe('https://github.com/PromptFM/promptfm');
     expect(links.mcpProtocol).toBe('/api/mcp');
   });
 

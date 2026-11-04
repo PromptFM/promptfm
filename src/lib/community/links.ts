@@ -16,7 +16,7 @@ export function getCommunityLinks(): CommunityLinks {
     telegramChannel: process.env.NEXT_PUBLIC_TELEGRAM_CHANNEL_URL || 'https://t.me/promptfm_live',
     telegramBot: process.env.NEXT_PUBLIC_TELEGRAM_BOT_URL || 'https://t.me/PromptFMLiveBot',
     xTwitter: process.env.NEXT_PUBLIC_X_URL || process.env.NEXT_PUBLIC_TWITTER_URL || 'https://x.com/promptfm_live',
-    github: process.env.NEXT_PUBLIC_GITHUB_REPO_URL || 'https://github.com/atrifan/promptfm',
+    github: process.env.NEXT_PUBLIC_GITHUB_REPO_URL || 'https://github.com/PromptFM/promptfm',
     mcpProtocol: '/api/mcp',
   };
 }
