@@ -1,0 +1,11 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Ignore mock credentials in local development examples and test suites"
+paths = [
+  '''\.env\.example$''',
+  '''\.env\.local\.example$''',
+  '''tests/.*''',
+  '''docker/local-dev/.*'''
+]
