@@ -46,7 +46,7 @@ describe('SEO & Structured Data Service', () => {
     it('generates complete sitemap items with canonical URLs, change frequencies, and priorities', () => {
       const testDate = new Date('2026-11-03T00:00:00Z');
       const sitemap = generateSitemapUrls(testDate);
-      expect(sitemap.length).toBe(13);
+      expect(sitemap.length).toBe(14);
 
       const urls = sitemap.map((s) => s.url);
       expect(urls).toContain('https://promptfm.live');
@@ -58,6 +58,7 @@ describe('SEO & Structured Data Service', () => {
       expect(urls).toContain('https://promptfm.live/dmca');
       expect(urls).toContain('https://promptfm.live/privacy');
       expect(urls).toContain('https://promptfm.live/copyright');
+      expect(urls).toContain('https://promptfm.live/status');
 
       const dmcaEntry = sitemap.find((s) => s.url === 'https://promptfm.live/dmca');
       expect(dmcaEntry?.priority).toBe(0.7);
