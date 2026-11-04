@@ -91,3 +91,4 @@ export const siteMetadata: Metadata = {
     'apple-mobile-web-app-capable': 'yes',
   },
 };
+

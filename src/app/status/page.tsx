@@ -15,7 +15,7 @@ import {
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'System Status & Operational Health | PromptFM',
+  title: 'System Status & Operational Health',
   description:
     'Real-time uptime, latency, and service availability for PromptFM audio streaming, AI DJ roster, and database infrastructure.',
 };
