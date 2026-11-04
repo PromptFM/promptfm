@@ -4,8 +4,9 @@
 // Interactive 24/7 Channel Broadcast Schedule Component
 // Displays 24-hour daily programming blocks, live shows, AI DJ personas, and clock wheel milestones.
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { OFFICIAL_CHANNELS, RadioChannel } from '@/lib/radio/channels';
+import { formatAudioTime } from '@/lib/radio/progress';
 import {
   Calendar,
   Clock,
@@ -22,6 +23,8 @@ import {
   Moon,
   Gamepad2,
   Flame,
+  Disc3,
+  ThumbsUp,
 } from 'lucide-react';
 import type { StationSchedule, ScheduleBlock } from '@/lib/radio/schedule';
 
@@ -30,12 +33,29 @@ interface ScheduleViewProps {
   onTuneIn?: (channel: RadioChannel) => void;
 }
 
+interface ScheduleWithNowPlaying extends StationSchedule {
+  now_playing?: {
+    id: string;
+    title: string;
+    artist: string;
+    cover_art_url?: string;
+    category?: string;
+    tool_used?: string;
+    upvotes_count?: number;
+    elapsed_seconds?: number;
+    duration_seconds?: number;
+    rank?: number | null;
+  };
+}
+
 export default function ScheduleView({ initialChannelSlug = 'main', onTuneIn }: ScheduleViewProps) {
   const [activeSlug, setActiveSlug] = useState<string>(initialChannelSlug);
-  const [schedule, setSchedule] = useState<StationSchedule | null>(null);
+  const [schedule, setSchedule] = useState<ScheduleWithNowPlaying | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [localTimeZone, setLocalTimeZone] = useState<string>('UTC');
   const [currentTimeUtc, setCurrentTimeUtc] = useState<string>('');
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
+  const [durationSeconds, setDurationSeconds] = useState<number>(180);
 
   useEffect(() => {
     try {
@@ -58,32 +78,65 @@ export default function ScheduleView({ initialChannelSlug = 'main', onTuneIn }: 
     };
 
     updateClock();
-    const timer = setInterval(updateClock, 30000);
+    const timer = setInterval(updateClock, 10000);
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    let isCancelled = false;
-    setLoading(true);
-
-    fetch(`/api/radio/schedule?channel=${activeSlug}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (!isCancelled && data.success) {
-          setSchedule(data);
+  const fetchSchedule = useCallback(async (slug: string, isInitial = false) => {
+    if (isInitial) setLoading(true);
+    try {
+      const res = await fetch(`/api/radio/schedule?channel=${encodeURIComponent(slug)}`);
+      const data = await res.json();
+      if (data.success) {
+        setSchedule(data);
+        if (typeof data.now_playing?.elapsed_seconds === 'number') {
+          setElapsedSeconds(data.now_playing.elapsed_seconds);
         }
-      })
-      .catch((err) => {
-        console.error('Failed to load channel schedule:', err);
-      })
-      .finally(() => {
-        if (!isCancelled) setLoading(false);
-      });
+        if (typeof data.now_playing?.duration_seconds === 'number') {
+          setDurationSeconds(data.now_playing.duration_seconds);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load channel schedule:', err);
+    } finally {
+      if (isInitial) setLoading(false);
+    }
+  }, []);
+
+  // Poll schedule every 12 seconds
+  useEffect(() => {
+    fetchSchedule(activeSlug, true);
+    const interval = setInterval(() => fetchSchedule(activeSlug, false), 12000);
+
+    const handleChannelChange = (e: Event) => {
+      const custom = e as CustomEvent<{ slug: string }>;
+      if (custom.detail?.slug) {
+        setActiveSlug(custom.detail.slug);
+        fetchSchedule(custom.detail.slug, true);
+      }
+    };
+
+    window.addEventListener('promptfm:channel-changed', handleChannelChange);
 
     return () => {
-      isCancelled = true;
+      clearInterval(interval);
+      window.removeEventListener('promptfm:channel-changed', handleChannelChange);
     };
-  }, [activeSlug]);
+  }, [activeSlug, fetchSchedule]);
+
+  // Live second-by-second on-air track progress ticker
+  useEffect(() => {
+    const tick = setInterval(() => {
+      setElapsedSeconds((prev) => {
+        const next = prev + 1;
+        if (next >= durationSeconds && next % 5 === 0) {
+          fetchSchedule(activeSlug, false);
+        }
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [durationSeconds, activeSlug, fetchSchedule]);
 
   const activeChannel =
     OFFICIAL_CHANNELS.find((c) => c.slug === activeSlug) || OFFICIAL_CHANNELS[0]!;
@@ -279,6 +332,49 @@ export default function ScheduleView({ initialChannelSlug = 'main', onTuneIn }: 
                   </div>
                 </div>
               </div>
+
+              {/* Currently Playing Track on Air with Live Progress Bar */}
+              {schedule.now_playing && schedule.now_playing.title && (
+                <div className="p-3.5 bg-zinc-950/80 border border-emerald-500/50 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
+                      <Disc3 className="w-4 h-4 animate-spin text-emerald-400" />
+                      Now On Air
+                    </span>
+                    <span className="text-[11px] font-mono text-zinc-400">
+                      {formatAudioTime(elapsedSeconds)} / {formatAudioTime(durationSeconds)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={schedule.now_playing.cover_art_url || '/logo-mark.png'}
+                      alt={schedule.now_playing.title}
+                      className="w-10 h-10 rounded-lg object-cover border border-zinc-800"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = '/logo-mark.png';
+                      }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-sm font-bold text-white truncate">{schedule.now_playing.title}</h4>
+                      <p className="text-xs text-zinc-400 truncate">{schedule.now_playing.artist}</p>
+                    </div>
+                    {schedule.now_playing.rank && (
+                      <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded">
+                        #{schedule.now_playing.rank} Chart Rank
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Progress Line */}
+                  <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-1000 ease-linear"
+                      style={{ width: `${Math.min(100, Math.round((elapsedSeconds / durationSeconds) * 100))}%` }}
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Hourly Clock Wheel Milestones */}
               <div className="pt-2 border-t border-zinc-800">

@@ -3,7 +3,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { castVoteForTrack } from '@/lib/chat/bridge';
-import { updateCurrentAirplayUpvotes, getNowPlaying } from '@/lib/dj/rotation';
+import { updateCurrentAirplayUpvotes, getNowPlaying, getUpNext } from '@/lib/dj/rotation';
 
 vi.mock('@/lib/supabase/server', () => {
   return {
@@ -60,6 +60,42 @@ vi.mock('@/lib/supabase/server', () => {
                               upvotes_count: 5,
                             },
                           }),
+                          then: (resolve: any) =>
+                            resolve({
+                              data: [
+                                {
+                                  id: 'track-101',
+                                  title: 'Synthetic Dawn',
+                                  artist_name: 'DJ Neon',
+                                  audio_url: 'https://cdn.example.com/synth.mp3',
+                                  tool_used: 'Suno',
+                                  upvotes_count: 33,
+                                  category: 'Synthwave & Electro',
+                                  is_explicit: false,
+                                },
+                                {
+                                  id: 'track-102',
+                                  title: 'Hold That Line',
+                                  artist_name: 'Letra',
+                                  audio_url: 'https://cdn.example.com/letra.mp3',
+                                  tool_used: 'Udio',
+                                  upvotes_count: 30,
+                                  category: 'Synthwave & Electro',
+                                  is_explicit: false,
+                                },
+                                {
+                                  id: 'track-kids',
+                                  title: 'Alphabet Song',
+                                  artist_name: 'Principle345',
+                                  audio_url: 'https://cdn.example.com/alpha.mp3',
+                                  tool_used: 'Other',
+                                  upvotes_count: 28,
+                                  category: 'Kids & Family',
+                                  is_explicit: false,
+                                  family_friendly: true,
+                                },
+                              ],
+                            }),
                         }),
                       }),
                     };
@@ -93,7 +129,10 @@ vi.mock('@/lib/supabase/server', () => {
 
         return {
           select: () => ({
-            eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }),
+            eq: () => ({
+              maybeSingle: async () => ({ data: null, error: null }),
+              single: async () => ({ data: null, error: null }),
+            }),
           }),
         };
       },
@@ -119,6 +158,21 @@ describe('Now Playing & Vote State Synchronization', () => {
 
   it('updates vote count in memory when updateCurrentAirplayUpvotes is triggered', () => {
     expect(() => updateCurrentAirplayUpvotes('track-101', 6)).not.toThrow();
+  });
+
+  it('filters out currently playing track and kids-only tracks from getUpNext on main stage', async () => {
+    // track-101 is currently on air in station_state
+    const upNext = await getUpNext('main', 5);
+
+    // 1. Currently playing track must NEVER appear in Up Next
+    const ids = upNext.map((item) => item.id);
+    expect(ids).not.toContain('track-101');
+
+    // 2. Alphabet Song / Kids-only track must NEVER appear in Up Next for main stage
+    expect(ids).not.toContain('track-kids');
+
+    // 3. Normal track (track-102) should be present
+    expect(ids).toContain('track-102');
   });
 });
 

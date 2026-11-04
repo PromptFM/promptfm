@@ -393,8 +393,22 @@ export function isContentAllowedForAirplay(
   isExplicit = false,
   channelSlug = 'main',
   date = new Date(),
-  familyFriendly?: boolean
+  familyFriendly?: boolean,
+  category?: string | null,
+  title?: string | null
 ): boolean {
+  // 0. Kids-specific restriction: Educational / nursery songs specifically intended for kids
+  // (e.g. category 'Kids & Family' or titled 'Alphabet Song') are strictly isolated to the 'kids' channel
+  // and MUST NOT air on 'main' stage or other adult/general channels.
+  const isKidsSpecific = Boolean(
+    (category && (category.toLowerCase().includes('kid') || category.toLowerCase().includes('nursery') || category.toLowerCase().includes('children'))) ||
+    (title && title.toLowerCase().includes('alphabet song'))
+  );
+
+  if (isKidsSpecific) {
+    return channelSlug === 'kids';
+  }
+
   if (isExplicit) {
     const config = getParentalControlConfig();
     if (!config.enabled) return true;

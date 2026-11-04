@@ -154,6 +154,23 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
     }
   }
 
+  // Calculate elapsed seconds
+  let elapsedSeconds = Math.max(0, Math.floor((Date.now() - currentAirplayStartedAt) / 1000));
+  const estimatedDuration = currentAirplayItem?.duration_hint_seconds || 180; // 3 minutes default
+
+  // Auto-progression: When current track has completed its broadcast duration,
+  // automatically advance the station to the next queued or scheduled track.
+  if (currentAirplayItem && elapsedSeconds >= estimatedDuration) {
+    try {
+      const nextItem = await getNextAirplayItem(channelSlug, true);
+      currentAirplayItem = nextItem;
+      currentAirplayStartedAt = Date.now();
+      elapsedSeconds = 0;
+    } catch (e) {
+      console.warn('Auto-advancing on-air track failed:', e);
+    }
+  }
+
   const item: AirplayItem = currentAirplayItem || {
     id: 'demo-fallback',
     type: 'music',
@@ -166,8 +183,6 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
     upvotes_count: 20,
     dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
   };
-
-  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - currentAirplayStartedAt) / 1000));
 
   let rank: number | null = null;
   let totalApprovedTracks: number | null = null;
@@ -217,9 +232,18 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
 export async function getUpNext(channelSlug = 'main', limit = 5): Promise<AirplayItem[]> {
   const supabase = createAdminClient();
   const upNext: AirplayItem[] = [];
+  const now = new Date();
+
+  // Retrieve currently active airplay item to ensure it is never duplicated in "Up Next"
+  const currentNowPlaying = await getNowPlaying(channelSlug);
+  const currentTrackId = currentNowPlaying.item.id;
+  const existingIds = new Set<string>();
+  if (currentTrackId && currentTrackId !== 'demo-fallback') {
+    existingIds.add(currentTrackId);
+  }
 
   // 1. Check listener queued requests in channel_queue
-  const { data: channel } = await supabase.from('channels').select('id').eq('slug', channelSlug).single();
+  const { data: channel } = await supabase.from('channels').select('id').eq('slug', channelSlug).maybeSingle();
   if (channel) {
     const { data: queueItems } = await supabase
       .from('channel_queue')
@@ -227,12 +251,37 @@ export async function getUpNext(channelSlug = 'main', limit = 5): Promise<Airpla
       .eq('channel_id', channel.id)
       .is('played_at', null)
       .order('created_at', { ascending: true })
-      .limit(limit);
+      .limit(limit + 5);
 
     if (queueItems && queueItems.length > 0) {
       for (const qi of queueItems) {
         if (qi.track) {
-          const t = qi.track as unknown as { id: string; title: string; artist_name: string; audio_url: string; tool_used: string; upvotes_count: number; cover_art_url?: string };
+          const t = qi.track as unknown as {
+            id: string;
+            title: string;
+            artist_name: string;
+            audio_url: string;
+            tool_used: string;
+            upvotes_count: number;
+            cover_art_url?: string;
+            category?: string;
+            is_explicit?: boolean;
+            family_friendly?: boolean;
+          };
+          if (existingIds.has(t.id)) continue;
+          if (
+            !isContentAllowedForAirplay(
+              Boolean(t.is_explicit),
+              channelSlug,
+              now,
+              t.family_friendly,
+              t.category,
+              t.title
+            )
+          ) {
+            continue;
+          }
+          existingIds.add(t.id);
           upNext.push({
             id: t.id,
             type: 'music',
@@ -240,9 +289,11 @@ export async function getUpNext(channelSlug = 'main', limit = 5): Promise<Airpla
             artist: t.artist_name,
             audio_url: t.audio_url,
             cover_art_url: t.cover_art_url || '/logo-mark.png',
+            category: t.category,
             tool_used: t.tool_used,
             upvotes_count: t.upvotes_count,
           });
+          if (upNext.length >= limit) break;
         }
       }
     }
@@ -253,25 +304,36 @@ export async function getUpNext(channelSlug = 'main', limit = 5): Promise<Airpla
   if (needed > 0) {
     const { data: topTracks } = await supabase
       .from('tracks')
-      .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url')
+      .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, is_explicit, family_friendly')
       .eq('status', 'approved')
       .order('upvotes_count', { ascending: false })
-      .limit(needed + 5);
+      .limit(needed + 25);
 
     if (topTracks) {
-      const existingIds = new Set(upNext.map((u) => u.id));
       for (const t of topTracks) {
         if (!existingIds.has(t.id) && upNext.length < limit) {
-          upNext.push({
-            id: t.id,
-            type: 'music',
-            title: t.title,
-            artist: t.artist_name,
-            audio_url: t.audio_url,
-            cover_art_url: (t as unknown as { cover_art_url?: string }).cover_art_url || '/logo-mark.png',
-            tool_used: t.tool_used,
-            upvotes_count: t.upvotes_count,
-          });
+          const isAllowed = isContentAllowedForAirplay(
+            Boolean((t as unknown as { is_explicit?: boolean }).is_explicit),
+            channelSlug,
+            now,
+            (t as unknown as { family_friendly?: boolean }).family_friendly,
+            (t as unknown as { category?: string }).category,
+            (t as unknown as { title?: string }).title
+          );
+          if (isAllowed) {
+            existingIds.add(t.id);
+            upNext.push({
+              id: t.id,
+              type: 'music',
+              title: t.title,
+              artist: t.artist_name,
+              audio_url: t.audio_url,
+              cover_art_url: (t as unknown as { cover_art_url?: string }).cover_art_url || '/logo-mark.png',
+              category: (t as unknown as { category?: string }).category,
+              tool_used: t.tool_used,
+              upvotes_count: t.upvotes_count,
+            });
+          }
         }
       }
     }
@@ -730,7 +792,9 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
       (t as unknown as { is_explicit?: boolean }).is_explicit ?? false,
       channelSlug,
       now,
-      (t as unknown as { family_friendly?: boolean }).family_friendly
+      (t as unknown as { family_friendly?: boolean }).family_friendly,
+      (t as unknown as { category?: string }).category,
+      (t as unknown as { title?: string }).title
     )
   );
 

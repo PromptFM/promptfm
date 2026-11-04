@@ -54,6 +54,12 @@ export default function Navbar() {
             Schedule
           </Link>
           <Link
+            href="/about"
+            className="text-zinc-400 hover:text-white transition-colors py-1"
+          >
+            About
+          </Link>
+          <Link
             href="/top"
             className="text-zinc-400 hover:text-white transition-colors py-1"
           >
@@ -161,6 +167,14 @@ export default function Navbar() {
             >
               <Calendar className="w-4 h-4 text-emerald-400" />
               <span>24/7 Broadcast Schedule</span>
+            </Link>
+            <Link
+              href="/about"
+              onClick={closeMenu}
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-900 transition-colors"
+            >
+              <Sparkles className="w-4 h-4 text-emerald-400" />
+              <span>About PromptFM</span>
             </Link>
             <Link
               href="/top"

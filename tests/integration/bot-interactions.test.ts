@@ -224,6 +224,19 @@ describe('Discord & Telegram Interactive Bot Commands Integration', () => {
       expect(json.data.components).toBeDefined();
     });
 
+    it('handles Discord Ping (Type 1) and responds with Pong { type: 1 } for verification', async () => {
+      const req = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 1 }),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.type).toBe(1);
+    });
+
     it('handles Discord /help slash command returning listener guide and schedule details', async () => {
       const req = new NextRequest('http://localhost:3000/api/bot/webhook', {
         method: 'POST',

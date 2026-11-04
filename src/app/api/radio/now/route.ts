@@ -45,6 +45,7 @@ export async function GET(req: NextRequest) {
       },
       active_dj: status.activeDJ,
       elapsed_seconds: status.elapsedSeconds,
+      duration_seconds: status.item.duration_hint_seconds || 180,
       started_at: status.startedAt,
     });
   } catch (err: unknown) {

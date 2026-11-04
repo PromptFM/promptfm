@@ -87,4 +87,33 @@ describe('Google AdSense Legal & Privacy Compliance Specification', () => {
       expect(allowsPersonalizedAds('unset')).toBe(false);
     });
   });
+
+  describe('AdSense Publisher Content & Screen Placement Policies', () => {
+    it('ensures navigation-only /channels screen does not host Google AdSense units', async () => {
+      const fs = await import('fs');
+      const path = await import('path');
+      const channelsPageContent = fs.readFileSync(
+        path.join(process.cwd(), 'src/app/channels/page.tsx'),
+        'utf8'
+      );
+
+      // Must not contain AdSense display units on navigation/selector page
+      expect(channelsPageContent).not.toContain('<AdSenseDisplayUnit');
+      expect(channelsPageContent).not.toContain('channels_footer_banner');
+    });
+
+    it('ensures home page frames AdSense display banner within rich publisher editorial content', async () => {
+      const fs = await import('fs');
+      const path = await import('path');
+      const homePageContent = fs.readFileSync(
+        path.join(process.cwd(), 'src/app/page.tsx'),
+        'utf8'
+      );
+
+      // Must contain high-value editorial section
+      expect(homePageContent).toContain('PromptFM Editorial & Station Architecture');
+      expect(homePageContent).toContain('The Autonomous AI Radio Revolution');
+      expect(homePageContent).toContain('Clock-Wheel Automation & AI Personalities');
+    });
+  });
 });

@@ -52,6 +52,12 @@ export default function Footer() {
           {/* Legal Agreements & Safety Links */}
           <div className="flex flex-wrap items-center justify-center gap-y-2 gap-x-4 text-xs font-medium">
             <Link
+              href="/about"
+              className="hover:text-emerald-400 transition-colors flex items-center gap-1"
+            >
+              <span>About PromptFM</span>
+            </Link>
+            <Link
               href="/schedule"
               className="hover:text-emerald-400 transition-colors flex items-center gap-1"
             >

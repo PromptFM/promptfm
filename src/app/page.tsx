@@ -81,17 +81,93 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Google AdSense Display Banner */}
-      <AdSenseDisplayUnit slotId="home_middle_banner" className="my-2 max-w-3xl" />
-
       {/* Live Radio Stations Section */}
       <ChannelsGrid />
 
-      {/* Discord & Telegram Community Section */}
-      <CommunitySection />
-
       {/* Up Next on Air Section */}
       <UpNextSection />
+
+      {/* Editorial Publisher Section: Inside PromptFM & AI Music Architecture */}
+      <section className="w-full max-w-4xl mx-auto px-4 mt-6 text-left space-y-6 bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-6 sm:p-8 backdrop-blur-md shadow-xl">
+        <div className="border-b border-zinc-800 pb-4">
+          <span className="text-xs font-bold text-emerald-400 tracking-wider uppercase">
+            PromptFM Editorial & Station Architecture
+          </span>
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-white mt-1">
+            The Autonomous AI Radio Revolution
+          </h2>
+          <p className="text-sm text-zinc-400 mt-1.5 leading-relaxed">
+            PromptFM is the world&apos;s first autonomous, community-curated 24/7 AI radio network. 
+            Blending frontier neural audio generation with traditional radio clock-wheel programming, 
+            the station delivers continuous music curated in real-time by resident AI DJ personas.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs sm:text-sm text-zinc-300 leading-relaxed">
+          <div className="space-y-2">
+            <h3 className="text-base font-bold text-white flex items-center gap-1.5">
+              <Radio className="w-4 h-4 text-emerald-400" />
+              Clock-Wheel Automation & AI Personalities
+            </h3>
+            <p>
+              Traditional commercial radio relies on precise hourly clock wheels—cadences that balance 
+              upbeat hits, listener requests, station identifiers, and community announcements. PromptFM 
+              modernizes this format using Google Gemini 2.5 and 3.5 architectures. Four autonomous 
+              AI DJ personas—DJ Neon, DJ Cipher, DJ Luna, and DJ Pixel—program their shifts around the 
+              clock, adapting style, vocal cadence, and music selection dynamically according to UTC time slots.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <h3 className="text-base font-bold text-white flex items-center gap-1.5">
+              <Music2 className="w-4 h-4 text-emerald-400" />
+              Frontier Neural Audio Synthesis
+            </h3>
+            <p>
+              Every track broadcast on PromptFM represents original creative prompt engineering executed 
+              through state-of-the-art foundation models including Suno v3.5, Udio v1.5, and Stable Audio. 
+              Creators input natural language prompts, harmonic chord progressions, and lyric poetry, 
+              which generative diffusion networks transform into studio-grade master audio. PromptFM 
+              indexes each track&apos;s sonic embeddings via pgvector for semantic search and automated thematic matching.
+            </p>
+          </div>
+        </div>
+
+        {/* Google AdSense Display Banner (Nested within rich editorial publisher content) */}
+        <AdSenseDisplayUnit slotId="home_middle_banner" className="my-6 max-w-full" />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs sm:text-sm text-zinc-300 leading-relaxed pt-2 border-t border-zinc-800">
+          <div className="space-y-2">
+            <h3 className="text-base font-bold text-white flex items-center gap-1.5">
+              <Upload className="w-4 h-4 text-emerald-400" />
+              Democratic Listener Governance
+            </h3>
+            <p>
+              Airplay on PromptFM is governed 100% democratically by the community. Listeners upvote 
+              tracks in real time through the web player or directly via Discord and Telegram bot 
+              integrations. Higher-voted tracks receive elevated rotational weight during prime-time 
+              countdown shows, while community requests queued in Telegram and Discord are automatically 
+              slotted into upcoming broadcast milestones.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <h3 className="text-base font-bold text-white flex items-center gap-1.5">
+              <Radio className="w-4 h-4 text-emerald-400" />
+              Statutory Copyright & Safety Guardrails
+            </h3>
+            <p>
+              To protect artists and rightsholders, PromptFM implements automated safety guardrails, 
+              including COPPA-compliant channel isolation (restricting nursery and kids tracks strictly 
+              to the Kids channel), late-night watershed parental controls, and a direct DMCA statutory 
+              notice agent registered under 17 U.S.C. § 512(c).
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Discord & Telegram Community Section */}
+      <CommunitySection />
     </main>
   );
 }

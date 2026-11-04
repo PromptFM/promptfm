@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getStationSchedule, getAllChannelsSchedule } from '@/lib/radio/schedule';
+import { getNowPlaying } from '@/lib/dj/rotation';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +22,10 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const schedule = getStationSchedule(channelSlug);
+    const [schedule, nowPlaying] = await Promise.all([
+      getStationSchedule(channelSlug),
+      getNowPlaying(channelSlug),
+    ]);
 
     return NextResponse.json({
       success: true,
@@ -29,6 +33,12 @@ export async function GET(req: NextRequest) {
       current_show: schedule.current_show,
       upcoming_shows: schedule.upcoming_shows,
       blocks: schedule.blocks,
+      now_playing: {
+        ...nowPlaying.item,
+        elapsed_seconds: nowPlaying.elapsedSeconds,
+        duration_seconds: nowPlaying.item.duration_hint_seconds || 180,
+        rank: nowPlaying.rank ?? null,
+      },
       timestamp: schedule.generated_at_utc,
     });
   } catch (err: unknown) {

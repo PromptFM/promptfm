@@ -116,6 +116,18 @@ describe('DJ Roster & Parental Control Service', () => {
       // Clean tracks with family_friendly: false CANNOT air on kids
       expect(isContentAllowedForAirplay(false, 'kids', dayDate, false)).toBe(false);
     });
+
+    it('restricts kids-specific songs (e.g. Kids & Family category or Alphabet Song) strictly to the kids channel and blocks on main stage', () => {
+      // Alphabet Song or Kids & Family songs should only play on kids channel
+      expect(isContentAllowedForAirplay(false, 'main', dayDate, true, 'Kids & Family', 'Alphabet Song')).toBe(false);
+      expect(isContentAllowedForAirplay(false, 'cyberpunk', dayDate, true, 'Kids & Family', 'Alphabet Song')).toBe(false);
+      expect(isContentAllowedForAirplay(false, 'afterdark', dayDate, true, 'Kids & Family', 'Alphabet Song')).toBe(false);
+      expect(isContentAllowedForAirplay(false, 'chillout', dayDate, true, 'Kids & Family', 'Alphabet Song')).toBe(false);
+
+      // Must be allowed on the kids channel
+      expect(isContentAllowedForAirplay(false, 'kids', dayDate, true, 'Kids & Family', 'Alphabet Song')).toBe(true);
+      expect(isContentAllowedForAirplay(false, 'kids', dayDate, true, 'Chiptune & 8-Bit', 'Alphabet Song')).toBe(true);
+    });
   });
 
   describe('getAdsConfig & getActiveAdSpot', () => {

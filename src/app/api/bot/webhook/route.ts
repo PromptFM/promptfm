@@ -21,6 +21,11 @@ export async function POST(req: NextRequest) {
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://promptfm.live';
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
 
+    // ── 0. Discord Ping (Interaction Type 1 - PING -> PONG) ───────────────────
+    if (body.type === 1) {
+      return NextResponse.json({ type: 1 });
+    }
+
     // ── 1. Telegram Callback Query (Inline Button Click - e.g. 👍 Upvote) ─────
     if (body.callback_query) {
       const cq = body.callback_query;

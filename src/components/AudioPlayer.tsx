@@ -42,6 +42,11 @@ import {
   getStreamUrlForChannel,
   isValidChannelSlug,
 } from '@/lib/radio/channels';
+import {
+  buildQueueDisplayItems,
+  calculateTrackProgress,
+  formatAudioTime,
+} from '@/lib/radio/progress';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -109,6 +114,8 @@ export default function AudioPlayer() {
   const [showTranscript, setShowTranscript] = useState(false);
   const [showUpNext, setShowUpNext] = useState(false);
   const [upNextList, setUpNextList] = useState<NowPlayingInfo[]>([]);
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
+  const [durationSeconds, setDurationSeconds] = useState<number>(180);
   const [listenersCount, setListenersCount] = useState<number | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [isAgeGateOpen, setIsAgeGateOpen] = useState(false);
@@ -128,6 +135,12 @@ export default function AudioPlayer() {
         const data = await res.json();
         if (typeof data.listeners_count === 'number') {
           setListenersCount(data.listeners_count);
+        }
+        if (typeof data.elapsed_seconds === 'number') {
+          setElapsedSeconds(data.elapsed_seconds);
+        }
+        if (typeof data.duration_seconds === 'number') {
+          setDurationSeconds(data.duration_seconds);
         }
         if (Array.isArray(data.up_next)) {
           setUpNextList(
@@ -174,9 +187,23 @@ export default function AudioPlayer() {
   // Periodic polling for Now Playing updates
   useEffect(() => {
     fetchNowPlaying(currentChannelSlug);
-    const interval = setInterval(() => fetchNowPlaying(currentChannelSlug), 12000);
+    const interval = setInterval(() => fetchNowPlaying(currentChannelSlug), 10000);
     return () => clearInterval(interval);
   }, [fetchNowPlaying, currentChannelSlug]);
+
+  // Second-by-second progress ticker for live broadcast
+  useEffect(() => {
+    const tick = setInterval(() => {
+      setElapsedSeconds((prev) => {
+        const next = prev + 1;
+        if (next >= durationSeconds && next % 5 === 0) {
+          fetchNowPlaying(currentChannelSlug);
+        }
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [durationSeconds, currentChannelSlug, fetchNowPlaying]);
 
   // Handle in-player quick upvote
   const handleQuickVote = async () => {
@@ -404,6 +431,13 @@ export default function AudioPlayer() {
         role="region"
         aria-label="Live radio player"
       >
+        {/* Real-time Broadcast Progress Bar */}
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-zinc-800/80 overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400 transition-all duration-1000 ease-linear"
+            style={{ width: `${Math.min(100, Math.round((elapsedSeconds / durationSeconds) * 100))}%` }}
+          />
+        </div>
         {/* Channel Switcher Popover Menu */}
         {showChannelMenu && (
           <div className="absolute bottom-full left-3 sm:left-6 mb-2 w-[calc(100vw-24px)] sm:w-80 bg-zinc-900 border border-zinc-700/80 rounded-2xl p-3 shadow-2xl z-50 animate-in fade-in slide-in-from-bottom-2 space-y-2">
@@ -474,61 +508,111 @@ export default function AudioPlayer() {
         )}
 
         {/* Up Next Popover Modal */}
-        {showUpNext && (
-          <div className="absolute bottom-full right-3 sm:right-6 mb-2 max-w-[calc(100vw-24px)] sm:max-w-sm w-full bg-zinc-900 border border-zinc-700 rounded-xl p-3 shadow-2xl z-50 space-y-2 animate-in fade-in slide-in-from-bottom-2">
-            <div className="flex items-center justify-between text-[11px] font-semibold text-emerald-400">
-              <span className="flex items-center gap-1.5">
-                <ListMusic className="w-3.5 h-3.5" />
-                Up Next on {currentChannel.name}
-              </span>
-              <button
-                onClick={() => setShowUpNext(false)}
-                className="text-zinc-500 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
-            {upNextList.length === 0 ? (
-              <p className="text-xs text-zinc-400 py-2">
-                Automated rotation selecting from top-voted community tracks.
-              </p>
-            ) : (
-              <div className="space-y-1.5">
-                {upNextList.slice(0, 3).map((item, i) => (
-                  <div
-                    key={item.id || i}
-                    className="flex items-center gap-2.5 p-1.5 bg-zinc-950/70 border border-zinc-800 rounded-lg text-xs"
-                  >
-                    <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-1.5 py-0.5 rounded">
-                      #{i + 1}
-                    </span>
-                    <img
-                      src={item.cover_art_url || '/logo-mark.png'}
-                      alt={item.title}
-                      className="w-8 h-8 rounded object-cover border border-zinc-800 flex-shrink-0"
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = '/logo-mark.png';
-                      }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-white truncate">{item.title}</p>
-                      <p className="text-[11px] text-zinc-400 truncate">{item.artist}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+        {showUpNext && (() => {
+          const modalQueueItems = buildQueueDisplayItems(
+            nowPlaying ? ({ ...nowPlaying, id: nowPlaying.id || '' } as any) : null,
+            upNextList as any,
+            elapsedSeconds,
+            durationSeconds
+          );
 
-            <Link
-              href={`/schedule?channel=${currentChannel.slug}`}
-              onClick={() => setShowUpNext(false)}
-              className="mt-2.5 flex items-center justify-center gap-1.5 text-center text-xs text-emerald-400 hover:text-emerald-300 font-medium py-1.5 px-2 rounded-lg bg-zinc-950/70 border border-zinc-800 hover:border-emerald-500/30 transition-colors"
-            >
-              <Calendar className="w-3.5 h-3.5" />
-              <span>Full 24-Hour Broadcast Schedule &rarr;</span>
-            </Link>
-          </div>
-        )}
+          return (
+            <div className="absolute bottom-full right-3 sm:right-6 mb-2 max-w-[calc(100vw-24px)] sm:max-w-sm w-full bg-zinc-900 border border-zinc-700 rounded-xl p-3 shadow-2xl z-50 space-y-2 animate-in fade-in slide-in-from-bottom-2">
+              <div className="flex items-center justify-between text-[11px] font-semibold text-emerald-400">
+                <span className="flex items-center gap-1.5">
+                  <ListMusic className="w-3.5 h-3.5" />
+                  Up Next on {currentChannel.name}
+                </span>
+                <button
+                  onClick={() => setShowUpNext(false)}
+                  className="text-zinc-500 hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+              {modalQueueItems.length === 0 ? (
+                <p className="text-xs text-zinc-400 py-2">
+                  Automated rotation selecting from top-voted community tracks.
+                </p>
+              ) : (
+                <div className="space-y-1.5">
+                  {modalQueueItems.slice(0, 4).map((item, i) => {
+                    const isCurrent = item.isCurrent;
+                    return (
+                      <div
+                        key={item.id || i}
+                        className={[
+                          'p-2 rounded-lg text-xs transition-all',
+                          isCurrent
+                            ? 'bg-emerald-950/40 border border-emerald-500/60 shadow-sm space-y-1.5'
+                            : 'flex items-center gap-2.5 bg-zinc-950/70 border border-zinc-800',
+                        ].join(' ')}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            className={[
+                              'text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 flex-shrink-0',
+                              isCurrent
+                                ? 'bg-emerald-500 text-black font-extrabold'
+                                : 'text-emerald-400 bg-emerald-950/60 border border-emerald-500/30',
+                            ].join(' ')}
+                          >
+                            {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-black animate-ping" />}
+                            {isCurrent ? 'ON AIR' : item.badgeLabel}
+                          </span>
+                          <img
+                            src={item.cover_art_url || '/logo-mark.png'}
+                            alt={item.title}
+                            className="w-8 h-8 rounded object-cover border border-zinc-800 flex-shrink-0"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).src = '/logo-mark.png';
+                            }}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p
+                              className={[
+                                'font-medium truncate',
+                                isCurrent ? 'text-emerald-300 font-bold' : 'text-white',
+                              ].join(' ')}
+                            >
+                              {item.title}
+                            </p>
+                            <p className="text-[11px] text-zinc-400 truncate">{item.artist}</p>
+                          </div>
+                        </div>
+
+                        {/* On Air Mini Progress Bar */}
+                        {isCurrent && item.progressPercent !== undefined && (
+                          <div className="space-y-1 pt-1 border-t border-emerald-500/20">
+                            <div className="flex justify-between text-[10px] text-zinc-400 font-mono">
+                              <span className="text-emerald-400 font-semibold">Playing Now</span>
+                              <span>{formatAudioTime(elapsedSeconds)} / {formatAudioTime(durationSeconds)}</span>
+                            </div>
+                            <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-emerald-400 rounded-full transition-all duration-1000 ease-linear"
+                                style={{ width: `${item.progressPercent}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <Link
+                href={`/schedule?channel=${currentChannel.slug}`}
+                onClick={() => setShowUpNext(false)}
+                className="mt-2.5 flex items-center justify-center gap-1.5 text-center text-xs text-emerald-400 hover:text-emerald-300 font-medium py-1.5 px-2 rounded-lg bg-zinc-950/70 border border-zinc-800 hover:border-emerald-500/30 transition-colors"
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                <span>Full 24-Hour Broadcast Schedule &rarr;</span>
+              </Link>
+            </div>
+          );
+        })()}
 
         {/* Left: Play/Pause + station & Now Playing info */}
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
@@ -637,6 +721,11 @@ export default function AudioPlayer() {
               <p className="text-[11px] sm:text-xs text-zinc-400 truncate max-w-[120px] xs:max-w-[160px] sm:max-w-xs">
                 {nowPlaying ? nowPlaying.artist : isPlaying ? currentChannel.vibe : 'Click play to tune in'}
               </p>
+              {nowPlaying && (
+                <span className="text-[10px] font-mono text-emerald-400/90 bg-zinc-900 border border-zinc-800 px-1.5 py-0.2 rounded hidden sm:inline-flex">
+                  {formatAudioTime(elapsedSeconds)} / {formatAudioTime(durationSeconds)}
+                </span>
+              )}
               {nowPlaying?.transcript && (
                 <button
                   type="button"
