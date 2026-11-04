@@ -3,14 +3,24 @@
 // src/components/CommunitySection.tsx
 // Visual community banner connecting listeners to Discord & Telegram channels
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MessageSquare, Send, Bot, Radio, Users, Sparkles, Clock, Music, Terminal, Copy, Check } from 'lucide-react';
 import { getCommunityLinks } from '@/lib/community/links';
-import { LISTENER_COMMANDS } from '@/lib/community/commands';
+import { LISTENER_COMMANDS, AIRPLAY_CLOCK_SEGMENTS } from '@/lib/community/commands';
 
 export default function CommunitySection() {
   const links = getCommunityLinks();
   const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
+  const [currentMinute, setCurrentMinute] = useState<number | null>(null);
+
+  useEffect(() => {
+    const updateMinute = () => setCurrentMinute(new Date().getMinutes());
+    updateMinute();
+    const interval = setInterval(updateMinute, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const activeSegmentIndex = currentMinute !== null ? Math.floor(currentMinute / 15) : null;
 
   const handleCopy = (cmd: string) => {
     navigator.clipboard?.writeText(cmd);
@@ -168,28 +178,42 @@ export default function CommunitySection() {
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 pt-1 text-xs">
-            <div className="p-3 bg-zinc-950/60 border border-zinc-800/60 rounded-xl space-y-1">
-              <span className="font-mono text-emerald-400 font-bold">:00 – :15</span>
-              <p className="font-semibold text-white text-[11px]">Top 40 Power</p>
-              <p className="text-[10px] text-zinc-400 leading-snug">Highest voted community tracks from weekly charts.</p>
-            </div>
-            <div className="p-3 bg-zinc-950/60 border border-zinc-800/60 rounded-xl space-y-1">
-              <span className="font-mono text-emerald-400 font-bold">:15 – :30</span>
-              <p className="font-semibold text-white text-[11px]">Deep Cuts</p>
-              <p className="text-[10px] text-zinc-400 leading-snug">Lo-Fi, ambient soundscapes, and hidden gems.</p>
-            </div>
-            <div className="p-3 bg-zinc-950/60 border border-zinc-800/60 rounded-xl space-y-1">
-              <span className="font-mono text-emerald-400 font-bold">:30 – :45</span>
-              <p className="font-semibold text-white text-[11px]">Rhythm Transition</p>
-              <p className="text-[10px] text-zinc-400 leading-snug">High-tempo synthwave, breakbeats, and remixes.</p>
-            </div>
-            <div className="p-3 bg-emerald-950/20 border border-emerald-500/30 rounded-xl space-y-1">
-              <span className="font-mono text-emerald-400 font-bold">:45 – :00</span>
-              <p className="font-semibold text-emerald-300 text-[11px]">Listener Showcase</p>
-              <p className="text-[10px] text-zinc-300 leading-snug">
-                <strong>Your time slot!</strong> Songs requested via <code className="text-emerald-300 font-mono">/song</code> take live priority.
-              </p>
-            </div>
+            {AIRPLAY_CLOCK_SEGMENTS.map((seg) => {
+              const isActive = activeSegmentIndex === seg.index;
+
+              return (
+                <div
+                  key={seg.range}
+                  className={`p-3 rounded-xl space-y-1 transition-all ${
+                    isActive
+                      ? 'bg-emerald-950/40 border-2 border-emerald-500 ring-1 ring-emerald-500/30 shadow-lg shadow-emerald-950/40'
+                      : 'bg-zinc-950/60 border border-zinc-800/60'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className={`font-mono font-bold ${isActive ? 'text-emerald-400' : 'text-zinc-400'}`}>
+                      {seg.range}
+                    </span>
+                    {isActive ? (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 animate-pulse">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        Live Now
+                      </span>
+                    ) : seg.badge ? (
+                      <span className="px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-zinc-800 text-zinc-400">
+                        {seg.badge}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className={`font-semibold text-[11px] ${isActive ? 'text-emerald-300' : 'text-white'}`}>
+                    {seg.title}
+                  </p>
+                  <p className={`text-[10px] leading-snug ${isActive ? 'text-zinc-200' : 'text-zinc-400'}`}>
+                    {seg.description}
+                  </p>
+                </div>
+              );
+            })}
           </div>
 
           <div className="mt-3 p-3 bg-zinc-950/40 border border-zinc-800/50 rounded-xl text-[11px] text-zinc-400 space-y-1">

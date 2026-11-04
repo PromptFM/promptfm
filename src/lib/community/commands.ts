@@ -8,6 +8,69 @@ export interface ListenerCommandDef {
   example: string;
 }
 
+export interface AirplayClockSegment {
+  index: number;
+  range: string;
+  startMinute: number;
+  endMinute: number;
+  title: string;
+  description: string;
+  badge?: string;
+}
+
+export const AIRPLAY_CLOCK_SEGMENTS: AirplayClockSegment[] = [
+  {
+    index: 0,
+    range: ':00 – :15',
+    startMinute: 0,
+    endMinute: 15,
+    title: 'Top 40 Power',
+    description: 'Highest voted community tracks from weekly charts.',
+  },
+  {
+    index: 1,
+    range: ':15 – :30',
+    startMinute: 15,
+    endMinute: 30,
+    title: 'Deep Cuts',
+    description: 'Lo-Fi, ambient soundscapes, and hidden gems.',
+  },
+  {
+    index: 2,
+    range: ':30 – :45',
+    startMinute: 30,
+    endMinute: 45,
+    title: 'Rhythm Transition',
+    description: 'High-tempo synthwave, breakbeats, and remixes.',
+  },
+  {
+    index: 3,
+    range: ':45 – :00',
+    startMinute: 45,
+    endMinute: 60,
+    title: 'Listener Showcase',
+    description: 'Your time slot! Songs requested via /song take live priority.',
+    badge: 'Priority Requests',
+  },
+];
+
+/**
+ * Resolves the active recurring quarter-hour clock wheel segment based on current minute (0-59).
+ */
+export function getActiveClockSegment(minute: number): AirplayClockSegment {
+  const normalized = Math.max(0, Math.min(59, Math.floor(minute)));
+  const index = Math.floor(normalized / 15);
+  const fallback: AirplayClockSegment = {
+    index: 0,
+    range: ':00 – :15',
+    startMinute: 0,
+    endMinute: 15,
+    title: 'Top 40 Power',
+    description: 'Highest voted community tracks from weekly charts.',
+  };
+  return AIRPLAY_CLOCK_SEGMENTS[index] ?? fallback;
+}
+
 export const LISTENER_COMMANDS: ListenerCommandDef[] = [
   {
     command: '/song <vibe or title>',
