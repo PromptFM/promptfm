@@ -168,5 +168,84 @@ describe('MCP Admin Tools Integration', () => {
     expect(Array.isArray(data.channels)).toBe(true);
     expect(data.channels.length).toBeGreaterThanOrEqual(4);
   });
+
+  it('starts YouTube stream via promptfm_admin_start_stream', async () => {
+    const req = new NextRequest('http://localhost:3000/api/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'req-mcp-start-stream',
+        method: 'tools/call',
+        params: {
+          name: 'promptfm_admin_start_stream',
+          arguments: {
+            platform: 'youtube',
+            stream_key: 'xxxx-yyyy-zzzz-aaaa',
+          },
+        },
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.result).toBeDefined();
+
+    const data = JSON.parse(json.result.content[0].text);
+    expect(data.success).toBe(true);
+    expect(data.session.platform).toBe('youtube');
+  });
+
+  it('stops a live stream via promptfm_admin_stop_stream', async () => {
+    const req = new NextRequest('http://localhost:3000/api/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'req-mcp-stop-stream',
+        method: 'tools/call',
+        params: {
+          name: 'promptfm_admin_stop_stream',
+          arguments: {
+            platform: 'youtube',
+          },
+        },
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.result).toBeDefined();
+
+    const data = JSON.parse(json.result.content[0].text);
+    expect(data.success).toBe(true);
+  });
+
+  it('queries live stream statuses via promptfm_admin_get_stream_status', async () => {
+    const req = new NextRequest('http://localhost:3000/api/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'req-mcp-status-stream',
+        method: 'tools/call',
+        params: {
+          name: 'promptfm_admin_get_stream_status',
+          arguments: {},
+        },
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.result).toBeDefined();
+
+    const data = JSON.parse(json.result.content[0].text);
+    expect(data.success).toBe(true);
+    expect(data.sessions).toBeDefined();
+  });
 });
 
