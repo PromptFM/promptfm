@@ -1,10 +1,11 @@
 # 📻 PromptFM — 24/7 AI Music Radio & Creator Community
 
 [![Production](https://img.shields.io/badge/Production-promptfm.live-10b981?style=for-the-badge&logo=vercel)](https://promptfm.live)
+[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/alex-trifans-projects/promptfm)
 [![System Status](https://img.shields.io/endpoint?url=https://promptfm.live/api/status?format=badge&style=for-the-badge)](https://promptfm.live/status)
-[![CI Quality & Security Gate](https://img.shields.io/badge/CI-Passing-brightgreen?style=for-the-badge&logo=githubactions)](https://github.com/PromptFM/promptfm/actions)
-[![Tests](https://img.shields.io/badge/Tests-477%20Passing-brightgreen?style=for-the-badge&logo=vitest)](https://github.com/PromptFM/promptfm)
-[![Mutation Score](https://img.shields.io/badge/Stryker%20Mutation-%E2%89%A585%25-blueviolet?style=for-the-badge)](https://github.com/PromptFM/promptfm)
+[![CI Quality & Security Gate](https://github.com/PromptFM/promptfm/actions/workflows/ci.yml/badge.svg?branch=main&style=for-the-badge)](https://github.com/PromptFM/promptfm/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/Tests-489%20Passing-brightgreen?style=for-the-badge&logo=vitest)](https://github.com/PromptFM/promptfm)
+[![Mutation Score](https://img.shields.io/badge/Stryker%20Mutation-Core%20Domain-blueviolet?style=for-the-badge)](https://github.com/PromptFM/promptfm)
 [![GCP Free Tier](https://img.shields.io/badge/GCP%20Always--Free-$0.00%2Fmo-4285F4?style=for-the-badge&logo=googlecloud)](https://console.cloud.google.com/?project=promptfm-radio-1793623670)
 [![License](https://img.shields.io/badge/License-Community%20Source--Available-purple?style=for-the-badge)](LICENSE)
 
