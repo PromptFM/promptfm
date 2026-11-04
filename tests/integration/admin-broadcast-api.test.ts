@@ -46,3 +46,4 @@ describe('Admin Broadcast & Social Dispatch API (POST /api/admin/broadcast)', ()
     expect(json.results.x.success).toBe(true);
   });
 });
+

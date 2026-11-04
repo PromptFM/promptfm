@@ -395,6 +395,59 @@ describe('Discord & Telegram Interactive Bot Commands Integration', () => {
       expect(json.type).toBe(1);
     });
 
+    it('rejects Discord interaction with 401 if X-Signature-Ed25519 is invalid', async () => {
+      const req = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Signature-Ed25519': '00'.repeat(64),
+          'X-Signature-Timestamp': '1710000000',
+        },
+        body: JSON.stringify({ type: 1 }),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(401);
+      const json = await res.json();
+      expect(json.error).toContain('Invalid request signature');
+    });
+
+    it('accepts Discord Ping with 200 { type: 1 } when valid Ed25519 signature headers are provided', async () => {
+      const crypto = await import('crypto');
+      const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
+      const pubKeyHex = publicKey.export({ format: 'der', type: 'spki' }).subarray(12).toString('hex');
+      const oldKey = process.env.DISCORD_PUBLIC_KEY;
+      process.env.DISCORD_PUBLIC_KEY = pubKeyHex;
+
+      try {
+        const timestamp = '1710000000';
+        const rawBody = JSON.stringify({ type: 1 });
+        const message = Buffer.from(timestamp + rawBody);
+        const signature = crypto.sign(null, message, privateKey).toString('hex');
+
+        const req = new NextRequest('http://localhost:3000/api/bot/webhook', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Signature-Ed25519': signature,
+            'X-Signature-Timestamp': timestamp,
+          },
+          body: rawBody,
+        });
+
+        const res = await POST(req);
+        expect(res.status).toBe(200);
+        const json = await res.json();
+        expect(json.type).toBe(1);
+      } finally {
+        if (oldKey !== undefined) {
+          process.env.DISCORD_PUBLIC_KEY = oldKey;
+        } else {
+          delete process.env.DISCORD_PUBLIC_KEY;
+        }
+      }
+    });
+
     it('handles Discord /help slash command returning listener guide and schedule details', async () => {
       const req = new NextRequest('http://localhost:3000/api/bot/webhook', {
         method: 'POST',

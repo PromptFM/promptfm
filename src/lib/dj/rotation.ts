@@ -38,6 +38,10 @@ let tracksSinceLastInterstitial = 0;
 let tracksSinceLastAd = 0;
 let lastAdTimestamp = 0;
 
+// In-memory per-channel airplay track and start timestamp tracking
+const channelAirplayItems = new Map<string, AirplayItem>();
+const channelAirplayStartedAt = new Map<string, number>();
+
 let currentAirplayItem: AirplayItem | null = null;
 let currentAirplayStartedAt: number = Date.now();
 let pendingAirplayItem: AirplayItem | null = null;
@@ -68,19 +72,24 @@ export function updateCurrentAirplayUpvotes(trackId: string, count: number): voi
   if (currentAirplayItem && currentAirplayItem.id === trackId) {
     currentAirplayItem.upvotes_count = count;
   }
-  try {
-    const supabase = createAdminClient();
-    Promise.resolve(
-      supabase
-        .from('station_state')
-        .update({
-          airplay_item: currentAirplayItem,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('channel_slug', 'main')
-    ).catch(() => {});
-  } catch {
-    // Ignore in-memory sync error
+  for (const [slug, item] of channelAirplayItems.entries()) {
+    if (item.id === trackId) {
+      item.upvotes_count = count;
+      try {
+        const supabase = createAdminClient();
+        Promise.resolve(
+          supabase
+            .from('station_state')
+            .update({
+              airplay_item: item,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('channel_slug', slug)
+        ).catch(() => {});
+      } catch {
+        // Ignore in-memory sync error
+      }
+    }
   }
 }
 
@@ -98,8 +107,11 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
 }> {
   const activeDJ = getActiveDJ(channelSlug);
 
+  let item = channelAirplayItems.get(channelSlug) || null;
+  let startedAtMs = channelAirplayStartedAt.get(channelSlug) || 0;
+
   // If in-memory item is absent, fetch from Supabase station_state or top approved track
-  if (!currentAirplayItem) {
+  if (!item) {
     try {
       const supabase = createAdminClient();
       const { data: stateData } = await supabase
@@ -109,9 +121,17 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
         .maybeSingle();
 
       if (stateData?.airplay_item) {
-        currentAirplayItem = stateData.airplay_item as AirplayItem;
+        item = stateData.airplay_item as AirplayItem;
         if (stateData.started_at) {
-          currentAirplayStartedAt = new Date(stateData.started_at).getTime();
+          startedAtMs = new Date(stateData.started_at).getTime();
+        } else {
+          startedAtMs = Date.now();
+        }
+        channelAirplayItems.set(channelSlug, item);
+        channelAirplayStartedAt.set(channelSlug, startedAtMs);
+        if (channelSlug === 'main') {
+          currentAirplayItem = item;
+          currentAirplayStartedAt = startedAtMs;
         }
       } else {
         const { data: topTrack } = await supabase
@@ -123,7 +143,7 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
           .maybeSingle();
 
         if (topTrack) {
-          currentAirplayItem = {
+          item = {
             id: topTrack.id,
             type: 'music',
             title: topTrack.title,
@@ -137,16 +157,26 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
             upvotes_count: topTrack.upvotes_count,
             dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
           };
-          Promise.resolve(
-            supabase
+          startedAtMs = Date.now();
+          channelAirplayItems.set(channelSlug, item);
+          channelAirplayStartedAt.set(channelSlug, startedAtMs);
+          if (channelSlug === 'main') {
+            currentAirplayItem = item;
+            currentAirplayStartedAt = startedAtMs;
+          }
+
+          try {
+            await supabase
               .from('station_state')
               .upsert({
                 channel_slug: channelSlug,
-                airplay_item: currentAirplayItem,
-                started_at: new Date(currentAirplayStartedAt).toISOString(),
+                airplay_item: item,
+                started_at: new Date(startedAtMs).toISOString(),
                 updated_at: new Date().toISOString(),
-              })
-          ).catch(() => {});
+              });
+          } catch {
+            // Ignore persistence fallback
+          }
         }
       }
     } catch {
@@ -155,34 +185,42 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
   }
 
   // Calculate elapsed seconds
-  let elapsedSeconds = Math.max(0, Math.floor((Date.now() - currentAirplayStartedAt) / 1000));
-  const estimatedDuration = currentAirplayItem?.duration_hint_seconds || 180; // 3 minutes default
+  let elapsedSeconds = startedAtMs > 0 ? Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000)) : 0;
+  const estimatedDuration = item?.duration_hint_seconds || 180; // 3 minutes default
 
   // Auto-progression: When current track has completed its broadcast duration,
   // automatically advance the station to the next queued or scheduled track.
-  if (currentAirplayItem && elapsedSeconds >= estimatedDuration) {
+  if (item && elapsedSeconds >= estimatedDuration) {
     try {
       const nextItem = await getNextAirplayItem(channelSlug, true);
-      currentAirplayItem = nextItem;
-      currentAirplayStartedAt = Date.now();
+      item = nextItem;
+      startedAtMs = channelAirplayStartedAt.get(channelSlug) || Date.now();
+      channelAirplayItems.set(channelSlug, nextItem);
+      channelAirplayStartedAt.set(channelSlug, startedAtMs);
+      if (channelSlug === 'main') {
+        currentAirplayItem = nextItem;
+        currentAirplayStartedAt = startedAtMs;
+      }
       elapsedSeconds = 0;
     } catch (e) {
       console.warn('Auto-advancing on-air track failed:', e);
     }
   }
 
-  const item: AirplayItem = currentAirplayItem || {
-    id: 'demo-fallback',
-    type: 'music',
-    title: 'PromptFM Ambient AI Anthem',
-    artist: 'PromptFM Core',
-    audio_url: 'https://oxfacfdpxbxilucooijy.supabase.co/storage/v1/object/public/tracks/promptfm_ambient_ai_anthem.mp3',
-    cover_art_url: '/logo-mark.png',
-    category: 'Ambient & Lo-Fi',
-    tool_used: 'Stable Audio',
-    upvotes_count: 20,
-    dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
-  };
+  if (!item) {
+    item = {
+      id: 'demo-fallback',
+      type: 'music',
+      title: 'PromptFM Ambient AI Anthem',
+      artist: 'PromptFM Core',
+      audio_url: 'https://oxfacfdpxbxilucooijy.supabase.co/storage/v1/object/public/tracks/promptfm_ambient_ai_anthem.mp3',
+      cover_art_url: '/logo-mark.png',
+      category: 'Ambient & Lo-Fi',
+      tool_used: 'Stable Audio',
+      upvotes_count: 20,
+      dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
+    };
+  }
 
   let rank: number | null = null;
   let totalApprovedTracks: number | null = null;
@@ -218,7 +256,7 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
 
   return {
     item,
-    startedAt: new Date(currentAirplayStartedAt).toISOString(),
+    startedAt: new Date(startedAtMs || currentAirplayStartedAt).toISOString(),
     elapsedSeconds,
     activeDJ,
     rank,
@@ -536,15 +574,20 @@ export async function markTrackStarted(channelSlug = 'main', itemId: string): Pr
     };
   }
 
-  currentAirplayItem = itemToStart;
-  currentAirplayStartedAt = Date.now();
+  const startedAt = Date.now();
+  channelAirplayItems.set(channelSlug, itemToStart);
+  channelAirplayStartedAt.set(channelSlug, startedAt);
+  if (channelSlug === 'main') {
+    currentAirplayItem = itemToStart;
+    currentAirplayStartedAt = startedAt;
+  }
   pendingAirplayItem = null;
 
   try {
     await supabase.from('station_state').upsert({
       channel_slug: channelSlug,
       airplay_item: itemToStart,
-      started_at: new Date(currentAirplayStartedAt).toISOString(),
+      started_at: new Date(startedAt).toISOString(),
       updated_at: new Date().toISOString(),
     });
   } catch {
@@ -573,25 +616,28 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
   const stationSchedule = getStationSchedule(channelSlug, now);
   const activeMilestones = stationSchedule.current_show?.clock_milestones || [];
 
-  const finishAndBroadcast = (item: AirplayItem): AirplayItem => {
+  const finishAndBroadcast = async (item: AirplayItem): Promise<AirplayItem> => {
     pendingAirplayItem = item;
 
     if (autoPromote) {
-      currentAirplayItem = item;
-      currentAirplayStartedAt = Date.now();
+      const startedAt = Date.now();
+      channelAirplayItems.set(channelSlug, item);
+      channelAirplayStartedAt.set(channelSlug, startedAt);
+      if (channelSlug === 'main') {
+        currentAirplayItem = item;
+        currentAirplayStartedAt = startedAt;
+      }
       try {
-        Promise.resolve(
-          supabase
-            .from('station_state')
-            .upsert({
-              channel_slug: channelSlug,
-              airplay_item: item,
-              started_at: new Date(currentAirplayStartedAt).toISOString(),
-              updated_at: new Date().toISOString(),
-            })
-        ).catch(() => {});
-      } catch {
-        // Ignore background persistence errors
+        await supabase
+          .from('station_state')
+          .upsert({
+            channel_slug: channelSlug,
+            airplay_item: item,
+            started_at: new Date(startedAt).toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+      } catch (err) {
+        console.warn('Persisting station_state failed:', err);
       }
       // Fire and forget community notification
       notifyCommunityAirplay(item, activeDJ).catch(() => {});
@@ -614,7 +660,7 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
         topicOrText: `PromptFM Hourly News at ${currentHour}:00 UTC`,
         dj: activeDJ,
       });
-      return finishAndBroadcast({
+      return await finishAndBroadcast({
         id: `news-${Date.now()}`,
         type: 'news',
         title: `PromptFM Hourly AI News Briefing`,
@@ -649,7 +695,7 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
       tracksSinceLastInterstitial++;
       tracksSinceLastAd++;
       const tr = queueItem.track as unknown as { id: string; title: string; artist_name: string; audio_url: string; tool_used: string; upvotes_count: number };
-      return finishAndBroadcast({
+      return await finishAndBroadcast({
         id: tr.id,
         type: 'music',
         title: tr.title,
@@ -676,7 +722,7 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
 
       // Case A: Pre-recorded audio ad
       if (adSpot.type === 'pre_recorded' && adSpot.audioUrl) {
-        return finishAndBroadcast({
+        return await finishAndBroadcast({
           id: `ad-${adSpot.id}-${Date.now()}`,
           type: 'ad',
           title: `[Sponsor] ${adSpot.title}`,
@@ -695,7 +741,7 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
           dj: activeDJ,
         });
 
-        return finishAndBroadcast({
+        return await finishAndBroadcast({
           id: `ad-${adSpot.id}-${Date.now()}`,
           type: 'ad',
           title: `[Sponsor Break] ${adSpot.title}`,
@@ -736,7 +782,7 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
           topicOrText: `Give a 15-second radio station weather check for our listeners in ${weatherInfo.city}: "${weatherInfo.text}". Tell listeners to keep voting for their favorite tracks on PromptFM.`,
           dj: activeDJ,
         });
-        return finishAndBroadcast({
+        return await finishAndBroadcast({
           id: `weather-${Date.now()}`,
           type: 'weather',
           title: `${activeDJ.name} Weather Check (${weatherInfo.city})`,
@@ -757,7 +803,7 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
           topicOrText: `Share a witty 15-second thought in your personality style about AI music, studio prompts, or the live community charts.`,
           dj: activeDJ,
         });
-        return finishAndBroadcast({
+        return await finishAndBroadcast({
           id: `dj-${Date.now()}`,
           type: 'dj_banter',
           title: `${activeDJ.name} Station Banter`,
@@ -809,7 +855,7 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
     });
 
     const chosen = weightedPool[Math.floor(Math.random() * weightedPool.length)] || tracks[0]!;
-    return finishAndBroadcast({
+    return await finishAndBroadcast({
       id: chosen.id,
       type: 'music',
       title: chosen.title,
@@ -825,7 +871,7 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
   }
 
   // Fallback demo track if database has 0 tracks yet
-  return finishAndBroadcast({
+  return await finishAndBroadcast({
     id: 'demo-fallback',
     type: 'music',
     title: 'PromptFM Ambient AI Anthem',

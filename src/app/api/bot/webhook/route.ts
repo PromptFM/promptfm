@@ -12,12 +12,27 @@ import { getNowPlaying, getUpNext } from '@/lib/dj/rotation';
 import { castVoteForTrack } from '@/lib/chat/bridge';
 import { submitContentReport } from '@/lib/safety/reports';
 import { getBotHelpText } from '@/lib/community/commands';
+import { verifyDiscordSignature } from '@/lib/community/discord-verify';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const rawBody = await req.text();
+    const signature = req.headers.get('x-signature-ed25519');
+    const timestamp = req.headers.get('x-signature-timestamp');
+
+    // ── Discord Security Signature Verification (Ed25519) ──────────────────────
+    // Discord security verifies the interaction endpoint by testing valid/invalid signatures.
+    // If signature headers are present, requests with invalid signatures MUST return HTTP 401.
+    if (signature || timestamp) {
+      const isValid = verifyDiscordSignature({ rawBody, signature, timestamp });
+      if (!isValid) {
+        return NextResponse.json({ error: 'Invalid request signature' }, { status: 401 });
+      }
+    }
+
+    const body = rawBody ? JSON.parse(rawBody) : {};
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://promptfm.live';
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
 

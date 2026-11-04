@@ -1250,13 +1250,48 @@ Moderation & Schedule:
 
       if (sub === 'discord') {
         if (action === 'setup' || action === 'commands') {
-          const appId = args[3] || process.env.DISCORD_APPLICATION_ID;
-          const botToken = args[4] || process.env.DISCORD_BOT_TOKEN;
-          if (!appId || !botToken) {
-            console.error('Error: DISCORD_APPLICATION_ID and DISCORD_BOT_TOKEN required:');
-            console.log('Usage: npm run promptfm -- bot discord setup <APP_ID> <BOT_TOKEN>');
+          let appId = process.env.DISCORD_APPLICATION_ID || '1567250214753017897';
+          let botToken = process.env.DISCORD_BOT_TOKEN;
+
+          const arg1 = args[3];
+          const arg2 = args[4];
+
+          if (arg1 && arg2) {
+            appId = arg1;
+            botToken = arg2;
+          } else if (arg1) {
+            // If single argument is purely digits, treat as appId; otherwise treat as botToken
+            if (/^\d+$/.test(arg1)) {
+              appId = arg1;
+            } else {
+              botToken = arg1;
+            }
+          }
+
+          if (!botToken) {
+            console.error('\n❌ Error: DISCORD_BOT_TOKEN is required to register slash commands with Discord API.');
+            console.log(`\n• Target Application ID: ${appId}`);
+            console.log(`• Interactions Webhook:  https://promptfm.live/api/bot/webhook`);
+            console.log(`\nHow to get your Bot Token:`);
+            console.log(`1. Open Discord Developer Portal: https://discord.com/developers/applications/${appId}/bot`);
+            console.log(`2. Click "Reset Token" and copy the secret token.`);
+            console.log(`3. Run setup with your token:`);
+            console.log(`   npm run promptfm -- bot discord setup <DISCORD_BOT_TOKEN>`);
+            console.log(`\nOr save it to environment variables:`);
+            console.log(`   echo 'DISCORD_BOT_TOKEN=your_token' >> .env.local`);
+            console.log(`   vercel env add DISCORD_BOT_TOKEN production,preview,development --value "your_token" --yes\n`);
             return;
           }
+
+          // Persist token to .env.local if not already present
+          if (existsSync('.env.local')) {
+            const envContent = readFileSync('.env.local', 'utf-8');
+            if (!envContent.includes('DISCORD_BOT_TOKEN=')) {
+              appendFileSync('.env.local', `\nDISCORD_BOT_TOKEN="${botToken}"\n`);
+              console.log('💾 Saved DISCORD_BOT_TOKEN to .env.local for future station commands.');
+            }
+          }
+
           console.log(`Registering Discord Slash Commands & Shorthands for Application ${appId}...`);
           const res = await registerDiscordApplicationCommands(appId, botToken, { includeShorthands: true });
           console.log('Discord Commands Registration Result:', res);
