@@ -42,3 +42,4 @@ test.describe('SEO & Search Crawler Compliance Endpoints', () => {
     expect(manifest.icons.length).toBeGreaterThanOrEqual(1);
   });
 });
+
