@@ -39,24 +39,24 @@ resource "google_secret_manager_secret" "oauth_client_secret" {
 # Normalizes OAuth settings across GCP, AWS Cognito, Supabase Auth, and Cloudflare Access.
 locals {
   oauth_brand_specification = {
-    app_name            = var.oauth_app_name
-    support_email       = var.oauth_support_email
-    home_page_url       = "https://promptfm.live"
-    privacy_policy_url  = "https://promptfm.live/privacy"
+    app_name             = var.oauth_app_name
+    support_email        = var.oauth_support_email
+    home_page_url        = "https://promptfm.live"
+    privacy_policy_url   = "https://promptfm.live/privacy"
     terms_of_service_url = "https://promptfm.live/terms"
-    
+
     # CRITICAL: App logo is deliberately omitted to prevent triggering mandatory Google Brand Verification audit.
     # Non-sensitive scopes allow instant "In Production" (General Availability) status without review.
     logo_uploaded       = false
     verification_status = "exempt_non_sensitive"
-    
+
     scopes = var.oauth_scopes
-    
+
     authorized_domains = [
       "promptfm.live",
       "supabase.co"
     ]
-    
+
     javascript_origins = var.oauth_authorized_javascript_origins
     redirect_uris      = var.oauth_authorized_redirect_uris
   }
