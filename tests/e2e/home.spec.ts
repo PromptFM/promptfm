@@ -83,5 +83,71 @@ test.describe('PromptFM Home Page & Navigation', () => {
     await expect(fundingSection).toContainText(/Bitcoin Mainnet Only/i);
     await expect(fundingSection).toContainText(/Ethereum Mainnet Only/i);
   });
+
+  test('renders streamlined desktop navbar without crowded horizontal overflow and opens Community dropdown', async ({ page }) => {
+    // Set desktop viewport (1280x720)
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto('/');
+
+    const nav = page.locator('nav');
+    await expect(nav).toBeVisible();
+
+    // Primary navigation links visible on desktop
+    await expect(nav.getByRole('link', { name: /Channels/i })).toBeVisible();
+    await expect(nav.getByRole('link', { name: /Schedule/i })).toBeVisible();
+    await expect(nav.getByRole('link', { name: /Charts/i })).toBeVisible();
+    await expect(nav.getByRole('link', { name: /Support/i })).toBeVisible();
+
+    // Primary action button
+    const submitBtn = nav.getByRole('link', { name: /Submit/i });
+    await expect(submitBtn).toBeVisible();
+
+    // Community / More dropdown toggle button
+    const communityDropdownBtn = nav.getByRole('button', { name: /Community/i });
+    await expect(communityDropdownBtn).toBeVisible();
+
+    // Click Community dropdown to verify menu contents
+    await communityDropdownBtn.click();
+    await expect(nav.getByRole('link', { name: /About/i })).toBeVisible();
+    await expect(nav.getByRole('link', { name: /Contribute/i })).toBeVisible();
+    await expect(nav.getByRole('link', { name: /Studio/i })).toBeVisible();
+  });
+
+  test('mobile-first viewport displays compact header with hamburger drawer navigation', async ({ page }) => {
+    // Set mobile viewport (iPhone 13/14 size: 390x844)
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+
+    const nav = page.locator('nav');
+    await expect(nav).toBeVisible();
+
+    // Desktop nav items should be hidden
+    await expect(nav.locator('.hidden.md\\:flex').first()).toBeHidden();
+    await expect(nav.locator('.hidden.md\\:flex').nth(1)).toBeHidden();
+
+    // Mobile header elements should be visible
+    const hamburgerBtn = nav.getByRole('button', { name: /Open navigation menu|Close navigation menu/i });
+    await expect(hamburgerBtn).toBeVisible();
+
+    // Mobile submit shortcut should be visible and compact
+    const mobileSubmitBtn = nav.getByRole('link', { name: /Submit/i });
+    await expect(mobileSubmitBtn).toBeVisible();
+
+    // Open mobile drawer
+    await hamburgerBtn.click();
+
+    // Verify structured drawer categories and links
+    await expect(nav.getByRole('link', { name: /Broadcast Channels/i })).toBeVisible();
+    await expect(nav.getByRole('link', { name: /Broadcast Schedule/i })).toBeVisible();
+    await expect(nav.getByRole('link', { name: /Weekly Top 40 Charts/i })).toBeVisible();
+    await expect(nav.getByRole('link', { name: /Support & Funding/i })).toBeVisible();
+    await expect(nav.getByRole('link', { name: /Contribute & Open Source/i })).toBeVisible();
+    await expect(nav.getByRole('link', { name: /About PromptFM/i })).toBeVisible();
+
+    // Close mobile drawer
+    await hamburgerBtn.click();
+    await expect(nav.getByRole('link', { name: /Broadcast Channels/i })).toBeHidden();
+  });
 });
+
 
