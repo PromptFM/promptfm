@@ -47,6 +47,7 @@ import {
   calculateTrackProgress,
   formatAudioTime,
 } from '@/lib/radio/progress';
+import { formatPageTitle, updateMediaSession } from '@/lib/player/media-session';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -373,6 +374,26 @@ export default function AudioPlayer() {
     }
   }, [volume, muted]);
 
+  const isPlaying = playerState === 'playing';
+  const isLoading = playerState === 'loading';
+
+  // ── Dynamic HTML Page Title (Browser Tabs & iOS Lock Screen Fallback) ──────
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.title = formatPageTitle(nowPlaying, isPlaying);
+  }, [isPlaying, nowPlaying?.title, nowPlaying?.artist]);
+
+  // ── Native Media Session API (iOS Lock Screen, Control Center, Android) ────
+  useEffect(() => {
+    updateMediaSession({
+      nowPlaying,
+      channelName: currentChannel.name,
+      isPlaying,
+      onPlay: () => controllerRef.current?.play(),
+      onPause: () => controllerRef.current?.pause(),
+    });
+  }, [isPlaying, nowPlaying, currentChannel.name]);
+
   const lastActionTimeRef = useRef<number>(0);
 
   // ── Play / Pause toggle with debouncing & explicit intent matching ────────
@@ -398,9 +419,6 @@ export default function AudioPlayer() {
   };
 
   const handleMuteToggle = () => setMuted((m) => !m);
-
-  const isPlaying = playerState === 'playing';
-  const isLoading = playerState === 'loading';
 
   const getStationIcon = (slug: string) => {
     switch (slug) {
