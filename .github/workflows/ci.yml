@@ -57,6 +57,52 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: mock-anon-key
           SUPABASE_SERVICE_ROLE_KEY: mock-service-role-key
 
+  playwright-e2e-tests:
+    name: 🎭 Playwright E2E UI & Crawler Tests
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck, unit-and-integration-tests]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium Browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Build Next.js Production Bundle
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://mock-supabase.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: mock-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: mock-service-role-key
+          DEV_FALLBACK_SIMULATION: "true"
+
+      - name: Run Playwright E2E Tests
+        run: npm run test:e2e
+        env:
+          CI: "true"
+          NODE_ENV: production
+          NEXT_PUBLIC_SUPABASE_URL: https://mock-supabase.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: mock-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: mock-service-role-key
+          DEV_FALLBACK_SIMULATION: "true"
+
+      - name: Upload Playwright Test Report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
   mutation-testing:
     name: 🧬 Stryker Mutation Testing (>=80% Score)
     runs-on: ubuntu-latest

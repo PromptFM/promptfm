@@ -29,3 +29,7 @@ Thumbs.db
 .stryker-tmp
 reports/
 coverage/
+
+# Playwright
+test-results/
+playwright-report/
