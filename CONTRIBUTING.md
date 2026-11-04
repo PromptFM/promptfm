@@ -17,8 +17,8 @@ PromptFM is governed by the **PromptFM Community Source-Available License (Versi
 
 ## 🏛️ 2. Organization & Governance
 
-1. **GitHub Organization:** PromptFM development is managed through our GitHub organization (`promptfm`).
-2. **Review Board:** Every pull request requires an explicit review and approval from a member of the Board (**@atrifan** chairs the board).
+1. **GitHub Organization:** PromptFM development is managed through our GitHub organization ([`PromptFM`](https://github.com/PromptFM)).
+2. **Review Board:** Every pull request requires an explicit review and approval from a member of the Board (**@atrifan** chairs the board, or **@PromptFM/core**).
 3. **Mandatory GitHub Issue:** Every PR must address or resolve an open GitHub Issue (`Fixes #<number>`). PRs without an issue will be closed.
 
 ---
@@ -122,7 +122,7 @@ If your feature requires new API keys or environment variables in Vercel:
    ```bash
    npm run lint && npm run typecheck && npm test && npm run test:mutate
    ```
-4. Push to your fork and submit a PR to `promptfm/main`.
+4. Push to your fork and submit a PR to [`PromptFM/promptfm`](https://github.com/PromptFM/promptfm) targeting the `main` branch.
 5. Fill out all sections of the [Pull Request Template](./.github/PULL_REQUEST_TEMPLATE.md).
 6. Request review from **@atrifan**. Once approved and CI is green, your code will be merged to `main` and deployed to production!
 
