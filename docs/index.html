@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PromptFM Docs & Architecture Portal | Community-Driven AI Radio</title>
+  <meta name="description" content="Technical documentation, stream architecture, and MCP developer guides for PromptFM, the autonomous 24/7 AI-generated music radio network.">
+  <link rel="icon" href="https://promptfm.live/icon.png">
+  <style>
+    :root {
+      --bg: #09090b;
+      --card-bg: #18181b;
+      --border: #27272a;
+      --text: #f4f4f5;
+      --muted: #a1a1aa;
+      --accent: #34d399;
+      --accent-dim: rgba(52, 211, 153, 0.15);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding: 2rem 1rem; }
+    .container { max-width: 900px; margin: 0 auto; }
+    header { text-align: center; margin-bottom: 3rem; }
+    .badge { display: inline-block; background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent); padding: 0.35rem 0.85rem; border-radius: 9999px; font-size: 0.85rem; font-weight: 600; margin-bottom: 1rem; }
+    h1 { font-size: 2.5rem; font-weight: 800; margin-bottom: 0.75rem; letter-spacing: -0.025em; }
+    h1 span { color: var(--accent); }
+    p.lead { color: var(--muted); font-size: 1.15rem; max-width: 650px; margin: 0 auto 1.5rem auto; }
+    .links-bar { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: 2rem; }
+    .btn { display: inline-flex; align-items: center; gap: 0.5rem; background: var(--card-bg); border: 1px solid var(--border); color: var(--text); padding: 0.65rem 1.25rem; border-radius: 0.5rem; text-decoration: none; font-weight: 600; font-size: 0.95rem; transition: all 0.2s ease; }
+    .btn:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-primary { background: #059669; border-color: #059669; color: #fff; }
+    .btn-primary:hover { background: #10b981; border-color: #10b981; color: #fff; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-top: 2rem; }
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 0.75rem; padding: 1.5rem; transition: transform 0.2s ease, border-color 0.2s ease; }
+    .card:hover { transform: translateY(-2px); border-color: var(--accent); }
+    .card h3 { font-size: 1.25rem; margin-bottom: 0.5rem; color: #fff; }
+    .card p { color: var(--muted); font-size: 0.95rem; margin-bottom: 1rem; }
+    .card a { color: var(--accent); font-weight: 600; text-decoration: none; font-size: 0.9rem; }
+    .card a:hover { text-decoration: underline; }
+    footer { text-align: center; margin-top: 4rem; color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--border); padding-top: 2rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="badge">PROMPTFM COMMUNITY ARCHITECTURE</div>
+      <h1>PromptFM <span>Documentation</span></h1>
+      <p class="lead">Autonomous, community-driven 24/7 AI-generated music radio network powered by Next.js, Liquidsoap, Icecast, and Google Gemini Neural Audio.</p>
+      
+      <div class="links-bar">
+        <a href="https://promptfm.live" class="btn btn-primary">🎧 Tune In Live (promptfm.live)</a>
+        <a href="https://github.com/PromptFM/promptfm" class="btn">⭐ GitHub Repository</a>
+        <a href="https://promptfm.live/#contribute" class="btn">💻 Contribute</a>
+      </div>
+    </header>
+
+    <div class="grid">
+      <div class="card">
+        <h3>☁️ GCP Streamer Architecture</h3>
+        <p>Complete deployment blueprint for 100% free-tier Icecast + Liquidsoap streaming on Google Cloud Platform.</p>
+        <a href="https://github.com/PromptFM/promptfm/blob/main/docs/gcp-always-free-streamer.md" target="_blank" rel="noopener">Read Streamer Guide &rarr;</a>
+      </div>
+
+      <div class="card">
+        <h3>🤖 MCP Agent Integration</h3>
+        <p>Manage stations, queue tracks, inject live voice drops, and administer channels using Model Context Protocol (MCP).</p>
+        <a href="https://github.com/PromptFM/promptfm/blob/main/docs/mcp-integration-guide.md" target="_blank" rel="noopener">Read MCP Specs &rarr;</a>
+      </div>
+
+      <div class="card">
+        <h3>📻 Listener & Voting Guide</h3>
+        <p>How the democratic airplay system works: web voting, Discord/Telegram requests, and real-time station charts.</p>
+        <a href="https://github.com/PromptFM/promptfm/blob/main/docs/listener-guide.md" target="_blank" rel="noopener">Read Listener Guide &rarr;</a>
+      </div>
+
+      <div class="card">
+        <h3>🧬 Strict TDD & Mutation Testing</h3>
+        <p>PromptFM mandates strict Test-Driven Development (Red &rarr; Green &rarr; Refactor) with Stryker Mutation Testing (&ge;80% score).</p>
+        <a href="https://github.com/PromptFM/promptfm/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">Read Contributor Guidelines &rarr;</a>
+      </div>
+
+      <div class="card">
+        <h3>🎙️ Audio Ads & Sponsor Drops</h3>
+        <p>Specifications for dynamic AI host-read endorsements, produced commercials (-14 LUFS), and clock-wheel rotation.</p>
+        <a href="https://promptfm.live/#contribute" target="_blank" rel="noopener">Learn About Ad Formats &rarr;</a>
+      </div>
+
+      <div class="card">
+        <h3>❤️ Funding & Community Support</h3>
+        <p>Support server compute and open development via GitHub Sponsors (0% platform fee) or 1-click tips.</p>
+        <a href="https://github.com/sponsors/atrifan" target="_blank" rel="noopener">Sponsor on GitHub &rarr;</a>
+      </div>
+    </div>
+
+    <footer>
+      <p>&copy; 2026 PromptFM Community. Source-Available under PromptFM Community License 1.0.</p>
+      <p style="margin-top: 0.5rem;">Live Broadcast at <a href="https://promptfm.live" style="color: var(--accent);">promptfm.live</a></p>
+    </footer>
+  </div>
+</body>
+</html>
