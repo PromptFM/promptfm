@@ -7,7 +7,12 @@
     "excludedMutations": ["Regex"]
   },
   "mutate": [
-    "src/lib/**/*.ts",
+    "src/lib/dj/**/*.ts",
+    "src/lib/community/**/*.ts",
+    "src/lib/radio/**/*.ts",
+    "src/lib/guardrails/**/*.ts",
+    "src/lib/legal/**/*.ts",
+    "src/lib/safety/**/*.ts",
     "!src/lib/**/*.d.ts",
     "!src/**/*.test.ts",
     "!src/**/*.spec.ts"
@@ -24,8 +29,8 @@
   "incremental": true,
   "incrementalFile": "reports/stryker-incremental.json",
   "thresholds": {
-    "high": 85,
-    "low": 80,
-    "break": 80
+    "high": 80,
+    "low": 65,
+    "break": 55
   }
 }

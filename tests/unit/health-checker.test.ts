@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   checkSystemHealth,
+  probeStreamEndpoint,
   type SystemHealthReport,
   type ServiceCheckResult,
 } from '@/lib/status/health-checker';
@@ -74,6 +75,51 @@ describe('System Health Checker & Status Monitoring', () => {
     expect(report.status).toBe('major_outage');
     const streamer = report.services.find((s) => s.id === 'audio_streamer');
     expect(streamer?.status).toBe('outage');
+  });
+
+  describe('Audio Stream Probe (Icecast Range Header Probe)', () => {
+    it('uses GET with Range: bytes=0-1 to avoid Icecast HEAD 400 rejection', async () => {
+      let capturedMethod = '';
+      let capturedHeaders: Record<string, string> = {};
+      const mockCancel = vi.fn().mockResolvedValue(undefined);
+
+      vi.spyOn(globalThis, 'fetch').mockImplementationOnce(async (url, init) => {
+        capturedMethod = init?.method || '';
+        capturedHeaders = (init?.headers as Record<string, string>) || {};
+        return {
+          ok: true,
+          status: 200,
+          body: {
+            cancel: mockCancel,
+          },
+        } as unknown as Response;
+      });
+
+      await expect(probeStreamEndpoint('https://stream.promptfm.live/stream.mp3')).resolves.toBeUndefined();
+      expect(capturedMethod).toBe('GET');
+      expect(capturedHeaders.Range).toBe('bytes=0-1');
+      expect(mockCancel).toHaveBeenCalled();
+    });
+
+    it('accepts HTTP 206 Partial Content as operational', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        ok: false,
+        status: 206,
+        body: { cancel: vi.fn() },
+      } as unknown as Response);
+
+      await expect(probeStreamEndpoint('https://stream.promptfm.live/stream.mp3')).resolves.toBeUndefined();
+    });
+
+    it('throws error when server returns HTTP 400 or HTTP 500', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        body: { cancel: vi.fn() },
+      } as unknown as Response);
+
+      await expect(probeStreamEndpoint('https://stream.promptfm.live/stream.mp3')).rejects.toThrow('HTTP 400');
+    });
   });
 });
 
