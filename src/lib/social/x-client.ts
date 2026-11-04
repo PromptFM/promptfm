@@ -65,18 +65,52 @@ export function generateOAuth1Header(params: OAuth1Params): string {
   return `OAuth ${headerParts.join(', ')}`;
 }
 
+export interface XCredentialsStatus {
+  configured: boolean;
+  mode: 'oauth1' | 'bearer' | 'dev_simulation';
+  hasApiKey: boolean;
+  hasApiSecret: boolean;
+  hasAccessToken: boolean;
+  hasAccessTokenSecret: boolean;
+  hasBearerToken: boolean;
+}
+
+/**
+ * Inspects environment variables and returns a breakdown of X API credential readiness.
+ */
+export function getXCredentialsStatus(): XCredentialsStatus {
+  const hasApiKey = Boolean(process.env.X_API_KEY || process.env.TWITTER_API_KEY);
+  const hasApiSecret = Boolean(process.env.X_API_SECRET || process.env.TWITTER_API_SECRET);
+  const hasAccessToken = Boolean(process.env.X_ACCESS_TOKEN || process.env.TWITTER_ACCESS_TOKEN);
+  const hasAccessTokenSecret = Boolean(process.env.X_ACCESS_TOKEN_SECRET || process.env.TWITTER_ACCESS_TOKEN_SECRET);
+  const hasBearerToken = Boolean(process.env.X_BEARER_TOKEN || process.env.TWITTER_BEARER_TOKEN);
+
+  const hasOAuth1 = hasApiKey && hasApiSecret && hasAccessToken && hasAccessTokenSecret;
+  const configured = hasOAuth1 || hasBearerToken;
+
+  let mode: 'oauth1' | 'bearer' | 'dev_simulation' = 'dev_simulation';
+  if (hasOAuth1) {
+    mode = 'oauth1';
+  } else if (hasBearerToken) {
+    mode = 'bearer';
+  }
+
+  return {
+    configured,
+    mode,
+    hasApiKey,
+    hasApiSecret,
+    hasAccessToken,
+    hasAccessTokenSecret,
+    hasBearerToken,
+  };
+}
+
 /**
  * Checks whether credentials for X (Twitter) API posting are configured.
  */
 export function isXConfigured(): boolean {
-  const hasBearer = Boolean(process.env.X_BEARER_TOKEN || process.env.TWITTER_BEARER_TOKEN);
-  const hasOAuth1 = Boolean(
-    (process.env.X_API_KEY || process.env.TWITTER_API_KEY) &&
-    (process.env.X_API_SECRET || process.env.TWITTER_API_SECRET) &&
-    (process.env.X_ACCESS_TOKEN || process.env.TWITTER_ACCESS_TOKEN) &&
-    (process.env.X_ACCESS_TOKEN_SECRET || process.env.TWITTER_ACCESS_TOKEN_SECRET)
-  );
-  return hasBearer || hasOAuth1;
+  return getXCredentialsStatus().configured;
 }
 
 /**

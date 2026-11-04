@@ -28,13 +28,13 @@ import {
   TELEGRAM_BOT_SHORTHAND_COMMANDS,
   ALL_TELEGRAM_COMMANDS,
 } from '../src/lib/community/bot-registration';
-import { postTweetToX, isXConfigured } from '../src/lib/social/x-client';
+import { postTweetToX, isXConfigured, getXCredentialsStatus } from '../src/lib/social/x-client';
 import type { ReportReason } from '../src/types/database';
 import { extractMetadataFromBuffer, DEFAULT_TRACK_ICON } from '../src/lib/audio/metadata';
 import { getR2Client, getBucketName, getPublicUrl } from '../src/lib/r2';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { execSync } from 'child_process';
-import { readFileSync, appendFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, appendFileSync, existsSync } from 'fs';
 import { join, basename } from 'path';
 import { randomUUID } from 'crypto';
 
@@ -78,6 +78,9 @@ AI Voice & Broadcast:
   ads list                List active sponsor campaigns, frequency, and ad spots
   ads inject [id]         Force-inject a sponsor ad spot to play NEXT on stream
   broadcast <message> [--x] Push notification to connected Discord & Telegram channels (optionally X)
+  x status                Check connection status and credentials for X (Twitter)
+  x setup [k] [s] [tok] [sec] Configure X API keys and OAuth 1.0a tokens in .env.local
+  x test                  Send a test status tweet to @promptfm_live
   x post <text>           Post a live announcement tweet to X (Twitter) @promptfm_live
   listen                  Launch the live audio stream in terminal (mpv/ffplay)
 
@@ -826,11 +829,112 @@ Moderation & Schedule:
     case 'x':
     case 'tweet': {
       const sub = args[1];
+
+      if (sub === 'status') {
+        const status = getXCredentialsStatus();
+        console.log('\n🐦 X (Twitter) Integration Status:');
+        console.log(`   Official Handle: @promptfm_live (https://x.com/promptfm_live)`);
+        console.log(`   Active Mode:     ${status.mode.toUpperCase()}`);
+        console.log(`   Configured:      ${status.configured ? '✅ Ready for Live Posting' : '⚠️ Fallback / Dev Simulation'}`);
+        console.log('\nCredential Checklist:');
+        console.log(`   • X_API_KEY (Consumer Key):         ${status.hasApiKey ? '✅ SET' : '❌ MISSING'}`);
+        console.log(`   • X_API_SECRET (Consumer Secret):   ${status.hasApiSecret ? '✅ SET' : '❌ MISSING'}`);
+        console.log(`   • X_ACCESS_TOKEN:                   ${status.hasAccessToken ? '✅ SET' : '❌ MISSING'}`);
+        console.log(`   • X_ACCESS_TOKEN_SECRET:            ${status.hasAccessTokenSecret ? '✅ SET' : '❌ MISSING'}`);
+        console.log(`   • X_BEARER_TOKEN (Optional):        ${status.hasBearerToken ? '✅ SET' : '⚪ NOT SET'}`);
+        if (!status.configured) {
+          console.log('\nTo configure X for live posting:');
+          console.log('   npm run promptfm -- x setup');
+        }
+        break;
+      }
+
+      if (sub === 'setup') {
+        const apiKey = args[2];
+        const apiSecret = args[3];
+        const accessToken = args[4];
+        const accessTokenSecret = args[5];
+
+        if (apiKey && apiSecret && accessToken && accessTokenSecret) {
+          if (existsSync('.env.local')) {
+            let envContent = readFileSync('.env.local', 'utf-8');
+            const updates = [
+              { key: 'X_API_KEY', val: apiKey },
+              { key: 'X_API_SECRET', val: apiSecret },
+              { key: 'X_ACCESS_TOKEN', val: accessToken },
+              { key: 'X_ACCESS_TOKEN_SECRET', val: accessTokenSecret },
+            ];
+            for (const { key, val } of updates) {
+              if (envContent.includes(`${key}=`)) {
+                envContent = envContent.replace(new RegExp(`^${key}=.*$`, 'm'), `${key}="${val}"`);
+              } else {
+                envContent += `\n${key}="${val}"`;
+              }
+            }
+            writeFileSync('.env.local', envContent.trim() + '\n', 'utf-8');
+            console.log('💾 Successfully saved X credentials to .env.local!');
+          }
+          console.log('\nTo also enable live X posting in Vercel production:');
+          console.log(`   vercel env add X_API_KEY production,preview,development --value "${apiKey}" --yes`);
+          console.log(`   vercel env add X_API_SECRET production,preview,development --value "${apiSecret}" --yes`);
+          console.log(`   vercel env add X_ACCESS_TOKEN production,preview,development --value "${accessToken}" --yes`);
+          console.log(`   vercel env add X_ACCESS_TOKEN_SECRET production,preview,development --value "${accessTokenSecret}" --yes`);
+          console.log('\nTesting connection with a test tweet...');
+          const res = await postTweetToX(`PromptFM Station Check: Online and broadcasting live at https://promptfm.live [${new Date().toLocaleTimeString()}]`);
+          console.log('Test result:', res);
+          break;
+        }
+
+        console.log('\n🐦 How to set up automated posting to X (@promptfm_live):\n');
+        console.log('1. Go to X Developer Portal:');
+        console.log('   https://developer.x.com/en/portal/dashboard\n');
+        console.log('2. Select or create your App under Projects & Apps.');
+        console.log('3. Under "User authentication settings", click "Set up" / "Edit":');
+        console.log('   • App permissions: Choose "Read and write"');
+        console.log('   • Type of App: "Web App, Automated App or Bot"');
+        console.log('   • Callback URI: https://promptfm.live');
+        console.log('   • Website URL: https://promptfm.live');
+        console.log('   Click "Save".\n');
+        console.log('4. Go to the "Keys and Tokens" tab:');
+        console.log('   • Consumer Keys -> Generate/Copy "API Key" and "API Key Secret"');
+        console.log('   • Authentication Tokens -> Generate "Access Token and Secret"');
+        console.log('     (⚠️ IMPORTANT: Must generate/regenerate AFTER setting Read & Write permissions)\n');
+        console.log('5. Run setup command with your 4 keys:');
+        console.log('   npm run promptfm -- x setup <API_KEY> <API_KEY_SECRET> <ACCESS_TOKEN> <ACCESS_TOKEN_SECRET>\n');
+        console.log('Or save them to your environment:');
+        console.log('   echo \'X_API_KEY="..."\' >> .env.local');
+        console.log('   echo \'X_API_SECRET="..."\' >> .env.local');
+        console.log('   echo \'X_ACCESS_TOKEN="..."\' >> .env.local');
+        console.log('   echo \'X_ACCESS_TOKEN_SECRET="..."\' >> .env.local\n');
+        break;
+      }
+
+      if (sub === 'test') {
+        console.log(`🐦 Sending test tweet to X (@promptfm_live)...`);
+        const testMsg = `PromptFM on-air signal check: Station broadcasting live at https://promptfm.live [${Date.now().toString(36)}]`;
+        const res = await postTweetToX(testMsg);
+        if (res.success) {
+          if (res.simulated) {
+            console.log(`✅ Simulated test tweet posted in dev/fallback mode (ID: ${res.tweetId})`);
+            console.log(`   Configure live keys with: npm run promptfm -- x setup`);
+          } else {
+            console.log(`🎉 Live Tweet posted successfully to X! Tweet ID: ${res.tweetId}`);
+          }
+        } else {
+          console.error(`❌ Failed to post tweet to X: ${res.error}`);
+        }
+        break;
+      }
+
       const textArgs = sub === 'post' ? args.slice(2) : args.slice(1);
       const text = textArgs.join(' ');
       if (!text) {
         console.error('Error: Provide tweet text to post to X.');
-        console.log('Usage: npm run promptfm -- x post "Tune in live on PromptFM: https://promptfm.live"');
+        console.log('Usage:');
+        console.log('  npm run promptfm -- x status');
+        console.log('  npm run promptfm -- x setup [apiKey] [apiSecret] [accessToken] [accessTokenSecret]');
+        console.log('  npm run promptfm -- x test');
+        console.log('  npm run promptfm -- x post "Tune in live on PromptFM: https://promptfm.live"');
         process.exit(1);
       }
       console.log(`🐦 Posting tweet to X (@promptfm_live)...`);

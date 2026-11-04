@@ -2,7 +2,7 @@
 // Unit tests for X (Twitter) posting integration, OAuth 1.0a signing, and dev simulation
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { postTweetToX, isXConfigured, generateOAuth1Header } from '@/lib/social/x-client';
+import { postTweetToX, isXConfigured, getXCredentialsStatus, generateOAuth1Header } from '@/lib/social/x-client';
 
 describe('X (Twitter) Admin Broadcast Service', () => {
   const originalEnv = process.env;
@@ -160,6 +160,50 @@ describe('X (Twitter) Admin Broadcast Service', () => {
       const res = await postTweetToX('Duplicate tweet');
       expect(res.success).toBe(false);
       expect(res.error).toContain('duplicate content');
+    });
+  });
+
+  describe('getXCredentialsStatus', () => {
+    it('returns dev_simulation mode when credentials are missing', () => {
+      delete process.env.X_API_KEY;
+      delete process.env.X_API_SECRET;
+      delete process.env.X_ACCESS_TOKEN;
+      delete process.env.X_ACCESS_TOKEN_SECRET;
+      delete process.env.X_BEARER_TOKEN;
+
+      const status = getXCredentialsStatus();
+      expect(status.configured).toBe(false);
+      expect(status.mode).toBe('dev_simulation');
+      expect(status.hasApiKey).toBe(false);
+      expect(status.hasApiSecret).toBe(false);
+      expect(status.hasAccessToken).toBe(false);
+      expect(status.hasAccessTokenSecret).toBe(false);
+      expect(status.hasBearerToken).toBe(false);
+    });
+
+    it('returns oauth1 mode when all 4 OAuth1 credentials are present', () => {
+      process.env.X_API_KEY = 'k';
+      process.env.X_API_SECRET = 's';
+      process.env.X_ACCESS_TOKEN = 't';
+      process.env.X_ACCESS_TOKEN_SECRET = 'ts';
+
+      const status = getXCredentialsStatus();
+      expect(status.configured).toBe(true);
+      expect(status.mode).toBe('oauth1');
+      expect(status.hasApiKey).toBe(true);
+      expect(status.hasApiSecret).toBe(true);
+      expect(status.hasAccessToken).toBe(true);
+      expect(status.hasAccessTokenSecret).toBe(true);
+    });
+
+    it('returns bearer mode when bearer token is present but oauth1 is incomplete', () => {
+      delete process.env.X_API_KEY;
+      process.env.X_BEARER_TOKEN = 'bearer123';
+
+      const status = getXCredentialsStatus();
+      expect(status.configured).toBe(true);
+      expect(status.mode).toBe('bearer');
+      expect(status.hasBearerToken).toBe(true);
     });
   });
 });
