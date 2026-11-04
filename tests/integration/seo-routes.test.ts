@@ -5,9 +5,15 @@ import { describe, it, expect } from 'vitest';
 import robots from '@/app/robots';
 import sitemap from '@/app/sitemap';
 import manifest from '@/app/manifest';
+import { siteMetadata } from '@/lib/seo/site-metadata';
 import { generateRadioStationJsonLd } from '@/lib/seo/structured-data';
 
 describe('Next.js App Router Metadata Routes Integration', () => {
+  it('siteMetadata includes valid Google and search engine site verification tokens', () => {
+    expect(siteMetadata.verification).toBeDefined();
+    expect(siteMetadata.verification?.google).toBe('JyC0MUsTb-PI8ssnpZsCcwmWCw-BxPvn7S07-2FDHRA');
+  });
+
   it('robots() generates valid Next.js Robots metadata', () => {
     const result = robots();
     expect(result).toHaveProperty('rules');
