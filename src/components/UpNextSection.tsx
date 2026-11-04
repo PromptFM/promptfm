@@ -132,24 +132,37 @@ export default function UpNextSection() {
                 <div
                   key={item.id || idx}
                   className={[
-                    'relative flex flex-col justify-between p-3.5 rounded-xl transition-all group overflow-hidden',
+                    'flex flex-col justify-between p-4 rounded-xl transition-all group',
                     isCurrent
-                      ? 'bg-zinc-900/90 border-2 border-emerald-500/80 shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500/40'
-                      : 'bg-zinc-950/60 hover:bg-zinc-850/80 border border-zinc-800/80',
+                      ? 'bg-zinc-900/95 border-2 border-emerald-500 shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500/40'
+                      : 'bg-zinc-950/70 hover:bg-zinc-900/80 border border-zinc-800/80',
                   ].join(' ')}
                 >
-                  {/* Queue Position / Now Playing Pill */}
-                  <span
-                    className={[
-                      'absolute -top-2 left-3 text-[10px] font-bold px-2 py-0.5 rounded-md shadow-sm flex items-center gap-1 z-10',
-                      isCurrent
-                        ? 'bg-emerald-500 text-black border border-emerald-400 font-extrabold'
-                        : 'bg-emerald-900/80 border border-emerald-500/40 text-emerald-300',
-                    ].join(' ')}
-                  >
-                    {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-black animate-ping" />}
-                    {item.badgeLabel}
-                  </span>
+                  {/* Card Status Banner Header */}
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <span
+                      className={[
+                        'text-[11px] font-black px-2.5 py-1 rounded-md shadow-sm flex items-center gap-1.5 uppercase tracking-wide',
+                        isCurrent
+                          ? 'bg-emerald-500 text-black border border-emerald-300'
+                          : 'bg-emerald-950/90 border border-emerald-500/40 text-emerald-300',
+                      ].join(' ')}
+                    >
+                      {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-black animate-ping" />}
+                      {item.badgeLabel}
+                    </span>
+
+                    {isCurrent ? (
+                      <span className="flex items-center gap-1.5 text-[10px] font-mono font-bold text-emerald-400 bg-emerald-950/70 px-2 py-0.5 rounded border border-emerald-500/30">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        ON AIR
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-mono text-zinc-500 font-medium">
+                        Upcoming
+                      </span>
+                    )}
+                  </div>
 
                   <div className="flex items-center gap-3">
                     {/* Cover Art Preview with Spinning Disc on Active Track */}
