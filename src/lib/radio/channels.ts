@@ -21,6 +21,7 @@ export interface RadioChannel {
   allowExplicitAllDay?: boolean;
   ageGateDisclaimer?: string;
   streamUrl: string;
+  isActive: boolean;
 }
 
 export const DEFAULT_CHANNEL_SLUG = 'main';
@@ -42,6 +43,7 @@ export const OFFICIAL_CHANNELS: readonly RadioChannel[] = [
     requiresAgeGate: false,
     allowExplicitAllDay: false,
     streamUrl: DEFAULT_STREAM_URL,
+    isActive: true,
   },
   {
     slug: 'cyberpunk',
@@ -59,6 +61,7 @@ export const OFFICIAL_CHANNELS: readonly RadioChannel[] = [
     requiresAgeGate: false,
     allowExplicitAllDay: false,
     streamUrl: `${DEFAULT_STREAM_URL}?channel=cyberpunk`,
+    isActive: false,
   },
   {
     slug: 'chillout',
@@ -76,6 +79,7 @@ export const OFFICIAL_CHANNELS: readonly RadioChannel[] = [
     requiresAgeGate: false,
     allowExplicitAllDay: false,
     streamUrl: `${DEFAULT_STREAM_URL}?channel=chillout`,
+    isActive: false,
   },
   {
     slug: 'kids',
@@ -93,6 +97,7 @@ export const OFFICIAL_CHANNELS: readonly RadioChannel[] = [
     requiresAgeGate: false,
     allowExplicitAllDay: false,
     streamUrl: `${DEFAULT_STREAM_URL}?channel=kids`,
+    isActive: false,
   },
   {
     slug: 'afterdark',
@@ -111,14 +116,56 @@ export const OFFICIAL_CHANNELS: readonly RadioChannel[] = [
     allowExplicitAllDay: true,
     ageGateDisclaimer: 'LEGAL AGE CONFIRMATION & CONSENT: This channel broadcasts uncensored audio containing adult language, profanity, and mature themes 24 hours a day. By proceeding, you certify under penalty of law that you are at least 18 years of age (or the legal age of majority in your jurisdiction), understand the adult nature of the programming, and affirmatively consent to receiving explicit broadcast content. If you are under 18, please select a Family Safe channel.',
     streamUrl: `${DEFAULT_STREAM_URL}?channel=afterdark`,
+    isActive: false,
   },
 ] as const;
 
+const channelActiveOverrides = new Map<string, boolean>();
+
 /**
- * Returns all official PromptFM radio channels.
+ * Resets dynamic runtime channel active overrides (used in testing and maintenance).
+ */
+export function resetChannelActiveOverrides(): void {
+  channelActiveOverrides.clear();
+}
+
+/**
+ * Sets dynamic runtime active status override for a channel slug.
+ */
+export function setChannelActiveOverride(slug: string, isActive: boolean): void {
+  channelActiveOverrides.set(slug.toLowerCase().trim(), isActive);
+}
+
+/**
+ * Returns whether a channel slug corresponds to an active (enabled) channel.
+ */
+export function isChannelActive(slug?: string | null): boolean {
+  if (!slug) return false;
+  const clean = slug.toLowerCase().trim();
+  if (channelActiveOverrides.has(clean)) {
+    return Boolean(channelActiveOverrides.get(clean));
+  }
+  const channel = OFFICIAL_CHANNELS.find((c) => c.slug === clean);
+  return channel?.isActive ?? false;
+}
+
+/**
+ * Returns all official PromptFM radio channels with current active state.
  */
 export function getAllChannels(): RadioChannel[] {
-  return [...OFFICIAL_CHANNELS];
+  return OFFICIAL_CHANNELS.map((ch) => ({
+    ...ch,
+    isActive: channelActiveOverrides.has(ch.slug)
+      ? Boolean(channelActiveOverrides.get(ch.slug))
+      : ch.isActive,
+  }));
+}
+
+/**
+ * Returns only currently active/enabled radio channels.
+ */
+export function getActiveChannels(): RadioChannel[] {
+  return getAllChannels().filter((c) => c.isActive !== false);
 }
 
 /**
@@ -131,15 +178,19 @@ export function isValidChannelSlug(slug?: string | null): boolean {
 }
 
 /**
- * Resolves a channel by slug, falling back to main stage if not recognized.
+ * Resolves a channel by slug, falling back to main stage if not recognized or if inactive when requireActive is true.
  */
-export function getChannelBySlug(slug?: string | null): RadioChannel {
+export function getChannelBySlug(slug?: string | null, requireActive = false): RadioChannel {
+  const all = getAllChannels();
   if (!slug) {
-    return OFFICIAL_CHANNELS[0]!;
+    return all[0]!;
   }
   const clean = slug.toLowerCase().trim();
-  const found = OFFICIAL_CHANNELS.find((c) => c.slug === clean);
-  return found || OFFICIAL_CHANNELS[0]!;
+  const found = all.find((c) => c.slug === clean);
+  if (requireActive && found && !found.isActive) {
+    return all[0]!;
+  }
+  return found || all[0]!;
 }
 
 /**

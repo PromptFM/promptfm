@@ -56,6 +56,9 @@ export default function ChannelsGrid({ className = '' }: ChannelsGridProps) {
   }, []);
 
   const handleTuneIn = (channel: RadioChannel) => {
+    if (channel.isActive === false) {
+      return;
+    }
     setActiveChannelSlug(channel.slug);
 
     if (typeof window !== 'undefined') {
@@ -240,14 +243,17 @@ export default function ChannelsGrid({ className = '' }: ChannelsGridProps) {
               <div className="mt-5 pt-3">
                 <button
                   type="button"
+                  disabled={channel.isActive === false}
                   onClick={() => handleTuneIn(channel)}
-                  className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all ${getButtonTheme(
-                    channel.slug,
-                    isActive,
-                    isPlayerPlaying
-                  )}`}
+                  className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all ${
+                    channel.isActive === false
+                      ? 'bg-zinc-800/50 text-zinc-500 border border-zinc-800 cursor-not-allowed opacity-60'
+                      : getButtonTheme(channel.slug, isActive, isPlayerPlaying)
+                  }`}
                 >
-                  {isCurrentChannelPlaying ? (
+                  {channel.isActive === false ? (
+                    <span>Offline (Standby)</span>
+                  ) : isCurrentChannelPlaying ? (
                     <>
                       <Volume2 className="w-4 h-4 animate-pulse" />
                       <span>Listening Now</span>
