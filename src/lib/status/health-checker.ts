@@ -1,8 +1,13 @@
 // src/lib/status/health-checker.ts
 // Real-time health check probes and system status aggregation for PromptFM
 
+import { DEFAULT_STREAM_URL } from '@/lib/audio/player-controller';
+
 export type ServiceStatus = 'operational' | 'degraded' | 'outage';
 export type SystemStatus = 'all_operational' | 'degraded_performance' | 'major_outage';
+
+export const DEFAULT_PROBE_TIMEOUT = 5000;
+export const DEFAULT_DEGRADED_LATENCY_MS = 3000;
 
 export interface ServiceCheckResult {
   id: string;
@@ -37,9 +42,10 @@ export interface HealthCheckOptions {
 /**
  * Executes a single probe with latency timing and timeout protection.
  */
-async function runProbe(
+export async function runProbe(
   probeFn: () => Promise<void>,
-  timeoutMs = 2500
+  timeoutMs = DEFAULT_PROBE_TIMEOUT,
+  degradedThresholdMs = DEFAULT_DEGRADED_LATENCY_MS
 ): Promise<{ status: ServiceStatus; latencyMs: number; error?: string }> {
   const start = Date.now();
   try {
@@ -50,7 +56,7 @@ async function runProbe(
     await Promise.race([probeFn(), timeoutPromise]);
     const latencyMs = Math.max(1, Date.now() - start);
     return {
-      status: latencyMs > 1500 ? 'degraded' : 'operational',
+      status: latencyMs > degradedThresholdMs ? 'degraded' : 'operational',
       latencyMs,
     };
   } catch (err: unknown) {
@@ -72,7 +78,7 @@ async function runProbe(
  * Icecast 2.4.x returns HTTP 400 Bad Request to HEAD requests on audio mount points.
  * Using GET with Range: bytes=0-1 safely validates mount availability and immediately cancels the body.
  */
-export async function probeStreamEndpoint(streamUrl: string, timeoutMs = 2500): Promise<void> {
+export async function probeStreamEndpoint(streamUrl: string, timeoutMs = DEFAULT_PROBE_TIMEOUT): Promise<void> {
   const res = await fetch(streamUrl, {
     method: 'GET',
     headers: { Range: 'bytes=0-1' },
@@ -91,11 +97,43 @@ export async function probeStreamEndpoint(streamUrl: string, timeoutMs = 2500): 
   }
 }
 
+/**
+ * Probes the Icecast/Liquidsoap audio streaming engine.
+ * First checks the high-performance Icecast telemetry endpoint (/status-json.xsl)
+ * to avoid streaming infinite live audio frames over WAN connections.
+ * If /status-json.xsl is unavailable or not an Icecast server, falls back to
+ * direct mount point Range request validation via probeStreamEndpoint.
+ */
+export async function probeAudioStreamer(
+  streamUrl: string,
+  timeoutMs = DEFAULT_PROBE_TIMEOUT
+): Promise<void> {
+  try {
+    const url = new URL(streamUrl);
+    const statusUrl = `${url.origin}/status-json.xsl`;
+    const res = await fetch(statusUrl, {
+      method: 'GET',
+      signal: AbortSignal.timeout(Math.min(timeoutMs, 3000)),
+    });
+
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      if (data?.icestats?.source) {
+        return;
+      }
+    }
+  } catch {
+    // Fall back to direct stream mount Range probe
+  }
+
+  await probeStreamEndpoint(streamUrl, timeoutMs);
+}
+
 export async function checkSystemHealth(
   options?: HealthCheckOptions
 ): Promise<SystemHealthReport> {
   const mocks = options?.mockCheckers;
-  const timeout = options?.timeoutMs || 2500;
+  const timeout = options?.timeoutMs || DEFAULT_PROBE_TIMEOUT;
   const now = new Date().toISOString();
 
   // 1. Audio Streaming Probe (Icecast / Liquidsoap)
@@ -110,8 +148,8 @@ export async function checkSystemHealth(
           // In test or local-dev fallback simulation, treat as operational
           return;
         }
-        const streamUrl = process.env.NEXT_PUBLIC_STREAM_URL || 'http://localhost:8000/stream';
-        await probeStreamEndpoint(streamUrl, timeout);
+        const streamUrl = process.env.NEXT_PUBLIC_STREAM_URL || DEFAULT_STREAM_URL;
+        await probeAudioStreamer(streamUrl, timeout);
       }, timeout);
 
   // 2. Database & Vector Probe (Supabase / pgvector)
