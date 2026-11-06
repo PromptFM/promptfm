@@ -20,7 +20,11 @@ import {
   auditContentReports,
 } from '@/lib/safety/reports';
 import { autoGenerateChannelGuardrails } from '@/lib/safety/channel-guardrails';
-import { getAllChannels } from '@/lib/radio/channels';
+import {
+  getAllChannels,
+  setChannelActiveOverride,
+  isChannelActive,
+} from '@/lib/radio/channels';
 import { findTracksByVibe, indexTrackEmbedding } from '@/lib/dj/rag';
 import { postTweetToX } from '@/lib/social/x-client';
 import { editTrackMetadata, deleteTrack } from '@/lib/dj/track-management';
@@ -441,6 +445,31 @@ const ADMIN_MCP_TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {},
+    },
+  },
+  {
+    name: 'promptfm_admin_set_channel_status',
+    description:
+      'Enables or disables a radio broadcast channel for airplay, public discovery, and station rotation.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        slug: { type: 'string', description: 'Slug of the channel to update (e.g. "cyberpunk", "kids")' },
+        is_active: { type: 'boolean', description: 'true to enable channel, false to disable / take offline' },
+      },
+      required: ['slug', 'is_active'],
+    },
+  },
+  {
+    name: 'promptfm_admin_toggle_channel',
+    description:
+      'Toggles a radio broadcast channel between active/enabled and disabled/offline.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        slug: { type: 'string', description: 'Slug of the channel to toggle' },
+      },
+      required: ['slug'],
     },
   },
   {
@@ -1267,6 +1296,9 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
         customDisclaimer,
       });
 
+      const isActive = typeof args.is_active === 'boolean' ? args.is_active : true;
+      setChannelActiveOverride(slug, isActive);
+
       const newChannel = {
         slug,
         name,
@@ -1283,6 +1315,7 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
         allow_explicit_24_7: guardrails.allow_explicit_24_7,
         age_gate_disclaimer: guardrails.age_gate_disclaimer,
         stream_url: `https://stream.promptfm.live/live?channel=${slug}`,
+        is_active: isActive,
       };
 
       const dbPayload = {
@@ -1294,6 +1327,7 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
         requires_age_gate: guardrails.requires_age_gate,
         allow_explicit_24_7: guardrails.allow_explicit_24_7,
         age_gate_disclaimer: guardrails.age_gate_disclaimer,
+        is_active: isActive,
       };
 
       try {
@@ -1301,7 +1335,7 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
         const { error } = await supabase.from('channels').upsert(dbPayload, { onConflict: 'slug' });
         if (error) {
           await supabase.from('channels').upsert(
-            { slug, name, description },
+            { slug, name, description, is_active: isActive },
             { onConflict: 'slug' }
           );
         }
@@ -1347,6 +1381,7 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
           allow_explicit_24_7: ch.allowExplicitAllDay ?? false,
           age_gate_disclaimer: ch.ageGateDisclaimer ?? '',
           stream_url: ch.streamUrl,
+          is_active: ch.isActive,
         });
       }
       for (const ch of dbChannels) {
@@ -1377,6 +1412,7 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
           allow_explicit_24_7: ch.allow_explicit_24_7 ?? existing.allow_explicit_24_7 ?? guard.allow_explicit_24_7,
           age_gate_disclaimer: ch.age_gate_disclaimer || existing.age_gate_disclaimer || guard.age_gate_disclaimer,
           stream_url: `https://stream.promptfm.live/live?channel=${ch.slug}`,
+          is_active: ch.is_active !== undefined ? Boolean(ch.is_active) : (existing.is_active ?? true),
         });
       }
 
@@ -1385,6 +1421,53 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
         success: true,
         count: channels.length,
         channels,
+      };
+    }
+
+    case 'promptfm_admin_set_channel_status': {
+      const slug = String(args.slug || '').toLowerCase().trim();
+      if (!slug) {
+        throw new Error('Channel slug is required.');
+      }
+      const isActive = Boolean(args.is_active ?? args.enabled);
+      setChannelActiveOverride(slug, isActive);
+
+      try {
+        const supabase = createAdminClient();
+        await supabase.from('channels').upsert({ slug, is_active: isActive }, { onConflict: 'slug' });
+      } catch (err) {
+        console.warn('[MCP Admin] Channel status update DB fallback note:', err);
+      }
+
+      return {
+        success: true,
+        slug,
+        is_active: isActive,
+        message: `Channel "${slug}" has been ${isActive ? 'enabled' : 'disabled'}.`,
+      };
+    }
+
+    case 'promptfm_admin_toggle_channel': {
+      const slug = String(args.slug || '').toLowerCase().trim();
+      if (!slug) {
+        throw new Error('Channel slug is required.');
+      }
+      const currentActive = isChannelActive(slug);
+      const nextActive = !currentActive;
+      setChannelActiveOverride(slug, nextActive);
+
+      try {
+        const supabase = createAdminClient();
+        await supabase.from('channels').upsert({ slug, is_active: nextActive }, { onConflict: 'slug' });
+      } catch (err) {
+        console.warn('[MCP Admin] Channel toggle DB fallback note:', err);
+      }
+
+      return {
+        success: true,
+        slug,
+        is_active: nextActive,
+        message: `Channel "${slug}" toggled to ${nextActive ? 'enabled' : 'disabled'}.`,
       };
     }
 

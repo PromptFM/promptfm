@@ -669,6 +669,7 @@ describe('Listener Request Batch Scheduling & Consolidation', () => {
       expect(broadcastToCommunity).toHaveBeenCalledWith({
         title: 'ON AIR NOW: Dedication from @Elena',
         message: '🎙️ "Consolidated radio announcement"\n\nTune in live: https://promptfm.live',
+        category: 'dedication',
         author: 'DJ Neon',
       });
 
@@ -844,6 +845,7 @@ describe('Listener Request Batch Scheduling & Consolidation', () => {
       expect(broadcastToCommunity).toHaveBeenCalledWith({
         title: 'ON AIR NOW: Community Batch Shoutout (BATCH-16:00)',
         message: '🎙️ "Consolidated radio announcement"\n\nFeaturing shoutouts from: @maria, @alex, @astrologer, @groover\nTune in: https://promptfm.live',
+        category: 'dedication',
         author: 'DJ Neon',
       });
 

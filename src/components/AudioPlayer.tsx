@@ -277,7 +277,7 @@ export default function AudioPlayer() {
   }, [fetchNowPlaying]);
 
   const switchChannel = useCallback((slug: string, autoPlay = false) => {
-    const targetChannel = getChannelBySlug(slug);
+    const targetChannel = getChannelBySlug(slug, true);
     const validSlug = targetChannel.slug;
 
     if (targetChannel.requiresAgeGate && typeof window !== 'undefined') {
@@ -476,13 +476,17 @@ export default function AudioPlayer() {
             <div className="space-y-1.5">
               {OFFICIAL_CHANNELS.map((ch) => {
                 const isSelected = ch.slug === currentChannelSlug;
+                const isChannelDisabled = ch.isActive === false;
                 return (
                   <button
                     key={ch.slug}
                     type="button"
+                    disabled={isChannelDisabled}
                     onClick={() => switchChannel(ch.slug, isPlaying)}
                     className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-all ${
-                      isSelected
+                      isChannelDisabled
+                        ? 'opacity-40 cursor-not-allowed text-zinc-500'
+                        : isSelected
                         ? 'bg-zinc-800 text-white border border-emerald-500/50 shadow-sm'
                         : 'hover:bg-zinc-800/60 text-zinc-300 border border-transparent'
                     }`}
@@ -494,9 +498,13 @@ export default function AudioPlayer() {
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
                           <span className="text-xs font-bold truncate">{ch.shortName}</span>
-                          <span className="text-[10px] text-zinc-400 font-medium">({ch.djName})</span>
+                          {isChannelDisabled ? (
+                            <span className="text-[10px] text-zinc-500 font-medium">(Offline)</span>
+                          ) : (
+                            <span className="text-[10px] text-zinc-400 font-medium">({ch.djName})</span>
+                          )}
                         </div>
-                        <p className="text-[10px] text-zinc-400 truncate">{ch.badge}</p>
+                        <p className="text-[10px] text-zinc-400 truncate">{isChannelDisabled ? 'Channel Offline' : ch.badge}</p>
                       </div>
                     </div>
                     {isSelected && <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />}
