@@ -74,16 +74,19 @@ test first       all tests pass   all tests green     kill all mutants (≥80%)
 When modifying specific modules, do NOT run full-suite mutation testing blindly (which may test 100+ files and take minutes). Run targeted mutation testing immediately after reaching green:
 
 ```bash
-# 1. Targeted mutation on a single file:
+# 1. Automatic targeted mutation on all changed domain files in PR/branch:
+npm run test:mutate:affected
+
+# 2. Targeted mutation on a single file:
 npx stryker run --mutate "src/lib/audio/player-controller.ts"
 
-# 2. Targeted mutation on a directory:
+# 3. Targeted mutation on a directory:
 npx stryker run --mutate "src/lib/audio/**/*.ts"
 
-# 3. Targeted mutation on multiple files:
+# 4. Targeted mutation on multiple files:
 npx stryker run --mutate "src/lib/reporting/report-service.ts,src/lib/email/resend.ts"
 
-# 4. Full project mutation test:
+# 5. Full project mutation test:
 npm run test:mutate
 ```
 
