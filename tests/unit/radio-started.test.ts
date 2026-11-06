@@ -1,5 +1,5 @@
 // tests/unit/radio-started.test.ts
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   markTrackStarted,
   getNextAirplayItem,
@@ -16,6 +16,7 @@ vi.mock('@/lib/supabase/server', () => {
     const chain: Record<string, unknown> = {};
     chain.select = vi.fn(() => chain);
     chain.eq = vi.fn(() => chain);
+    chain.ilike = vi.fn(() => chain);
     chain.is = vi.fn(() => chain);
     chain.order = vi.fn(() => chain);
     chain.limit = vi.fn(() => chain);
@@ -64,9 +65,25 @@ vi.mock('@/lib/dj/engine', () => ({
 }));
 
 describe('Liquidsoap Synchronization & Track Started Flow', () => {
+  const originalFetch = globalThis.fetch;
+
   beforeEach(() => {
     resetAirplayDedupeCache();
     vi.clearAllMocks();
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string | URL | Request) => {
+      const urlStr = typeof url === 'string' ? url : url.toString();
+      if (urlStr.includes('status-json.xsl')) {
+        return {
+          ok: false,
+          json: async () => ({}),
+        } as unknown as Response;
+      }
+      return { ok: true, json: async () => ({}) } as unknown as Response;
+    });
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
   });
 
   describe('formatLiquidsoapAnnotateUri', () => {
@@ -118,13 +135,36 @@ describe('Liquidsoap Synchronization & Track Started Flow', () => {
       expect(nowPlaying.elapsedSeconds).toBeLessThanOrEqual(2);
     });
 
+    it('matches pending next item by title case-insensitively when liquidsoap passes title', async () => {
+      const nextItem = await getNextAirplayItem('main', false);
+      expect(nextItem).toBeDefined();
+
+      const started = await markTrackStarted('main', undefined, nextItem.title.toLowerCase());
+      expect(started.id).toBe(nextItem.id);
+      expect(started.title).toBe(nextItem.title);
+    });
+
     it('handles demo fallback gracefully if liquidsoap signals fallback item', async () => {
       const started = await markTrackStarted('main', 'demo-fallback');
       expect(started.id).toBe('demo-fallback');
       expect(started.title).toContain('PromptFM');
+      expect(started.category).toBe('Ambient & Lo-Fi');
+      expect(started.tool_used).toBe('Stable Audio');
+      expect(started.duration_hint_seconds).toBe(210);
+      expect(started.upvotes_count).toBe(20);
 
       const nowPlaying = await getNowPlaying('main');
       expect(nowPlaying.item.id).toBe('demo-fallback');
+    });
+
+    it('resolves track by title from database when item_id is not passed', async () => {
+      const started = await markTrackStarted('main', undefined, 'Existing Live Track');
+      expect(started.id).toBe('track-101');
+      expect(started.title).toBe('Existing Live Track');
+      expect(started.artist).toBe('Test Artist');
+      expect(started.audio_url).toBe('https://example.com/live.mp3');
+      expect(started.cover_art_url).toBe('/logo-mark.png');
+      expect(started.duration_hint_seconds).toBe(210);
     });
 
     it('gracefully handles unknown item_id by maintaining or resolving valid airplay item', async () => {

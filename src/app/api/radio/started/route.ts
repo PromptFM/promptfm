@@ -12,15 +12,16 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const channelSlug = (body.channel || req.nextUrl.searchParams.get('channel') || 'main').toLowerCase();
     const itemId = body.item_id || req.nextUrl.searchParams.get('item_id');
+    const title = body.title || req.nextUrl.searchParams.get('title');
 
-    if (!itemId) {
+    if (!itemId && !title) {
       return NextResponse.json(
-        { error: 'Missing required item_id parameter' },
+        { error: 'Missing required item_id or title parameter' },
         { status: 400 }
       );
     }
 
-    const startedItem = await markTrackStarted(channelSlug, itemId);
+    const startedItem = await markTrackStarted(channelSlug, itemId, title);
 
     return NextResponse.json({
       success: true,
@@ -38,16 +39,17 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const channelSlug = (req.nextUrl.searchParams.get('channel') || 'main').toLowerCase();
   const itemId = req.nextUrl.searchParams.get('item_id');
+  const title = req.nextUrl.searchParams.get('title');
 
-  if (!itemId) {
+  if (!itemId && !title) {
     return NextResponse.json(
-      { error: 'Missing required item_id parameter' },
+      { error: 'Missing required item_id or title parameter' },
       { status: 400 }
     );
   }
 
   try {
-    const startedItem = await markTrackStarted(channelSlug, itemId);
+    const startedItem = await markTrackStarted(channelSlug, itemId, title);
     return NextResponse.json({
       success: true,
       channel: channelSlug,
