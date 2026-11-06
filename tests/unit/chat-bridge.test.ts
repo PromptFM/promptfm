@@ -164,13 +164,21 @@ describe('Community Chat Bridge (Discord & Telegram)', () => {
       });
       expect(fetchMock.mock.calls[0]![0]).toBe('https://discord.com/api/webhooks/now_playing');
 
+      // Dedications also route to now_playing webhook
+      await sendDiscordNotification({
+        title: 'Dedication On Air',
+        message: 'Dedicated to friend',
+        category: 'dedication',
+      });
+      expect(fetchMock.mock.calls[1]![0]).toBe('https://discord.com/api/webhooks/now_playing');
+
       // News or announcements route to radio_feed webhook
       await sendDiscordNotification({
         title: 'Station News',
         message: 'Breaking tech drop',
         category: 'news',
       });
-      expect(fetchMock.mock.calls[1]![0]).toBe('https://discord.com/api/webhooks/radio_feed');
+      expect(fetchMock.mock.calls[2]![0]).toBe('https://discord.com/api/webhooks/radio_feed');
     });
 
     it('deduplicates repeated now_playing notifications for the same track sent within dedupe window', async () => {
