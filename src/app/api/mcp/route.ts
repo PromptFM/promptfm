@@ -29,6 +29,11 @@ import {
   getStreamStatus,
   type StreamPlatform,
 } from '@/lib/streaming/rtmp-controller';
+import {
+  getAllFeatureFlags,
+  setFeatureFlag,
+  type FeatureFlagCategory,
+} from '@/lib/flags/feature-flags';
 import type { ReportReason, ReportTargetType } from '@/types/database';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
@@ -204,6 +209,48 @@ const PUBLIC_MCP_TOOLS = [
 // ── Admin-Only MCP Tools ─────────────────────────────────────────────────────
 
 const ADMIN_MCP_TOOLS = [
+  {
+    name: 'promptfm_admin_list_feature_flags',
+    description:
+      'Lists all PromptFM runtime feature flags, status, categories, and emergency kill switches.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        category: {
+          type: 'string',
+          enum: ['streaming', 'ai_dj', 'community', 'moderation', 'monetization', 'system'],
+          description: 'Filter flags by functional domain category',
+        },
+        kill_switch_only: {
+          type: 'boolean',
+          description: 'Return only emergency kill switches',
+        },
+      },
+    },
+  },
+  {
+    name: 'promptfm_admin_set_feature_flag',
+    description:
+      'Enables, disables, or toggles a runtime feature flag or emergency kill switch with notes and actor attribution.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        key: {
+          type: 'string',
+          description: 'The identifier of the feature flag (e.g. "community_requests", "maintenance_mode", "ai_dj_speech")',
+        },
+        enabled: {
+          type: 'boolean',
+          description: 'Whether to enable (true) or disable (false) the feature flag',
+        },
+        notes: {
+          type: 'string',
+          description: 'Reason or context for changing this feature flag',
+        },
+      },
+      required: ['key', 'enabled'],
+    },
+  },
   {
     name: 'promptfm_admin_audit_reports',
     description:
@@ -891,6 +938,30 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
   }
 
   switch (name) {
+    case 'promptfm_admin_list_feature_flags': {
+      const category = args.category as FeatureFlagCategory | undefined;
+      const killSwitchOnly = Boolean(args.kill_switch_only);
+      const flags = getAllFeatureFlags({ category, killSwitchOnly });
+      return {
+        success: true,
+        flags,
+      };
+    }
+
+    case 'promptfm_admin_set_feature_flag': {
+      const { key, enabled, notes } = args as { key: string; enabled: boolean; notes?: string };
+      const updated = await setFeatureFlag({
+        key,
+        enabled,
+        actor: 'mcp_admin',
+        notes: notes || 'Updated via MCP admin tool',
+      });
+      return {
+        success: true,
+        flag: updated,
+      };
+    }
+
     case 'promptfm_admin_audit_reports': {
       const limit = typeof args.limit === 'number' ? args.limit : 100;
       const audit = await auditContentReports({ limit });

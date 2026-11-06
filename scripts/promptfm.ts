@@ -40,6 +40,13 @@ import {
   stopStream,
   type StreamPlatform,
 } from '../src/lib/streaming/rtmp-controller';
+import {
+  getAllFeatureFlags,
+  getFeatureFlag,
+  setFeatureFlag,
+  toggleFeatureFlag,
+  type FeatureFlagCategory,
+} from '../src/lib/flags/feature-flags';
 import { execSync } from 'child_process';
 import { readFileSync, writeFileSync, appendFileSync, existsSync } from 'fs';
 import { join, basename } from 'path';
@@ -108,6 +115,14 @@ Live Video Streaming (YouTube & TikTok):
   stream start tiktok <key> [url] Start 24/7 video broadcast to TikTok Live
   stream stop youtube     Stop YouTube live stream
   stream stop tiktok      Stop TikTok live stream
+
+Feature Flags & Emergency Kill Switches:
+  flags list [--cat <category>] List all feature flags, status & emergency kill switches
+  flags get <key>               Inspect feature flag status and audit history
+  flags enable <key> [--notes]  Enable a feature flag with optional audit reason
+  flags disable <key> [--notes] Disable a feature flag with optional audit reason
+  flags toggle <key> [--notes]  Toggle a feature flag on/off
+  flags kill <key> [--notes]    Emergency kill-switch: immediately disable a feature
 
 Moderation & Schedule:
   channels list           List radio broadcast channels, assigned DJs & guardrail policies
@@ -1120,6 +1135,88 @@ Moderation & Schedule:
 
       console.log('Admin subcommands: pending, approve <id>, reject <id>');
       break;
+    }
+
+    case 'flags':
+    case 'flag': {
+      const sub = args[1] || 'list';
+      const flagKey = args[2];
+      const notes = parseArg('--notes') || parseArg('-m');
+      const actor = parseArg('--actor') || 'cli_admin';
+      const categoryFilter = parseArg('--cat') || parseArg('--category');
+      const killSwitchOnly = args.includes('--kill-switch') || args.includes('--killswitch');
+
+      if (sub === 'list') {
+        const flags = getAllFeatureFlags({
+          category: categoryFilter as FeatureFlagCategory | undefined,
+          killSwitchOnly,
+        });
+
+        console.log(`\n🚩 PromptFM Runtime Feature Flags & Kill Switches (${flags.length}):`);
+        console.log('--------------------------------------------------------------------------------');
+        flags.forEach((f) => {
+          const statusIcon = f.enabled ? '🟢 ON ' : '🔴 OFF';
+          const killIcon = f.is_kill_switch ? '⚡ [KILL-SWITCH]' : '                ';
+          console.log(`${statusIcon} | ${killIcon} | ${f.key.padEnd(24)} | [${f.category.padEnd(12)}] | ${f.name}`);
+        });
+        console.log('--------------------------------------------------------------------------------');
+        console.log('Tip: toggle or kill a flag with: npm run promptfm flags [enable|disable|toggle|kill] <key>');
+        return;
+      }
+
+      if (!flagKey) {
+        console.error('❌ Error: Flag key required. Example: npm run promptfm flags enable community_requests');
+        return;
+      }
+
+      if (sub === 'get') {
+        const flag = getFeatureFlag(flagKey);
+        if (!flag) {
+          console.error(`❌ Feature flag "${flagKey}" not found.`);
+          return;
+        }
+        console.log(`\n🚩 Feature Flag: ${flag.name} (${flag.key})`);
+        console.log(`• Status:      ${flag.enabled ? '🟢 ENABLED' : '🔴 DISABLED'}`);
+        console.log(`• Category:    ${flag.category}`);
+        console.log(`• Kill Switch: ${flag.is_kill_switch ? 'YES ⚡' : 'NO'}`);
+        console.log(`• Description: ${flag.description}`);
+        console.log(`• Updated By:  ${flag.updated_by}`);
+        console.log(`• Updated At:  ${flag.updated_at}`);
+        if (flag.notes) console.log(`• Notes:       ${flag.notes}`);
+        return;
+      }
+
+      if (sub === 'enable') {
+        const updated = await setFeatureFlag({
+          key: flagKey,
+          enabled: true,
+          actor,
+          notes: notes || 'Enabled via station CLI',
+        });
+        console.log(`🟢 Feature flag "${updated.key}" (${updated.name}) is now ENABLED.`);
+        return;
+      }
+
+      if (sub === 'disable' || sub === 'kill') {
+        const updated = await setFeatureFlag({
+          key: flagKey,
+          enabled: false,
+          actor,
+          notes: notes || (sub === 'kill' ? 'Emergency kill switch triggered via CLI' : 'Disabled via station CLI'),
+        });
+        console.log(`🔴 Feature flag "${updated.key}" (${updated.name}) is now DISABLED.`);
+        return;
+      }
+
+      if (sub === 'toggle') {
+        const updated = await toggleFeatureFlag(flagKey, actor, notes || 'Toggled via station CLI');
+        const status = updated.enabled ? '🟢 ENABLED' : '🔴 DISABLED';
+        console.log(`🔄 Feature flag "${updated.key}" toggled to ${status}.`);
+        return;
+      }
+
+      console.log('Usage: npm run promptfm flags [list|get|enable|disable|toggle|kill] [key] [--notes "..."]');
+      return;
     }
 
     case 'report': {

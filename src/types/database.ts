@@ -133,3 +133,24 @@ export interface UploadUrlResponse {
   publicUrl: string;
   key: string;
 }
+
+export type FeatureFlagCategory =
+  | 'streaming'
+  | 'ai_dj'
+  | 'community'
+  | 'moderation'
+  | 'monetization'
+  | 'system';
+
+export interface FeatureFlag {
+  key: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  category: FeatureFlagCategory;
+  is_kill_switch: boolean;
+  updated_at: string;
+  updated_by: string;
+  notes?: string | null;
+}
+

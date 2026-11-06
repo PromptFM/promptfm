@@ -105,6 +105,8 @@ Every administrative capability is designed with **100% feature parity** across 
 | **Start YouTube Live Broadcast** | Click "Start YouTube Live" | `stream start youtube <key>` | `promptfm_admin_start_stream` (`platform: 'youtube'`) |
 | **Start TikTok Live Broadcast** | Click "Start TikTok Live" | `stream start tiktok <key> [url]` | `promptfm_admin_start_stream` (`platform: 'tiktok'`) |
 | **Stop Live Video Broadcast** | Click "Stop Stream" | `stream stop <platform>` | `promptfm_admin_stop_stream` |
+| **List Runtime Feature Flags** | Feature Flags Tab | `flags list [--cat <cat>]` | `promptfm_admin_list_feature_flags` |
+| **Emergency Kill Switch / Flag Toggle** | Toggle Switch / Kill Button | `flags [enable\|disable\|toggle\|kill] <key>` | `promptfm_admin_set_feature_flag` |
 
 ---
 
@@ -179,6 +181,17 @@ The PromptFM CLI is a standalone station management suite located in `scripts/pr
 | `bot discord test [webhookUrl]` | Dispatches an on-air rich embed test card to the Discord channel webhook. | `npm run promptfm -- bot discord test https://discord.com/api/webhooks/...` |
 | `bot discord post-guide [webhookUrl]` | Broadcasts the Listener Command & Airplay Schedule Guide embed to Discord. | `npm run promptfm -- bot discord post-guide https://discord.com/api/webhooks/...` |
 
+#### 7. Feature Flags & Emergency Kill Switches
+| Command | Description | Example |
+| :--- | :--- | :--- |
+| `flags list` | Lists all runtime feature flags, status, categories & emergency kill-switches. | `npm run promptfm -- flags list` |
+| `flags list --cat <category>` | Filters feature flags by domain category (`system`, `streaming`, `community`, `ai_dj`, `monetization`, `moderation`). | `npm run promptfm -- flags list --cat community` |
+| `flags get <key>` | Inspects flag status, actor attribution, and audit notes. | `npm run promptfm -- flags get community_requests` |
+| `flags enable <key> [--notes]` | Enables a feature flag with optional audit note. | `npm run promptfm -- flags enable ai_dj_speech --notes "Rate limits resolved"` |
+| `flags disable <key> [--notes]` | Disables a feature flag with optional audit note. | `npm run promptfm -- flags disable community_requests --notes "Incident #48 peak traffic"` |
+| `flags toggle <key> [--notes]` | Inverts a feature flag boolean state. | `npm run promptfm -- flags toggle sponsor_ads` |
+| `flags kill <key> [--notes]` | **Emergency kill-switch:** Immediately shuts off a feature and notifies community channels. | `npm run promptfm -- flags kill maintenance_mode --notes "Database maintenance in progress"` |
+
 ---
 
 ### B. Web Studio Admin Console (`/admin`)
@@ -228,6 +241,8 @@ AI agents can manage the station autonomously by connecting to the MCP endpoint 
 | `promptfm_admin_air_request` | Forces immediate synthesis and airplay for a dedication. | `request_id` |
 | `promptfm_admin_inject_interstitial` | Injects an on-air voice drop or weather update. | `type`, `prompt?`, `city?` |
 | `promptfm_admin_inject_ad` | Injects a sponsor commercial or ad read. | `sponsor?`, `copy?` |
+| `promptfm_admin_list_feature_flags` | Lists runtime feature flags, status, categories & emergency kill-switches. | `category?`, `kill_switch_only?` |
+| `promptfm_admin_set_feature_flag` | Enables, disables, or toggles runtime feature flags and kill switches. | `key`, `enabled`, `notes?` |
 
 ---
 
@@ -235,6 +250,7 @@ AI agents can manage the station autonomously by connecting to the MCP endpoint 
 
 #### Public Endpoints
 - `GET /api/radio/now`: Returns current on-air track, upcoming items, active DJ, and listener count.
+- `GET /api/flags`: Returns public runtime dictionary of enabled feature flags for client player hydration.
 - `POST /api/report`: Ingests community content reports from Web/Bots.
 - `POST /api/bot/webhook`: Handles inbound Telegram bot webhooks and slash commands.
 - `POST /api/mcp`: Dual-tier Model Context Protocol JSON-RPC 2.0 handler.
@@ -243,6 +259,9 @@ AI agents can manage the station autonomously by connecting to the MCP endpoint 
 #### Station Administration Endpoints (`ADMIN_API_KEY` Required)
 All `/api/admin/*` endpoints require authentication when `ADMIN_API_KEY` is configured via `Authorization: Bearer <ADMIN_API_KEY>`, `x-admin-key: <ADMIN_API_KEY>`, or query parameter `?key=<ADMIN_API_KEY>`:
 
+- `GET /api/admin/flags`: Lists all runtime feature flags and emergency kill-switches (supports `?category=<cat>`, `?killSwitchOnly=true`).
+- `POST /api/admin/flags`: Updates a feature flag state (`{ key, enabled, notes?, actor? }`).
+- `PATCH /api/admin/flags`: Toggles a feature flag boolean state (`{ key, notes?, actor? }`).
 - `GET /api/admin/reports`: Lists recent content moderation reports (supports `?limit=N`, default 30; supports `?audit=true` for audit summary).
 - `GET /api/admin/reports/audit`: Returns security and moderation audit summary, detecting status changes made during unauthenticated windows.
 - `POST /api/admin/reports`: Actions or dismisses a moderation report (`{ reportId, action: 'actioned' | 'dismissed', notes?, actor? }`).
