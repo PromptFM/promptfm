@@ -160,6 +160,7 @@ CREATE TABLE IF NOT EXISTS public.channels (
   name         TEXT        NOT NULL,
   description  TEXT,
   is_private   BOOLEAN     NOT NULL DEFAULT false,
+  is_active    BOOLEAN     NOT NULL DEFAULT true,
   invite_token TEXT,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
