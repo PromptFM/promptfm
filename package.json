@@ -15,7 +15,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:changed": "vitest --changed origin/main",
+    "test:related": "vitest related",
     "test:mutate": "stryker run",
+    "test:mutate:affected": "jiti scripts/mutate-affected.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },
