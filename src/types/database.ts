@@ -101,6 +101,9 @@ export interface ContentReport {
   reporter_id?: string | null;
   status: ReportStatus;
   created_at: string;
+  resolved_by?: string | null;
+  resolved_at?: string | null;
+  notes?: string | null;
 }
 
 export interface DatabaseChannel {

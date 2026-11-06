@@ -35,6 +35,8 @@ describe('Station Admin Reports API (/api/admin/reports)', () => {
       success: true,
       reportId: 'rep_123',
       status: 'actioned',
+      resolved_by: 'system_admin',
+      resolved_at: '2026-11-06T23:00:00.000Z',
     });
   });
 
@@ -272,6 +274,8 @@ describe('Station Admin Reports API (/api/admin/reports)', () => {
         reportId: 'rep-500',
         status: 'actioned',
         notes: 'Track removed for DMCA',
+        resolved_by: 'system_admin',
+        resolved_at: '2026-11-06T23:00:00.000Z',
       };
       vi.mocked(resolveContentReport).mockResolvedValue(mockResult);
 
@@ -305,6 +309,8 @@ describe('Station Admin Reports API (/api/admin/reports)', () => {
         reportId: 'rep-501',
         status: 'dismissed',
         notes: undefined,
+        resolved_by: 'system_admin',
+        resolved_at: '2026-11-06T23:00:00.000Z',
       };
       vi.mocked(resolveContentReport).mockResolvedValue(mockResult);
 
@@ -328,6 +334,8 @@ describe('Station Admin Reports API (/api/admin/reports)', () => {
         success: true,
         reportId: 'rep-dev',
         status: 'dismissed',
+        resolved_by: 'system_admin',
+        resolved_at: '2026-11-06T23:00:00.000Z',
       });
 
       const req = new NextRequest('http://localhost:3000/api/admin/reports', {

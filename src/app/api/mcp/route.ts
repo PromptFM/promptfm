@@ -13,7 +13,12 @@ import { createBroadcastDrop } from '@/lib/dj/engine';
 import { fetchLiveWeatherSummary, getNowPlaying, getUpNext } from '@/lib/dj/rotation';
 import { getAllDJs, getActiveDJ, getDJById, getAdsConfig, getActiveAdSpot } from '@/lib/dj/roster';
 import { rejectScheduledRequest, synthesizeScheduledRequest } from '@/lib/dj/batches';
-import { submitContentReport, getRecentReports, resolveContentReport } from '@/lib/safety/reports';
+import {
+  submitContentReport,
+  getRecentReports,
+  resolveContentReport,
+  auditContentReports,
+} from '@/lib/safety/reports';
 import { autoGenerateChannelGuardrails } from '@/lib/safety/channel-guardrails';
 import { getAllChannels } from '@/lib/radio/channels';
 import { findTracksByVibe, indexTrackEmbedding } from '@/lib/dj/rag';
@@ -200,6 +205,17 @@ const PUBLIC_MCP_TOOLS = [
 
 const ADMIN_MCP_TOOLS = [
   {
+    name: 'promptfm_admin_audit_reports',
+    description:
+      'Audits community content reports to identify unattributed status changes, potential tampering from unauthenticated windows, or dismissed DMCA/harassment reports.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        limit: { type: 'number', description: 'Max number of reports to audit (default: 100)' },
+      },
+    },
+  },
+  {
     name: 'promptfm_admin_list_reports',
     description: 'Lists all filed safety, copyright, and ethics reports currently awaiting moderation action.',
     inputSchema: {
@@ -349,6 +365,10 @@ const ADMIN_MCP_TOOLS = [
         notes: {
           type: 'string',
           description: 'Optional admin notes explaining the moderation decision',
+        },
+        actor: {
+          type: 'string',
+          description: 'Admin or operator identifier taking moderation action (default: "mcp_admin")',
         },
       },
       required: ['report_id', 'action'],
@@ -871,6 +891,15 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
   }
 
   switch (name) {
+    case 'promptfm_admin_audit_reports': {
+      const limit = typeof args.limit === 'number' ? args.limit : 100;
+      const audit = await auditContentReports({ limit });
+      return {
+        success: true,
+        audit,
+      };
+    }
+
     case 'promptfm_admin_list_reports': {
       const limit = typeof args.limit === 'number' ? Math.min(args.limit, 50) : 20;
       const reports = await getRecentReports(limit);
@@ -1106,16 +1135,19 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
       const reportId = args.report_id as string;
       const action = args.action as 'actioned' | 'dismissed';
       const notes = args.notes as string | undefined;
+      const actor = (args.actor as string | undefined) || 'mcp_admin';
 
       if (!reportId || !action) throw new Error('Missing report_id or action');
 
-      const result = await resolveContentReport(reportId, action, notes);
+      const result = await resolveContentReport(reportId, action, notes, actor);
       return {
         success: true,
         report_id: result.reportId,
         action: result.status,
         notes: result.notes,
-        message: `Report ${reportId} marked as ${action}.`,
+        resolved_by: result.resolved_by,
+        resolved_at: result.resolved_at,
+        message: `Report ${reportId} marked as ${action} by ${result.resolved_by}.`,
       };
     }
 
