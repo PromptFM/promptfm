@@ -121,6 +121,15 @@ describe('Station 24/7 Schedule Service', () => {
     expect(slugs).toContain('chillout');
   });
 
+  it('supports publicOnly option in getAllChannelsSchedule', () => {
+    const publicOnly = getAllChannelsSchedule(new Date(), { publicOnly: true });
+    expect(publicOnly).toHaveLength(1);
+    expect(publicOnly[0]?.channel.slug).toBe('main');
+
+    const all = getAllChannelsSchedule(new Date(), { publicOnly: false });
+    expect(all.length).toBeGreaterThanOrEqual(4);
+  });
+
   it('getScheduleBlockForHour matches correctly wrapping midnight', () => {
     // 02:00 UTC wraps across 20:00 - 06:00
     const block = getScheduleBlockForHour(2, 'main');

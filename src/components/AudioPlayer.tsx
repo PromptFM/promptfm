@@ -39,6 +39,8 @@ import {
   RadioChannel,
   DEFAULT_CHANNEL_SLUG,
   getChannelBySlug,
+  getPublicChannels,
+  getPublicChannelBySlug,
   getStreamUrlForChannel,
   isValidChannelSlug,
 } from '@/lib/radio/channels';
@@ -125,7 +127,8 @@ export default function AudioPlayer() {
     autoPlay: boolean;
   } | null>(null);
 
-  const currentChannel = getChannelBySlug(currentChannelSlug);
+  const publicChannels = getPublicChannels();
+  const currentChannel = getPublicChannelBySlug(currentChannelSlug);
 
   // Fetch Now Playing info for a given channel
   const fetchNowPlaying = useCallback(async (slug?: string) => {
@@ -310,9 +313,9 @@ export default function AudioPlayer() {
         const urlParams = new URLSearchParams(window.location.search);
         const urlChannel = urlParams.get('channel');
         const storedChannel = localStorage.getItem('promptfm_channel');
-        if (urlChannel && isValidChannelSlug(urlChannel)) {
+        if (urlChannel && isValidChannelSlug(urlChannel, { publicOnly: true })) {
           initialSlug = urlChannel;
-        } else if (storedChannel && isValidChannelSlug(storedChannel)) {
+        } else if (storedChannel && isValidChannelSlug(storedChannel, { publicOnly: true })) {
           initialSlug = storedChannel;
         }
       } catch {
@@ -457,7 +460,7 @@ export default function AudioPlayer() {
           />
         </div>
         {/* Channel Switcher Popover Menu */}
-        {showChannelMenu && (
+        {showChannelMenu && publicChannels.length > 1 && (
           <div className="absolute bottom-full left-3 sm:left-6 mb-2 w-[calc(100vw-24px)] sm:w-80 bg-zinc-900 border border-zinc-700/80 rounded-2xl p-3 shadow-2xl z-50 animate-in fade-in slide-in-from-bottom-2 space-y-2">
             <div className="flex items-center justify-between px-1 text-xs font-bold text-zinc-300 border-b border-zinc-800 pb-2">
               <span className="flex items-center gap-1.5 text-emerald-400">
@@ -474,7 +477,7 @@ export default function AudioPlayer() {
             </div>
 
             <div className="space-y-1.5">
-              {OFFICIAL_CHANNELS.map((ch) => {
+              {publicChannels.map((ch) => {
                 const isSelected = ch.slug === currentChannelSlug;
                 const isChannelDisabled = ch.isActive === false;
                 return (
@@ -711,21 +714,31 @@ export default function AudioPlayer() {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 sm:gap-2">
               {/* Channel Selector Button */}
-              <button
-                type="button"
-                onClick={() => setShowChannelMenu((prev) => !prev)}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-zinc-800 hover:bg-zinc-750 text-emerald-400 border border-emerald-500/30 hover:border-emerald-500/60 transition-colors flex-shrink-0"
-                title="Switch radio channel"
-                aria-label={`Current channel: ${currentChannel.shortName}. Click to change channel`}
-              >
-                {getStationIcon(currentChannel.slug)}
-                <span className="hidden xs:inline">{currentChannel.shortName}</span>
-                <ChevronUp
-                  className={`w-3 h-3 text-emerald-400 transition-transform ${
-                    showChannelMenu ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
+              {publicChannels.length > 1 ? (
+                <button
+                  type="button"
+                  onClick={() => setShowChannelMenu((prev) => !prev)}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-zinc-800 hover:bg-zinc-750 text-emerald-400 border border-emerald-500/30 hover:border-emerald-500/60 transition-colors flex-shrink-0"
+                  title="Switch radio channel"
+                  aria-label={`Current channel: ${currentChannel.shortName}. Click to change channel`}
+                >
+                  {getStationIcon(currentChannel.slug)}
+                  <span className="hidden xs:inline">{currentChannel.shortName}</span>
+                  <ChevronUp
+                    className={`w-3 h-3 text-emerald-400 transition-transform ${
+                      showChannelMenu ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+              ) : (
+                <div
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-zinc-800 text-emerald-400 border border-emerald-500/30 flex-shrink-0"
+                  title="PromptFM Main Stage"
+                >
+                  {getStationIcon(currentChannel.slug)}
+                  <span className="hidden xs:inline">{currentChannel.shortName}</span>
+                </div>
+              )}
 
               <div className="flex items-center gap-1 min-w-0">
                 <span className="text-white font-semibold text-xs sm:text-sm truncate max-w-[110px] xs:max-w-[160px] sm:max-w-xs md:max-w-sm">

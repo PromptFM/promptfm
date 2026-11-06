@@ -3,7 +3,7 @@
 // Generates full 24-hour daily programming blocks, active live show resolution,
 // DJ rosters, hourly clock wheel milestones, and timezone conversions.
 
-import { OFFICIAL_CHANNELS, RadioChannel } from './channels';
+import { OFFICIAL_CHANNELS, RadioChannel, getPublicChannels, getAllChannels } from './channels';
 import { getAllDJs, getDJById, DJProfile } from '../dj/roster';
 
 export interface ClockMilestone {
@@ -380,9 +380,14 @@ export function getStationSchedule(channelSlug = 'main', referenceDate = new Dat
 }
 
 /**
- * Returns daily broadcast schedule for all official channels.
+ * Returns daily broadcast schedule for official channels.
+ * Defaults to public channels only to avoid advertising un-schedulable stages.
  */
-export function getAllChannelsSchedule(referenceDate = new Date()): StationSchedule[] {
-  return OFFICIAL_CHANNELS.map((ch) => getStationSchedule(ch.slug, referenceDate));
+export function getAllChannelsSchedule(
+  referenceDate = new Date(),
+  options: { publicOnly?: boolean } = {}
+): StationSchedule[] {
+  const channels = options.publicOnly ? getPublicChannels() : getAllChannels();
+  return channels.map((ch) => getStationSchedule(ch.slug, referenceDate));
 }
 

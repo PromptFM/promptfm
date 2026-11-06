@@ -6,7 +6,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Radio, Zap, Moon, Gamepad2, Play, Volume2, ShieldCheck, Flame } from 'lucide-react';
-import { OFFICIAL_CHANNELS, RadioChannel } from '@/lib/radio/channels';
+import { getPublicChannels, RadioChannel } from '@/lib/radio/channels';
 
 interface ChannelsGridProps {
   className?: string;
@@ -148,6 +148,8 @@ export default function ChannelsGrid({ className = '' }: ChannelsGridProps) {
     }
   };
 
+  const publicChannels = getPublicChannels();
+
   return (
     <section id="channels" className={`w-full max-w-6xl mx-auto px-4 ${className}`}>
       {/* Header */}
@@ -155,21 +157,26 @@ export default function ChannelsGrid({ className = '' }: ChannelsGridProps) {
         <div>
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mb-2">
             <Radio className="w-3.5 h-3.5 animate-pulse" />
-            <span>5 LIVE THEME CHANNELS</span>
+            <span>
+              {publicChannels.length > 1
+                ? `${publicChannels.length} LIVE THEME CHANNELS`
+                : 'LIVE BROADCAST STAGE'}
+            </span>
           </div>
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-            Choose Your Radio Station
+            {publicChannels.length > 1 ? 'Choose Your Radio Station' : 'PromptFM Main Broadcast'}
           </h2>
           <p className="text-sm text-zinc-400 mt-1 max-w-2xl">
-            Stream 24/7 distinct AI-generated music genres curated live by our roster of AI DJs.
-            Switch with 1 click to update your live broadcast feed.
+            {publicChannels.length > 1
+              ? 'Stream 24/7 distinct AI-generated music genres curated live by our roster of AI DJs. Switch with 1 click to update your live broadcast feed.'
+              : 'Stream 24/7 continuous AI-generated music curated live by AI DJs on the PromptFM main stage.'}
           </p>
         </div>
       </div>
 
       {/* Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-5">
-        {OFFICIAL_CHANNELS.map((channel) => {
+      <div className={`grid grid-cols-1 ${publicChannels.length > 1 ? 'sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5' : 'max-w-md mx-auto sm:mx-0'} gap-4 sm:gap-5`}>
+        {publicChannels.map((channel) => {
           const isActive = activeChannelSlug === channel.slug;
           const isCurrentChannelPlaying = isActive && isPlayerPlaying;
 
