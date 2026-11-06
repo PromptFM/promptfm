@@ -24,7 +24,6 @@ import {
 } from 'lucide-react';
 import AuthButton from '@/components/AuthButton';
 import { getCommunityLinks } from '@/lib/community/links';
-import { getPublicChannels } from '@/lib/radio/channels';
 
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -102,7 +101,7 @@ export default function Navbar() {
             href="/#channels"
             className="text-zinc-300 hover:text-white px-3 py-1.5 rounded-lg hover:bg-zinc-900/60 transition-colors"
           >
-            {getPublicChannels().length > 1 ? 'Channels' : 'Main Stage'}
+            Channels
           </Link>
 
           <Link
@@ -302,7 +301,7 @@ export default function Navbar() {
                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-zinc-200 hover:text-emerald-400 hover:bg-zinc-800/60 transition-colors text-sm font-medium"
               >
                 <Radio className="w-4 h-4 text-emerald-400" />
-                <span>{getPublicChannels().length > 1 ? 'Broadcast Channels' : 'Main Stage'}</span>
+                <span>Broadcast Channels</span>
               </Link>
               <Link
                 href="/schedule"
