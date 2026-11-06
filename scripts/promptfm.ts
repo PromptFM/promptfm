@@ -34,6 +34,12 @@ import type { ReportReason } from '../src/types/database';
 import { extractMetadataFromBuffer, DEFAULT_TRACK_ICON } from '../src/lib/audio/metadata';
 import { getR2Client, getBucketName, getPublicUrl } from '../src/lib/r2';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
+import {
+  getStreamStatus,
+  startStream,
+  stopStream,
+  type StreamPlatform,
+} from '../src/lib/streaming/rtmp-controller';
 import { execSync } from 'child_process';
 import { readFileSync, writeFileSync, appendFileSync, existsSync } from 'fs';
 import { join, basename } from 'path';
@@ -95,6 +101,13 @@ Bots & Community Integrations:
   bot discord setup [appId] [botTok] Register Discord slash commands & shorthands with Discord API
   bot discord test [url]   Send test embed to Discord channel webhook
   bot discord post-guide [url] Post Listener Commands & Schedule Guide embed to Discord
+
+Live Video Streaming (YouTube & TikTok):
+  stream status           View live RTMP status of YouTube and TikTok broadcasts
+  stream start youtube <key> Start 24/7 video broadcast to YouTube Live
+  stream start tiktok <key> [url] Start 24/7 video broadcast to TikTok Live
+  stream stop youtube     Stop YouTube live stream
+  stream stop tiktok      Stop TikTok live stream
 
 Moderation & Schedule:
   channels list           List radio broadcast channels, assigned DJs & guardrail policies
@@ -1502,6 +1515,84 @@ Moderation & Schedule:
       console.log('  npm run promptfm -- bot discord setup [appId] [botToken]');
       console.log('  npm run promptfm -- bot discord test [webhookUrl]');
       console.log('  npm run promptfm -- bot discord post-guide [webhookUrl]');
+      break;
+    }
+
+    case 'stream': {
+      const action = args[1]?.toLowerCase();
+      if (!action || action === 'status') {
+        console.log('\n📡 Checking live RTMP streaming status...');
+        try {
+          const status = await getStreamStatus();
+          console.log('\n--- Active Live Stream Sessions ---');
+          for (const [platform, session] of Object.entries(status.sessions)) {
+            const isLive = session.status === 'live';
+            const icon = isLive ? '🟢 LIVE' : '⚪ STOPPED';
+            console.log(`  [${platform.toUpperCase()}] ${icon}`);
+            if (session.startedAt) console.log(`    Started: ${session.startedAt}`);
+            if (session.pid) console.log(`    PID:     ${session.pid}`);
+            if (session.error) console.log(`    Error:   ${session.error}`);
+          }
+          console.log(`\n  Controller Version: ${status.controllerVersion}`);
+          console.log(`  Icecast Source:     ${status.icecastUrl}\n`);
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`❌ Failed to retrieve stream status: ${msg}`);
+        }
+        break;
+      }
+
+      if (action === 'start') {
+        const platform = args[2]?.toLowerCase() as StreamPlatform;
+        const streamKey = args[3];
+        const rtmpUrl = args[4];
+
+        if (!platform || (platform !== 'youtube' && platform !== 'tiktok')) {
+          console.error('Error: specify platform ("youtube" or "tiktok").');
+          console.log('Usage: npm run promptfm -- stream start youtube <streamKey>');
+          console.log('       npm run promptfm -- stream start tiktok <streamKey> [rtmpUrl]');
+          process.exit(1);
+        }
+
+        if (!streamKey) {
+          console.error('Error: stream key is required.');
+          process.exit(1);
+        }
+
+        console.log(`🚀 Starting ${platform.toUpperCase()} live stream...`);
+        const res = await startStream({ platform, streamKey, rtmpUrl });
+        if (res.success) {
+          console.log(`✅ ${platform.toUpperCase()} stream started successfully!`);
+          if (res.session?.startedAt) console.log(`   Started at: ${res.session.startedAt}`);
+          if (res.session?.pid) console.log(`   Process PID: ${res.session.pid}`);
+        } else {
+          console.error(`❌ Failed to start stream: ${res.error || 'Unknown error'}`);
+          process.exit(1);
+        }
+        break;
+      }
+
+      if (action === 'stop') {
+        const platform = args[2]?.toLowerCase() as StreamPlatform;
+        if (!platform || (platform !== 'youtube' && platform !== 'tiktok')) {
+          console.error('Error: specify platform ("youtube" or "tiktok").');
+          console.log('Usage: npm run promptfm -- stream stop youtube');
+          console.log('       npm run promptfm -- stream stop tiktok');
+          process.exit(1);
+        }
+
+        console.log(`🛑 Stopping ${platform.toUpperCase()} live stream...`);
+        const res = await stopStream(platform);
+        if (res.success) {
+          console.log(`✅ ${platform.toUpperCase()} stream stopped.`);
+        } else {
+          console.error(`❌ Failed to stop stream: ${res.error || 'Unknown error'}`);
+          process.exit(1);
+        }
+        break;
+      }
+
+      console.error(`Unknown stream subcommand: "${action}". Valid subcommands: status, start, stop.`);
       break;
     }
 

@@ -16,11 +16,7 @@ def on_airplay_start(meta) =
   print(">>> [AIRPLAY TRANSITION] #{title} by #{artist} (ID: #{item_id})")
   if item_id != "" then
     try
-      ignore(http.post(
-        data="{\"channel\":\"main\",\"item_id\":\"" ^ item_id ^ "\"}",
-        headers=[("Content-Type", "application/json")],
-        "https://promptfm.live/api/radio/started"
-      ))
+      ignore(http.get("https://promptfm.live/api/radio/started?channel=main&item_id=" ^ item_id))
     catch _ do
       ()
     end
@@ -29,7 +25,6 @@ end
 
 # 2. Fallback ambient audio loop in case of API or network disconnect
 emergency_fallback = mksafe(single("annotate:title=\"PromptFM Ambient AI Anthem\",artist=\"PromptFM Core\",promptfm_id=\"demo-fallback\":/etc/liquidsoap/fallback.mp3"))
-emergency_fallback = source.on_track(emergency_fallback, on_airplay_start)
 
 # 3. Dynamic track fetcher from PromptFM API with annotate metadata
 def get_next_promptfm_track() =
@@ -47,15 +42,15 @@ def get_next_promptfm_track() =
   request.create(target)
 end
 
-# Request dynamic stream with per-track start listener
+# Request dynamic stream with crossfade
 dynamic_stream = request.dynamic(get_next_promptfm_track)
-dynamic_stream = source.on_track(dynamic_stream, on_airplay_start)
 
 # 4. Crossfade between tracks (1.5s smooth transition)
 stream = crossfade(duration=1.5, dynamic_stream)
 
-# Fallback safely if dynamic stream fails
+# Fallback safely if dynamic stream fails, and attach on_track to final on-air broadcast
 radio = fallback(track_sensitive=false, [stream, emergency_fallback])
+radio = source.on_track(radio, on_airplay_start)
 
 # 5. Stream to Icecast
 output.icecast(

@@ -1,7 +1,7 @@
 // tests/integration/stream-control-api.test.ts
 // Integration tests for POST/GET /api/admin/stream — RTMP stream start/stop/status control.
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET, POST } from '@/app/api/admin/stream/route';
 

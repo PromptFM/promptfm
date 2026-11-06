@@ -36,3 +36,21 @@ services:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
     command: tunnel --no-autoupdate run
 
+  # 4. RTMP Stream Controller & FFmpeg Bridge (YouTube / TikTok)
+  rtmp-controller:
+    image: node:22-alpine
+    container_name: promptfm-rtmp-controller
+    restart: unless-stopped
+    depends_on:
+      - icecast
+    ports:
+      - "3001:3001"
+    environment:
+      - STREAM_CONTROLLER_SECRET=${STREAM_CONTROLLER_SECRET:-promptfm_secret_2026}
+      - ICECAST_STREAM_URL=http://icecast:8000/stream.mp3
+    volumes:
+      - ./controller.js:/app/controller.js:ro
+      - ./overlay.jpg:/app/overlay.jpg:ro
+    working_dir: /app
+    command: ["sh", "-c", "apk add --no-cache ffmpeg bash && node controller.js"]
+

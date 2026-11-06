@@ -94,6 +94,38 @@ export function updateCurrentAirplayUpvotes(trackId: string, count: number): voi
 }
 
 /**
+ * Queries Icecast's status-json.xsl for the live on-air stream title.
+ * Used to verify and reconcile what listeners are actively hearing on Icecast.
+ */
+export async function getIcecastLiveTitle(): Promise<{ title: string; artist?: string } | null> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1200);
+    const res = await fetch('https://stream.promptfm.live/status-json.xsl', {
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const source = json?.icestats?.source;
+    if (!source) return null;
+    const mount = Array.isArray(source) ? source[0] : source;
+    const rawTitle = mount?.title;
+    if (!rawTitle || typeof rawTitle !== 'string') return null;
+    if (rawTitle.includes(' - ')) {
+      const parts = rawTitle.split(' - ');
+      const artist = parts[0]?.trim();
+      const title = parts.slice(1).join(' - ').trim();
+      return { title, artist };
+    }
+    return { title: rawTitle.trim() };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Returns the currently active audio item, active DJ, and elapsed seconds.
  * Queries Supabase database if in-memory state is empty.
  */
@@ -181,6 +213,57 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
       }
     } catch {
       // Fallback gracefully on DB failure
+    }
+  }
+
+  // Live Icecast On-Air Stream Reconciliation for Main Stage
+  if (channelSlug === 'main' && item) {
+    try {
+      const icecastLive = await getIcecastLiveTitle();
+      if (
+        icecastLive?.title &&
+        icecastLive.title.toLowerCase() !== item.title.toLowerCase() &&
+        icecastLive.title !== 'PromptFM Ambient AI Anthem'
+      ) {
+        const supabase = createAdminClient();
+        const { data: matchedTrack } = await supabase
+          .from('tracks')
+          .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, description, lyrics')
+          .ilike('title', icecastLive.title)
+          .maybeSingle();
+
+        if (matchedTrack) {
+          item = {
+            id: matchedTrack.id,
+            type: 'music',
+            title: matchedTrack.title,
+            artist: matchedTrack.artist_name,
+            audio_url: matchedTrack.audio_url,
+            cover_art_url: (matchedTrack as unknown as { cover_art_url?: string }).cover_art_url || '/logo-mark.png',
+            category: (matchedTrack as unknown as { category?: string }).category,
+            description: (matchedTrack as unknown as { description?: string }).description,
+            lyrics: (matchedTrack as unknown as { lyrics?: string }).lyrics,
+            tool_used: matchedTrack.tool_used,
+            upvotes_count: matchedTrack.upvotes_count,
+            dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
+          };
+          channelAirplayItems.set('main', item);
+          currentAirplayItem = item;
+          try {
+            await supabase
+              .from('station_state')
+              .upsert({
+                channel_slug: 'main',
+                airplay_item: item,
+                updated_at: new Date().toISOString(),
+              });
+          } catch {
+            // Ignore persistence fallback
+          }
+        }
+      }
+    } catch {
+      // Graceful fallback on Icecast network error
     }
   }
 
