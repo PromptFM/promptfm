@@ -12,6 +12,7 @@ import {
   getConfiguredWeatherRegions,
   fetchLiveWeatherSummary,
   getNextAirplayItem,
+  resetAirplayDedupeCache,
 } from '@/lib/dj/rotation';
 
 // Mock Supabase admin client
@@ -98,6 +99,7 @@ describe('On-Air Track Synchronization & Rotation Watchdog', () => {
     vi.clearAllMocks();
     mockBroadcast.mockClear();
     mockState.customSingle = null;
+    resetAirplayDedupeCache();
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 503,
@@ -614,15 +616,28 @@ describe('On-Air Track Synchronization & Rotation Watchdog', () => {
 
   describe('Community Airplay Broadcast Notifications', () => {
     it('notifies community with now_playing for music track', async () => {
+      resetAirplayDedupeCache();
       mockBroadcast.mockClear();
 
-      await markTrackStarted('main', 'song-draga-123');
+      mockState.customSingle = {
+        data: {
+          id: 'song-unique-broadcast-1',
+          title: 'Haina-mi este cea mai draga',
+          artist_name: 'alextrifan',
+          audio_url: 'https://cdn.example.com/haina.mp3',
+          status: 'approved',
+          upvotes_count: 33,
+          duration_hint_seconds: 220,
+        },
+      };
+
+      await markTrackStarted('main', 'song-unique-broadcast-1');
 
       await vi.waitFor(() => {
         expect(mockBroadcast).toHaveBeenCalledWith(
           expect.objectContaining({
             category: 'now_playing',
-            trackId: 'song-draga-123',
+            trackId: 'song-unique-broadcast-1',
           })
         );
       });
