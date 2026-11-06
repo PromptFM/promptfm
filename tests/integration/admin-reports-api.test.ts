@@ -20,16 +20,30 @@ describe('Station Admin Reports API (/api/admin/reports)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.ADMIN_API_KEY = TEST_ADMIN_KEY;
-    vi.mocked(getRecentReports).mockResolvedValue([]);
+    vi.mocked(getRecentReports).mockResolvedValue([
+      {
+        id: 'rep_1',
+        target_type: 'track',
+        target_id: 'track-101',
+        reason: 'hate_harassment',
+        reporter_platform: 'web',
+        status: 'pending',
+        created_at: new Date().toISOString(),
+      },
+    ]);
     vi.mocked(resolveContentReport).mockResolvedValue({
       success: true,
-      reportId: 'rep-mock',
+      reportId: 'rep_123',
       status: 'actioned',
     });
   });
 
   afterEach(() => {
-    process.env.ADMIN_API_KEY = originalEnv;
+    if (originalEnv !== undefined) {
+      process.env.ADMIN_API_KEY = originalEnv;
+    } else {
+      delete process.env.ADMIN_API_KEY;
+    }
   });
 
   it('exports force-dynamic configuration for Next.js runtime', () => {
@@ -174,6 +188,8 @@ describe('Station Admin Reports API (/api/admin/reports)', () => {
 
       const res = await GET(req);
       expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.success).toBe(true);
     });
 
     it('allows access in local development when ADMIN_API_KEY is not set', async () => {

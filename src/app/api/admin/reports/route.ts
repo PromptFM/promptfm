@@ -3,26 +3,12 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getRecentReports, resolveContentReport } from '@/lib/safety/reports';
+import { isAdminAuthorized } from '@/lib/auth/admin-auth';
 
 export const dynamic = 'force-dynamic';
 
-function isAuthorized(req: NextRequest): boolean {
-  const adminKey = process.env.ADMIN_API_KEY;
-  if (!adminKey) return true; // Default allow in local dev when unconfigured
-
-  const authHeader = req.headers.get('authorization');
-  const xAdminKey = req.headers.get('x-admin-key');
-  const queryKey = req.nextUrl.searchParams.get('key');
-
-  return (
-    authHeader === `Bearer ${adminKey}` ||
-    xAdminKey === adminKey ||
-    queryKey === adminKey
-  );
-}
-
 export async function GET(req: NextRequest) {
-  if (!isAuthorized(req)) {
+  if (!isAdminAuthorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -36,8 +22,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
 export async function POST(req: NextRequest) {
-  if (!isAuthorized(req)) {
+  if (!isAdminAuthorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -56,4 +43,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-
