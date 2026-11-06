@@ -26,6 +26,9 @@ export interface AirplayItem {
   transcript?: string;
   tool_used?: string;
   upvotes_count?: number;
+  requested_by?: string;
+  estimated_air_time?: string;
+  queue_position?: number;
   dj?: {
     id: string;
     name: string;
@@ -372,6 +375,10 @@ export async function getUpNext(channelSlug = 'main', limit = 5): Promise<Airpla
     existingIds.add(currentTrackId);
   }
 
+  const currentElapsed = currentNowPlaying.elapsedSeconds || 0;
+  const currentHint = currentNowPlaying.item.duration_hint_seconds || 210;
+  let runningOffsetSeconds = Math.max(30, currentHint - currentElapsed);
+
   // 1. Check listener queued requests in channel_queue
   const { data: channel } = await supabase.from('channels').select('id').eq('slug', channelSlug).maybeSingle();
   if (channel) {
@@ -397,6 +404,7 @@ export async function getUpNext(channelSlug = 'main', limit = 5): Promise<Airpla
             category?: string;
             is_explicit?: boolean;
             family_friendly?: boolean;
+            duration_hint_seconds?: number;
           };
           if (existingIds.has(t.id)) continue;
           if (
@@ -412,6 +420,12 @@ export async function getUpNext(channelSlug = 'main', limit = 5): Promise<Airpla
             continue;
           }
           existingIds.add(t.id);
+
+          const targetTime = new Date(now.getTime() + runningOffsetSeconds * 1000);
+          const hoursStr = String(targetTime.getUTCHours()).padStart(2, '0');
+          const minStr = String(targetTime.getUTCMinutes()).padStart(2, '0');
+          const estimated_air_time = `${hoursStr}:${minStr} UTC`;
+
           upNext.push({
             id: t.id,
             type: 'music',
@@ -422,7 +436,11 @@ export async function getUpNext(channelSlug = 'main', limit = 5): Promise<Airpla
             category: t.category,
             tool_used: t.tool_used,
             upvotes_count: t.upvotes_count,
+            queue_position: upNext.length + 1,
+            estimated_air_time,
+            requested_by: qi.requested_by,
           });
+          runningOffsetSeconds += (t.duration_hint_seconds || 210);
           if (upNext.length >= limit) break;
         }
       }
@@ -434,7 +452,7 @@ export async function getUpNext(channelSlug = 'main', limit = 5): Promise<Airpla
   if (needed > 0) {
     const { data: topTracks } = await supabase
       .from('tracks')
-      .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, is_explicit, family_friendly')
+      .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, is_explicit, family_friendly, duration_hint_seconds')
       .eq('status', 'approved')
       .order('upvotes_count', { ascending: false })
       .limit(needed + 25);
@@ -452,6 +470,12 @@ export async function getUpNext(channelSlug = 'main', limit = 5): Promise<Airpla
           );
           if (isAllowed) {
             existingIds.add(t.id);
+
+            const targetTime = new Date(now.getTime() + runningOffsetSeconds * 1000);
+            const hoursStr = String(targetTime.getUTCHours()).padStart(2, '0');
+            const minStr = String(targetTime.getUTCMinutes()).padStart(2, '0');
+            const estimated_air_time = `${hoursStr}:${minStr} UTC`;
+
             upNext.push({
               id: t.id,
               type: 'music',
@@ -462,7 +486,10 @@ export async function getUpNext(channelSlug = 'main', limit = 5): Promise<Airpla
               category: (t as unknown as { category?: string }).category,
               tool_used: t.tool_used,
               upvotes_count: t.upvotes_count,
+              queue_position: upNext.length + 1,
+              estimated_air_time,
             });
+            runningOffsetSeconds += ((t as unknown as { duration_hint_seconds?: number }).duration_hint_seconds || 210);
           }
         }
       }
