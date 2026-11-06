@@ -234,44 +234,87 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
       const icecastLive = await getIcecastLiveTitle();
       if (
         icecastLive?.title &&
-        icecastLive.title.toLowerCase() !== item.title.toLowerCase() &&
-        icecastLive.title !== 'PromptFM Ambient AI Anthem'
+        icecastLive.title.toLowerCase() !== item.title.toLowerCase()
       ) {
-        const supabase = createAdminClient();
-        const { data: matchedTrack } = await supabase
-          .from('tracks')
-          .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, description, lyrics')
-          .ilike('title', icecastLive.title)
-          .maybeSingle();
+        let matchedItem: AirplayItem | null = null;
 
-        if (matchedTrack) {
-          item = {
-            id: matchedTrack.id,
+        if (
+          pendingAirplayItem &&
+          pendingAirplayItem.title.toLowerCase() === icecastLive.title.toLowerCase()
+        ) {
+          matchedItem = pendingAirplayItem;
+          pendingAirplayItem = null;
+        } else if (icecastLive.title === 'PromptFM Ambient AI Anthem') {
+          matchedItem = {
+            id: 'demo-fallback',
             type: 'music',
-            title: matchedTrack.title,
-            artist: matchedTrack.artist_name,
-            audio_url: matchedTrack.audio_url,
-            cover_art_url: (matchedTrack as unknown as { cover_art_url?: string }).cover_art_url || '/logo-mark.png',
-            category: (matchedTrack as unknown as { category?: string }).category,
-            description: (matchedTrack as unknown as { description?: string }).description,
-            lyrics: (matchedTrack as unknown as { lyrics?: string }).lyrics,
-            tool_used: matchedTrack.tool_used,
-            upvotes_count: matchedTrack.upvotes_count,
+            title: 'PromptFM Ambient AI Anthem',
+            artist: 'PromptFM Core',
+            audio_url: 'https://oxfacfdpxbxilucooijy.supabase.co/storage/v1/object/public/tracks/promptfm_ambient_ai_anthem.mp3',
+            cover_art_url: '/logo-mark.png',
+            category: 'Ambient & Lo-Fi',
+            duration_hint_seconds: 210,
+            tool_used: 'Stable Audio',
+            upvotes_count: 20,
             dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
           };
-          channelAirplayItems.set('main', item);
-          currentAirplayItem = item;
-          try {
-            await supabase
-              .from('station_state')
-              .upsert({
-                channel_slug: 'main',
-                airplay_item: item,
-                updated_at: new Date().toISOString(),
-              });
-          } catch {
-            // Ignore persistence fallback
+        } else {
+          const supabase = createAdminClient();
+          const { data: matchedTrack } = await supabase
+            .from('tracks')
+            .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, description, lyrics, duration_hint_seconds')
+            .ilike('title', icecastLive.title.trim())
+            .maybeSingle();
+
+          if (matchedTrack) {
+            matchedItem = {
+              id: matchedTrack.id,
+              type: 'music',
+              title: matchedTrack.title,
+              artist: matchedTrack.artist_name,
+              audio_url: matchedTrack.audio_url,
+              cover_art_url: (matchedTrack as unknown as { cover_art_url?: string }).cover_art_url || '/logo-mark.png',
+              category: (matchedTrack as unknown as { category?: string }).category,
+              description: (matchedTrack as unknown as { description?: string }).description,
+              lyrics: (matchedTrack as unknown as { lyrics?: string }).lyrics,
+              duration_hint_seconds: (matchedTrack as any).duration_hint_seconds || 210,
+              tool_used: matchedTrack.tool_used,
+              upvotes_count: matchedTrack.upvotes_count,
+              dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
+            };
+          } else {
+            matchedItem = {
+              id: `icecast-${Date.now()}`,
+              type: 'music',
+              title: icecastLive.title,
+              artist: icecastLive.artist || 'PromptFM Live',
+              audio_url: 'https://stream.promptfm.live/stream.mp3',
+              cover_art_url: '/logo-mark.png',
+              duration_hint_seconds: 210,
+              dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
+            };
           }
+        }
+
+        item = matchedItem;
+        startedAtMs = Date.now();
+        channelAirplayItems.set('main', item);
+        channelAirplayStartedAt.set('main', startedAtMs);
+        currentAirplayItem = item;
+        currentAirplayStartedAt = startedAtMs;
+
+        try {
+          const supabase = createAdminClient();
+          await supabase
+            .from('station_state')
+            .upsert({
+              channel_slug: 'main',
+              airplay_item: item,
+              started_at: new Date(startedAtMs).toISOString(),
+              updated_at: new Date().toISOString(),
+            });
+        } catch {
+          // Ignore persistence fallback
         }
       }
     } catch {
@@ -286,19 +329,18 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
   // Liquidsoap drives on-air transitions via /api/radio/started when audio tracks actually complete.
   // We only auto-advance as a watchdog fallback:
   // - For spoken drops / ads: after duration_hint_seconds + 15s buffer.
-  // - For music tracks: after 600s (10-minute safety ceiling) so tracks (even 3-5+ minutes) never flip
-  //   prematurely while listeners are still hearing them, or after duration_hint_seconds || 240s in DEV_FALLBACK_SIMULATION.
+  // - For music tracks: after duration_hint_seconds (default 210s) + 30s buffer.
+  //   Shortened from old 600s ceiling to prevent now-playing drift when tracks have finished (Issue #33).
   const isMusic = !item?.type || item.type === 'music';
-  const isDevSimulation = process.env.DEV_FALLBACK_SIMULATION === 'true';
-  const watchdogTimeoutSeconds = isMusic
-    ? (isDevSimulation ? (item?.duration_hint_seconds || 240) : 600)
-    : ((item?.duration_hint_seconds || 30) + 15);
+  const trackDuration = item?.duration_hint_seconds || (isMusic ? 210 : 30);
+  const watchdogBuffer = isMusic ? 30 : 15;
+  const watchdogTimeoutSeconds = trackDuration + watchdogBuffer;
 
   if (item && elapsedSeconds >= watchdogTimeoutSeconds) {
     try {
       const nextItem = await getNextAirplayItem(channelSlug, true);
       item = nextItem;
-      startedAtMs = channelAirplayStartedAt.get(channelSlug) || Date.now();
+      startedAtMs = Date.now();
       channelAirplayItems.set(channelSlug, nextItem);
       channelAirplayStartedAt.set(channelSlug, startedAtMs);
       if (channelSlug === 'main') {
@@ -653,15 +695,23 @@ export async function fetchLiveWeatherSummary(targetCity?: string): Promise<{ te
  * Invoked by Liquidsoap via the /api/radio/started endpoint when Icecast transitions to the track.
  * This guarantees 100% audio-metadata synchronicity and eliminates desync.
  */
-export async function markTrackStarted(channelSlug = 'main', itemId: string): Promise<AirplayItem> {
+export async function markTrackStarted(
+  channelSlug = 'main',
+  itemId?: string | null,
+  title?: string | null
+): Promise<AirplayItem> {
   const supabase = createAdminClient();
   const activeDJ = getActiveDJ(channelSlug);
 
   let itemToStart: AirplayItem | null = null;
 
-  if (pendingAirplayItem && pendingAirplayItem.id === itemId) {
+  if (
+    pendingAirplayItem &&
+    ((itemId && pendingAirplayItem.id === itemId) ||
+      (title && pendingAirplayItem.title.toLowerCase() === title.toLowerCase()))
+  ) {
     itemToStart = pendingAirplayItem;
-  } else if (itemId === 'demo-fallback') {
+  } else if (itemId === 'demo-fallback' || title === 'PromptFM Ambient AI Anthem') {
     itemToStart = {
       id: 'demo-fallback',
       type: 'music',
@@ -670,32 +720,53 @@ export async function markTrackStarted(channelSlug = 'main', itemId: string): Pr
       audio_url: 'https://oxfacfdpxbxilucooijy.supabase.co/storage/v1/object/public/tracks/promptfm_ambient_ai_anthem.mp3',
       cover_art_url: '/logo-mark.png',
       category: 'Ambient & Lo-Fi',
+      duration_hint_seconds: 210,
       tool_used: 'Stable Audio',
       upvotes_count: 20,
       dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
     };
   } else {
-    // Attempt lookup in tracks table
+    // Attempt lookup in tracks table by ID or Title
     try {
-      const { data: track } = await supabase
+      let query = supabase
         .from('tracks')
-        .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, description, lyrics')
-        .eq('id', itemId)
-        .maybeSingle();
+        .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, description, lyrics, duration_hint_seconds');
+
+      if (itemId) {
+        query = query.eq('id', itemId);
+      } else if (title) {
+        query = query.ilike('title', title.trim());
+      }
+
+      const { data: track } = await query.maybeSingle();
 
       if (track) {
-        const raw = track as unknown as { airplay_item?: AirplayItem; title?: string; artist_name?: string; id?: string; audio_url?: string };
+        const raw = track as unknown as {
+          airplay_item?: AirplayItem;
+          title?: string;
+          artist_name?: string;
+          id?: string;
+          audio_url?: string;
+          duration_hint_seconds?: number;
+          duration_seconds?: number;
+        };
         const actual = raw.airplay_item || track;
+        const artistName =
+          (actual as unknown as { artist_name?: string }).artist_name ||
+          (actual as AirplayItem).artist ||
+          'PromptFM Core';
         itemToStart = {
-          id: actual.id || itemId,
+          id: actual.id,
           type: (actual as AirplayItem).type || 'music',
-          title: actual.title || 'PromptFM Track',
-          artist: (actual as unknown as { artist_name?: string }).artist_name || (actual as AirplayItem).artist || 'PromptFM Core',
-          audio_url: actual.audio_url || 'https://oxfacfdpxbxilucooijy.supabase.co/storage/v1/object/public/tracks/promptfm_ambient_ai_anthem.mp3',
+          title: actual.title,
+          artist: artistName,
+          audio_url: actual.audio_url,
           cover_art_url: actual.cover_art_url || '/logo-mark.png',
           category: actual.category,
           description: actual.description,
           lyrics: actual.lyrics,
+          transcript: (actual as any).transcript,
+          duration_hint_seconds: (actual as any).duration_hint_seconds || 210,
           tool_used: actual.tool_used,
           upvotes_count: actual.upvotes_count ?? 20,
           dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
@@ -707,7 +778,7 @@ export async function markTrackStarted(channelSlug = 'main', itemId: string): Pr
   }
 
   if (!itemToStart) {
-    itemToStart = currentAirplayItem || {
+    itemToStart = pendingAirplayItem || currentAirplayItem || {
       id: 'demo-fallback',
       type: 'music',
       title: 'PromptFM Ambient AI Anthem',
@@ -715,6 +786,7 @@ export async function markTrackStarted(channelSlug = 'main', itemId: string): Pr
       audio_url: 'https://oxfacfdpxbxilucooijy.supabase.co/storage/v1/object/public/tracks/promptfm_ambient_ai_anthem.mp3',
       cover_art_url: '/logo-mark.png',
       category: 'Ambient & Lo-Fi',
+      duration_hint_seconds: 210,
       tool_used: 'Stable Audio',
       upvotes_count: 20,
       dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
