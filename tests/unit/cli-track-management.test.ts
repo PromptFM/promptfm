@@ -15,6 +15,7 @@ describe('PromptFM Admin Track CLI Actions', () => {
       message: 'Track updated',
       track: {
         id: 'track-1',
+        user_id: null,
         title: 'Cyber Drift 2088',
         artist_name: 'DJ Vance',
         category: 'Cyberpunk & Synth',

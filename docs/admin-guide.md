@@ -77,6 +77,8 @@ Every administrative capability is designed with **100% feature parity** across 
 | Capability | Web Studio (`/admin`) | Terminal CLI (`npm run promptfm`) | MCP Admin Tool (`/api/mcp`) |
 | :--- | :---: | :---: | :---: |
 | **Inspect Station Music Library** | Library Tab | `admin list` | `promptfm_get_top_tracks` |
+| **Edit Track Metadata** | Library Tab ("Edit" button) | `admin edit <id> [options]` | `promptfm_admin_edit_track` |
+| **Delete / Archive Track** | Library Tab ("Delete" button) | `admin delete <id> [--soft]` | `promptfm_admin_delete_track` |
 | **Queue Track on Air from Library** | Click "Queue on Air" (+) | `queue <title/prompt>` | `promptfm_queue_song_request` |
 | **Review Pending Submissions** | Submissions Tab | `admin pending` | `promptfm_admin_list_pending` |
 | **Approve Community Track** | Click "Approve" (✓) | `admin approve <trackId>` | `promptfm_admin_moderate_track` (`action: 'approved'`) |
@@ -105,6 +107,7 @@ Every administrative capability is designed with **100% feature parity** across 
 | **Start YouTube Live Broadcast** | Click "Start YouTube Live" | `stream start youtube <key>` | `promptfm_admin_start_stream` (`platform: 'youtube'`) |
 | **Start TikTok Live Broadcast** | Click "Start TikTok Live" | `stream start tiktok <key> [url]` | `promptfm_admin_start_stream` (`platform: 'tiktok'`) |
 | **Stop Live Video Broadcast** | Click "Stop Stream" | `stream stop <platform>` | `promptfm_admin_stop_stream` |
+| **Web MCP Studio & Interactive Tools** | Web MCP Studio Tab | `npm run promptfm` | Dual-Tier JSON-RPC (`/api/mcp`) |
 
 ---
 
@@ -122,6 +125,8 @@ The PromptFM CLI is a standalone station management suite located in `scripts/pr
 | `report file <id> <reason> [details]` | Files a report directly from the terminal. | `npm run promptfm -- report file track-123 copyright_dmca "Sampled vocal"` |
 | `report resolve <id> --action <actioned\|dismissed>` | Resolves a safety or copyright report, recording actor attribution, timestamp, and notes across database and memory cache. | `npm run promptfm -- report resolve rep_123 --action actioned --notes "Removed from rotation" --actor "compliance_alex"` |
 | `admin list` | Lists all approved tracks in the station music library with ranks and votes. | `npm run promptfm -- admin list` |
+| `admin edit <id> [options]` | Updates track metadata (title, artist, category, lyrics, explicit flags) and automatically re-indexes vector embeddings. | `npm run promptfm -- admin edit 0df3ba68-... --title "Cyber Dreams (Remix)" --category Electronic` |
+| `admin delete <id> [--soft]` | Deletes a track from the library and cleans up any orphaned queue items. Performs hard deletion by default, or archival soft-delete with `--soft`. | `npm run promptfm -- admin delete 0df3ba68-... --soft` |
 | `admin pending` | Lists all community track submissions awaiting review. | `npm run promptfm -- admin pending` |
 | `admin approve <trackId>` | Approves a track to air on the live stream and leaderboard. | `npm run promptfm -- admin approve 0df3ba68-...` |
 | `admin reject <trackId>` | Rejects an inappropriate track and removes it from airplay. | `npm run promptfm -- admin reject 0df3ba68-...` |
@@ -189,22 +194,31 @@ Access the visual web console at `https://promptfm.vercel.app/admin` (or `http:/
    - Preview tracks with an inline 30-second audio player.
    - Inspect AI tool metadata (Suno, Udio, Stable Audio).
    - Click **Approve** (green check) or **Reject** (red cross).
-2. **Live Queue Tab**:
+2. **Library Tab**:
+   - View, search, and manage all approved station tracks.
+   - **Edit Metadata Modal**: Update title, artist, category, description, lyrics, explicit flag, BPM, and trigger automatic pgvector re-indexing.
+   - **Delete Track**: Soft-delete (archival) or hard-delete with automatic removal of orphaned queue entries.
+   - Queue any track directly to the live broadcast with one click (+).
+3. **Live Queue Tab**:
    - Live view of upcoming scheduled items in real time.
    - Remove songs or re-order airplay.
-3. **Batches Tab**:
+4. **Batches Tab**:
    - Live view of listener requests scheduled into 30-minute clock batches.
    - Click **Air Now** to immediately synthesize and play the request drop.
    - Click **Reject / Remove from Batch** with custom rejection reason (e.g. *Religious hostility*, *18+ Adult theme outside watershed*). Automatically dispatches a refusal notification back to the user on Telegram or Discord!
-4. **Reports Tab**:
+5. **Reports Tab**:
    - Displays all filed community reports with target ID, reason code, details, reporter handle, and timestamp.
    - Actions: **"Dismiss"** or **"Take Action"** (marks ticket resolved across system).
-5. **Upload MP3 Tab**:
+6. **Upload MP3 Tab**:
    - Upload MP3 files directly from your computer to Cloudflare R2.
    - Bypasses moderation and immediately adds the track to the station rotation.
-6. **Channels & Guardrails Tab**:
+7. **Channels & Guardrails Tab**:
    - View all live radio channels, assigned DJs, and statutory guardrails.
    - Create new channels with automated 18+ COPPA/statutory age gate banners and policies.
+8. **Web MCP Studio Tab**:
+   - Interactive admin console to directly execute Model Context Protocol (MCP) actions within the web browser.
+   - Quick-action generators for AI Voice Drops, Interstitials, Sponsor Ads, Dedicated Air Requests, Station Broadcasts, and Channel provisioning.
+   - Interactive JSON-RPC raw tool caller with parameter inspector and formatted live response output.
 
 ---
 
@@ -228,6 +242,8 @@ AI agents can manage the station autonomously by connecting to the MCP endpoint 
 | `promptfm_admin_air_request` | Forces immediate synthesis and airplay for a dedication. | `request_id` |
 | `promptfm_admin_inject_interstitial` | Injects an on-air voice drop or weather update. | `type`, `prompt?`, `city?` |
 | `promptfm_admin_inject_ad` | Injects a sponsor commercial or ad read. | `sponsor?`, `copy?` |
+| `promptfm_admin_edit_track` | Edits track metadata and reindexes embeddings in pgvector. | `track_id`, `title?`, `artist?`, `category?`, `description?`, `lyrics?`, `is_explicit?`, `ai_tool?`, `bpm?`, `genre?`, `reindex_vector?` |
+| `promptfm_admin_delete_track` | Deletes or archives a track and purges orphaned queue items. | `track_id`, `soft_delete?` |
 
 ---
 

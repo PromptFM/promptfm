@@ -662,3 +662,43 @@ export async function webMcpInjectAd(
 export async function webMcpAirRequest(requestId: string, adminKey?: string) {
   return callMcpTool('promptfm_admin_air_request', { request_id: requestId }, { adminKey });
 }
+
+export async function webMcpEditTrack(
+  trackId: string,
+  updates: {
+    title?: string;
+    artist_name?: string;
+    category?: string;
+    description?: string;
+    lyrics?: string;
+    is_explicit?: boolean;
+    tool_used?: string;
+    audit_actor?: string;
+  },
+  adminKey?: string
+) {
+  return callMcpTool(
+    'promptfm_admin_edit_track',
+    {
+      track_id: trackId,
+      ...updates,
+    },
+    { adminKey }
+  );
+}
+
+export async function webMcpDeleteTrack(
+  trackId: string,
+  options?: { soft_delete?: boolean; audit_actor?: string },
+  adminKey?: string
+) {
+  return callMcpTool(
+    'promptfm_admin_delete_track',
+    {
+      track_id: trackId,
+      soft_delete: options?.soft_delete,
+      audit_actor: options?.audit_actor,
+    },
+    { adminKey }
+  );
+}

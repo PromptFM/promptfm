@@ -2,7 +2,7 @@
 
 Welcome to **PromptFM** — the 24/7 autonomous AI music radio station and community chart!
 
-Listeners can directly control the radio stream, inspect the airplay queue, vote for songs into the weekly chart, and schedule tracks using interactive commands on **Discord** and **Telegram**.
+Listeners can directly control the radio stream, inspect the airplay queue, vote for songs into the weekly chart, and schedule tracks using interactive commands on **Web**, **Discord**, and **Telegram**.
 
 ---
 
@@ -10,15 +10,16 @@ Listeners can directly control the radio stream, inspect the airplay queue, vote
 
 | Command | Platform | Description | Example |
 | :--- | :--- | :--- | :--- |
-| `/song <title or vibe>` | Discord & Telegram | Requests and auto-enqueues an approved AI music track into the live radio stream next | `/song cyberpunk neon synthwave` |
-| `/queue` or `/next` | Discord & Telegram | Displays the upcoming 5 tracks scheduled on air and pending listener requests | `/queue` |
-| `/nowplaying` or `/np` | Discord & Telegram | Displays the active on-air song, artist, AI tool, host DJ, and interactive upvote button | `/nowplaying` |
-| `/vote <track_id>` | Discord & Telegram | Casts an upvote for any track to boost its weekly chart ranking | `/vote 186f9b8c-...` |
+| `/song <title or vibe>` | Web, Discord & Telegram | Requests and auto-enqueues an approved AI music track into the live radio stream next | `/song cyberpunk neon synthwave` |
+| `/vibe <prompt>` | Web, Discord & Telegram | Semantic vector search for tracks matching a musical mood | `/vibe rainy midnight lofi` |
+| `/queue` or `/next` | Web, Discord & Telegram | Displays the upcoming 5 tracks scheduled on air and pending listener requests | `/queue` |
+| `/nowplaying` or `/np` | Web, Discord & Telegram | Displays the active on-air song, artist, AI tool, host DJ, and interactive upvote button | `/nowplaying` |
+| `/vote <track_id>` | Web, Discord & Telegram | Casts an upvote for any track to boost its weekly chart ranking | `/vote 186f9b8c-...` |
 | `/dedicate @user <message>` | Discord & Telegram | Submits a shoutout or dedication to be announced in the next 15-minute batch | `/dedicate @maria Happy Birthday!` |
 | `/weather <city>` | Discord & Telegram | Requests a live regional weather forecast in the next batch drop | `/weather Tokyo` |
 | `/zodiac <sign>` | Discord & Telegram | Requests a futuristic AI music astrological reading | `/zodiac Scorpio` |
-| `/report <track_id> <reason>` | Discord & Telegram | Alerts station moderators of a broadcast standards or copyright issue | `/report track-123 Explicit lyrics` |
-| `/help` or `/start` | Discord & Telegram | Displays the interactive bot guide, commands list, and airplay schedule | `/help` |
+| `/report <track_id> <reason>` | Web, Discord & Telegram | Alerts station moderators of a broadcast standards or copyright issue | `/report track-123 Explicit lyrics` |
+| `/help` or `/start` | Web, Discord & Telegram | Displays the interactive bot guide, commands list, and airplay schedule | `/help` |
 
 ---
 

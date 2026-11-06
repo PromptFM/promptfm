@@ -9,6 +9,12 @@ import { callMcpTool, executeWebMcpCommand } from '@/lib/mcp/client';
 describe('Web MCP Client to /api/mcp Route Integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ success: true, data: [] }),
+      text: async () => 'OK',
+    }) as unknown as typeof fetch;
   });
 
   const customFetch: typeof fetch = async (input, init) => {
@@ -40,5 +46,38 @@ describe('Web MCP Client to /api/mcp Route Integration', () => {
     // Custom fetchFn inside callOpts
     const data = await callMcpTool('promptfm_get_djs', {}, { fetchFn: customFetch });
     expect(data.djs.length).toBeGreaterThan(0);
+  });
+
+  it('lists available MCP tools through listMcpTools and /api/mcp', async () => {
+    const { listMcpTools } = await import('@/lib/mcp/client');
+    const tools = await listMcpTools({ fetchFn: customFetch });
+    expect(Array.isArray(tools)).toBe(true);
+    expect(tools.length).toBeGreaterThan(0);
+    const names = tools.map((t) => t.name);
+    expect(names).toContain('promptfm_get_now_playing');
+  });
+
+  it('calls promptfm_admin_edit_track and promptfm_admin_delete_track through /api/mcp', async () => {
+    const editRes = await callMcpTool(
+      'promptfm_admin_edit_track',
+      {
+        track_id: '11111111-2222-3333-4444-555555555555',
+        title: 'Integration Edited Cyber Vibe',
+      },
+      { fetchFn: customFetch }
+    );
+    expect(editRes.success).toBe(true);
+    expect(editRes.track.title).toBe('Integration Edited Cyber Vibe');
+
+    const delRes = await callMcpTool(
+      'promptfm_admin_delete_track',
+      {
+        track_id: '11111111-2222-3333-4444-555555555555',
+        soft_delete: true,
+      },
+      { fetchFn: customFetch }
+    );
+    expect(delRes.success).toBe(true);
+    expect(delRes.soft_deleted).toBe(true);
   });
 });
