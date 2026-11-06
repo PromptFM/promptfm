@@ -15,9 +15,10 @@ import {
 } from '@/lib/dj/rotation';
 
 // Mock Supabase admin client
-const { mockUpsert, mockState } = vi.hoisted(() => ({
+const { mockUpsert, mockState, mockBroadcast } = vi.hoisted(() => ({
   mockUpsert: vi.fn().mockResolvedValue({ data: null, error: null }),
   mockState: { customSingle: null as any },
+  mockBroadcast: vi.fn().mockResolvedValue({ discord: true, telegram: true }),
 }));
 
 vi.mock('@/lib/supabase/server', () => {
@@ -87,7 +88,7 @@ vi.mock('@/lib/supabase/server', () => {
 });
 
 vi.mock('@/lib/chat/bridge', () => ({
-  broadcastToCommunity: vi.fn().mockResolvedValue({ discord: true, telegram: true }),
+  broadcastToCommunity: (...args: any[]) => mockBroadcast(...args),
 }));
 
 describe('On-Air Track Synchronization & Rotation Watchdog', () => {
@@ -95,6 +96,8 @@ describe('On-Air Track Synchronization & Rotation Watchdog', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockBroadcast.mockClear();
+    mockState.customSingle = null;
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 503,
@@ -611,21 +614,22 @@ describe('On-Air Track Synchronization & Rotation Watchdog', () => {
 
   describe('Community Airplay Broadcast Notifications', () => {
     it('notifies community with now_playing for music track', async () => {
-      const { broadcastToCommunity } = await import('@/lib/chat/bridge');
-      vi.clearAllMocks();
+      mockBroadcast.mockClear();
 
       await markTrackStarted('main', 'song-draga-123');
 
-      expect(broadcastToCommunity).toHaveBeenCalledWith(
-        expect.objectContaining({
-          category: 'now_playing',
-          trackId: 'song-draga-123',
-        })
-      );
+      await vi.waitFor(() => {
+        expect(mockBroadcast).toHaveBeenCalledWith(
+          expect.objectContaining({
+            category: 'now_playing',
+            trackId: 'song-draga-123',
+          })
+        );
+      });
     });
 
     it('notifies community for spoken drops, ads, news, and banter', async () => {
-      const { broadcastToCommunity } = await import('@/lib/chat/bridge');
+      mockBroadcast.mockClear();
 
       // Test news drop
       mockState.customSingle = {
@@ -637,14 +641,17 @@ describe('On-Air Track Synchronization & Rotation Watchdog', () => {
         },
       };
       await markTrackStarted('main', 'news-brief-1');
-      expect(broadcastToCommunity).toHaveBeenCalledWith(
-        expect.objectContaining({
-          category: 'news',
-          transcript: 'Latest news in AI',
-        })
-      );
+      await vi.waitFor(() => {
+        expect(mockBroadcast).toHaveBeenCalledWith(
+          expect.objectContaining({
+            category: 'news',
+            transcript: 'Latest news in AI',
+          })
+        );
+      });
 
       // Test weather drop
+      mockBroadcast.mockClear();
       mockState.customSingle = {
         data: {
           id: 'weather-drop-1',
@@ -654,14 +661,17 @@ describe('On-Air Track Synchronization & Rotation Watchdog', () => {
         },
       };
       await markTrackStarted('main', 'weather-drop-1');
-      expect(broadcastToCommunity).toHaveBeenCalledWith(
-        expect.objectContaining({
-          category: 'weather',
-          transcript: 'Pleasant weather ahead',
-        })
-      );
+      await vi.waitFor(() => {
+        expect(mockBroadcast).toHaveBeenCalledWith(
+          expect.objectContaining({
+            category: 'weather',
+            transcript: 'Pleasant weather ahead',
+          })
+        );
+      });
 
       // Test sponsor ad
+      mockBroadcast.mockClear();
       mockState.customSingle = {
         data: {
           id: 'ad-drop-1',
@@ -672,14 +682,17 @@ describe('On-Air Track Synchronization & Rotation Watchdog', () => {
         },
       };
       await markTrackStarted('main', 'ad-drop-1');
-      expect(broadcastToCommunity).toHaveBeenCalledWith(
-        expect.objectContaining({
-          category: 'ad',
-          transcript: 'Try Claude now',
-        })
-      );
+      await vi.waitFor(() => {
+        expect(mockBroadcast).toHaveBeenCalledWith(
+          expect.objectContaining({
+            category: 'ad',
+            transcript: 'Try Claude now',
+          })
+        );
+      });
 
       // Test dj_banter
+      mockBroadcast.mockClear();
       mockState.customSingle = {
         data: {
           id: 'banter-1',
@@ -689,12 +702,14 @@ describe('On-Air Track Synchronization & Rotation Watchdog', () => {
         },
       };
       await markTrackStarted('main', 'banter-1');
-      expect(broadcastToCommunity).toHaveBeenCalledWith(
-        expect.objectContaining({
-          category: 'announcement',
-          transcript: 'Welcome back listeners',
-        })
-      );
+      await vi.waitFor(() => {
+        expect(mockBroadcast).toHaveBeenCalledWith(
+          expect.objectContaining({
+            category: 'announcement',
+            transcript: 'Welcome back listeners',
+          })
+        );
+      });
     });
   });
 
