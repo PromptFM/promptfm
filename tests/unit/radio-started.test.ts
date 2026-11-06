@@ -5,8 +5,10 @@ import {
   getNextAirplayItem,
   getNowPlaying,
   formatLiquidsoapAnnotateUri,
+  resetAirplayDedupeCache,
   AirplayItem,
 } from '@/lib/dj/rotation';
+import { broadcastToCommunity } from '@/lib/chat/bridge';
 
 // Mock Supabase admin client
 vi.mock('@/lib/supabase/server', () => {
@@ -63,6 +65,7 @@ vi.mock('@/lib/dj/engine', () => ({
 
 describe('Liquidsoap Synchronization & Track Started Flow', () => {
   beforeEach(() => {
+    resetAirplayDedupeCache();
     vi.clearAllMocks();
   });
 
@@ -128,6 +131,100 @@ describe('Liquidsoap Synchronization & Track Started Flow', () => {
       const started = await markTrackStarted('main', 'non-existent-random-id');
       expect(started).toBeDefined();
       expect(started.title).toBeDefined();
+    });
+
+    it('does not broadcast now-playing announcement when track is only queued or scheduled via getNextAirplayItem', async () => {
+      vi.mocked(broadcastToCommunity).mockClear();
+      const nextItem = await getNextAirplayItem('main', true);
+      expect(nextItem).toBeDefined();
+      expect(broadcastToCommunity).not.toHaveBeenCalled();
+    });
+
+    it('broadcasts now-playing announcement when track actually starts airing via markTrackStarted', async () => {
+      vi.mocked(broadcastToCommunity).mockClear();
+      const nextItem = await getNextAirplayItem('main', false);
+      expect(nextItem).toBeDefined();
+
+      await markTrackStarted('main', nextItem.id);
+      expect(broadcastToCommunity).toHaveBeenCalledTimes(1);
+      expect(broadcastToCommunity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          category: 'now_playing',
+          trackId: nextItem.id,
+        })
+      );
+    });
+
+    it('deduplicates repeated markTrackStarted calls for the same track to prevent duplicate #now-playing posts', async () => {
+      vi.mocked(broadcastToCommunity).mockClear();
+      const nextItem = await getNextAirplayItem('main', false);
+      expect(nextItem).toBeDefined();
+
+      // First airplay start event
+      await markTrackStarted('main', nextItem.id);
+      expect(broadcastToCommunity).toHaveBeenCalledTimes(1);
+
+      // Duplicate start event (e.g. repeated call at 18:59, reconnect, retry)
+      await markTrackStarted('main', nextItem.id);
+      expect(broadcastToCommunity).toHaveBeenCalledTimes(1);
+    });
+
+    it('allows broadcasting when a different track actually starts airing', async () => {
+      vi.mocked(broadcastToCommunity).mockClear();
+
+      await markTrackStarted('main', 'track-101');
+      expect(broadcastToCommunity).toHaveBeenCalledTimes(1);
+
+      await markTrackStarted('main', 'demo-fallback');
+      expect(broadcastToCommunity).toHaveBeenCalledTimes(2);
+    });
+
+    it('allows re-broadcasting after resetAirplayDedupeCache is called', async () => {
+      vi.mocked(broadcastToCommunity).mockClear();
+      await markTrackStarted('main', 'track-101');
+      expect(broadcastToCommunity).toHaveBeenCalledTimes(1);
+
+      resetAirplayDedupeCache();
+      await markTrackStarted('main', 'track-101');
+      expect(broadcastToCommunity).toHaveBeenCalledTimes(2);
+    });
+
+    it('allows broadcasting the same track after the airplay deduplication window passes', async () => {
+      vi.mocked(broadcastToCommunity).mockClear();
+      const origNow = Date.now;
+      try {
+        let mockTime = 1_000_000;
+        Date.now = () => mockTime;
+
+        await markTrackStarted('main', 'track-101');
+        expect(broadcastToCommunity).toHaveBeenCalledTimes(1);
+
+        // Within 60,000ms window -> deduped
+        mockTime += 30_000;
+        await markTrackStarted('main', 'track-101');
+        expect(broadcastToCommunity).toHaveBeenCalledTimes(1);
+
+        // At or past 60,000ms boundary -> allowed
+        mockTime += 30_000;
+        await markTrackStarted('main', 'track-101');
+        expect(broadcastToCommunity).toHaveBeenCalledTimes(2);
+      } finally {
+        Date.now = origNow;
+      }
+    });
+
+    it('isolates channel airplay state when starting track on non-main channel', async () => {
+      await markTrackStarted('main', 'track-101');
+      const mainBefore = await getNowPlaying('main');
+      expect(mainBefore.item.id).toBe('track-101');
+
+      // Start on cyberpunk
+      await markTrackStarted('cyberpunk', 'demo-fallback');
+      const mainAfter = await getNowPlaying('main');
+      expect(mainAfter.item.id).toBe('track-101');
+
+      const cyberNow = await getNowPlaying('cyberpunk');
+      expect(cyberNow.item.id).toBe('demo-fallback');
     });
   });
 });
