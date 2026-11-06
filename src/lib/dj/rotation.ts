@@ -556,9 +556,15 @@ export async function getUpNext(channelSlug = 'main', limit = 5): Promise<Airpla
 async function notifyCommunityAirplay(item: AirplayItem, activeDJ: DJProfile) {
   try {
     if (item.type === 'music') {
+      const dedicationText = item.requested_by
+        ? item.requested_by.toLowerCase().includes('dedicat')
+          ? `\n\n💝 **Dedication:** ${item.requested_by}`
+          : `\n\n🎧 **Requested by:** ${item.requested_by}`
+        : '';
+
       await broadcastToCommunity({
         title: `Now Playing on PromptFM`,
-        message: `🎵 **${item.title}** by **${item.artist}**\n\nVote directly below or request the next track!`,
+        message: `🎵 **${item.title}** by **${item.artist}**${dedicationText}\n\nVote directly below or request the next track!`,
         category: 'now_playing',
         trackId: item.id,
         artist: item.artist,
@@ -566,6 +572,19 @@ async function notifyCommunityAirplay(item: AirplayItem, activeDJ: DJProfile) {
         upvotesCount: item.upvotes_count,
         author: activeDJ.name,
       });
+
+      if (item.requested_by && item.requested_by.toLowerCase().includes('dedicat')) {
+        try {
+          const supabase = createAdminClient();
+          await supabase
+            .from('community_requests')
+            .update({ status: 'aired', aired_at: new Date().toISOString() })
+            .eq('type', 'dedication')
+            .eq('status', 'scheduled');
+        } catch {
+          // Non-blocking status update
+        }
+      }
     } else if (item.type === 'news') {
       await broadcastToCommunity({
         title: `Hourly AI News Flash (Live On Air)`,
@@ -916,6 +935,7 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
         audio_url: tr.audio_url,
         tool_used: tr.tool_used,
         upvotes_count: tr.upvotes_count,
+        requested_by: queueItem.requested_by || undefined,
       });
     }
   }

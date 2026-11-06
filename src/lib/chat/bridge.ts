@@ -121,7 +121,7 @@ export async function sendDiscordNotification(payload: BroadcastNotification): P
   }
 
   const webhookUrl =
-    payload.category === 'now_playing'
+    payload.category === 'now_playing' || payload.category === 'dedication'
       ? process.env.DISCORD_NOW_PLAYING_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL
       : process.env.DISCORD_FEED_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL;
   if (!webhookUrl) return false;

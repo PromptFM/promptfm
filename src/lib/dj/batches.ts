@@ -150,7 +150,7 @@ export async function scheduleListenerRequest(payload: ListenerRequestPayload): 
   let estimatedMinutes: number | undefined;
 
   let matchedTrack: { id: string; title: string; artist_name?: string } | null = null;
-  if (payload.type === 'song') {
+  if (payload.type === 'song' || payload.type === 'dedication') {
     try {
       const vibeMatches = await findTracksByVibe(payload.content, { limit: 1 });
       if (vibeMatches && vibeMatches.length > 0 && vibeMatches[0]) {
@@ -178,6 +178,23 @@ export async function scheduleListenerRequest(payload: ListenerRequestPayload): 
       }
     }
 
+    if (!matchedTrack && payload.type === 'dedication') {
+      try {
+        const { data: anyApproved } = await supabase
+          .from('tracks')
+          .select('id, title, artist_name')
+          .eq('status', 'approved')
+          .limit(1)
+          .maybeSingle();
+
+        if (anyApproved) {
+          matchedTrack = anyApproved;
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
     let pendingCount = 0;
     let remainingCurrentTrack = 120;
     try {
@@ -199,11 +216,20 @@ export async function scheduleListenerRequest(payload: ListenerRequestPayload): 
         }
 
         if (matchedTrack) {
+          let requestedBy = `@${payload.platform_user_name} (${payload.platform})`;
+          if (payload.type === 'dedication') {
+            const cleanTarget = payload.target ? `@${payload.target.replace(/^@/, '')}` : '@friend';
+            requestedBy = `@${payload.platform_user_name} (Dedicated to ${cleanTarget}: "${payload.content}")`;
+          } else if (payload.target) {
+            const cleanTarget = `@${payload.target.replace(/^@/, '')}`;
+            requestedBy = `@${payload.platform_user_name} (Dedicated to ${cleanTarget})`;
+          }
+
           await supabase.from('channel_queue').insert({
             channel_id: channel.id,
             track_id: matchedTrack.id,
             prompt_used: payload.content,
-            requested_by: `@${payload.platform_user_name} (${payload.platform})`,
+            requested_by: requestedBy,
           });
         }
 
@@ -272,9 +298,13 @@ export async function scheduleListenerRequest(payload: ListenerRequestPayload): 
   const activeDJ = getActiveDJ(undefined, airDate);
   let confirmText = '';
   switch (payload.type) {
-    case 'dedication':
-      confirmText = `✅ Dedication accepted for @${payload.target || 'friend'}! Scheduled for ${batchId} (approx. ${displayTime}). ${activeDJ.name} will announce your dedication on air.`;
+    case 'dedication': {
+      const posText = queuePosition === 1 ? 'Up next (#1 in queue)' : `#${queuePosition} in queue`;
+      const timeEst = `~${displayTime} (est. in ~${estimatedMinutes}m, provisional)`;
+      const cleanTarget = payload.target ? `@${payload.target.replace(/^@/, '')}` : '@friend';
+      confirmText = `✅ Dedication accepted for ${cleanTarget}! Position: ${posText} • Scheduled for ${batchId} (${timeEst}). ${activeDJ.name} will announce your dedication on air. Check live queue anytime with /queue.`;
       break;
+    }
     case 'weather':
       confirmText = `🌤️ Weather check for ${payload.target || payload.content} scheduled in ${batchId} (~${displayTime}) with ${activeDJ.name}.`;
       break;
@@ -440,6 +470,7 @@ Deliver this dedication on air with high radio warmth, charisma, and enthusiasm.
   await broadcastToCommunity({
     title: `ON AIR NOW: Dedication from @${req.platform_user_name}`,
     message: `🎙️ "${script}"\n\nTune in live: https://promptfm.live`,
+    category: 'dedication',
     author: dj.name,
   });
 
@@ -507,6 +538,7 @@ Deliver them warmly together in ONE single seamless radio host announcement. Kee
   await broadcastToCommunity({
     title: `ON AIR NOW: Community Batch Shoutout (${batchId})`,
     message: `🎙️ "${script}"\n\nFeaturing shoutouts from: ${requests.map((r) => `@${r.platform_user_name}`).join(', ')}\nTune in: https://promptfm.live`,
+    category: 'dedication',
     author: dj.name,
   });
 
