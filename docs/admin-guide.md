@@ -89,8 +89,9 @@ Every administrative capability is designed with **100% feature parity** across 
 | **Synthesize & Air Batch Request** | Click "Air Now" | `requests air <requestId>` | `promptfm_admin_air_request` |
 | **Reject Request with Feedback** | Click "Reject & Notify" | `requests reject <id> --reason "..."` | `promptfm_admin_reject_request` |
 | **List Content / Safety Reports** | Reports Tab | `report list` | `promptfm_admin_list_reports` |
+| **Audit Content Reports** | Reports Tab ("Audit Reports Window") | `report audit [--limit N]` | `promptfm_admin_audit_reports` |
 | **File Content Report** | Web 🚩 Report Modal | `report file <id> <reason>` | `promptfm_report_content` |
-| **Resolve Report (Action/Dismiss)** | Click "Action" / "Dismiss" | `report resolve <id> --action <...>` | `promptfm_admin_resolve_report` |
+| **Resolve Report (Action/Dismiss)** | Click "Action" / "Dismiss" | `report resolve <id> --action <...> [--actor <...>]` | `promptfm_admin_resolve_report` |
 | **Direct MP3 Station Upload** | Upload Tab (R2 Presigned) | `upload <file.mp3> --title "..."` | Upload API (`/api/upload-url`) |
 | **pgvector Semantic RAG Search** | N/A | `vibe <prompt>` | `promptfm_search_tracks_by_vibe` |
 | **Semantic Request Queueing** | Queue Tab | `queue <prompt>` | `promptfm_queue_song_request` |
@@ -117,8 +118,9 @@ The PromptFM CLI is a standalone station management suite located in `scripts/pr
 | Command | Description | Example |
 | :--- | :--- | :--- |
 | `report list` | Lists all pending community reports with targets, reasons, and reporter platforms. | `npm run promptfm -- report list` |
+| `report audit [--limit N]` | Audits reports for status changes made during unauthenticated windows or lacking actor/timestamp attribution. | `npm run promptfm -- report audit --limit 50` |
 | `report file <id> <reason> [details]` | Files a report directly from the terminal. | `npm run promptfm -- report file track-123 copyright_dmca "Sampled vocal"` |
-| `report resolve <id> --action <actioned\|dismissed>` | Resolves a safety or copyright report, updating status across database and memory cache. | `npm run promptfm -- report resolve rep_123 --action actioned --notes "Removed from rotation"` |
+| `report resolve <id> --action <actioned\|dismissed>` | Resolves a safety or copyright report, recording actor attribution, timestamp, and notes across database and memory cache. | `npm run promptfm -- report resolve rep_123 --action actioned --notes "Removed from rotation" --actor "compliance_alex"` |
 | `admin list` | Lists all approved tracks in the station music library with ranks and votes. | `npm run promptfm -- admin list` |
 | `admin pending` | Lists all community track submissions awaiting review. | `npm run promptfm -- admin pending` |
 | `admin approve <trackId>` | Approves a track to air on the live stream and leaderboard. | `npm run promptfm -- admin approve 0df3ba68-...` |
@@ -217,8 +219,9 @@ AI agents can manage the station autonomously by connecting to the MCP endpoint 
 | `promptfm_report_content` | Files a content report against a track or dedication. | `target_id`, `reason`, `details?`, `platform?` |
 | `promptfm_admin_list_pending` | Returns all pending submissions awaiting review. | None |
 | `promptfm_admin_moderate_track` | Approves or rejects a track from airplay. | `track_id`, `action` ("approved" \| "rejected") |
-| `promptfm_admin_list_reports` | Retrieves active community moderation tickets. | None |
-| `promptfm_admin_resolve_report` | Resolves or dismisses a report ticket. | `report_id`, `action` ("actioned" \| "dismissed") |
+| `promptfm_admin_list_reports` | Retrieves active community moderation tickets. | `limit?` |
+| `promptfm_admin_audit_reports` | Audits moderation reports for unattributed changes or tampering from unauthenticated windows. | `limit?` |
+| `promptfm_admin_resolve_report` | Resolves or dismisses a report ticket with actor & notes attribution. | `report_id`, `action` ("actioned" \| "dismissed"), `notes?`, `actor?` |
 | `promptfm_admin_list_channels` | Lists broadcast channels and guardrails. | None |
 | `promptfm_admin_create_channel` | Creates a new broadcast channel with guardrails. | `slug`, `name`, `is_18_plus?` |
 | `promptfm_admin_broadcast` | Dispatches announcements to Discord and Telegram. | `message`, `category?`, `title?` |
@@ -240,8 +243,9 @@ AI agents can manage the station autonomously by connecting to the MCP endpoint 
 #### Station Administration Endpoints (`ADMIN_API_KEY` Required)
 All `/api/admin/*` endpoints require authentication when `ADMIN_API_KEY` is configured via `Authorization: Bearer <ADMIN_API_KEY>`, `x-admin-key: <ADMIN_API_KEY>`, or query parameter `?key=<ADMIN_API_KEY>`:
 
-- `GET /api/admin/reports`: Lists recent content moderation reports (supports `?limit=N`, default 30).
-- `POST /api/admin/reports`: Actions or dismisses a moderation report (`{ reportId, action: 'actioned' | 'dismissed', notes? }`).
+- `GET /api/admin/reports`: Lists recent content moderation reports (supports `?limit=N`, default 30; supports `?audit=true` for audit summary).
+- `GET /api/admin/reports/audit`: Returns security and moderation audit summary, detecting status changes made during unauthenticated windows.
+- `POST /api/admin/reports`: Actions or dismisses a moderation report (`{ reportId, action: 'actioned' | 'dismissed', notes?, actor? }`).
 - `GET /api/admin/requests`: Lists pending and scheduled listener requests from Discord/Telegram.
 - `POST /api/admin/requests`: Approves, airs, or rejects listener requests with reason tracking.
 - `GET /api/admin/stream`: Returns real-time RTMP stream status across YouTube and TikTok.

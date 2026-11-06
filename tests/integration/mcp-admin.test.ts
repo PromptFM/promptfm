@@ -53,6 +53,37 @@ describe('MCP Admin Tools Integration', () => {
     expect(data.success).toBe(true);
     expect(data.report_id).toBe(rep.reportId);
     expect(data.action).toBe('actioned');
+    expect(data.resolved_by).toBe('mcp_admin');
+    expect(data.resolved_at).toBeDefined();
+  });
+
+  it('audits reports via promptfm_admin_audit_reports tool', async () => {
+    const req = new NextRequest('http://localhost:3000/api/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'req-mcp-audit-1',
+        method: 'tools/call',
+        params: {
+          name: 'promptfm_admin_audit_reports',
+          arguments: {
+            limit: 25,
+          },
+        },
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.result).toBeDefined();
+
+    const data = JSON.parse(json.result.content[0].text);
+    expect(data.success).toBe(true);
+    expect(data.audit).toBeDefined();
+    expect(typeof data.audit.total_reports).toBe('number');
+    expect(typeof data.audit.clean).toBe('boolean');
   });
 
   it('removes an item from the live queue via promptfm_admin_remove_from_queue', async () => {

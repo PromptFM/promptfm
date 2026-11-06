@@ -78,6 +78,9 @@ export default function AdminDashboard() {
   const [queueItems, setQueueItems] = useState<QueuedItem[]>([]);
   const [communityRequests, setCommunityRequests] = useState<CommunityRequestRow[]>([]);
   const [reports, setReports] = useState<ContentReport[]>([]);
+  const [auditSummary, setAuditSummary] = useState<any>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [showAuditPanel, setShowAuditPanel] = useState(false);
   const [channels, setChannels] = useState<RadioChannel[]>(() => getAllChannels());
   const [channelForm, setChannelForm] = useState({
     slug: '',
@@ -504,19 +507,45 @@ export default function AdminDashboard() {
 
   const handleActionReport = async (reportId: string, action: 'actioned' | 'dismissed') => {
     setActionLoadingId(reportId);
+    const actorName = user?.email || 'Web Studio Admin';
     try {
       const res = await fetch('/api/admin/reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reportId, action }),
+        body: JSON.stringify({ reportId, action, actor: actorName }),
       });
       if (res.ok) {
         setReports((prev) =>
-          prev.map((r) => (r.id === reportId ? { ...r, status: action } : r))
+          prev.map((r) =>
+            r.id === reportId
+              ? {
+                  ...r,
+                  status: action,
+                  resolved_by: actorName,
+                  resolved_at: new Date().toISOString(),
+                }
+              : r
+          )
         );
       }
     } finally {
       setActionLoadingId(null);
+    }
+  };
+
+  const handleRunAudit = async () => {
+    setAuditLoading(true);
+    setShowAuditPanel(true);
+    try {
+      const res = await fetch('/api/admin/reports?audit=true');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.audit) setAuditSummary(data.audit);
+      }
+    } catch (err) {
+      console.warn('Could not run reports audit:', err);
+    } finally {
+      setAuditLoading(false);
     }
   };
 
@@ -1324,13 +1353,108 @@ export default function AdminDashboard() {
                   Reports submitted via Web UI, Discord, Telegram, and MCP.
                 </p>
               </div>
-              <button
-                onClick={refreshData}
-                className="text-xs text-zinc-400 hover:text-emerald-400 transition-colors"
-              >
-                Refresh
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleRunAudit}
+                  disabled={auditLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 text-xs font-semibold transition-colors"
+                >
+                  {auditLoading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <ShieldAlert className="w-3.5 h-3.5" />
+                  )}
+                  Audit Reports Window
+                </button>
+                <button
+                  onClick={refreshData}
+                  className="text-xs text-zinc-400 hover:text-emerald-400 transition-colors"
+                >
+                  Refresh
+                </button>
+              </div>
             </div>
+
+            {/* Audit Results Panel */}
+            {showAuditPanel && auditSummary && (
+              <div
+                className={`p-4 rounded-xl border ${
+                  auditSummary.clean
+                    ? 'border-emerald-500/30 bg-emerald-950/20'
+                    : 'border-amber-500/30 bg-amber-950/20'
+                } space-y-3`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {auditSummary.clean ? (
+                      <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                    ) : (
+                      <ShieldAlert className="w-5 h-5 text-amber-400" />
+                    )}
+                    <h3 className="text-sm font-bold text-white">
+                      {auditSummary.clean
+                        ? 'Audit Clean: All moderation changes carry valid attribution'
+                        : `Audit Alert: ${auditSummary.unaudited_count} unaudited modification(s) detected`}
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setShowAuditPanel(false)}
+                    className="text-xs text-zinc-400 hover:text-white"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 text-center text-xs">
+                  <div className="p-2 rounded bg-zinc-900/60 border border-zinc-800">
+                    <p className="text-zinc-500">Total Analyzed</p>
+                    <p className="font-bold text-white text-sm">{auditSummary.total_reports}</p>
+                  </div>
+                  <div className="p-2 rounded bg-zinc-900/60 border border-zinc-800">
+                    <p className="text-zinc-500">Pending</p>
+                    <p className="font-bold text-amber-400 text-sm">{auditSummary.pending_count}</p>
+                  </div>
+                  <div className="p-2 rounded bg-zinc-900/60 border border-zinc-800">
+                    <p className="text-zinc-500">Actioned</p>
+                    <p className="font-bold text-red-400 text-sm">{auditSummary.actioned_count}</p>
+                  </div>
+                  <div className="p-2 rounded bg-zinc-900/60 border border-zinc-800">
+                    <p className="text-zinc-500">Dismissed</p>
+                    <p className="font-bold text-zinc-300 text-sm">{auditSummary.dismissed_count}</p>
+                  </div>
+                  <div className="p-2 rounded bg-zinc-900/60 border border-zinc-800">
+                    <p className="text-zinc-500">Unaudited</p>
+                    <p className={`font-bold text-sm ${auditSummary.unaudited_count > 0 ? 'text-amber-400' : 'text-zinc-400'}`}>
+                      {auditSummary.unaudited_count}
+                    </p>
+                  </div>
+                  <div className="p-2 rounded bg-zinc-900/60 border border-zinc-800">
+                    <p className="text-zinc-500">Suspicious</p>
+                    <p className={`font-bold text-sm ${auditSummary.suspicious_count > 0 ? 'text-red-400' : 'text-zinc-400'}`}>
+                      {auditSummary.suspicious_count}
+                    </p>
+                  </div>
+                </div>
+
+                {auditSummary.flagged_items && auditSummary.flagged_items.length > 0 && (
+                  <div className="mt-3 space-y-2 border-t border-zinc-800 pt-2">
+                    <p className="text-xs font-semibold text-amber-300">Flagged Moderation Tickets:</p>
+                    {auditSummary.flagged_items.map((item: any, idx: number) => (
+                      <div key={idx} className="p-2 rounded bg-zinc-900/80 border border-zinc-800 text-xs space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono font-bold text-white">{item.report.id}</span>
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] uppercase font-bold ${item.severity === 'high' ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                            {item.severity} severity
+                          </span>
+                        </div>
+                        <p className="text-zinc-300">{item.message}</p>
+                        <p className="text-zinc-400 italic">💡 {item.recommendation}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {reports.length === 0 ? (
               <div className="text-center py-16 text-zinc-500 border border-zinc-800/80 rounded-2xl bg-zinc-900/40">
@@ -1380,6 +1504,30 @@ export default function AdminDashboard() {
                         {report.reporter_id && <span>By: {report.reporter_id}</span>}
                         <span>{new Date(report.created_at).toLocaleTimeString()}</span>
                       </div>
+
+                      {report.status !== 'pending' && (
+                        <div className="pt-2 text-[11px] text-zinc-400 border-t border-zinc-800/80 flex items-center gap-3 flex-wrap">
+                          {report.resolved_by ? (
+                            <span className="text-emerald-400/90 font-medium">
+                              Resolved by: <strong>{report.resolved_by}</strong>
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                              ⚠️ Unattributed Legacy Resolution
+                            </span>
+                          )}
+                          {report.resolved_at && (
+                            <span className="text-zinc-500">
+                              at {new Date(report.resolved_at).toLocaleString()}
+                            </span>
+                          )}
+                          {report.notes && (
+                            <span className="italic text-zinc-400">
+                              &ldquo;{report.notes}&rdquo;
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {report.status === 'pending' && (

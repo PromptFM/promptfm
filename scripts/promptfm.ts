@@ -11,7 +11,7 @@ import { synthesizeScheduledRequest, rejectScheduledRequest, synthesizeBatchAnno
 import { getAllDJs, getActiveDJ, getDJById, getAdsConfig, getActiveAdSpot } from '../src/lib/dj/roster';
 import { createAdminClient } from '../src/lib/supabase/server';
 import { broadcastToCommunity, castVoteForTrack } from '../src/lib/chat/bridge';
-import { submitContentReport, getRecentReports, resolveContentReport } from '../src/lib/safety/reports';
+import { submitContentReport, getRecentReports, resolveContentReport, auditContentReports } from '../src/lib/safety/reports';
 import { autoGenerateChannelGuardrails } from '../src/lib/safety/channel-guardrails';
 import { getAllChannels } from '../src/lib/radio/channels';
 import { findTracksByVibe, indexTrackEmbedding } from '../src/lib/dj/rag';
@@ -1160,23 +1160,55 @@ Moderation & Schedule:
         return;
       }
 
+      if (sub === 'audit') {
+        const limit = parseInt(parseArg('--limit') || '100', 10);
+        console.log('🔍 Auditing content reports for unattributed or suspicious modifications...\n');
+        const audit = await auditContentReports({ limit });
+
+        console.log('📋 Content Reports Moderation & Security Audit');
+        console.log('='.repeat(60));
+        console.log(`Audit Timestamp: ${audit.timestamp}`);
+        console.log(`Total Reports Analyzed: ${audit.total_reports}`);
+        console.log(`  • Pending:   ${audit.pending_count}`);
+        console.log(`  • Actioned:  ${audit.actioned_count}`);
+        console.log(`  • Dismissed: ${audit.dismissed_count}`);
+        console.log(`  • Reviewed:  ${audit.reviewed_count}`);
+        console.log(`Unaudited Modifications: ${audit.unaudited_count}`);
+        console.log(`Suspicious / High-Risk:   ${audit.suspicious_count}`);
+        console.log(`Status: ${audit.clean ? '✅ PASS - All resolved reports carry valid actor attribution' : '⚠️ WARNING - Unattributed or suspicious status changes detected!'}`);
+        console.log('='.repeat(60));
+
+        if (audit.flagged_items.length > 0) {
+          console.log('\n🚨 Flagged Items:');
+          for (const item of audit.flagged_items) {
+            console.log(`\n• [${item.severity.toUpperCase()}] ${item.report.id} (${item.report.reason}) -> ${item.report.status}`);
+            console.log(`  Target:         ${item.report.target_type} (${item.report.target_id})`);
+            console.log(`  Issue:          ${item.issue}`);
+            console.log(`  Message:        ${item.message}`);
+            console.log(`  Recommendation: ${item.recommendation}`);
+          }
+        }
+        return;
+      }
+
       if (sub === 'resolve' || sub === 'action') {
         const reportId = args[2];
         const action = (parseArg('--action') || 'actioned') as 'actioned' | 'dismissed';
         const notes = parseArg('--notes') || 'Resolved via PromptFM Admin CLI';
+        const actor = parseArg('--actor') || 'CLI Operator';
 
         if (!reportId) {
-          console.error('Usage: npm run promptfm -- report resolve <reportId> [--action actioned|dismissed] [--notes "explanation"]');
+          console.error('Usage: npm run promptfm -- report resolve <reportId> [--action actioned|dismissed] [--notes "explanation"] [--actor "moderator"]');
           return;
         }
 
-        const res = await resolveContentReport(reportId, action, notes);
-        console.log(`✅ Report ${res.reportId} marked as ${res.status.toUpperCase()}!`);
+        const res = await resolveContentReport(reportId, action, notes, actor);
+        console.log(`✅ Report ${res.reportId} marked as ${res.status.toUpperCase()} by ${res.resolved_by}!`);
         if (res.notes) console.log(`   Notes: "${res.notes}"`);
         return;
       }
 
-      console.log('Report commands: npm run promptfm -- report list | report file <id> [reason] [details] | report resolve <id> [--action actioned|dismissed]');
+      console.log('Report commands: npm run promptfm -- report list | report audit [--limit N] | report file <id> [reason] [details] | report resolve <id> [--action actioned|dismissed] [--notes "..."] [--actor "..."]');
       break;
     }
 
