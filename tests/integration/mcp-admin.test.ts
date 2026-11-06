@@ -278,5 +278,66 @@ describe('MCP Admin Tools Integration', () => {
     expect(data.success).toBe(true);
     expect(data.sessions).toBeDefined();
   });
+
+  it('updates track metadata via promptfm_admin_edit_track', async () => {
+    const req = new NextRequest('http://localhost:3000/api/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'req-mcp-edit-track',
+        method: 'tools/call',
+        params: {
+          name: 'promptfm_admin_edit_track',
+          arguments: {
+            track_id: '11111111-2222-3333-4444-555555555555',
+            title: 'Updated Cyber Anthem',
+            artist_name: 'Neon DJ 2.0',
+            category: 'Cyberpunk & Synth',
+            lyrics: 'Neon city lights, midnight rides',
+            is_explicit: false,
+          },
+        },
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.result).toBeDefined();
+
+    const data = JSON.parse(json.result.content[0].text);
+    expect(data.success).toBe(true);
+    expect(data.track).toBeDefined();
+    expect(data.track.title).toBe('Updated Cyber Anthem');
+  });
+
+  it('deletes a track via promptfm_admin_delete_track', async () => {
+    const req = new NextRequest('http://localhost:3000/api/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'req-mcp-delete-track',
+        method: 'tools/call',
+        params: {
+          name: 'promptfm_admin_delete_track',
+          arguments: {
+            track_id: '11111111-2222-3333-4444-555555555555',
+            soft_delete: false,
+          },
+        },
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.result).toBeDefined();
+
+    const data = JSON.parse(json.result.content[0].text);
+    expect(data.success).toBe(true);
+    expect(data.deleted_id).toBe('11111111-2222-3333-4444-555555555555');
+  });
 });
 

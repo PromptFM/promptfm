@@ -15,6 +15,7 @@ import { submitContentReport, getRecentReports, resolveContentReport, auditConte
 import { autoGenerateChannelGuardrails } from '../src/lib/safety/channel-guardrails';
 import { getAllChannels } from '../src/lib/radio/channels';
 import { findTracksByVibe, indexTrackEmbedding } from '../src/lib/dj/rag';
+import { editTrackMetadata, deleteTrack } from '../src/lib/dj/track-management';
 import {
   registerTelegramWebhook,
   getTelegramWebhookInfo,
@@ -120,6 +121,10 @@ Moderation & Schedule:
   admin pending           List community tracks waiting for review
   admin approve <id>      Approve a pending track for airplay
   admin reject <id>       Reject a track
+  admin list              List all tracks in database
+  admin edit <id>         Update track metadata (title, artist, category, lyrics, explicit)
+                          Flags: --title "New" --artist "New" --category "New" --desc "New" --explicit true/false
+  admin delete <id>       Delete a track by UUID or title (supports --soft archival)
   schedule                Display declarative hourly programming from schedule.yaml
   help                    Show this guide
 `);
@@ -1118,7 +1123,116 @@ Moderation & Schedule:
         return;
       }
 
-      console.log('Admin subcommands: pending, approve <id>, reject <id>');
+      if (sub === 'edit') {
+        if (!targetId) {
+          console.error('Usage: npm run promptfm admin edit <id_or_title> [--title "New"] [--artist "New"] [--category "New"] [--desc "New"] [--lyrics "New"] [--explicit true|false] [--tool "Suno"]');
+          return;
+        }
+
+        const title = parseArg('--title');
+        const artist = parseArg('--artist');
+        const category = parseArg('--category');
+        const desc = parseArg('--desc') || parseArg('--description');
+        const lyrics = parseArg('--lyrics');
+        const tool = parseArg('--tool');
+        const explicitFlag = parseArg('--explicit');
+        const isExplicit = explicitFlag !== undefined ? explicitFlag === 'true' || explicitFlag === '1' : undefined;
+
+        try {
+          const res = await editTrackMetadata(
+            targetId,
+            {
+              title,
+              artist_name: artist,
+              category,
+              description: desc,
+              lyrics,
+              tool_used: tool,
+              is_explicit: isExplicit,
+            },
+            'Admin CLI'
+          );
+
+          console.log(`✅ ${res.message}`);
+          console.log(`• Title: "${res.track.title}" by ${res.track.artist_name}`);
+          console.log(`• Category: ${res.track.category} | Tool: ${res.track.tool_used} | Explicit: ${res.track.is_explicit ? 'Yes' : 'No'}`);
+          if (res.indexed) {
+            console.log(`• Semantic pgvector embedding re-indexed successfully.`);
+          }
+        } catch (err: unknown) {
+          console.error(`Failed to edit track:`, err instanceof Error ? err.message : String(err));
+        }
+        return;
+      }
+
+      if (sub === 'delete') {
+        if (!targetId) {
+          console.error('Usage: npm run promptfm admin delete <id_or_title> [--soft]');
+          return;
+        }
+
+        const isSoft = args.includes('--soft');
+
+        try {
+          const res = await deleteTrack(targetId, { softDelete: isSoft, actor: 'Admin CLI' });
+          console.log(`🗑️ ${res.message}`);
+        } catch (err: unknown) {
+          console.error(`Failed to delete track:`, err instanceof Error ? err.message : String(err));
+        }
+        return;
+      }
+
+      console.log('Admin subcommands: pending, approve <id>, reject <id>, edit <id> [flags], delete <id> [--soft]');
+      break;
+    }
+
+    case 'track':
+    case 'tracks': {
+      const sub = args[1];
+      const targetId = args[2];
+      if (sub === 'edit') {
+        const title = parseArg('--title');
+        const artist = parseArg('--artist');
+        const category = parseArg('--category');
+        const desc = parseArg('--desc') || parseArg('--description');
+        const lyrics = parseArg('--lyrics');
+        const tool = parseArg('--tool');
+        const explicitFlag = parseArg('--explicit');
+        const isExplicit = explicitFlag !== undefined ? explicitFlag === 'true' || explicitFlag === '1' : undefined;
+
+        if (!targetId) {
+          console.error('Usage: npm run promptfm track edit <id_or_title> [flags]');
+          return;
+        }
+
+        try {
+          const res = await editTrackMetadata(
+            targetId,
+            { title, artist_name: artist, category, description: desc, lyrics, tool_used: tool, is_explicit: isExplicit },
+            'Admin CLI'
+          );
+          console.log(`✅ ${res.message}`);
+        } catch (err: unknown) {
+          console.error(`Failed to edit track:`, err instanceof Error ? err.message : String(err));
+        }
+        return;
+      }
+
+      if (sub === 'delete') {
+        if (!targetId) {
+          console.error('Usage: npm run promptfm track delete <id_or_title> [--soft]');
+          return;
+        }
+        try {
+          const res = await deleteTrack(targetId, { softDelete: args.includes('--soft'), actor: 'Admin CLI' });
+          console.log(`🗑️ ${res.message}`);
+        } catch (err: unknown) {
+          console.error(`Failed to delete track:`, err instanceof Error ? err.message : String(err));
+        }
+        return;
+      }
+
+      console.log('Usage: npm run promptfm track [edit|delete] <id_or_title>');
       break;
     }
 
