@@ -34,6 +34,8 @@ import {
   Video,
   ExternalLink,
   RefreshCw,
+  Power,
+  PowerOff,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { type Track, type AITool, type ContentReport, type FeatureFlag, REASON_LABELS } from '@/types/database';
@@ -336,6 +338,7 @@ export default function AdminDashboard() {
             allowExplicitAllDay: item.allow_explicit_24_7 ?? existing?.allowExplicitAllDay ?? guard.allow_explicit_24_7,
             ageGateDisclaimer: item.age_gate_disclaimer || existing?.ageGateDisclaimer || guard.age_gate_disclaimer,
             streamUrl: `https://stream.promptfm.live/live?channel=${item.slug}`,
+            isActive: item.is_active !== undefined ? Boolean(item.is_active) : (existing?.isActive ?? false),
           });
         }
       }
@@ -698,6 +701,40 @@ export default function AdminDashboard() {
       console.error('Failed to update feature flag:', err);
     } finally {
       setFlagLoading(null);
+    }
+  };
+
+  const handleToggleChannelStatus = async (slug: string, nextStatus: boolean) => {
+    setActionLoadingId(`channel-status-${slug}`);
+    try {
+      const res = await fetch('/api/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: `admin-ui-toggle-${Date.now()}`,
+          method: 'tools/call',
+          params: {
+            name: 'promptfm_admin_set_channel_status',
+            arguments: {
+              slug,
+              is_active: nextStatus,
+            },
+          },
+        }),
+      });
+
+      if (res.ok) {
+        setChannels((prev) =>
+          prev.map((c) => (c.slug === slug ? { ...c, isActive: nextStatus } : c))
+        );
+      } else {
+        throw new Error('Failed to update channel status');
+      }
+    } catch (err: unknown) {
+      alert(`Error updating channel status: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -1655,6 +1692,15 @@ export default function AdminDashboard() {
                         <span className="px-1.5 py-0.5 rounded bg-zinc-800 font-mono text-[10px] text-zinc-400">
                           /{ch.slug}
                         </span>
+                        {ch.isActive ? (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            Active
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                            Disabled
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-zinc-400">{ch.vibe || ch.description}</p>
                     </div>
@@ -1696,6 +1742,36 @@ export default function AdminDashboard() {
                       {ch.ageGateDisclaimer}
                     </div>
                   )}
+
+                  <div className="mt-3 pt-3 border-t border-zinc-800/80 flex items-center justify-between">
+                    <span className="text-xs text-zinc-400">
+                      Status: <strong className={ch.isActive ? 'text-emerald-400' : 'text-zinc-500'}>{ch.isActive ? 'Enabled (On Air)' : 'Disabled (Offline)'}</strong>
+                    </span>
+                    <button
+                      type="button"
+                      disabled={actionLoadingId === `channel-status-${ch.slug}`}
+                      onClick={() => handleToggleChannelStatus(ch.slug, !ch.isActive)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+                        ch.isActive
+                          ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30 hover:bg-rose-500/20'
+                          : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20'
+                      }`}
+                    >
+                      {actionLoadingId === `channel-status-${ch.slug}` ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : ch.isActive ? (
+                        <>
+                          <PowerOff className="w-3.5 h-3.5" />
+                          <span>Disable Channel</span>
+                        </>
+                      ) : (
+                        <>
+                          <Power className="w-3.5 h-3.5" />
+                          <span>Enable Channel</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

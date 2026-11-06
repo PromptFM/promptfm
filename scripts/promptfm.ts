@@ -13,7 +13,7 @@ import { createAdminClient } from '../src/lib/supabase/server';
 import { broadcastToCommunity, castVoteForTrack } from '../src/lib/chat/bridge';
 import { submitContentReport, getRecentReports, resolveContentReport, auditContentReports } from '../src/lib/safety/reports';
 import { autoGenerateChannelGuardrails } from '../src/lib/safety/channel-guardrails';
-import { getAllChannels } from '../src/lib/radio/channels';
+import { getAllChannels, setChannelActiveOverride, isChannelActive } from '../src/lib/radio/channels';
 import { findTracksByVibe, indexTrackEmbedding } from '../src/lib/dj/rag';
 import {
   registerTelegramWebhook,
@@ -127,7 +127,10 @@ Feature Flags & Emergency Kill Switches:
 Moderation & Schedule:
   channels list           List radio broadcast channels, assigned DJs & guardrail policies
   channels create <slug> <name> Create a channel with automated 18+ guardrails & disclaimers
-                          Flags: --18plus --dj <id> --desc "Vibe description"
+                          Flags: --18plus --dj <id> --desc "Vibe description" --disabled
+  channels enable <slug>  Enable a radio broadcast channel for airplay and discovery
+  channels disable <slug> Disable a radio broadcast channel (take offline / rollback)
+  channels toggle <slug>  Toggle a radio broadcast channel active/disabled status
   requests list           View scheduled Discord/Telegram requests by batch
   requests air <id>       Force-synthesize & air a scheduled dedication or request
   requests reject <id>    Remove item from batch with reason & notify user on Telegram/Discord
@@ -1310,7 +1313,7 @@ Moderation & Schedule:
     }
 
     case 'channels': {
-      const sub = args[1]; // 'list' | 'create'
+      const sub = args[1]; // 'list' | 'create' | 'enable' | 'disable' | 'toggle'
       if (sub === 'list' || !sub) {
         const official = getAllChannels();
         let dbChannels: any[] = [];
@@ -1336,6 +1339,7 @@ Moderation & Schedule:
             allowExplicit247: ch.allowExplicitAllDay ?? false,
             minAge: ch.minAge ?? 0,
             badge: ch.badge,
+            isActive: ch.isActive,
           });
         }
         for (const ch of dbChannels) {
@@ -1360,6 +1364,7 @@ Moderation & Schedule:
             allowExplicit247: ch.allow_explicit_24_7 ?? existing.allowExplicit247 ?? guard.allow_explicit_24_7,
             minAge: ch.min_age ?? existing.minAge ?? guard.min_age,
             badge: ch.badge || existing.badge || (guard.allow_explicit_24_7 ? '🔞 18+ Explicit' : '📻 Channel'),
+            isActive: ch.is_active !== undefined ? Boolean(ch.is_active) : (existing.isActive ?? false),
           });
         }
 
@@ -1371,7 +1376,37 @@ Moderation & Schedule:
             : ch.isFamilySafe
             ? '✅ FAMILY SAFE (All Ages)'
             : '⚡ 16+ STANDARD';
-          console.log(`• [${ch.slug.padEnd(12)}] "${ch.name}" | Host: ${ch.djName || ch.djId} | ${rating}`);
+          const status = ch.isActive ? '🟢 [ACTIVE]' : '🔴 [DISABLED]';
+          console.log(`• [${ch.slug.padEnd(12)}] "${ch.name}" | ${status} | Host: ${ch.djName || ch.djId} | ${rating}`);
+        }
+        return;
+      }
+
+      if (sub === 'enable' || sub === 'disable' || sub === 'toggle') {
+        const slug = args[2]?.toLowerCase().trim();
+        if (!slug) {
+          console.error(`Usage: npm run promptfm -- channels ${sub} <slug>`);
+          return;
+        }
+
+        const currentActive = isChannelActive(slug);
+        const nextActive = sub === 'enable' ? true : sub === 'disable' ? false : !currentActive;
+        setChannelActiveOverride(slug, nextActive);
+
+        try {
+          const supabase = createAdminClient();
+          const { error } = await supabase.from('channels').upsert({ slug, is_active: nextActive }, { onConflict: 'slug' });
+          if (error) {
+            console.warn(`[Warning] Database update had error: ${error.message}. Local override applied.`);
+          }
+        } catch (err: any) {
+          console.warn(`[Note] Database optional/offline. Local state updated.`);
+        }
+
+        if (nextActive) {
+          console.log(`✅ Channel "${slug}" is now ENABLED (Active for airplay & discovery).`);
+        } else {
+          console.log(`⛔ Channel "${slug}" is now DISABLED (Offline / Rolled back).`);
         }
         return;
       }
@@ -1380,11 +1415,13 @@ Moderation & Schedule:
         const slug = args[2]?.toLowerCase().trim();
         const name = args[3]?.trim();
         const is18Plus = args.includes('--18plus');
+        const isDisabled = args.includes('--disabled');
+        const isActive = !isDisabled;
         const djId = parseArg('--dj') || 'dj_neon';
         const desc = parseArg('--desc') || '';
 
         if (!slug || !name) {
-          console.error('Usage: npm run promptfm -- channels create <slug> <name> [--18plus] [--dj <djId>] [--desc "Description"]');
+          console.error('Usage: npm run promptfm -- channels create <slug> <name> [--18plus] [--disabled] [--dj <djId>] [--desc "Description"]');
           return;
         }
 
@@ -1409,6 +1446,7 @@ Moderation & Schedule:
           allow_explicit_24_7: guardrails.allow_explicit_24_7,
           age_gate_disclaimer: guardrails.age_gate_disclaimer,
           stream_url: `https://stream.promptfm.live/live?channel=${slug}`,
+          is_active: isActive,
         };
 
         const dbPayload = {
@@ -1420,7 +1458,10 @@ Moderation & Schedule:
           requires_age_gate: guardrails.requires_age_gate,
           allow_explicit_24_7: guardrails.allow_explicit_24_7,
           age_gate_disclaimer: guardrails.age_gate_disclaimer,
+          is_active: isActive,
         };
+
+        setChannelActiveOverride(slug, isActive);
 
         try {
           const supabase = createAdminClient();
@@ -1428,13 +1469,14 @@ Moderation & Schedule:
           if (error) {
             // Fallback to base columns if migration columns are not yet cached
             const { error: fallbackError } = await supabase.from('channels').upsert(
-              { slug, name, description: desc },
+              { slug, name, description: desc, is_active: isActive },
               { onConflict: 'slug' }
             );
             if (fallbackError) {
               console.error('Database Error:', fallbackError.message);
             } else {
               console.log(`✅ Channel "${name}" (${slug}) created in database with automated guardrails:`);
+              console.log(`   - Status:              ${isActive ? 'Active / Enabled' : 'Disabled / Inactive'}`);
               console.log(`   - 18+ Explicit 24/7:   ${guardrails.allow_explicit_24_7}`);
               console.log(`   - Age Gate Required:   ${guardrails.requires_age_gate}`);
               console.log(`   - Minimum Age:         ${guardrails.min_age}`);
@@ -1446,6 +1488,7 @@ Moderation & Schedule:
             }
           } else {
             console.log(`✅ Channel "${name}" (${slug}) created successfully with automated guardrails:`);
+            console.log(`   - Status:              ${isActive ? 'Active / Enabled' : 'Disabled / Inactive'}`);
             console.log(`   - 18+ Explicit 24/7:   ${guardrails.allow_explicit_24_7}`);
             console.log(`   - Age Gate Required:   ${guardrails.requires_age_gate}`);
             console.log(`   - Minimum Age:         ${guardrails.min_age}`);
@@ -1461,7 +1504,7 @@ Moderation & Schedule:
         return;
       }
 
-      console.log('Channels subcommands: npm run promptfm -- channels list | channels create <slug> <name> [--18plus]');
+      console.log('Channels subcommands: npm run promptfm -- channels list | channels create <slug> <name> [--18plus] [--disabled] | channels enable <slug> | channels disable <slug> | channels toggle <slug>');
       break;
     }
 

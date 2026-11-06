@@ -278,5 +278,58 @@ describe('MCP Admin Tools Integration', () => {
     expect(data.success).toBe(true);
     expect(data.sessions).toBeDefined();
   });
+
+  it('updates channel active status via promptfm_admin_set_channel_status', async () => {
+    const req = new NextRequest('http://localhost:3000/api/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'req-mcp-status-ch',
+        method: 'tools/call',
+        params: {
+          name: 'promptfm_admin_set_channel_status',
+          arguments: {
+            slug: 'cyberpunk',
+            is_active: true,
+          },
+        },
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    const data = JSON.parse(json.result.content[0].text);
+    expect(data.success).toBe(true);
+    expect(data.slug).toBe('cyberpunk');
+    expect(data.is_active).toBe(true);
+  });
+
+  it('toggles channel active status via promptfm_admin_toggle_channel', async () => {
+    const req = new NextRequest('http://localhost:3000/api/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'req-mcp-toggle-ch',
+        method: 'tools/call',
+        params: {
+          name: 'promptfm_admin_toggle_channel',
+          arguments: {
+            slug: 'chillout',
+          },
+        },
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    const data = JSON.parse(json.result.content[0].text);
+    expect(data.success).toBe(true);
+    expect(data.slug).toBe('chillout');
+    expect(typeof data.is_active).toBe('boolean');
+  });
 });
 
