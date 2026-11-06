@@ -10,9 +10,14 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# NOTE: Job `name:` properties must match their job keys (e.g. `lint-and-typecheck`).
+# GitHub Actions uses the job name as the CheckRun context in the status API, and GitHub
+# branch protection requires exact matching contexts (e.g. `lint-and-typecheck`).
+# Do NOT use decorative emojis in job names, as they cause PR status checks to hang at
+# "Expected — Waiting for status to be reported" (see PromptFM/promptfm#63).
 jobs:
   lint-and-typecheck:
-    name: 🔍 Lint & Static Types
+    name: lint-and-typecheck
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -34,7 +39,7 @@ jobs:
         run: npm run typecheck
 
   unit-and-integration-tests:
-    name: 🧪 Vitest Test Suite & Coverage (>=80%)
+    name: unit-and-integration-tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -58,7 +63,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: mock-service-role-key
 
   playwright-e2e-tests:
-    name: 🎭 Playwright E2E UI, SEO & Crawler Tests
+    name: playwright-e2e-tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -123,7 +128,7 @@ jobs:
           retention-days: 7
 
   mutation-testing:
-    name: 🧬 Stryker Mutation Testing (Core Domain Logic)
+    name: mutation-testing
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [lint-and-typecheck, unit-and-integration-tests]
@@ -179,7 +184,7 @@ jobs:
           retention-days: 14
 
   terraform-lint-validate:
-    name: ☁️ Terraform & Infra Validation
+    name: terraform-lint-validate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -200,7 +205,7 @@ jobs:
         run: terraform -chdir=infra/terraform validate
 
   secret-leak-detection:
-    name: 🛡️ Gitleaks Secret & Credential Leak Scanner
+    name: secret-leak-detection
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code (Full History for Secret Scanning)
@@ -214,7 +219,7 @@ jobs:
           ./gitleaks detect --source=. --gitleaks-ignore-path=.gitleaksignore --verbose --redact
 
   codeql-security-scan:
-    name: 🔒 CodeQL Security & Vulnerability Analysis
+    name: codeql-security-scan
     runs-on: ubuntu-latest
     permissions:
       security-events: write
@@ -235,7 +240,7 @@ jobs:
           category: '/language:javascript-typescript'
 
   package-vulnerability-scan:
-    name: 🛡️ Package & Supply Chain Vulnerability Scanner (Trivy & Audit)
+    name: package-vulnerability-scan
     runs-on: ubuntu-latest
     permissions:
       security-events: write
