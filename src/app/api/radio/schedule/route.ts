@@ -12,9 +12,10 @@ export async function GET(req: NextRequest) {
   try {
     const channelSlug = (req.nextUrl.searchParams.get('channel') || 'main').toLowerCase();
     const returnAll = req.nextUrl.searchParams.get('all') === 'true';
+    const publicOnly = req.nextUrl.searchParams.get('public_only') === 'true';
 
     if (returnAll) {
-      const allSchedules = getAllChannelsSchedule();
+      const allSchedules = getAllChannelsSchedule(new Date(), { publicOnly });
       return NextResponse.json({
         success: true,
         channels: allSchedules,
