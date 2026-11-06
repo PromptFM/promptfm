@@ -46,6 +46,15 @@ let currentAirplayItem: AirplayItem | null = null;
 let currentAirplayStartedAt: number = Date.now();
 let pendingAirplayItem: AirplayItem | null = null;
 
+const lastAirplayAnnouncedByChannel = new Map<string, { id: string; airedAt: number }>();
+
+/**
+ * Resets the in-memory cache used to deduplicate now-playing community announcements.
+ */
+export function resetAirplayDedupeCache(): void {
+  lastAirplayAnnouncedByChannel.clear();
+}
+
 /**
  * Formats an AirplayItem into a Liquidsoap annotate: string with metadata tags.
  * Allows Liquidsoap to stream ICY metadata (title, artist) and report track start.
@@ -686,7 +695,20 @@ export async function markTrackStarted(channelSlug = 'main', itemId: string): Pr
     // Ignore background persistence errors
   }
 
-  notifyCommunityAirplay(itemToStart, activeDJ).catch(() => {});
+  // Deduplicate now-playing announcements: only broadcast once per airplay transition.
+  // Consecutive duplicate signals (e.g. Liquidsoap retries, reconnects, watchdog) are dropped.
+  const lastAnnounced = lastAirplayAnnouncedByChannel.get(channelSlug);
+  const nowMs = Date.now();
+  const isDuplicate =
+    lastAnnounced !== undefined &&
+    lastAnnounced.id === itemToStart.id &&
+    nowMs - lastAnnounced.airedAt < 60_000;
+
+  if (!isDuplicate) {
+    lastAirplayAnnouncedByChannel.set(channelSlug, { id: itemToStart.id, airedAt: nowMs });
+    notifyCommunityAirplay(itemToStart, activeDJ).catch(() => {});
+  }
+
   return itemToStart;
 }
 
@@ -731,8 +753,8 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
       } catch (err) {
         console.warn('Persisting station_state failed:', err);
       }
-      // Fire and forget community notification
-      notifyCommunityAirplay(item, activeDJ).catch(() => {});
+      // Note: Now-playing announcements are triggered exclusively by actual on-air airplay
+      // events (via markTrackStarted) and NOT during queue/schedule staging in getNextAirplayItem.
     }
 
     return item;

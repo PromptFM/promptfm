@@ -16,6 +16,7 @@ import {
   sendTelegramNotification,
   broadcastToCommunity,
   castVoteForTrack,
+  resetNowPlayingDedupeCache,
   type BroadcastNotification,
 } from '@/lib/chat/bridge';
 
@@ -24,6 +25,7 @@ describe('Community Chat Bridge (Discord & Telegram)', () => {
 
   beforeEach(() => {
     process.env = { ...originalEnv };
+    resetNowPlayingDedupeCache();
     vi.clearAllMocks();
   });
 
@@ -170,6 +172,103 @@ describe('Community Chat Bridge (Discord & Telegram)', () => {
       });
       expect(fetchMock.mock.calls[1]![0]).toBe('https://discord.com/api/webhooks/radio_feed');
     });
+
+    it('deduplicates repeated now_playing notifications for the same track sent within dedupe window', async () => {
+      process.env.DISCORD_NOW_PLAYING_WEBHOOK_URL = 'https://discord.com/api/webhooks/now_playing';
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      const payload: BroadcastNotification = {
+        title: 'Dedupe Track A',
+        message: 'Playing now',
+        category: 'now_playing',
+        trackId: 'track-dedupe-1',
+      };
+
+      const res1 = await sendDiscordNotification(payload);
+      expect(res1).toBe(true);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      // Repeated immediate call for same now-playing track
+      const res2 = await sendDiscordNotification(payload);
+      expect(res2).toBe(true);
+      // Must not dispatch a second duplicate webhook call
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('resetNowPlayingDedupeCache clears deduplication maps and permits immediate broadcast', async () => {
+      process.env.DISCORD_NOW_PLAYING_WEBHOOK_URL = 'https://discord.com/api/webhooks/now_playing';
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      const payload: BroadcastNotification = {
+        title: 'Cache Reset Track',
+        message: 'Playing live',
+        category: 'now_playing',
+        trackId: 'track-reset-1',
+      };
+
+      await sendDiscordNotification(payload);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      resetNowPlayingDedupeCache();
+
+      await sendDiscordNotification(payload);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('deduplicates now_playing notifications using title and artist fallback when trackId is missing', async () => {
+      process.env.DISCORD_NOW_PLAYING_WEBHOOK_URL = 'https://discord.com/api/webhooks/now_playing';
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      const payload: BroadcastNotification = {
+        title: 'Fallback Dedupe Track',
+        artist: 'AI Virtuoso',
+        message: 'Playing live',
+        category: 'now_playing',
+      };
+
+      await sendDiscordNotification(payload);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      await sendDiscordNotification(payload);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('allows re-broadcasting the same track after the dedupe window expires', async () => {
+      process.env.DISCORD_NOW_PLAYING_WEBHOOK_URL = 'https://discord.com/api/webhooks/now_playing';
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      const payload: BroadcastNotification = {
+        title: 'Cooldown Song',
+        message: 'Playing live',
+        category: 'now_playing',
+        trackId: 'track-cooldown-1',
+      };
+
+      const origNow = Date.now;
+      try {
+        let mockTime = 1_000_000;
+        Date.now = () => mockTime;
+
+        await sendDiscordNotification(payload);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        // Within 60,000ms window -> deduped
+        mockTime += 30_000;
+        await sendDiscordNotification(payload);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        // At or past 60,000ms boundary -> allowed
+        mockTime += 30_000;
+        await sendDiscordNotification(payload);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+      } finally {
+        Date.now = origNow;
+      }
+    });
   });
 
   describe('sendTelegramNotification', () => {
@@ -304,6 +403,74 @@ describe('Community Chat Bridge (Discord & Telegram)', () => {
       expect(results[0]?.status).toBe('fulfilled');
       expect(results[1]?.status).toBe('fulfilled');
       expect(results[2]?.status).toBe('fulfilled');
+    });
+
+    it('deduplicates now_playing broadcasts to community channels within dedupe window', async () => {
+      process.env.DISCORD_NOW_PLAYING_WEBHOOK_URL = 'https://discord.com/api/webhooks/now_playing';
+      process.env.TELEGRAM_BOT_TOKEN = 'token';
+      process.env.TELEGRAM_CHAT_ID = 'chat';
+
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      const payload: BroadcastNotification = {
+        title: 'Community Track Dedupe',
+        message: 'Playing live',
+        category: 'now_playing',
+        trackId: 'track-comm-dedupe-1',
+      };
+
+      await broadcastToCommunity(payload);
+      const callCount = fetchMock.mock.calls.length;
+      expect(callCount).toBeGreaterThan(0);
+
+      // Duplicate immediate broadcast
+      await broadcastToCommunity(payload);
+      expect(fetchMock.mock.calls.length).toBe(callCount);
+    });
+
+    it('deduplicates postToX when broadcasting now_playing duplicates', async () => {
+      process.env.DISCORD_NOW_PLAYING_WEBHOOK_URL = 'https://discord.com/api/webhooks/now_playing';
+      process.env.TELEGRAM_BOT_TOKEN = 'token';
+      process.env.TELEGRAM_CHAT_ID = 'chat';
+
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      const payload: BroadcastNotification = {
+        title: 'X Deduped Song',
+        message: 'Playing live on PromptFM',
+        category: 'now_playing',
+        trackId: 'track-x-dedupe-1',
+        postToX: true,
+      };
+
+      const res1 = await broadcastToCommunity(payload, { postToX: true });
+      expect(res1).toHaveLength(3);
+
+      // Second immediate broadcast should omit X task
+      const res2 = await broadcastToCommunity(payload, { postToX: true });
+      expect(res2).toHaveLength(2);
+    });
+
+    it('truncates long tweet to 270 chars and passes url when postToX is requested', async () => {
+      process.env.DISCORD_WEBHOOK_URL = 'https://discord.com/webhook';
+      process.env.TELEGRAM_BOT_TOKEN = 'token';
+      process.env.TELEGRAM_CHAT_ID = 'chat';
+
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      const longMessage = 'A'.repeat(300);
+      const payload: BroadcastNotification = {
+        title: 'Long Announcement',
+        message: longMessage,
+        url: 'https://promptfm.live/track/special-long-url',
+        category: 'announcement',
+      };
+
+      const res = await broadcastToCommunity(payload, { postToX: true });
+      expect(res).toHaveLength(3);
     });
   });
 
