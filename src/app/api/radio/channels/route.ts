@@ -10,7 +10,8 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   const onlyActive =
     req.nextUrl?.searchParams?.get('active') === 'true' ||
-    req.nextUrl?.searchParams?.get('active_only') === 'true';
+    req.nextUrl?.searchParams?.get('active_only') === 'true' ||
+    req.nextUrl?.searchParams?.get('public_only') === 'true';
 
   const channels = onlyActive ? getActiveChannels() : getAllChannels();
   const now = new Date();
@@ -20,6 +21,7 @@ export async function GET(req: NextRequest) {
     return {
       ...channel,
       is_active: channel.isActive,
+      enabled: channel.isActive,
       active_dj: {
         id: activeDJ.id,
         name: activeDJ.name,

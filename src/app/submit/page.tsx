@@ -19,6 +19,7 @@ import { evaluateHeuristicGuardrails } from '@/lib/safety/guardrails';
 import { extractMetadataFromBlob, DEFAULT_TRACK_ICON, ExtractedAudioMetadata } from '@/lib/audio/metadata';
 import { type LyricScanResult } from '@/lib/safety/lyric-scanner';
 import { STATION_CATEGORIES, StationCategory, AITool, UploadUrlRequest, UploadUrlResponse } from '@/types/database';
+import { isChannelPublic } from '@/lib/radio/channels';
 import AgreementsModal from '@/components/AgreementsModal';
 
 export const dynamic = 'force-dynamic';
@@ -672,14 +673,16 @@ export default function SubmitPage() {
 
                   <div className="text-[11px] text-zinc-400 flex items-center gap-1.5 flex-wrap">
                     <span className="text-zinc-500">Permitted Channels:</span>
-                    {lyricScan.allowed_channels.map((ch) => (
-                      <span
-                        key={ch}
-                        className="px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-zinc-300 font-mono text-[10px]"
-                      >
-                        {ch === 'main' ? 'Ch 1 (Main Stage)' : ch === 'cyberpunk' ? 'Ch 2 (Cyberpunk)' : ch === 'chillout' ? 'Ch 3 (Chillout)' : ch === 'kids' ? 'Ch 4 (Kids & Family)' : ch}
-                      </span>
-                    ))}
+                    {lyricScan.allowed_channels
+                      .filter((ch) => isChannelPublic(ch))
+                      .map((ch) => (
+                        <span
+                          key={ch}
+                          className="px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-zinc-300 font-mono text-[10px]"
+                        >
+                          {ch === 'main' ? 'Ch 1 (Main Stage)' : ch === 'cyberpunk' ? 'Ch 2 (Cyberpunk)' : ch === 'chillout' ? 'Ch 3 (Chillout)' : ch === 'kids' ? 'Ch 4 (Kids & Family)' : ch}
+                        </span>
+                      ))}
                   </div>
                 </div>
               )}
