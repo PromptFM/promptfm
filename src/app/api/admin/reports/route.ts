@@ -6,7 +6,26 @@ import { getRecentReports, resolveContentReport } from '@/lib/safety/reports';
 
 export const dynamic = 'force-dynamic';
 
+function isAuthorized(req: NextRequest): boolean {
+  const adminKey = process.env.ADMIN_API_KEY;
+  if (!adminKey) return true; // Default allow in local dev when unconfigured
+
+  const authHeader = req.headers.get('authorization');
+  const xAdminKey = req.headers.get('x-admin-key');
+  const queryKey = req.nextUrl.searchParams.get('key');
+
+  return (
+    authHeader === `Bearer ${adminKey}` ||
+    xAdminKey === adminKey ||
+    queryKey === adminKey
+  );
+}
+
 export async function GET(req: NextRequest) {
+  if (!isAuthorized(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const limitParam = req.nextUrl.searchParams.get('limit');
     const limit = limitParam ? parseInt(limitParam, 10) : 30;
@@ -17,8 +36,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-
 export async function POST(req: NextRequest) {
+  if (!isAuthorized(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
     const { reportId, action, notes } = body; // action: 'actioned' | 'dismissed'

@@ -230,11 +230,23 @@ AI agents can manage the station autonomously by connecting to the MCP endpoint 
 
 ### D. REST API Endpoints
 
+#### Public Endpoints
 - `GET /api/radio/now`: Returns current on-air track, upcoming items, active DJ, and listener count.
 - `POST /api/report`: Ingests community content reports from Web/Bots.
 - `POST /api/bot/webhook`: Handles inbound Telegram bot webhooks and slash commands.
 - `POST /api/mcp`: Dual-tier Model Context Protocol JSON-RPC 2.0 handler.
 - `POST /api/scan-lyrics`: Gemini 3.5 Flash automated safety and lyrical profanity scanner.
+
+#### Station Administration Endpoints (`ADMIN_API_KEY` Required)
+All `/api/admin/*` endpoints require authentication when `ADMIN_API_KEY` is configured via `Authorization: Bearer <ADMIN_API_KEY>`, `x-admin-key: <ADMIN_API_KEY>`, or query parameter `?key=<ADMIN_API_KEY>`:
+
+- `GET /api/admin/reports`: Lists recent content moderation reports (supports `?limit=N`, default 30).
+- `POST /api/admin/reports`: Actions or dismisses a moderation report (`{ reportId, action: 'actioned' | 'dismissed', notes? }`).
+- `GET /api/admin/requests`: Lists pending and scheduled listener requests from Discord/Telegram.
+- `POST /api/admin/requests`: Approves, airs, or rejects listener requests with reason tracking.
+- `GET /api/admin/stream`: Returns real-time RTMP stream status across YouTube and TikTok.
+- `POST /api/admin/stream`: Starts or stops RTMP video broadcast streams to external platforms.
+- `POST /api/admin/broadcast`: Dispatches synchronized announcements across Discord, Telegram, and X.
 
 ---
 
