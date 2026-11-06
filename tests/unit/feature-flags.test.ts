@@ -309,11 +309,7 @@ describe('Admin Feature-Flag & Kill-Switch System (Unit)', () => {
     });
 
     it('dispatches community moderation broadcast when an emergency kill switch is activated', async () => {
-      const broadcastSpy = vi.spyOn(chatBridge, 'broadcastToCommunity').mockResolvedValue({
-        discord: true,
-        telegram: true,
-        x: false,
-      });
+      const broadcastSpy = vi.spyOn(chatBridge, 'broadcastToCommunity').mockResolvedValue([]);
 
       await setFeatureFlag({
         key: 'maintenance_mode',
