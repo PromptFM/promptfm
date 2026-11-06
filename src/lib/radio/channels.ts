@@ -22,6 +22,7 @@ export interface RadioChannel {
   ageGateDisclaimer?: string;
   streamUrl: string;
   isActive: boolean;
+  enabled?: boolean;
 }
 
 export const DEFAULT_CHANNEL_SLUG = 'main';
@@ -44,6 +45,7 @@ export const OFFICIAL_CHANNELS: readonly RadioChannel[] = [
     allowExplicitAllDay: false,
     streamUrl: DEFAULT_STREAM_URL,
     isActive: true,
+    enabled: true,
   },
   {
     slug: 'cyberpunk',
@@ -62,6 +64,7 @@ export const OFFICIAL_CHANNELS: readonly RadioChannel[] = [
     allowExplicitAllDay: false,
     streamUrl: `${DEFAULT_STREAM_URL}?channel=cyberpunk`,
     isActive: false,
+    enabled: false,
   },
   {
     slug: 'chillout',
@@ -80,6 +83,7 @@ export const OFFICIAL_CHANNELS: readonly RadioChannel[] = [
     allowExplicitAllDay: false,
     streamUrl: `${DEFAULT_STREAM_URL}?channel=chillout`,
     isActive: false,
+    enabled: false,
   },
   {
     slug: 'kids',
@@ -98,6 +102,7 @@ export const OFFICIAL_CHANNELS: readonly RadioChannel[] = [
     allowExplicitAllDay: false,
     streamUrl: `${DEFAULT_STREAM_URL}?channel=kids`,
     isActive: false,
+    enabled: false,
   },
   {
     slug: 'afterdark',
@@ -117,6 +122,7 @@ export const OFFICIAL_CHANNELS: readonly RadioChannel[] = [
     ageGateDisclaimer: 'LEGAL AGE CONFIRMATION & CONSENT: This channel broadcasts uncensored audio containing adult language, profanity, and mature themes 24 hours a day. By proceeding, you certify under penalty of law that you are at least 18 years of age (or the legal age of majority in your jurisdiction), understand the adult nature of the programming, and affirmatively consent to receiving explicit broadcast content. If you are under 18, please select a Family Safe channel.',
     streamUrl: `${DEFAULT_STREAM_URL}?channel=afterdark`,
     isActive: false,
+    enabled: false,
   },
 ] as const;
 
@@ -150,15 +156,30 @@ export function isChannelActive(slug?: string | null): boolean {
 }
 
 /**
- * Returns all official PromptFM radio channels with current active state.
+ * Checks whether a channel is currently public and enabled.
  */
-export function getAllChannels(): RadioChannel[] {
-  return OFFICIAL_CHANNELS.map((ch) => ({
-    ...ch,
-    isActive: channelActiveOverrides.has(ch.slug)
+export function isChannelPublic(slug?: string | null): boolean {
+  return isChannelActive(slug);
+}
+
+/**
+ * Returns all official PromptFM radio channels with current active state.
+ * Can optionally filter to public-only/active channels.
+ */
+export function getAllChannels(options: { publicOnly?: boolean } = {}): RadioChannel[] {
+  if (options.publicOnly) {
+    return getPublicChannels();
+  }
+  return OFFICIAL_CHANNELS.map((ch) => {
+    const active = channelActiveOverrides.has(ch.slug)
       ? Boolean(channelActiveOverrides.get(ch.slug))
-      : ch.isActive,
-  }));
+      : ch.isActive;
+    return {
+      ...ch,
+      isActive: active,
+      enabled: active,
+    };
+  });
 }
 
 /**
@@ -169,12 +190,37 @@ export function getActiveChannels(): RadioChannel[] {
 }
 
 /**
+ * Returns all active public PromptFM radio channels.
+ * Channels disabled or pending multi-channel scheduling are excluded.
+ */
+export function getPublicChannels(): RadioChannel[] {
+  return getActiveChannels();
+}
+
+/**
+ * Resolves an active public channel by slug, falling back to main stage if not public.
+ */
+export function getPublicChannelBySlug(slug?: string | null): RadioChannel {
+  const publicChannels = getPublicChannels();
+  const defaultChannel = publicChannels[0] || OFFICIAL_CHANNELS[0]!;
+  if (!slug) {
+    return defaultChannel;
+  }
+  const clean = slug.toLowerCase().trim();
+  return publicChannels.find((c) => c.slug === clean) || defaultChannel;
+}
+
+/**
  * Validates whether a string is a recognized official channel slug.
  */
-export function isValidChannelSlug(slug?: string | null): boolean {
+export function isValidChannelSlug(
+  slug?: string | null,
+  options: { publicOnly?: boolean } = {}
+): boolean {
   if (!slug) return false;
   const clean = slug.toLowerCase().trim();
-  return OFFICIAL_CHANNELS.some((c) => c.slug === clean);
+  const list = options.publicOnly ? getPublicChannels() : OFFICIAL_CHANNELS;
+  return list.some((c) => c.slug === clean);
 }
 
 /**
