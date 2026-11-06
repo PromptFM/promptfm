@@ -100,4 +100,41 @@ describe('On-Air Track Synchronization & Rotation Watchdog', () => {
     expect(state.item.id).toBe('song-draga-123');
     expect(state.item.title).toBe('Haina-mi este cea mai draga');
   });
+
+  it('parses live Icecast title format accurately', async () => {
+    const { getIcecastLiveTitle } = await import('@/lib/dj/rotation');
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          icestats: {
+            source: {
+              title: 'alextrifan - Haina-mi este cea mai draga',
+            },
+          },
+        }),
+      } as unknown as Response);
+
+      const result = await getIcecastLiveTitle();
+      expect(result).toEqual({
+        artist: 'alextrifan',
+        title: 'Haina-mi este cea mai draga',
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('handles Icecast errors or missing sources gracefully', async () => {
+    const { getIcecastLiveTitle } = await import('@/lib/dj/rotation');
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
+      const result = await getIcecastLiveTitle();
+      expect(result).toBeNull();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

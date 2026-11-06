@@ -18,6 +18,12 @@ import { autoGenerateChannelGuardrails } from '@/lib/safety/channel-guardrails';
 import { getAllChannels } from '@/lib/radio/channels';
 import { findTracksByVibe, indexTrackEmbedding } from '@/lib/dj/rag';
 import { postTweetToX } from '@/lib/social/x-client';
+import {
+  startStream,
+  stopStream,
+  getStreamStatus,
+  type StreamPlatform,
+} from '@/lib/streaming/rtmp-controller';
 import type { ReportReason, ReportTargetType } from '@/types/database';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
@@ -411,6 +417,55 @@ const ADMIN_MCP_TOOLS = [
     name: 'promptfm_admin_list_channels',
     description:
       'Lists all active radio channels with their guardrail policies, legal age gate requirements, and assigned AI DJs.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'promptfm_admin_start_stream',
+    description:
+      'Starts an RTMP video/audio live stream broadcast of PromptFM to YouTube Live or TikTok Live.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        platform: {
+          type: 'string',
+          enum: ['youtube', 'tiktok'],
+          description: 'Destination live streaming platform',
+        },
+        stream_key: {
+          type: 'string',
+          description: 'The stream key from YouTube Studio or TikTok Live Producer',
+        },
+        rtmp_url: {
+          type: 'string',
+          description:
+            'Optional RTMP server ingest URL (required for TikTok session URLs; defaults to YouTube if omitted)',
+        },
+      },
+      required: ['platform', 'stream_key'],
+    },
+  },
+  {
+    name: 'promptfm_admin_stop_stream',
+    description: 'Stops an active RTMP live stream broadcast on YouTube or TikTok.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        platform: {
+          type: 'string',
+          enum: ['youtube', 'tiktok'],
+          description: 'Platform to stop streaming to',
+        },
+      },
+      required: ['platform'],
+    },
+  },
+  {
+    name: 'promptfm_admin_get_stream_status',
+    description:
+      'Retrieves the real-time status of PromptFM RTMP live streams on YouTube and TikTok.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -1260,6 +1315,40 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
         success: true,
         count: channels.length,
         channels,
+      };
+    }
+
+    case 'promptfm_admin_start_stream': {
+      const platform = args.platform as StreamPlatform;
+      const streamKey = (args.stream_key as string)?.trim();
+      const rtmpUrl = (args.rtmp_url as string)?.trim();
+
+      if (!platform || (platform !== 'youtube' && platform !== 'tiktok')) {
+        throw new Error('Valid platform ("youtube" | "tiktok") is required');
+      }
+      if (!streamKey) {
+        throw new Error('stream_key is required');
+      }
+
+      const result = await startStream({ platform, streamKey, rtmpUrl });
+      return result;
+    }
+
+    case 'promptfm_admin_stop_stream': {
+      const platform = args.platform as StreamPlatform;
+      if (!platform || (platform !== 'youtube' && platform !== 'tiktok')) {
+        throw new Error('Valid platform ("youtube" | "tiktok") is required');
+      }
+
+      const result = await stopStream(platform);
+      return result;
+    }
+
+    case 'promptfm_admin_get_stream_status': {
+      const status = await getStreamStatus();
+      return {
+        success: true,
+        ...status,
       };
     }
 

@@ -380,9 +380,7 @@ export default function AudioPlayer() {
   // ── Dynamic HTML Page Title (Browser Tabs & iOS Lock Screen Fallback) ──────
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    if (isPlaying && nowPlaying?.title) {
-      document.title = formatPageTitle(nowPlaying, isPlaying);
-    }
+    document.title = formatPageTitle(nowPlaying, isPlaying);
   }, [isPlaying, nowPlaying]);
 
   // ── Native Media Session API (iOS Lock Screen, Control Center, Android) ────

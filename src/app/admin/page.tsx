@@ -31,6 +31,9 @@ import {
   Music,
   Share2,
   Send,
+  Video,
+  ExternalLink,
+  RefreshCw,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { type Track, type AITool, type ContentReport, REASON_LABELS } from '@/types/database';
@@ -69,7 +72,7 @@ export default function AdminDashboard() {
   const [authChecking, setAuthChecking] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'submissions' | 'library' | 'queue' | 'batches' | 'reports' | 'channels' | 'upload' | 'social'>('submissions');
+  const [activeTab, setActiveTab] = useState<'submissions' | 'library' | 'queue' | 'batches' | 'reports' | 'channels' | 'upload' | 'social' | 'streams'>('submissions');
   const [pendingTracks, setPendingTracks] = useState<Track[]>([]);
   const [libraryTracks, setLibraryTracks] = useState<Track[]>([]);
   const [queueItems, setQueueItems] = useState<QueuedItem[]>([]);
@@ -89,6 +92,111 @@ export default function AdminDashboard() {
   const [customRejectReason, setCustomRejectReason] = useState<string>('Religious hostility violates broadcast standards');
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+
+  // RTMP Live Video Stream Broadcast State (YouTube & TikTok)
+  const [streamSessions, setStreamSessions] = useState<{
+    youtube?: { status: string; startedAt?: string; pid?: number; error?: string };
+    tiktok?: { status: string; startedAt?: string; pid?: number; error?: string };
+  }>({});
+  const [ytStreamKey, setYtStreamKey] = useState('');
+  const [ttStreamKey, setTtStreamKey] = useState('');
+  const [ttRtmpUrl, setTtRtmpUrl] = useState('rtmp://push-rtmp-f.tiktok.com/app');
+  const [streamLoading, setStreamLoading] = useState<string | null>(null);
+  const [streamFeedback, setStreamFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const fetchStreamStatus = async () => {
+    try {
+      const res = await fetch('/api/admin/stream');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.sessions) {
+          setStreamSessions(data.sessions);
+        }
+      }
+    } catch {
+      // Ignore background telemetry errors
+    }
+  };
+
+  const handleStartStream = async (platform: 'youtube' | 'tiktok') => {
+    const key = platform === 'youtube' ? ytStreamKey.trim() : ttStreamKey.trim();
+    if (!key) {
+      setStreamFeedback({
+        type: 'error',
+        message: `Please enter a stream key for ${platform === 'youtube' ? 'YouTube' : 'TikTok'}.`,
+      });
+      return;
+    }
+    setStreamLoading(platform);
+    setStreamFeedback(null);
+    try {
+      const res = await fetch('/api/admin/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'start',
+          platform,
+          streamKey: key,
+          rtmpUrl: platform === 'tiktok' ? ttRtmpUrl.trim() : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setStreamFeedback({
+          type: 'success',
+          message: `${platform === 'youtube' ? 'YouTube Live' : 'TikTok Live'} stream initiated successfully!`,
+        });
+        await fetchStreamStatus();
+      } else {
+        setStreamFeedback({
+          type: 'error',
+          message: data.error || `Failed to start ${platform} stream.`,
+        });
+      }
+    } catch (e: unknown) {
+      setStreamFeedback({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'Network error',
+      });
+    } finally {
+      setStreamLoading(null);
+    }
+  };
+
+  const handleStopStream = async (platform: 'youtube' | 'tiktok') => {
+    setStreamLoading(platform);
+    setStreamFeedback(null);
+    try {
+      const res = await fetch('/api/admin/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'stop',
+          platform,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setStreamFeedback({
+          type: 'success',
+          message: `${platform === 'youtube' ? 'YouTube Live' : 'TikTok Live'} stream stopped.`,
+        });
+        await fetchStreamStatus();
+      } else {
+        setStreamFeedback({
+          type: 'error',
+          message: data.error || `Failed to stop ${platform} stream.`,
+        });
+      }
+    } catch (e: unknown) {
+      setStreamFeedback({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'Network error',
+      });
+    } finally {
+      setStreamLoading(null);
+    }
+  };
 
   // Social & X (Twitter) broadcast state
   const [socialMessage, setSocialMessage] = useState('');
@@ -273,6 +381,15 @@ export default function AdminDashboard() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'streams') {
+      fetchStreamStatus();
+      const interval = setInterval(fetchStreamStatus, 5000);
+      return () => clearInterval(interval);
+    }
+    return undefined;
+  }, [activeTab]);
 
   // ── 2. Audio Preview Player ────────────────────────────────────────────────
 
@@ -699,6 +816,17 @@ export default function AdminDashboard() {
             >
               <Share2 className="w-3.5 h-3.5 text-sky-400" />
               Social Broadcast (X / Discord / Telegram)
+            </button>
+            <button
+              onClick={() => setActiveTab('streams')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+                activeTab === 'streams'
+                  ? 'bg-emerald-500 text-black shadow-sm'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <Video className="w-3.5 h-3.5 text-red-400" />
+              Live Streams (YouTube / TikTok)
             </button>
           </div>
         </div>
@@ -1723,6 +1851,241 @@ export default function AdminDashboard() {
                 Post Broadcast to Selected Networks
               </button>
             </form>
+          </div>
+        )}
+
+        {/* ── Live Video Streaming Tab (YouTube & TikTok RTMP) ──────────────── */}
+        {activeTab === 'streams' && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Header & Status Bar */}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Video className="w-5 h-5 text-red-500" />
+                  Live Video Broadcasting (YouTube & TikTok)
+                </h2>
+                <p className="text-xs text-zinc-400 mt-1 max-w-xl">
+                  Re-encode PromptFM&apos;s 24/7 continuous audio broadcast and album art into H.264 video streams pushed to YouTube Live and TikTok Live via RTMP.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={fetchStreamStatus}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold border border-zinc-700 transition-colors"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-zinc-400" />
+                Refresh Status
+              </button>
+            </div>
+
+            {/* Feedback Alert */}
+            {streamFeedback && (
+              <div
+                className={`p-4 rounded-xl text-xs flex items-center gap-2.5 border ${
+                  streamFeedback.type === 'success'
+                    ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
+                    : 'bg-red-950/40 border-red-500/40 text-red-300'
+                }`}
+              >
+                {streamFeedback.type === 'success' ? (
+                  <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                )}
+                <span>{streamFeedback.message}</span>
+              </div>
+            )}
+
+            {/* Platform Controls Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {/* 🔴 YouTube Live Card */}
+              <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-5 space-y-4 flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full bg-red-600 inline-block" />
+                      <h3 className="font-bold text-white text-sm">YouTube Live</h3>
+                      <span className="text-[10px] text-zinc-400 font-mono bg-zinc-800 px-1.5 py-0.5 rounded">16:9 Landscape</span>
+                    </div>
+                    {streamSessions.youtube?.status === 'live' ? (
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        LIVE
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-zinc-800 text-zinc-400 border border-zinc-700">
+                        OFFLINE
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-zinc-400">
+                    Streams 1280x720 video with 30fps and AAC audio to YouTube&apos;s primary RTMP ingest server (<code>rtmp://a.rtmp.youtube.com/live2</code>).
+                  </p>
+
+                  {streamSessions.youtube?.startedAt && (
+                    <div className="text-[11px] text-zinc-400 bg-zinc-950/60 p-2.5 rounded-lg border border-zinc-800/80 font-mono space-y-0.5">
+                      <div>Status: <span className="text-emerald-400 font-semibold">{streamSessions.youtube.status.toUpperCase()}</span></div>
+                      <div>Started: {new Date(streamSessions.youtube.startedAt).toLocaleTimeString()}</div>
+                      {streamSessions.youtube.pid && <div>Process PID: {streamSessions.youtube.pid}</div>}
+                    </div>
+                  )}
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-zinc-300 flex items-center justify-between">
+                      <span>YouTube Stream Key:</span>
+                      <a
+                        href="https://studio.youtube.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-red-400 hover:text-red-300 text-[10px] flex items-center gap-0.5"
+                      >
+                        YouTube Studio <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    </label>
+                    <input
+                      type="password"
+                      value={ytStreamKey}
+                      onChange={(e) => setYtStreamKey(e.target.value)}
+                      placeholder="xxxx-xxxx-xxxx-xxxx-xxxx"
+                      disabled={streamSessions.youtube?.status === 'live'}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-red-500 disabled:opacity-50"
+                    />
+                    <p className="text-[10px] text-zinc-500">Persistent stream key from YouTube Live Studio Stream Settings.</p>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  {streamSessions.youtube?.status === 'live' ? (
+                    <button
+                      type="button"
+                      onClick={() => handleStopStream('youtube')}
+                      disabled={streamLoading === 'youtube'}
+                      className="w-full py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-lg shadow-red-600/20 disabled:opacity-50"
+                    >
+                      {streamLoading === 'youtube' ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
+                      Stop YouTube Live Stream
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleStartStream('youtube')}
+                      disabled={streamLoading === 'youtube' || !ytStreamKey.trim()}
+                      className="w-full py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-lg shadow-red-600/20 disabled:opacity-40"
+                    >
+                      {streamLoading === 'youtube' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                      Start YouTube Live Stream
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 🎵 TikTok Live Card */}
+              <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-5 space-y-4 flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full bg-cyan-400 inline-block" />
+                      <h3 className="font-bold text-white text-sm">TikTok Live</h3>
+                      <span className="text-[10px] text-zinc-400 font-mono bg-zinc-800 px-1.5 py-0.5 rounded">9:16 Portrait</span>
+                    </div>
+                    {streamSessions.tiktok?.status === 'live' ? (
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                        LIVE
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-zinc-800 text-zinc-400 border border-zinc-700">
+                        OFFLINE
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-zinc-400">
+                    Streams 720x1280 vertical video with AAC audio tailored for TikTok mobile feeds. Requires 1,000+ followers for RTMP access.
+                  </p>
+
+                  {streamSessions.tiktok?.startedAt && (
+                    <div className="text-[11px] text-zinc-400 bg-zinc-950/60 p-2.5 rounded-lg border border-zinc-800/80 font-mono space-y-0.5">
+                      <div>Status: <span className="text-cyan-400 font-semibold">{streamSessions.tiktok.status.toUpperCase()}</span></div>
+                      <div>Started: {new Date(streamSessions.tiktok.startedAt).toLocaleTimeString()}</div>
+                      {streamSessions.tiktok.pid && <div>Process PID: {streamSessions.tiktok.pid}</div>}
+                    </div>
+                  )}
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-zinc-300">
+                      TikTok Server URL (RTMP Ingest):
+                    </label>
+                    <input
+                      type="text"
+                      value={ttRtmpUrl}
+                      onChange={(e) => setTtRtmpUrl(e.target.value)}
+                      placeholder="rtmp://push-rtmp-f.tiktok.com/app"
+                      disabled={streamSessions.tiktok?.status === 'live'}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-cyan-500 disabled:opacity-50 font-mono text-[11px]"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-zinc-300 flex items-center justify-between">
+                      <span>TikTok Stream Key:</span>
+                      <a
+                        href="https://livecenter.tiktok.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-cyan-400 hover:text-cyan-300 text-[10px] flex items-center gap-0.5"
+                      >
+                        TikTok Live Center <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    </label>
+                    <input
+                      type="password"
+                      value={ttStreamKey}
+                      onChange={(e) => setTtStreamKey(e.target.value)}
+                      placeholder="Paste session stream key"
+                      disabled={streamSessions.tiktok?.status === 'live'}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-cyan-500 disabled:opacity-50"
+                    />
+                    <p className="text-[10px] text-zinc-500">TikTok keys expire per session. Generate fresh key before starting.</p>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  {streamSessions.tiktok?.status === 'live' ? (
+                    <button
+                      type="button"
+                      onClick={() => handleStopStream('tiktok')}
+                      disabled={streamLoading === 'tiktok'}
+                      className="w-full py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-black font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-lg shadow-cyan-600/20 disabled:opacity-50"
+                    >
+                      {streamLoading === 'tiktok' ? <Loader2 className="w-4 h-4 animate-spin text-black" /> : <X className="w-4 h-4 text-black" />}
+                      Stop TikTok Live Stream
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleStartStream('tiktok')}
+                      disabled={streamLoading === 'tiktok' || !ttStreamKey.trim()}
+                      className="w-full py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 disabled:opacity-40"
+                    >
+                      {streamLoading === 'tiktok' ? <Loader2 className="w-4 h-4 animate-spin text-black" /> : <Play className="w-4 h-4 text-black" />}
+                      Start TikTok Live Stream
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Zero-Cost Architecture Details */}
+            <div className="bg-zinc-950/70 border border-zinc-800/80 rounded-2xl p-5 text-xs text-zinc-400 space-y-2">
+              <h4 className="font-bold text-white flex items-center gap-2 text-xs">
+                <span>⚡</span> Zero-Cost Stream Architecture & FFmpeg Pipeline
+              </h4>
+              <p>
+                The streaming controller sidecar runs on your <strong>GCP e2-micro Always-Free VM</strong> alongside Icecast. When triggered from this console, it spawns FFmpeg with hardware-efficient parameters (<code>-c:v libx264 -preset veryfast -b:v 1500k -g 60 -c:a aac -b:a 192k</code>), pulling the live Icecast 128kbps audio stream without consuming egress bandwidth, looping the high-resolution PromptFM visual art overlay, and multiplexing the RTMP feed directly to YouTube and TikTok.
+              </p>
+            </div>
           </div>
         )}
       </div>

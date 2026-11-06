@@ -128,5 +128,38 @@ describe('Station 24/7 Schedule Service', () => {
     expect(block?.time_utc).toBe('20:00 - 06:00 UTC');
     expect(block?.dj.id).toBe('dj_cipher');
   });
+
+  it('validates isHourInBlock edge boundaries and wrap conditions', async () => {
+    const { isHourInBlock } = await import('@/lib/radio/schedule');
+    // Equal start and end
+    expect(isHourInBlock(12, 10, 10)).toBe(true);
+
+    // Standard range [6, 10)
+    expect(isHourInBlock(6, 6, 10)).toBe(true);
+    expect(isHourInBlock(9, 6, 10)).toBe(true);
+    expect(isHourInBlock(10, 6, 10)).toBe(false);
+    expect(isHourInBlock(5, 6, 10)).toBe(false);
+
+    // Midnight wrap [20, 6)
+    expect(isHourInBlock(20, 20, 6)).toBe(true);
+    expect(isHourInBlock(23, 20, 6)).toBe(true);
+    expect(isHourInBlock(0, 20, 6)).toBe(true);
+    expect(isHourInBlock(5, 20, 6)).toBe(true);
+    expect(isHourInBlock(6, 20, 6)).toBe(false);
+    expect(isHourInBlock(12, 20, 6)).toBe(false);
+    expect(isHourInBlock(19, 20, 6)).toBe(false);
+  });
+
+  it('provides specialized schedule blocks for afterdark channel and fallback for unknown channels', () => {
+    const afterdark = getStationSchedule('afterdark');
+    expect(afterdark.channel.slug).toBe('afterdark');
+    expect(afterdark.blocks.length).toBeGreaterThan(0);
+    expect(afterdark.current_show).toBeDefined();
+
+    // Unknown channel fallback defaults to main
+    const fallbackSchedule = getStationSchedule('unknown-channel-slug');
+    expect(fallbackSchedule.channel.slug).toBe('main');
+    expect(fallbackSchedule.blocks.length).toBeGreaterThanOrEqual(4);
+  });
 });
 
