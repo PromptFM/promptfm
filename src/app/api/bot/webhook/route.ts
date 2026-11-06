@@ -226,8 +226,11 @@ export async function POST(req: NextRequest) {
           replyText += `Continuous community stream loaded. Request a song with /song <prompt>!`;
         } else {
           upcoming.forEach((item, index) => {
-            replyText += `${index + 1}. *"${item.title}"* by ${item.artist} ${item.tool_used ? `(${item.tool_used})` : ''} — 🔥 ${item.upvotes_count ?? 0} votes\n`;
+            const etaStr = item.estimated_air_time ? ` (~${item.estimated_air_time}, provisional)` : '';
+            const reqStr = item.requested_by ? ` • 👤 Req by ${item.requested_by}` : '';
+            replyText += `${index + 1}. *"${item.title}"* by ${item.artist}${etaStr}${reqStr} ${item.tool_used ? `(${item.tool_used})` : ''} — 🔥 ${item.upvotes_count ?? 0} votes\n`;
           });
+          replyText += `\n_ℹ️ Times are provisional estimates and update as tracks play live._`;
         }
         replyText += `\n[Tune in Live](${siteUrl})`;
 
@@ -480,9 +483,16 @@ export async function POST(req: NextRequest) {
       ) {
         const upcoming = await getUpNext('main', 5);
         let listText = `⏭️ **Up Next on PromptFM:**\n\n`;
-        upcoming.forEach((item, index) => {
-          listText += `${index + 1}. **"${item.title}"** by ${item.artist} — 🔥 ${item.upvotes_count ?? 0} votes\n`;
-        });
+        if (upcoming.length === 0) {
+          listText += `Continuous community stream loaded. Request a song with /song <prompt>!`;
+        } else {
+          upcoming.forEach((item, index) => {
+            const etaStr = item.estimated_air_time ? ` (~${item.estimated_air_time}, provisional)` : '';
+            const reqStr = item.requested_by ? ` • 👤 Req by ${item.requested_by}` : '';
+            listText += `${index + 1}. **"${item.title}"** by ${item.artist}${etaStr}${reqStr} — 🔥 ${item.upvotes_count ?? 0} votes\n`;
+          });
+          listText += `\n_ℹ️ Times are provisional estimates and update as tracks play live._`;
+        }
         return NextResponse.json({
           type: 4,
           data: { content: listText },

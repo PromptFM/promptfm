@@ -24,10 +24,12 @@ Listeners can directly control the radio stream, inspect the airplay queue, vote
 
 ## ⏰ When Do Requested Songs Play?
 
-### 1. 24/7 On-Demand Live Queueing
-* You can request a song at **any minute of the day or night**.
-* When you submit `/song <query>`, PromptFM uses pgvector semantic similarity search (`findTracksByVibe`) to find the best match in our approved track library and enqueues it immediately into `channel_queue`.
+### 1. 24/7 On-Demand Live Queueing & Dynamic ETAs
+* You can request a song at **any minute of the day or night** using `/song <vibe or title>`.
+* PromptFM uses pgvector semantic similarity search (`findTracksByVibe`) to find the best match in our approved track library and enqueues it immediately into `channel_queue`.
 * As soon as the current on-air track ends, the master rotation engine picks up the top item in `channel_queue` before returning to standard rotation!
+* **Queue Position & Provisional ETAs:** The bot immediately confirms your song with your live queue position (e.g. `Position: Up next (#1 in queue)` or `Position: #2 in queue`) and a provisional ETA (e.g. `~17:10 UTC (est. in ~3m, provisional)`).
+* **Track Updated Status:** Run `/queue` or `/next` at any time to view updated provisional play times and see exactly where your song is in line!
 
 ### 2. Hourly Clock Wheel Milestones (:00 to :59)
 Every hour on PromptFM follows a structured 4-part radio clock wheel:
