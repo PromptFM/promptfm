@@ -15,6 +15,7 @@ import { submitContentReport, getRecentReports, resolveContentReport } from '../
 import { autoGenerateChannelGuardrails } from '../src/lib/safety/channel-guardrails';
 import { getAllChannels } from '../src/lib/radio/channels';
 import { findTracksByVibe, indexTrackEmbedding } from '../src/lib/dj/rag';
+import { queueSong, getSongQueueStatus } from '../src/lib/song/pathway';
 import {
   registerTelegramWebhook,
   getTelegramWebhookInfo,
@@ -451,32 +452,23 @@ Moderation & Schedule:
       break;
     }
 
+    case 'song':
     case 'queue': {
       const sub = args[1];
       const supabase = createAdminClient();
 
       if (sub === 'list') {
-        const { data: qData, error } = await supabase
-          .from('channel_queue')
-          .select('id, track_id, prompt_used, requested_by, created_at, track:tracks(title, artist_name, tool_used)')
-          .is('played_at', null)
-          .order('created_at', { ascending: true })
-          .limit(15);
+        const queueStatus = await getSongQueueStatus('main');
 
-        if (error) {
-          console.error('Error fetching queue:', error.message);
-          return;
-        }
-
-        console.log(`\n🎵 PromptFM Active "Up Next" Queue (${qData?.length || 0} upcoming):`);
-        if (!qData || qData.length === 0) {
+        console.log(`\n🎵 PromptFM Active "Up Next" Queue (${queueStatus.totalQueued} upcoming):`);
+        if (queueStatus.totalQueued === 0) {
           console.log('• Queue is empty. Looping community top chart tracks.');
         } else {
-          qData.forEach((item, index) => {
-            const tr = (item as unknown as { track: { title: string; artist_name: string; tool_used: string } }).track;
+          queueStatus.items.forEach((item) => {
+            const tr = item.track;
             console.log(
-              `  #${index + 1} [Queue ID: ${item.id}] "${tr?.title || 'Unknown'}" by ${tr?.artist_name || 'N/A'} (Requested by: ${item.requested_by}${
-                item.prompt_used ? ` - "${item.prompt_used}"` : ''
+              `  #${item.position} [Queue ID: ${item.queueId}] "${tr?.title || 'Unknown'}" by ${tr?.artist_name || 'N/A'} • ETA: ${item.eta.formattedETA} (Requested by: ${item.requestedBy}${
+                item.promptUsed ? ` - "${item.promptUsed}"` : ''
               })`
             );
           });
@@ -506,58 +498,36 @@ Moderation & Schedule:
           return;
         }
 
-        // Fetch main channel
-        const { data: channel } = await supabase.from('channels').select('id').eq('slug', 'main').single();
-        if (!channel) {
-          console.error('Main channel not found.');
-          return;
-        }
-
-        // Insert at the front with an earlier timestamp
-        const { error } = await supabase.from('channel_queue').insert({
-          channel_id: channel.id,
-          track_id: trackId,
-          requested_by: 'Station Admin',
-          created_at: new Date(Date.now() - 3600000).toISOString(), // Prioritized to front
+        const res = await queueSong({
+          source: 'cli',
+          requestedBy: 'Station Admin',
+          trackId,
+          priority: true,
         });
 
-        if (error) {
-          console.error('Failed to bump track:', error.message);
+        if (res.status === 'queued') {
+          console.log(`⚡ Bumped "${res.track?.title}" to play NEXT! [Queue #1 • ${res.eta.formattedETA}]`);
         } else {
-          console.log(`⚡ Bumped track ${trackId} to play NEXT!`);
+          console.log(res.confirmationMessage);
         }
         return;
       }
 
-      // Default: semantic RAG prompt-search
-      const query = args.slice(1).join(' ');
+      // Default: unified song pathway queue by prompt
+      const query = (command === 'song' ? args.join(' ') : args.slice(1).join(' ')).trim();
       if (!query) {
-        console.error('Provide search prompt: npm run promptfm queue "dark metal about love"');
+        console.error('Provide search prompt: npm run promptfm song "dark metal about love"');
         return;
       }
 
-      console.log(`🔎 Performing semantic RAG vibe search for: "${query}"...`);
-      const matches = await findTracksByVibe(query, {
-        limit: 1,
-        matchThreshold: 0.15,
+      console.log(`🔎 Searching and queueing via Unified Song Pathway: "${query}"...`);
+      const result = await queueSong({
+        source: 'cli',
+        requestedBy: 'Terminal Admin',
+        prompt: query,
       });
 
-      const selected = matches?.[0];
-      if (selected) {
-        const { data: channel } = await supabase.from('channels').select('id').eq('slug', 'main').single();
-        if (channel) {
-          await supabase.from('channel_queue').insert({
-            channel_id: channel.id,
-            track_id: selected.id,
-            prompt_used: query,
-            requested_by: 'Terminal Listener (Semantic RAG)',
-          });
-          const scorePercent = Math.round(selected.similarity * 100);
-          console.log(`✅ Queued for airplay: "${selected.title}" by ${selected.artist_name} (${selected.tool_used}) [Match: ${scorePercent}% via ${selected.matchMethod}]`);
-        }
-      } else {
-        console.log(`No matching track found for "${query}".`);
-      }
+      console.log(result.confirmationMessage);
       break;
     }
 

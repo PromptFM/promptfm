@@ -10,6 +10,7 @@ import { getActiveDJ } from './roster';
 import { broadcastToCommunity } from '../chat/bridge';
 import { evaluateContentSafety } from '../safety/guardrails';
 import { findTracksByVibe } from './rag';
+import { queueSong } from '../song/pathway';
 
 export type RequestType = 'song' | 'dedication' | 'weather' | 'news' | 'zodiac';
 
@@ -57,6 +58,27 @@ export function calculateNextBatchSlot(delayMinutes = 15): { batchId: string; ai
  * and either schedules it into a batch or refuses it upfront.
  */
 export async function scheduleListenerRequest(payload: ListenerRequestPayload): Promise<SlotAllocationResult> {
+  // If request is for a song, delegate to the unified song pathway (Issue #43)
+  if (payload.type === 'song') {
+    const songRes = await queueSong({
+      source: payload.platform,
+      requestedBy: payload.platform_user_name,
+      userId: payload.platform_user_id,
+      messageId: payload.platform_message_id,
+      prompt: payload.content,
+      trackId: payload.target,
+    });
+
+    return {
+      requestId: songRes.requestId || songRes.queueItemId || 'song-req',
+      batchId: `QUEUE-#${songRes.position}`,
+      estimatedAirTime: songRes.eta.displayTime,
+      confirmationMessage: songRes.confirmationMessage,
+      isRejected: songRes.isRejected,
+      rejectionReason: songRes.rejectionReason,
+    };
+  }
+
   const supabase = createAdminClient();
 
   // ── A. Safety & Ethical Guardrails Pre-flight Check ────────────────────────
@@ -117,54 +139,6 @@ export async function scheduleListenerRequest(payload: ListenerRequestPayload): 
     throw new Error(`Failed to log request: ${error?.message}`);
   }
 
-  // ── C. Auto-Enqueue Matching Approved Track for Song Requests ──────────────
-  let matchedTrack: { id: string; title: string; artist_name?: string } | null = null;
-  if (payload.type === 'song') {
-    try {
-      const vibeMatches = await findTracksByVibe(payload.content, { limit: 1 });
-      if (vibeMatches && vibeMatches.length > 0 && vibeMatches[0]) {
-        matchedTrack = vibeMatches[0];
-      }
-    } catch {
-      // Vibe semantic search fallback
-    }
-
-    if (!matchedTrack) {
-      try {
-        const { data: directMatch } = await supabase
-          .from('tracks')
-          .select('id, title, artist_name')
-          .eq('status', 'approved')
-          .ilike('title', `%${payload.content}%`)
-          .limit(1)
-          .maybeSingle();
-
-        if (directMatch) {
-          matchedTrack = directMatch;
-        }
-      } catch {
-        // Fallback
-      }
-    }
-
-    if (matchedTrack) {
-      const { data: channel } = await supabase
-        .from('channels')
-        .select('id')
-        .eq('slug', 'main')
-        .maybeSingle();
-
-      if (channel) {
-        await supabase.from('channel_queue').insert({
-          channel_id: channel.id,
-          track_id: matchedTrack.id,
-          prompt_used: payload.content,
-          requested_by: `@${payload.platform_user_name} (${payload.platform})`,
-        });
-      }
-    }
-  }
-
   const activeDJ = getActiveDJ(undefined, airDate);
   let confirmText = '';
   switch (payload.type) {
@@ -176,13 +150,6 @@ export async function scheduleListenerRequest(payload: ListenerRequestPayload): 
       break;
     case 'zodiac':
       confirmText = `✨ Cosmic AI Zodiac reading for ${payload.target || payload.content} locked in for ${batchId} (~${displayTime}) with ${activeDJ.name}.`;
-      break;
-    case 'song':
-      if (matchedTrack) {
-        confirmText = `🎵 Track "${matchedTrack.title}"${matchedTrack.artist_name ? ` by ${matchedTrack.artist_name}` : ''} queued for live airplay! Scheduled for ${batchId} (~${displayTime}).`;
-      } else {
-        confirmText = `🎵 Track request "${payload.content}" added to airplay queue for ${batchId} (~${displayTime}).`;
-      }
       break;
     default:
       confirmText = `📢 Request scheduled for airplay in ${batchId} (~${displayTime}) with ${activeDJ.name}.`;

@@ -17,6 +17,7 @@ import { submitContentReport, getRecentReports, resolveContentReport } from '@/l
 import { autoGenerateChannelGuardrails } from '@/lib/safety/channel-guardrails';
 import { getAllChannels } from '@/lib/radio/channels';
 import { findTracksByVibe, indexTrackEmbedding } from '@/lib/dj/rag';
+import { queueSong, getSongQueueStatus } from '@/lib/song/pathway';
 import { postTweetToX } from '@/lib/social/x-client';
 import {
   startStream,
@@ -656,61 +657,30 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
       const channelSlug = (args.channel as string) || 'main';
       if (!prompt) throw new Error('Missing prompt');
 
-      // Use pgvector Semantic RAG to find the best matching vibe
-      const vibeMatches = await findTracksByVibe(prompt, {
+      const result = await queueSong({
+        source: 'mcp',
+        requestedBy: requester,
+        prompt,
         channelSlug,
-        limit: 1,
-        matchThreshold: 0.2,
       });
 
-      let selected: any = vibeMatches[0];
-      if (!selected) {
-        const { data: top } = await supabase
-          .from('tracks')
-          .select('id, title, artist_name, tool_used, audio_url')
-          .eq('status', 'approved')
-          .order('upvotes_count', { ascending: false })
-          .limit(1)
-          .single();
-        if (top) {
-          selected = {
-            id: top.id,
-            title: top.title,
-            artist_name: top.artist_name,
-            tool_used: top.tool_used,
-            audio_url: top.audio_url,
-            similarity: 0,
-            matchMethod: 'lexical_fallback',
-          };
-        }
+      if (result.status === 'rejected') {
+        throw new Error(result.confirmationMessage);
       }
-
-      if (!selected) {
-        throw new Error('No approved tracks currently available in library to queue.');
-      }
-
-      const { data: channel } = await supabase
-        .from('channels')
-        .select('id')
-        .eq('slug', channelSlug)
-        .single();
-
-      if (channel) {
-        await supabase.from('channel_queue').insert({
-          channel_id: channel.id,
-          track_id: selected.id,
-          prompt_used: prompt,
-          requested_by: requester,
-        });
+      if (result.status === 'no_match') {
+        throw new Error(result.confirmationMessage);
       }
 
       return {
-        success: true,
-        message: `Queued "${selected.title}" by ${selected.artist_name} for airplay on ${channelSlug}!`,
-        track: selected,
-        prompt_used: prompt,
-        similarity_score: selected.similarity,
-        match_engine: selected.matchMethod,
+        success: result.status === 'queued' || result.status === 'already_queued',
+        status: result.status,
+        message: result.confirmationMessage,
+        track: result.track,
+        queue_position: result.position,
+        estimated_air_time: result.eta.displayTime,
+        estimated_wait_minutes: result.eta.waitMinutes,
+        similarity_score: result.track?.similarity,
+        match_engine: result.track?.matchMethod,
       };
     }
 

@@ -24,8 +24,27 @@ vi.mock('@/lib/supabase/server', () => {
           return {
             insert: (data: any) => {
               mockQueueTable.push(data);
-              return Promise.resolve({ data, error: null });
+              return {
+                select: () => ({
+                  single: async () => ({ data, error: null }),
+                }),
+              };
             },
+            select: () => ({
+              eq: () => ({
+                is: () => ({
+                  order: () => ({
+                    limit: async () => ({
+                      data: mockQueueTable.map((item) => ({
+                        ...item,
+                        track: { id: item.track_id, title: 'Sunset Grooves' },
+                      })),
+                      error: null,
+                    }),
+                  }),
+                }),
+              }),
+            }),
           };
         }
 
