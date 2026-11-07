@@ -45,6 +45,37 @@ const channelAirplayStartedAt = new Map<string, number>();
 let currentAirplayItem: AirplayItem | null = null;
 let currentAirplayStartedAt: number = Date.now();
 let pendingAirplayItem: AirplayItem | null = null;
+const pendingAirplayItems = new Map<string, AirplayItem>();
+
+const recentAirplayAnnouncedByChannel = new Map<string, Map<string, number>>();
+
+export function isAirplayRecentlyAnnounced(channelSlug: string, trackId: string): boolean {
+  const map = recentAirplayAnnouncedByChannel.get(channelSlug);
+  if (!map) return false;
+  const airedAt = map.get(trackId);
+  if (airedAt && Date.now() - airedAt < 60_000) {
+    return true;
+  }
+  return false;
+}
+
+export function recordAirplayAnnounced(channelSlug: string, trackId: string): void {
+  let map = recentAirplayAnnouncedByChannel.get(channelSlug);
+  if (!map) {
+    map = new Map<string, number>();
+    recentAirplayAnnouncedByChannel.set(channelSlug, map);
+  }
+  map.set(trackId, Date.now());
+}
+
+/**
+ * Resets the in-memory cache used to deduplicate now-playing community announcements.
+ */
+export function resetAirplayDedupeCache(): void {
+  recentAirplayAnnouncedByChannel.clear();
+  pendingAirplayItems.clear();
+  pendingAirplayItem = null;
+}
 
 /**
  * Formats an AirplayItem into a Liquidsoap annotate: string with metadata tags.
@@ -259,6 +290,14 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
               });
           } catch {
             // Ignore persistence fallback
+          }
+
+          // Reconcile community announcement if newly transitioned on Icecast (Issue #44)
+          const isReconciledDuplicate = isAirplayRecentlyAnnounced('main', item.id);
+
+          if (!isReconciledDuplicate) {
+            recordAirplayAnnounced('main', item.id);
+            notifyCommunityAirplay(item, activeDJ).catch(() => {});
           }
         }
       }
@@ -598,15 +637,24 @@ export async function fetchLiveWeatherSummary(targetCity?: string): Promise<{ te
  * Invoked by Liquidsoap via the /api/radio/started endpoint when Icecast transitions to the track.
  * This guarantees 100% audio-metadata synchronicity and eliminates desync.
  */
-export async function markTrackStarted(channelSlug = 'main', itemId: string): Promise<AirplayItem> {
+export async function markTrackStarted(
+  channelSlug = 'main',
+  itemId?: string,
+  title?: string
+): Promise<AirplayItem> {
   const supabase = createAdminClient();
   const activeDJ = getActiveDJ(channelSlug);
 
   let itemToStart: AirplayItem | null = null;
+  let isUnresolvableUnknown = false;
 
-  if (pendingAirplayItem && pendingAirplayItem.id === itemId) {
-    itemToStart = pendingAirplayItem;
-  } else if (itemId === 'demo-fallback') {
+  if (itemId && pendingAirplayItems.has(itemId)) {
+    itemToStart = pendingAirplayItems.get(itemId)!;
+    pendingAirplayItems.delete(itemId);
+  } else if (title && pendingAirplayItems.has(title.toLowerCase().trim())) {
+    itemToStart = pendingAirplayItems.get(title.toLowerCase().trim())!;
+    pendingAirplayItems.delete(title.toLowerCase().trim());
+  } else if (itemId === 'demo-fallback' || title === 'PromptFM Ambient AI Anthem') {
     itemToStart = {
       id: 'demo-fallback',
       type: 'music',
@@ -619,40 +667,63 @@ export async function markTrackStarted(channelSlug = 'main', itemId: string): Pr
       upvotes_count: 20,
       dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
     };
-  } else {
-    // Attempt lookup in tracks table
+  } else if (itemId || title) {
+    // Attempt lookup in tracks table by ID or Title
     try {
-      const { data: track } = await supabase
+      let query = supabase
         .from('tracks')
-        .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, description, lyrics')
-        .eq('id', itemId)
-        .maybeSingle();
+        .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, description, lyrics, duration_hint_seconds');
 
-      if (track) {
-        const raw = track as unknown as { airplay_item?: AirplayItem; title?: string; artist_name?: string; id?: string; audio_url?: string };
+      if (itemId) {
+        query = query.eq('id', itemId);
+      } else if (title) {
+        query = query.ilike('title', title.trim());
+      }
+
+      const { data: track } = await query.maybeSingle();
+
+      if (track && (!itemId || (track as any).id === itemId)) {
+        const raw = track as unknown as {
+          airplay_item?: AirplayItem;
+          title?: string;
+          artist_name?: string;
+          id?: string;
+          audio_url?: string;
+          duration_hint_seconds?: number;
+        };
         const actual = raw.airplay_item || track;
         itemToStart = {
-          id: actual.id || itemId,
+          id: actual.id || itemId || 'track-resolved',
           type: (actual as AirplayItem).type || 'music',
-          title: actual.title || 'PromptFM Track',
-          artist: (actual as unknown as { artist_name?: string }).artist_name || (actual as AirplayItem).artist || 'PromptFM Core',
-          audio_url: actual.audio_url || 'https://oxfacfdpxbxilucooijy.supabase.co/storage/v1/object/public/tracks/promptfm_ambient_ai_anthem.mp3',
+          title: actual.title || title || 'PromptFM Track',
+          artist:
+            (actual as unknown as { artist_name?: string }).artist_name ||
+            (actual as AirplayItem).artist ||
+            'PromptFM Core',
+          audio_url:
+            actual.audio_url ||
+            'https://oxfacfdpxbxilucooijy.supabase.co/storage/v1/object/public/tracks/promptfm_ambient_ai_anthem.mp3',
           cover_art_url: actual.cover_art_url || '/logo-mark.png',
           category: actual.category,
           description: actual.description,
           lyrics: actual.lyrics,
           tool_used: actual.tool_used,
           upvotes_count: actual.upvotes_count ?? 20,
+          duration_hint_seconds: actual.duration_hint_seconds,
           dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
         };
       }
     } catch {
       // Fallback below
     }
+
+    if (!itemToStart && (itemId || title)) {
+      isUnresolvableUnknown = true;
+    }
   }
 
   if (!itemToStart) {
-    itemToStart = currentAirplayItem || {
+    itemToStart = (!isUnresolvableUnknown && pendingAirplayItem) || currentAirplayItem || {
       id: 'demo-fallback',
       type: 'music',
       title: 'PromptFM Ambient AI Anthem',
@@ -673,7 +744,9 @@ export async function markTrackStarted(channelSlug = 'main', itemId: string): Pr
     currentAirplayItem = itemToStart;
     currentAirplayStartedAt = startedAt;
   }
-  pendingAirplayItem = null;
+  if (pendingAirplayItem && itemToStart && pendingAirplayItem.id === itemToStart.id) {
+    pendingAirplayItem = null;
+  }
 
   try {
     await supabase.from('station_state').upsert({
@@ -686,7 +759,17 @@ export async function markTrackStarted(channelSlug = 'main', itemId: string): Pr
     // Ignore background persistence errors
   }
 
-  notifyCommunityAirplay(itemToStart, activeDJ).catch(() => {});
+  // Deduplicate now-playing announcements: only broadcast once per airplay transition.
+  // Consecutive duplicate signals (e.g. Liquidsoap retries, reconnects, watchdog) are dropped.
+  // Only the main stage broadcasts to the public community channel (Issue #44, #46).
+  const isPublicChannel = channelSlug === 'main';
+  const isDuplicate = isAirplayRecentlyAnnounced(channelSlug, itemToStart.id);
+
+  if (isPublicChannel && !isUnresolvableUnknown && !isDuplicate) {
+    recordAirplayAnnounced(channelSlug, itemToStart.id);
+    notifyCommunityAirplay(itemToStart, activeDJ).catch(() => {});
+  }
+
   return itemToStart;
 }
 
@@ -710,6 +793,12 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
 
   const finishAndBroadcast = async (item: AirplayItem): Promise<AirplayItem> => {
     pendingAirplayItem = item;
+    if (item.id) {
+      pendingAirplayItems.set(item.id, item);
+    }
+    if (item.title) {
+      pendingAirplayItems.set(item.title.toLowerCase().trim(), item);
+    }
 
     if (autoPromote) {
       const startedAt = Date.now();
@@ -732,7 +821,12 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
         console.warn('Persisting station_state failed:', err);
       }
       // Fire and forget community notification
-      notifyCommunityAirplay(item, activeDJ).catch(() => {});
+      const isPublicChannel = channelSlug === 'main';
+      const isDuplicate = isAirplayRecentlyAnnounced(channelSlug, item.id);
+      if (isPublicChannel && !isDuplicate) {
+        recordAirplayAnnounced(channelSlug, item.id);
+        notifyCommunityAirplay(item, activeDJ).catch(() => {});
+      }
     }
 
     return item;

@@ -69,7 +69,7 @@ describe('Liquidsoap /api/radio/started API Endpoint', () => {
     expect(data.now_playing.id).toBe('track-started-123');
   });
 
-  it('handles missing item_id with a bad request response', async () => {
+  it('handles missing item_id and title with a bad request response', async () => {
     const req = new NextRequest('http://localhost:3000/api/radio/started', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -82,5 +82,22 @@ describe('Liquidsoap /api/radio/started API Endpoint', () => {
     expect(res.status).toBe(400);
     const data = await res.json();
     expect(data.error).toBeDefined();
+  });
+
+  it('accepts title-only start signal via POST from Liquidsoap', async () => {
+    const req = new NextRequest('http://localhost:3000/api/radio/started', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        channel: 'main',
+        title: 'Live On Stream Track',
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.success).toBe(true);
+    expect(data.now_playing.title).toBe('Live On Stream Track');
   });
 });
