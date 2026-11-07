@@ -7,11 +7,13 @@ import React, { useState, useEffect } from 'react';
 import { MessageSquare, Send, Bot, Radio, Users, Sparkles, Clock, Music, Terminal, Copy, Check } from 'lucide-react';
 import { getCommunityLinks } from '@/lib/community/links';
 import { LISTENER_COMMANDS, AIRPLAY_CLOCK_SEGMENTS } from '@/lib/community/commands';
+import WebMcpConsole from '@/components/WebMcpConsole';
 
 export default function CommunitySection() {
   const links = getCommunityLinks();
   const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
   const [currentMinute, setCurrentMinute] = useState<number | null>(null);
+  const [selectedCommand, setSelectedCommand] = useState<string>('');
 
   useEffect(() => {
     const updateMinute = () => setCurrentMinute(new Date().getMinutes());
@@ -25,6 +27,7 @@ export default function CommunitySection() {
   const handleCopy = (cmd: string) => {
     navigator.clipboard?.writeText(cmd);
     setCopiedCmd(cmd);
+    setSelectedCommand(cmd);
     setTimeout(() => setCopiedCmd(null), 2000);
   };
 
@@ -124,14 +127,17 @@ export default function CommunitySection() {
           <div>
             <div className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-400 uppercase tracking-wider mb-1">
               <Terminal className="w-3.5 h-3.5" />
-              <span>Listener Chat Prompts & Commands</span>
+              <span>Web MCP & Listener Chat Prompts</span>
             </div>
-            <h4 className="text-lg font-bold text-white">How to Control the Station from Discord & Telegram</h4>
+            <h4 className="text-lg font-bold text-white">Live Station Commands & Web MCP Actions</h4>
           </div>
           <span className="text-[11px] text-zinc-400 font-mono bg-zinc-800/60 border border-zinc-700/60 px-2.5 py-1 rounded-full self-start sm:self-auto">
-            Click command to copy
+            Click command to load in Web MCP
           </span>
         </div>
+
+        {/* Live Web MCP Interactive Console */}
+        <WebMcpConsole initialCommand={selectedCommand} />
 
         {/* Command grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

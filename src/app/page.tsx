@@ -37,7 +37,7 @@ export default function HomePage() {
         </h1>
 
         <p className="text-zinc-400 text-sm sm:text-base md:text-lg max-w-xl mx-auto px-2">
-          Discover, vote on, and submit AI-generated music. Tune into 5 curated theme stations
+          Discover, vote on, and submit AI-generated music. Tune into PromptFM Main Stage
           live around the clock while the community and open-source developers drive the radio forward.
         </p>
 
@@ -48,7 +48,7 @@ export default function HomePage() {
             className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-black font-bold px-6 py-3 rounded-xl transition-colors text-sm sm:text-base shadow-lg shadow-emerald-500/20"
           >
             <Radio className="w-4 h-4" />
-            Explore Live Channels
+            Tune In Main Stage
           </a>
           <Link
             href="/top"
@@ -83,7 +83,7 @@ export default function HomePage() {
         {/* Feature pills */}
         <div className="flex flex-wrap justify-center gap-2 sm:gap-3 text-xs sm:text-sm text-zinc-400 pt-3">
           {[
-            { icon: <Radio className="w-3.5 h-3.5" />, label: '5 Live Stations' },
+            { icon: <Radio className="w-3.5 h-3.5" />, label: '24/7 AI Radio' },
             { icon: <Code2 className="w-3.5 h-3.5 text-emerald-400" />, label: 'Open Community Development' },
             { icon: <Music2 className="w-3.5 h-3.5" />, label: 'Suno · Udio · Stable Audio' },
             { icon: <Upload className="w-3.5 h-3.5" />, label: 'Direct R2 Upload' },
