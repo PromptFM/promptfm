@@ -134,7 +134,19 @@ export interface UploadUrlResponse {
   key: string;
 }
 
-export type FeatureFlagCategory = 'system' | 'streaming' | 'community' | 'ai_dj' | 'monetization' | 'moderation';
+export type FeatureFlagCategory =
+  | 'streaming'
+  | 'ai_dj'
+  | 'community'
+  | 'moderation'
+  | 'monetization'
+  | 'system';
+
+export interface FeatureFlagVariant {
+  key: string;
+  name: string;
+  weight?: number;
+}
 
 export interface FeatureFlag {
   key: string;
@@ -143,6 +155,8 @@ export interface FeatureFlag {
   enabled: boolean;
   category: FeatureFlagCategory;
   is_kill_switch: boolean;
+  rollout_percentage?: number;
+  variants?: FeatureFlagVariant[];
   updated_at: string;
   updated_by: string;
   notes?: string | null;

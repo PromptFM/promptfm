@@ -10,6 +10,7 @@ import { getActiveDJ } from './roster';
 import { broadcastToCommunity } from '../chat/bridge';
 import { evaluateContentSafety } from '../safety/guardrails';
 import { findTracksByVibe } from './rag';
+import { isFeatureEnabled } from '../flags/feature-flags';
 
 export type RequestType = 'song' | 'dedication' | 'weather' | 'news' | 'zodiac';
 
@@ -105,6 +106,18 @@ export function calculateNextBatchSlot(delayMinutes = 15): { batchId: string; ai
  * and either schedules it into a batch or refuses it upfront.
  */
 export async function scheduleListenerRequest(payload: ListenerRequestPayload): Promise<SlotAllocationResult> {
+  // ── 0. Kill Switch / Feature Flag Check ────────────────────────────────────
+  if (!isFeatureEnabled('community_requests', true)) {
+    return {
+      requestId: 'paused',
+      batchId: 'PAUSED',
+      estimatedAirTime: 'None',
+      confirmationMessage: '⏸️ Song and dedication requests are temporarily paused by station administrators.',
+      isRejected: true,
+      rejectionReason: 'Feature flag community_requests is disabled',
+    };
+  }
+
   const supabase = createAdminClient();
 
   // ── A. Safety & Ethical Guardrails Pre-flight Check ────────────────────────

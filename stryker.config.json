@@ -15,6 +15,7 @@
     "src/lib/safety/**/*.ts",
     "src/lib/ci/**/*.ts",
     "src/lib/mcp/**/*.ts",
+    "src/lib/flags/**/*.ts",
     "!src/lib/**/*.d.ts",
     "!src/**/*.test.ts",
     "!src/**/*.spec.ts"

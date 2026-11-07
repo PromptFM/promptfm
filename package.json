@@ -28,6 +28,7 @@
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.118.0",
     "@vercel/analytics": "^2.0.1",
+    "flags": "^4.4.0",
     "lucide-react": "^1.66.0",
     "music-metadata": "^12.3.4",
     "next": "^14.2.5",

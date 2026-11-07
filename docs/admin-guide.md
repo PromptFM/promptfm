@@ -108,6 +108,8 @@ Every administrative capability is designed with **100% feature parity** across 
 | **Start TikTok Live Broadcast** | Click "Start TikTok Live" | `stream start tiktok <key> [url]` | `promptfm_admin_start_stream` (`platform: 'tiktok'`) |
 | **Stop Live Video Broadcast** | Click "Stop Stream" | `stream stop <platform>` | `promptfm_admin_stop_stream` |
 | **Web MCP Studio & Interactive Tools** | Web MCP Studio Tab | `npm run promptfm` | Dual-Tier JSON-RPC (`/api/mcp`) |
+| **Feature Flags & Traffic Exposure** | Vercel Dashboard / Flags Explorer | `vercel flags [list\|set\|rollout\|split]` | Vercel Flags SDK (`flags/next`) |
+| **Emergency Kill-Switch Control** | Vercel Toolbar & Dashboard | `vercel flags set <key> false` | Vercel Flags SDK (`flags/next`) |
 
 ---
 
@@ -183,6 +185,67 @@ The PromptFM CLI is a standalone station management suite located in `scripts/pr
 | `bot discord setup [appId] [botToken]` | Registers application slash commands and shorthands directly with Discord REST API. | `npm run promptfm -- bot discord setup 123456789 bot-secret-token` |
 | `bot discord test [webhookUrl]` | Dispatches an on-air rich embed test card to the Discord channel webhook. | `npm run promptfm -- bot discord test https://discord.com/api/webhooks/...` |
 | `bot discord post-guide [webhookUrl]` | Broadcasts the Listener Command & Airplay Schedule Guide embed to Discord. | `npm run promptfm -- bot discord post-guide https://discord.com/api/webhooks/...` |
+
+#### 7. Vercel Feature Flags, A/B Testing & Emergency Kill-Switches
+
+Feature flags and progressive delivery in PromptFM are managed natively using **Vercel Flags** (`flags/next`), the **Vercel CLI** (`vercel flags`), and the **Vercel Dashboard / Vercel Toolbar**.
+
+PromptFM exposes the official Vercel Flags Discovery Endpoint at `/.well-known/vercel/flags`, allowing the Vercel Toolbar and Vercel Flags Explorer to discover all registered station flags, inspect variants, configure percentage rollouts (traffic exposure), and trigger emergency kill-switches.
+
+##### A. Managing Flags via Vercel CLI (`vercel flags`)
+
+The Vercel CLI provides full terminal control over feature flags, progressive rollouts, and A/B test splits:
+
+| Command | Description | Example |
+| :--- | :--- | :--- |
+| `vercel flags list` | Lists all feature flags, current variants, and targeting rules for the project. | `vercel flags list` |
+| `vercel flags inspect <flag>` | Displays detailed configuration, rollout percentage, and audit history for a flag. | `vercel flags inspect community_requests` |
+| `vercel flags set <flag> <value>` | Serves a specific boolean value or variant in production or preview environments. | `vercel flags set community_requests false` |
+| `vercel flags rollout <flag>` | Configures progressive traffic exposure percentage (0% to 100%). | `vercel flags rollout new_player_ui --percentage 25` |
+| `vercel flags split <flag>` | Configures weighted variant splits for A/B testing across listeners. | `vercel flags split modern_visualizer` |
+| `vercel flags open [flag]` | Opens the Vercel Dashboard directly to the project's feature flags console. | `vercel flags open maintenance_mode` |
+
+##### B. Managing Flags via Vercel Dashboard & Vercel Toolbar
+
+1. **Vercel Toolbar & Flags Explorer (Preview & Production)**:
+   - On any preview deployment or production site, open the **Vercel Toolbar** (bottom-right icon).
+   - Click the **Flags** icon to open the **Flags Explorer**.
+   - View all registered PromptFM flags with their descriptions and default states.
+   - Instantly override flag values for testing without redeploying.
+
+2. **Environment & Security Configuration**:
+   - `FLAGS_SECRET`: A 32-byte secret configured in Vercel Project Settings $\to$ Environment Variables. Secures the `/.well-known/vercel/flags` endpoint so only authorized Vercel tools and dashboard extensions can inspect definitions and generate overrides.
+   - Local/CI Overrides: In local development, developers can override any flag instantly using environment variables:
+     - `PROMPTFM_FLAG_COMMUNITY_REQUESTS=false`
+     - `FLAG_MAINTENANCE_MODE=true`
+
+##### C. Emergency Kill-Switch Runbook for On-Call Engineers
+
+When incidents, upstream rate limits, or degradation occur, on-call engineers can halt station subsystems immediately:
+
+1. **Emergency Maintenance Mode**:
+   ```bash
+   vercel flags set maintenance_mode true
+   ```
+   *Puts the station in maintenance mode and halts non-essential listener pipelines.*
+
+2. **Pause Listener Song Requests (`community_requests`)**:
+   ```bash
+   vercel flags set community_requests false
+   ```
+   *Disables `/song` queueing across Discord, Telegram, and Web without taking down the station stream.*
+
+3. **Halt AI Speech Synthesis (`ai_dj_speech`)**:
+   ```bash
+   vercel flags set ai_dj_speech false
+   ```
+   *Switches the station to pure music-only rotation if TTS or LLM APIs experience rate limits.*
+
+4. **Emergency Audio Output Mute (`live_audio_stream`)**:
+   ```bash
+   vercel flags set live_audio_stream false
+   ```
+   *Instantly pauses client-side audio player playback during catastrophic audio or licensing emergencies.*
 
 ---
 
