@@ -149,139 +149,257 @@ export default function ChannelsGrid({ className = '' }: ChannelsGridProps) {
   };
 
   const publicChannels = getPublicChannels();
+  const isSingleStage = publicChannels.length <= 1;
 
   return (
-    <section id="channels" className={`w-full max-w-6xl mx-auto px-4 ${className}`}>
+    <section
+      id="channels"
+      aria-label="PromptFM Broadcast Station"
+      className={`w-full ${isSingleStage ? 'max-w-3xl' : 'max-w-6xl'} mx-auto px-4 ${className}`}
+    >
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-3 mb-6 sm:mb-8 text-left">
         <div>
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mb-2">
             <Radio className="w-3.5 h-3.5 animate-pulse" />
             <span>
-              {publicChannels.length > 1
-                ? `${publicChannels.length} LIVE THEME CHANNELS`
-                : 'LIVE BROADCAST STAGE'}
+              {isSingleStage
+                ? 'LIVE BROADCAST STAGE'
+                : `${publicChannels.length} LIVE THEME CHANNELS`}
             </span>
           </div>
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-            {publicChannels.length > 1 ? 'Choose Your Radio Station' : 'PromptFM Main Broadcast'}
+            {isSingleStage ? 'PromptFM Main Stage Broadcast' : 'Choose Your Radio Station'}
           </h2>
           <p className="text-sm text-zinc-400 mt-1 max-w-2xl">
-            {publicChannels.length > 1
-              ? 'Stream 24/7 distinct AI-generated music genres curated live by our roster of AI DJs. Switch with 1 click to update your live broadcast feed.'
-              : 'Stream 24/7 continuous AI-generated music curated live by AI DJs on the PromptFM main stage.'}
+            {isSingleStage
+              ? 'Stream 24/7 continuous AI-generated music curated live by AI DJs on the PromptFM main stage. Tune in with 1 click to listen live.'
+              : 'Stream 24/7 distinct AI-generated music genres curated live by our roster of AI DJs. Switch with 1 click to update your live broadcast feed.'}
           </p>
         </div>
       </div>
 
-      {/* Grid */}
-      <div className={`grid grid-cols-1 ${publicChannels.length > 1 ? 'sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5' : 'max-w-md mx-auto sm:mx-0'} gap-4 sm:gap-5`}>
-        {publicChannels.map((channel) => {
-          const isActive = activeChannelSlug === channel.slug;
-          const isCurrentChannelPlaying = isActive && isPlayerPlaying;
+      {/* Grid or Single Stage Showcase Layout */}
+      {isSingleStage ? (
+        <div className="w-full max-w-3xl mx-auto">
+          {publicChannels.map((channel) => {
+            const isActive = activeChannelSlug === channel.slug;
+            const isCurrentChannelPlaying = isActive && isPlayerPlaying;
 
-          return (
-            <div
-              key={channel.slug}
-              className={`rounded-2xl p-5 border flex flex-col justify-between transition-all duration-200 text-left relative overflow-hidden ${getCardTheme(
-                channel.slug,
-                isActive
-              )}`}
-            >
-              {/* Active Pulsing Indicator Badge */}
-              {isActive && (
-                <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                  <span>{isPlayerPlaying ? 'ON AIR' : 'SELECTED'}</span>
-                </div>
-              )}
-
-              {/* Station Info */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-xl bg-zinc-800/80 border border-zinc-700/60 flex items-center justify-center flex-shrink-0">
-                    {getStationIcon(channel.icon)}
+            return (
+              <div
+                key={channel.slug}
+                className="rounded-3xl p-6 sm:p-8 border border-emerald-500/40 bg-gradient-to-b from-emerald-950/30 via-zinc-900/90 to-zinc-950 shadow-[0_0_32px_rgba(16,185,129,0.18)] transition-all text-left relative overflow-hidden flex flex-col justify-between gap-6"
+              >
+                {/* Active Pulsing Indicator Badge */}
+                {isActive && (
+                  <div
+                    aria-label={isCurrentChannelPlaying ? 'Live broadcast on air' : 'Main stage selected'}
+                    className="absolute top-4 right-4 sm:top-6 sm:right-6 flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                    <span>{isPlayerPlaying ? 'ON AIR' : 'SELECTED'}</span>
                   </div>
-                  <div>
-                    <h3 className="font-bold text-white text-base leading-tight">
-                      {channel.shortName}
-                    </h3>
-                    <p className="text-[11px] font-medium text-zinc-400">
-                      {channel.badge}
-                    </p>
+                )}
+
+                {/* Station Info */}
+                <div className="space-y-4 pr-16 sm:pr-24">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-zinc-800/80 border border-zinc-700/60 flex items-center justify-center flex-shrink-0 shadow-inner">
+                      {getStationIcon(channel.icon)}
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-white text-lg sm:text-xl leading-tight">
+                        {channel.name}
+                      </h3>
+                      <p className="text-xs font-semibold text-emerald-400/90 mt-0.5">
+                        {channel.badge}
+                      </p>
+                    </div>
                   </div>
-                </div>
 
-                {/* Vibe / Genre */}
-                <div className="text-xs font-medium text-zinc-300 bg-zinc-800/40 rounded-lg px-2.5 py-1.5 border border-zinc-700/40">
-                  {channel.vibe}
-                </div>
+                  {/* Vibe / Genre */}
+                  <div className="inline-block text-xs font-medium text-emerald-300 bg-emerald-950/40 rounded-xl px-3 py-1.5 border border-emerald-500/30">
+                    {channel.vibe}
+                  </div>
 
-                {/* Description */}
-                <p className="text-xs text-zinc-400 leading-relaxed min-h-[3rem]">
-                  {channel.description}
-                </p>
+                  {/* Description */}
+                  <p className="text-sm text-zinc-300 leading-relaxed max-w-xl">
+                    {channel.description}
+                  </p>
 
-                {/* DJ & Parental Rating Row */}
-                <div className="flex items-center justify-between text-[11px] pt-1 border-t border-zinc-800/80">
-                  <span className="font-semibold text-zinc-300 flex items-center gap-1">
-                    🎙️ {channel.djName}
-                  </span>
-                  {channel.requiresAgeGate ? (
-                    <span className="inline-flex items-center gap-0.5 text-rose-400 font-bold">
-                      <Flame className="w-3 h-3" />
-                      18+ Explicit
+                  {/* DJ & Station Specs Row */}
+                  <div className="flex flex-wrap items-center gap-4 text-xs pt-2 border-t border-zinc-800/80 text-zinc-300">
+                    <span className="font-semibold flex items-center gap-1.5">
+                      🎙️ {channel.djName}
                     </span>
-                  ) : channel.isFamilySafe ? (
-                    <span className="inline-flex items-center gap-0.5 text-emerald-400 font-medium">
-                      <ShieldCheck className="w-3 h-3" />
+                    <span className="text-zinc-600">·</span>
+                    <span className="inline-flex items-center gap-1 text-emerald-400 font-medium">
+                      <ShieldCheck className="w-3.5 h-3.5" />
                       Family Safe
                     </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-0.5 text-purple-400 font-medium">
-                      <Flame className="w-3 h-3" />
-                      16+ Cyber
+                    <span className="text-zinc-600">·</span>
+                    <span className="text-zinc-400">
+                      24/7 Continuous Music
                     </span>
-                  )}
+                  </div>
+                </div>
+
+                {/* Action Button */}
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    disabled={channel.isActive === false}
+                    onClick={() => handleTuneIn(channel)}
+                    aria-label={
+                      isCurrentChannelPlaying
+                        ? 'Listening Now to PromptFM Main Stage'
+                        : 'Tune In Main Stage'
+                    }
+                    className={`w-full sm:w-auto px-8 py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2.5 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 ${
+                      channel.isActive === false
+                        ? 'bg-zinc-800/50 text-zinc-500 border border-zinc-800 cursor-not-allowed opacity-60'
+                        : getButtonTheme(channel.slug, isActive, isPlayerPlaying)
+                    }`}
+                  >
+                    {channel.isActive === false ? (
+                      <span>Offline (Standby)</span>
+                    ) : isCurrentChannelPlaying ? (
+                      <>
+                        <Volume2 className="w-5 h-5 animate-pulse" />
+                        <span>Listening Now</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-5 h-5 fill-current" />
+                        <span>Tune In Main Stage</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-5">
+          {publicChannels.map((channel) => {
+            const isActive = activeChannelSlug === channel.slug;
+            const isCurrentChannelPlaying = isActive && isPlayerPlaying;
 
-              {/* Action Button */}
-              <div className="mt-5 pt-3">
-                <button
-                  type="button"
-                  disabled={channel.isActive === false}
-                  onClick={() => handleTuneIn(channel)}
-                  className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all ${
-                    channel.isActive === false
-                      ? 'bg-zinc-800/50 text-zinc-500 border border-zinc-800 cursor-not-allowed opacity-60'
-                      : getButtonTheme(channel.slug, isActive, isPlayerPlaying)
-                  }`}
-                >
-                  {channel.isActive === false ? (
-                    <span>Offline (Standby)</span>
-                  ) : isCurrentChannelPlaying ? (
-                    <>
-                      <Volume2 className="w-4 h-4 animate-pulse" />
-                      <span>Listening Now</span>
-                    </>
-                  ) : isActive ? (
-                    <>
-                      <Play className="w-4 h-4 fill-current" />
-                      <span>Start Listening</span>
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-4 h-4 fill-current" />
-                      <span>Tune In Station</span>
-                    </>
-                  )}
-                </button>
+            return (
+              <div
+                key={channel.slug}
+                className={`rounded-2xl p-5 border flex flex-col justify-between transition-all duration-200 text-left relative overflow-hidden ${getCardTheme(
+                  channel.slug,
+                  isActive
+                )}`}
+              >
+                {/* Active Pulsing Indicator Badge */}
+                {isActive && (
+                  <div
+                    aria-label={isCurrentChannelPlaying ? `${channel.name} on air` : `${channel.name} selected`}
+                    className="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                    <span>{isPlayerPlaying ? 'ON AIR' : 'SELECTED'}</span>
+                  </div>
+                )}
+
+                {/* Station Info */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-xl bg-zinc-800/80 border border-zinc-700/60 flex items-center justify-center flex-shrink-0">
+                      {getStationIcon(channel.icon)}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white text-base leading-tight">
+                        {channel.shortName}
+                      </h3>
+                      <p className="text-[11px] font-medium text-zinc-400">
+                        {channel.badge}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Vibe / Genre */}
+                  <div className="text-xs font-medium text-zinc-300 bg-zinc-800/40 rounded-lg px-2.5 py-1.5 border border-zinc-700/40">
+                    {channel.vibe}
+                  </div>
+
+                  {/* Description */}
+                  <p className="text-xs text-zinc-400 leading-relaxed min-h-[3rem]">
+                    {channel.description}
+                  </p>
+
+                  {/* DJ & Parental Rating Row */}
+                  <div className="flex items-center justify-between text-[11px] pt-1 border-t border-zinc-800/80">
+                    <span className="font-semibold text-zinc-300 flex items-center gap-1">
+                      🎙️ {channel.djName}
+                    </span>
+                    {channel.requiresAgeGate ? (
+                      <span className="inline-flex items-center gap-0.5 text-rose-400 font-bold">
+                        <Flame className="w-3 h-3" />
+                        18+ Explicit
+                      </span>
+                    ) : channel.isFamilySafe ? (
+                      <span className="inline-flex items-center gap-0.5 text-emerald-400 font-medium">
+                        <ShieldCheck className="w-3 h-3" />
+                        Family Safe
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-0.5 text-purple-400 font-medium">
+                        <Flame className="w-3 h-3" />
+                        16+ Cyber
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Action Button */}
+                <div className="mt-5 pt-3">
+                  <button
+                    type="button"
+                    disabled={channel.isActive === false}
+                    onClick={() => handleTuneIn(channel)}
+                    aria-label={
+                      isCurrentChannelPlaying
+                        ? `Listening Now to ${channel.name}`
+                        : isActive
+                        ? `Start Listening to ${channel.name}`
+                        : `Tune In Station — ${channel.name}`
+                    }
+                    className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${
+                      channel.isActive === false
+                        ? 'bg-zinc-800/50 text-zinc-500 border border-zinc-800 cursor-not-allowed opacity-60'
+                        : getButtonTheme(channel.slug, isActive, isPlayerPlaying)
+                    }`}
+                  >
+                    {channel.isActive === false ? (
+                      <span>Offline (Standby)</span>
+                    ) : isCurrentChannelPlaying ? (
+                      <>
+                        <Volume2 className="w-4 h-4 animate-pulse" />
+                        <span>Listening Now</span>
+                      </>
+                    ) : isActive ? (
+                      <>
+                        <Play className="w-4 h-4 fill-current" />
+                        <span>Start Listening</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-4 h-4 fill-current" />
+                        <span>Tune In Station</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }
