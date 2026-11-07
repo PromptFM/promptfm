@@ -105,10 +105,13 @@ export default function ScheduleView({ initialChannelSlug = 'main', onTuneIn }: 
     }
   }, []);
 
-  // Poll schedule every 12 seconds
+  // Poll schedule every 12 seconds (skips background tabs to conserve Vercel Active CPU)
   useEffect(() => {
     fetchSchedule(activeSlug, true);
-    const interval = setInterval(() => fetchSchedule(activeSlug, false), 12000);
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      fetchSchedule(activeSlug, false);
+    }, 12000);
 
     const handleChannelChange = (e: Event) => {
       const custom = e as CustomEvent<{ slug: string }>;
@@ -118,11 +121,23 @@ export default function ScheduleView({ initialChannelSlug = 'main', onTuneIn }: 
       }
     };
 
+    const handleVisibility = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        fetchSchedule(activeSlug, false);
+      }
+    };
+
     window.addEventListener('promptfm:channel-changed', handleChannelChange);
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibility);
+    }
 
     return () => {
       clearInterval(interval);
       window.removeEventListener('promptfm:channel-changed', handleChannelChange);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibility);
+      }
     };
   }, [activeSlug, fetchSchedule]);
 

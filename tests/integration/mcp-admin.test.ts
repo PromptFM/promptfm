@@ -392,5 +392,32 @@ describe('MCP Admin Tools Integration', () => {
     expect(data.success).toBe(true);
     expect(data.deleted_id).toBe('11111111-2222-3333-4444-555555555555');
   });
+
+  it('queries infra budget and free-tier policy via promptfm_admin_get_infra_budget', async () => {
+    const req = new NextRequest('http://localhost:3000/api/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'req-mcp-infra-budget',
+        method: 'tools/call',
+        params: {
+          name: 'promptfm_admin_get_infra_budget',
+          arguments: {},
+        },
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.result).toBeDefined();
+
+    const data = JSON.parse(json.result.content[0].text);
+    expect(data.success).toBe(true);
+    expect(data.policy.monthlyCostTargetUsd).toBe(0);
+    expect(data.policy.vercelActiveCpuWarningThresholdPercent).toBe(75);
+    expect(data.policy.vercelMaxActiveCpuHoursHobby).toBe(4);
+  });
 });
 

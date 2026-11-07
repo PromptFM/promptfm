@@ -509,4 +509,100 @@ npm run promptfm -- stream stop tiktok
   }
   ```
 
+---
+
+## 7. $0 Infrastructure Budget Policy & Free-Tier Guardrails (Vercel & CI)
+
+PromptFM is architected to operate **permanently within the $0/month free-tier budget** across all cloud providers (GCP Always Free `e2-micro`, Vercel Hobby, Cloudflare R2, and Supabase Free Tier). To prevent sudden cost spikes or exceeding Vercel's included **4 hours/month of Fluid Active CPU**, strict operational guardrails are enforced across deployment previews and CI pipelines.
+
+### A. Core Budget Metrics & Limits
+
+| Service / Resource | Included Free Tier | Warning Threshold | Enforcement Mechanism |
+| :--- | :--- | :--- | :--- |
+| **Vercel Fluid Active CPU** | 4.0 hours / month | 75% (3.0 hours) | Ignored build script, Edge CDN caching, background tab polling suspension |
+| **Vercel Previews** | Unlimited builds | Gated & Protected | Cancel on bot/doc PRs, require maintainer authorization for forked PRs |
+| **GitHub Actions CI** | 2,000 mins / month | Concurrency cancel | Concurrency group per PR, path scope detection, Playwright browser caching |
+| **GCP Compute VM** | 1 `e2-micro` (Always Free) | 1 VM in `us-central1` | Terraform IaC state locking, 128 kbps audio stream |
+| **Cloudflare R2 Egress** | Unlimited free egress | Free tier bandwidth | Public audio distribution via custom domain |
+
+### B. Vercel Preview Deployment Protection & Gating
+
+1. **Ignored Build Step (`scripts/vercel-budget-gate.sh`)**:
+   Configured in `vercel.json` via `"ignoreCommand": "bash scripts/vercel-budget-gate.sh"`.
+   - **Production deployments** (on `main` or release tags) always proceed (exit code 1).
+   - **Automated bot branches** (`dependabot/*`, `renovate/*`) are automatically cancelled (exit code 0).
+   - **Forked pull requests** require explicit maintainer authorization before building previews.
+   - **Non-application changes** (pure documentation, markdown, infra, or CI workflows) skip preview builds.
+   - **Explicit Opt-in**: Contributors can trigger a preview build by including `[preview]`, `[deploy-preview]`, or `[run-preview]` in their commit message.
+   - **Explicit Skip**: Authors can skip preview builds by adding `[skip preview]`, `[skip vercel]`, or `[skip ci]`.
+
+2. **Search Engine & Crawler Blocking on Previews**:
+   Non-production deployments (`VERCEL_ENV=preview`) automatically serve a restrictive `robots.txt` (`disallow: ['/']`) via `generateRobotsConfig()` to prevent web crawlers and SEO bots from hammering preview endpoints and burning Active CPU.
+
+3. **Edge CDN Caching for High-Frequency Radio Routes**:
+   - `/api/radio/now`: `Cache-Control: public, s-maxage=5, stale-while-revalidate=10`
+   - `/api/radio/schedule`: `Cache-Control: public, s-maxage=30, stale-while-revalidate=60`
+   - `/api/status`: `Cache-Control: public, s-maxage=10, stale-while-revalidate=30`
+   Within edge cache windows, identical requests across all listeners and components are served instantly from Vercel's global Edge Network with **0ms active CPU consumption**.
+
+4. **Page Visibility Lifecycle Optimization**:
+   Frontend components (`AudioPlayer`, `UpNextSection`, `ScheduleView`, and `LiveListenersBadge`) automatically detect when a browser tab is minimized or inactive (`document.hidden`). Polling loops are suspended until the tab returns to `visible` state, slashing background compute usage.
+
+### C. GitHub Actions CI Trimming
+
+- **Scope Change Detection (`detect-changes`)**: Checks the diff on every pull request. PRs altering only markdown, documentation, or legal terms bypass expensive test suites.
+- **Playwright Browser & Build Caching**: Caches `~/.cache/ms-playwright` and `.next/cache`. Skips re-running `npx playwright install --with-deps` on cache hits and builds Next.js incrementally.
+- **Targeted Mutation Testing**: Stryker mutation testing is capped at a 20-minute timeout and only triggers when core domain logic in `src/lib/` or tests change. Bypassed entirely on automated Dependabot PRs.
+- **Conditional Terraform & CodeQL**: Terraform linter/validator only triggers when `infra/` changes. CodeQL security scanning is bypassed on automated dependency bumps.
+
+### D. 4-Way Operational Control Reference
+
+#### 1. Terminal CLI (`npm run promptfm -- budget`)
+```bash
+# View active $0 budget policy, Vercel CPU limits & CI trimming status
+npm run promptfm -- budget policy
+
+# Test/evaluate Vercel preview build gate decision for a simulated PR or ref
+npm run promptfm -- budget gate --env preview --branch dependabot/npm/foo
+npm run promptfm -- budget gate --env preview --branch feature/stream-ui --message "feat: ui [preview]"
+
+# Evaluate which CI jobs will execute for a given PR actor and changed file set
+npm run promptfm -- budget ci --actor dependabot[bot] --files "package.json,package-lock.json"
+npm run promptfm -- budget ci --actor contributor --files "src/components/AudioPlayer.tsx"
+```
+
+#### 2. Model Context Protocol (MCP Tool: `promptfm_admin_get_infra_budget`)
+Query the $0 budget status programmatically from any MCP-enabled client:
+```json
+{
+  "name": "promptfm_admin_get_infra_budget",
+  "arguments": {}
+}
+```
+**Example Response**:
+```json
+{
+  "success": true,
+  "policy": {
+    "monthlyCostTargetUsd": 0,
+    "vercelActiveCpuWarningThresholdPercent": 75,
+    "vercelMaxActiveCpuHoursHobby": 4,
+    "forkPreviewsRequireApproval": true,
+    "autoPreviewsEnabledByDefault": false,
+    "protectedPreviewAccess": true
+  },
+  "budget_status": "operational_zero_cost",
+  "note": "PromptFM $0 infra path: Vercel previews gated, crawlers blocked on preview, CI trimmed."
+}
+```
+
+#### 3. Web Studio Console (`/admin`)
+- Vercel dashboard metrics can be reviewed at [vercel.com/alex-trifans-projects/promptfm/usage](https://vercel.com/alex-trifans-projects/promptfm/usage).
+- Deployment protection can be toggled under **Project Settings ➔ Deployment Protection** in the Vercel console.
+
+#### 4. REST API & Dynamic Headers
+- Inspect `Cache-Control` response headers on `/api/radio/now` and `/api/radio/schedule` using `curl -I https://promptfm.live/api/radio/now`.
+- Verify preview crawler blocking on preview deployments via `curl https://<preview-domain>/robots.txt`.
+
+
 

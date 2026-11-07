@@ -194,11 +194,30 @@ export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerPro
     }
   }, [currentChannelSlug]);
 
-  // Periodic polling for Now Playing updates
+  // Periodic polling for Now Playing updates (respects page visibility to save bandwidth and compute)
   useEffect(() => {
     fetchNowPlaying(currentChannelSlug);
-    const interval = setInterval(() => fetchNowPlaying(currentChannelSlug), 10000);
-    return () => clearInterval(interval);
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      fetchNowPlaying(currentChannelSlug);
+    }, 10000);
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        fetchNowPlaying(currentChannelSlug);
+      }
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+    };
   }, [fetchNowPlaying, currentChannelSlug]);
 
   // Second-by-second progress ticker for live broadcast

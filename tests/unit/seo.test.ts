@@ -40,6 +40,14 @@ describe('SEO & Structured Data Service', () => {
       expect(imageRule).toBeDefined();
       expect(imageRule?.allow).toEqual(['/', '/icon.png', '/logo-mark.png', '/opengraph-image']);
     });
+
+    it('disallows all crawlers on preview deployments to protect Vercel Active CPU budget', () => {
+      const robotsConfig = generateRobotsConfig(false);
+      const rules = Array.isArray(robotsConfig.rules) ? robotsConfig.rules : [robotsConfig.rules];
+      expect(rules.length).toBe(1);
+      expect(rules[0]?.userAgent).toBe('*');
+      expect(rules[0]?.disallow).toEqual(['/']);
+    });
   });
 
   describe('generateSitemapUrls', () => {
