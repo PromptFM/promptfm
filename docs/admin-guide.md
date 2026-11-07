@@ -314,7 +314,6 @@ AI agents can manage the station autonomously by connecting to the MCP endpoint 
 
 #### Public Endpoints
 - `GET /api/radio/now`: Returns current on-air track, upcoming items, active DJ, and listener count.
-- `GET /api/flags`: Returns public runtime dictionary of enabled feature flags for client player hydration.
 - `POST /api/report`: Ingests community content reports from Web/Bots.
 - `POST /api/bot/webhook`: Handles inbound Telegram bot webhooks and slash commands.
 - `POST /api/mcp`: Dual-tier Model Context Protocol JSON-RPC 2.0 handler.
@@ -323,9 +322,6 @@ AI agents can manage the station autonomously by connecting to the MCP endpoint 
 #### Station Administration Endpoints (`ADMIN_API_KEY` Required)
 All `/api/admin/*` endpoints require authentication when `ADMIN_API_KEY` is configured via `Authorization: Bearer <ADMIN_API_KEY>`, `x-admin-key: <ADMIN_API_KEY>`, or query parameter `?key=<ADMIN_API_KEY>`:
 
-- `GET /api/admin/flags`: Lists all runtime feature flags and emergency kill-switches (supports `?category=<cat>`, `?killSwitchOnly=true`).
-- `POST /api/admin/flags`: Updates a feature flag state (`{ key, enabled, notes?, actor? }`).
-- `PATCH /api/admin/flags`: Toggles a feature flag boolean state (`{ key, notes?, actor? }`).
 - `GET /api/admin/reports`: Lists recent content moderation reports (supports `?limit=N`, default 30; supports `?audit=true` for audit summary).
 - `GET /api/admin/reports/audit`: Returns security and moderation audit summary, detecting status changes made during unauthenticated windows.
 - `POST /api/admin/reports`: Actions or dismisses a moderation report (`{ reportId, action: 'actioned' | 'dismissed', notes?, actor? }`).
