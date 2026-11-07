@@ -7,13 +7,91 @@ on:
     branches: [main]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  detect-changes:
+    name: 🧭 Detect Changed Paths & Scope
+    runs-on: ubuntu-latest
+    outputs:
+      docs_only: ${{ steps.detect.outputs.docs_only }}
+      has_infra: ${{ steps.detect.outputs.has_infra }}
+      has_ui: ${{ steps.detect.outputs.has_ui }}
+      has_core_domain: ${{ steps.detect.outputs.has_core_domain }}
+      is_dependabot: ${{ steps.detect.outputs.is_dependabot }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect Changed Paths & Actor
+        id: detect
+        run: |
+          ACTOR="${{ github.actor }}"
+          if [ "$ACTOR" = "dependabot[bot]" ]; then
+            echo "is_dependabot=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_dependabot=false" >> $GITHUB_OUTPUT
+          fi
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch origin ${{ github.base_ref }} --depth=1 || true
+            CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }} HEAD 2>/dev/null || git diff --name-only HEAD^ HEAD 2>/dev/null || echo "")
+          else
+            CHANGED_FILES=$(git diff --name-only HEAD^ HEAD 2>/dev/null || echo "")
+          fi
+
+          echo "Detected changed files:"
+          echo "$CHANGED_FILES"
+
+          DOC_ONLY=true
+          HAS_INFRA=false
+          HAS_UI=false
+          HAS_CORE=false
+
+          if [ -z "$CHANGED_FILES" ]; then
+            DOC_ONLY=false
+            HAS_UI=true
+            HAS_CORE=true
+            HAS_INFRA=true
+          else
+            while IFS= read -r file; do
+              [ -z "$file" ] && continue
+              case "$file" in
+                *.md|docs/*|.github/ISSUE_TEMPLATE/*|LICENSE|.gitleaksignore|.env.local.example)
+                  ;;
+                infra/*|.github/workflows/ci.yml)
+                  DOC_ONLY=false
+                  HAS_INFRA=true
+                  ;;
+                src/app/*|src/components/*|playwright.config.ts|tests/e2e/*)
+                  DOC_ONLY=false
+                  HAS_UI=true
+                  ;;
+                src/lib/*|tests/unit/*|tests/integration/*|stryker.config.json)
+                  DOC_ONLY=false
+                  HAS_CORE=true
+                  ;;
+                *)
+                  DOC_ONLY=false
+                  HAS_UI=true
+                  HAS_CORE=true
+                  ;;
+              esac
+            done <<< "$CHANGED_FILES"
+          fi
+
+          echo "docs_only=$DOC_ONLY" >> $GITHUB_OUTPUT
+          echo "has_infra=$HAS_INFRA" >> $GITHUB_OUTPUT
+          echo "has_ui=$HAS_UI" >> $GITHUB_OUTPUT
+          echo "has_core_domain=$HAS_CORE" >> $GITHUB_OUTPUT
+
   lint-and-typecheck:
     name: 🔍 Lint & Static Types
     runs-on: ubuntu-latest
+    needs: [detect-changes]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -36,6 +114,8 @@ jobs:
   unit-and-integration-tests:
     name: 🧪 Vitest Test Suite & Coverage (>=80%)
     runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.docs_only != 'true'
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -60,7 +140,8 @@ jobs:
   playwright-e2e-tests:
     name: 🎭 Playwright E2E UI, SEO & Crawler Tests
     runs-on: ubuntu-latest
-    needs: [lint-and-typecheck, unit-and-integration-tests]
+    needs: [detect-changes, lint-and-typecheck, unit-and-integration-tests]
+    if: needs.detect-changes.outputs.is_dependabot != 'true' && needs.detect-changes.outputs.docs_only != 'true' && (github.ref == 'refs/heads/main' || needs.detect-changes.outputs.has_ui == 'true')
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -74,8 +155,32 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      - name: Cache Playwright Browser Binaries
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install Playwright Chromium Browser
-        run: npx playwright install --with-deps chromium
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
+            echo "Playwright browser binary cache hit; skipping system dependency reinstallation."
+            npx playwright install chromium
+          else
+            echo "Installing Playwright chromium with system dependencies..."
+            npx playwright install --with-deps chromium
+          fi
+
+      - name: Cache Next.js Build Output
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ${{ github.workspace }}/.next/cache
+          key: nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('src/**/*.ts', 'src/**/*.tsx') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
 
       - name: Build Next.js Production Bundle
         run: npm run build
@@ -106,8 +211,9 @@ jobs:
   mutation-testing:
     name: 🧬 Stryker Mutation Testing (Core Domain Logic)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: [lint-and-typecheck, unit-and-integration-tests]
+    timeout-minutes: 20
+    needs: [detect-changes, lint-and-typecheck, unit-and-integration-tests]
+    if: needs.detect-changes.outputs.is_dependabot != 'true' && needs.detect-changes.outputs.docs_only != 'true' && (github.ref == 'refs/heads/main' || needs.detect-changes.outputs.has_core_domain == 'true')
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -150,6 +256,8 @@ jobs:
   terraform-lint-validate:
     name: ☁️ Terraform & Infra Validation
     runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.has_infra == 'true' || github.ref == 'refs/heads/main'
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -185,6 +293,8 @@ jobs:
   codeql-security-scan:
     name: 🔒 CodeQL Security & Vulnerability Analysis
     runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.is_dependabot != 'true' && needs.detect-changes.outputs.docs_only != 'true'
     permissions:
       security-events: write
       actions: read
@@ -239,4 +349,3 @@ jobs:
         with:
           sarif_file: 'trivy-results.sarif'
           category: 'trivy-package-security'
-

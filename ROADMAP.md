@@ -54,3 +54,15 @@ This document tracks upcoming features, architectural milestones, and infrastruc
 - [ ] **Supabase Realtime Subscriptions**: Wire live WebSocket channels to [`/admin`](src/app/admin/page.tsx) so moderation tickets, listener requests, and vote counts update instantly without page reloads.
 - [ ] **Audio Scrubbing / Waveform Preview**: Add visual waveform seeking for admin review of submissions.
 
+---
+
+### 8. $0 Infrastructure Budget Guardrails & Free-Tier Optimization (Issue #108)
+- [x] **Vercel Preview Gate & Ignored Build Step**: Configured `ignoreCommand` via `scripts/vercel-budget-gate.sh` to enforce $0 budget policy by skipping preview builds on automated bot branches and doc/infra PRs.
+- [x] **Forked PR Authorization & Bot Prevention**: Gated preview deployments from forked pull requests until maintainer-approved; automatically skipped Dependabot and Renovate PRs to conserve Vercel Active CPU.
+- [x] **Edge CDN Caching for High-Frequency Routes**: Added `s-maxage` headers (`s-maxage=5` on `/api/radio/now`, `s-maxage=30` on `/api/radio/schedule`) to prevent repetitive serverless function executions.
+- [x] **Browser Inactive Tab Visibility Pause**: Suspended polling in `AudioPlayer`, `UpNextSection`, `ScheduleView`, and `LiveListenersBadge` when browser tabs are hidden/minimized.
+- [x] **Search Crawler Blocking on Preview Deployments**: Automated dynamic `robots.txt` generation in `generateRobotsConfig` to disallow all crawling on non-production deployments.
+- [x] **Slimmed GitHub Actions CI Pipeline**: Added change scope detection in `ci.yml`, Playwright browser caching (`~/.cache/ms-playwright`), Next.js `.next/cache` restoration, 20m Stryker timeout, and Dependabot bypass for heavy suites.
+- [x] **4-Way Operational Budget Controls**: Documented and verified budget commands across Terminal CLI (`npm run promptfm -- budget`), MCP Tools (`promptfm_admin_get_infra_budget`), and Admin documentation.
+
+

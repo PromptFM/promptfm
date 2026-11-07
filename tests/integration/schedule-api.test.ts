@@ -36,6 +36,7 @@ describe('GET /api/radio/schedule', () => {
     const res = await GET(req);
 
     expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toContain('s-maxage=30');
     const data = await res.json();
 
     expect(data.success).toBe(true);
@@ -53,6 +54,7 @@ describe('GET /api/radio/schedule', () => {
     const res = await GET(req);
 
     expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toContain('s-maxage=30');
     const data = await res.json();
 
     expect(data.success).toBe(true);
@@ -64,6 +66,7 @@ describe('GET /api/radio/schedule', () => {
     const res = await GET(req);
 
     expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toContain('s-maxage=30');
     const data = await res.json();
 
     expect(data.success).toBe(true);

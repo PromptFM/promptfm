@@ -24,6 +24,7 @@ import {
   getStreamStatus,
   type StreamPlatform,
 } from '@/lib/streaming/rtmp-controller';
+import { getInfraBudgetPolicy } from '@/lib/infra/budget-gate';
 import type { ReportReason, ReportTargetType } from '@/types/database';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
@@ -466,6 +467,15 @@ const ADMIN_MCP_TOOLS = [
     name: 'promptfm_admin_get_stream_status',
     description:
       'Retrieves the real-time status of PromptFM RTMP live streams on YouTube and TikTok.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'promptfm_admin_get_infra_budget',
+    description:
+      'Retrieves the PromptFM $0 infrastructure policy constraints, Vercel Fluid Active CPU budget metrics, and CI trimming thresholds.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -1349,6 +1359,16 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
       return {
         success: true,
         ...status,
+      };
+    }
+
+    case 'promptfm_admin_get_infra_budget': {
+      const policy = getInfraBudgetPolicy();
+      return {
+        success: true,
+        policy,
+        budget_status: 'operational_zero_cost',
+        note: 'PromptFM $0 infra path: Vercel previews gated, crawlers blocked on preview, CI trimmed.',
       };
     }
 

@@ -40,6 +40,11 @@ import {
   stopStream,
   type StreamPlatform,
 } from '../src/lib/streaming/rtmp-controller';
+import {
+  getInfraBudgetPolicy,
+  shouldBuildVercelDeployment,
+  evaluateCIJobsForPR,
+} from '../src/lib/infra/budget-gate';
 import { execSync } from 'child_process';
 import { readFileSync, writeFileSync, appendFileSync, existsSync } from 'fs';
 import { join, basename } from 'path';
@@ -108,6 +113,13 @@ Live Video Streaming (YouTube & TikTok):
   stream start tiktok <key> [url] Start 24/7 video broadcast to TikTok Live
   stream stop youtube     Stop YouTube live stream
   stream stop tiktok      Stop TikTok live stream
+
+$0 Infra Budget & Preview Protection Gate:
+  budget                  View active $0 budget policy, Vercel CPU limits & CI trimming status
+  budget gate             Evaluate Vercel preview build gate decision
+                          Flags: --env [preview|production] --branch <name> --message <text> --fork [true|false]
+  budget ci               Evaluate which CI jobs will run for given PR actor and changed files
+                          Flags: --actor <user> --files <f1,f2>
 
 Moderation & Schedule:
   channels list           List radio broadcast channels, assigned DJs & guardrail policies
@@ -1593,6 +1605,78 @@ Moderation & Schedule:
       }
 
       console.error(`Unknown stream subcommand: "${action}". Valid subcommands: status, start, stop.`);
+      break;
+    }
+
+    case 'budget': {
+      const sub = args[1] || 'policy';
+
+      if (sub === 'policy' || sub === 'status') {
+        const policy = getInfraBudgetPolicy();
+        console.log('\n📊 PromptFM $0 Infrastructure Budget & Free-Tier Policy:');
+        console.log(`• Monthly Cost Target: $${policy.monthlyCostTargetUsd}.00 (Strict Zero-Cost Mandate)`);
+        console.log(`• Vercel Plan: Hobby / Free Tier`);
+        console.log(`• Vercel Fluid Active CPU Limit: ${policy.vercelMaxActiveCpuHoursHobby} hours/month included`);
+        console.log(`• Vercel Active CPU Alert Threshold: ${policy.vercelActiveCpuWarningThresholdPercent}%`);
+        console.log(`• Forked PR Preview Approval Required: ${policy.forkPreviewsRequireApproval ? 'YES (Maintainer authorization needed)' : 'NO'}`);
+        console.log(`• Auto-Deploy Previews: ${policy.autoPreviewsEnabledByDefault ? 'ENABLED' : 'OPT-IN (Requires [preview] commit tag or manual trigger)'}`);
+        console.log(`• Protected Previews: ${policy.protectedPreviewAccess ? 'ENABLED (Deployment Protection active)' : 'DISABLED'}`);
+        console.log('\nOptimizations In Place:');
+        console.log('1. Edge CDN Caching on dynamic radio routes (s-maxage=5s to 30s)');
+        console.log('2. Browser Visibility pause: inactive background tabs halt live status polling');
+        console.log('3. Robots disallow on preview deployments to prevent search crawler CPU burn');
+        console.log('4. Ignored build step (scripts/vercel-budget-gate.sh) cancels bot/doc PR builds');
+        console.log('5. GitHub Actions CI trims Playwright & 30m mutation testing on routine/doc PRs');
+        return;
+      }
+
+      if (sub === 'gate') {
+        const env = parseArg('--env') || process.env.VERCEL_ENV || 'preview';
+        const branch = parseArg('--branch') || process.env.VERCEL_GIT_COMMIT_REF || 'feature/test';
+        const msg = parseArg('--message') || process.env.VERCEL_GIT_COMMIT_MESSAGE || 'test commit';
+        const fork = parseArg('--fork') === 'true' || process.env.VERCEL_GIT_IS_PULL_REQUEST_FROM_FORK === '1';
+
+        const decision = shouldBuildVercelDeployment({
+          vercelEnv: env,
+          gitBranch: branch,
+          commitMessage: msg,
+          isFork: fork,
+        });
+
+        console.log('\n🚪 Vercel Budget Gate Decision:');
+        console.log(`• Environment: ${env}`);
+        console.log(`• Git Branch: ${branch}`);
+        console.log(`• Commit Message: "${msg}"`);
+        console.log(`• Forked PR: ${fork}`);
+        console.log(`• Result: ${decision.shouldBuild ? '✅ PROCEED (exit 1)' : '🛑 CANCEL/SKIP (exit 0)'}`);
+        console.log(`• Reason: ${decision.reason}`);
+        return;
+      }
+
+      if (sub === 'ci') {
+        const actor = parseArg('--actor') || 'contributor';
+        const filesRaw = parseArg('--files') || '';
+        const files = filesRaw ? filesRaw.split(',').map((f) => f.trim()) : [];
+
+        const jobs = evaluateCIJobsForPR({
+          changedFiles: files,
+          actor,
+        });
+
+        console.log('\n🤖 CI Job Evaluation:');
+        console.log(`• PR Actor: ${actor}`);
+        console.log(`• Changed Files: ${files.length > 0 ? files.join(', ') : '(all/none specified)'}`);
+        console.log(`• Lint & Static Types: ${jobs.lintAndTypecheck ? 'RUN' : 'SKIP'}`);
+        console.log(`• Vitest & Coverage: ${jobs.unitAndIntegrationTests ? 'RUN' : 'SKIP'}`);
+        console.log(`• Playwright E2E UI: ${jobs.playwrightE2E ? 'RUN' : 'SKIP'}`);
+        console.log(`• Stryker Mutation Testing: ${jobs.mutationTesting ? 'RUN' : 'SKIP'}`);
+        console.log(`• Terraform Lint & Validate: ${jobs.terraformValidate ? 'RUN' : 'SKIP'}`);
+        console.log(`• CodeQL Security Scan: ${jobs.codeqlSecurityScan ? 'RUN' : 'SKIP'}`);
+        console.log(`• Package Vulnerability Scan: ${jobs.packageVulnerabilityScan ? 'RUN' : 'SKIP'}`);
+        return;
+      }
+
+      console.error(`Unknown budget subcommand: "${sub}". Valid subcommands: policy, gate, ci.`);
       break;
     }
 

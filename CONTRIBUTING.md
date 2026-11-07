@@ -130,6 +130,11 @@ If your feature requires new API keys or environment variables in Vercel:
 ### Continuous Deployment (Vercel)
 - Merging a PR into `main` automatically triggers a production deployment to **[promptfm.live](https://promptfm.live)** via Vercel GitHub integration.
 
+### Vercel Preview Deployments & $0 Infra Policy
+- **Gated Previews:** To keep PromptFM within the $0/month free tier (Vercel Hobby 4-hour Fluid Active CPU limit), preview deployments are gated. Previews for forked pull requests require maintainer authorization before building.
+- **Opt-in Previews:** If your pull request requires a live visual preview deployment for UI review, include `[preview]` in your commit message or PR title.
+- **Automated Skip:** Documentation, markdown, infra, and Dependabot PRs automatically bypass preview deployments to conserve free-tier compute budget. Use `[skip preview]` to explicitly bypass preview builds.
+
 ### Infrastructure (Terraform & Ansible)
 - Pull requests modifying `infra/terraform` or `infra/ansible` are validated by CI (`terraform fmt -check`, `terraform validate`).
 - **Execution Policy:** All Terraform `apply` and Ansible playbook executions are **run manually by the Board Admin (@atrifan)** after merge. Contributors do not have direct cloud production credentials.

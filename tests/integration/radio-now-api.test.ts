@@ -54,6 +54,7 @@ describe('GET /api/radio/now API Integration', () => {
     const res = await GET(req);
 
     expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toContain('s-maxage=5');
     const json = await res.json();
     expect(json.success).toBe(true);
     expect(json.now_playing.id).toBe('7dd1c716-733c-4ea7-8e82-dda10684d4e6');

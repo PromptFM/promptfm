@@ -60,11 +60,27 @@ export default function UpNextSection() {
     };
 
     window.addEventListener('promptfm:channel-changed', handleChannelChange);
-    const interval = setInterval(() => fetchUpNext(channelSlug), 10000);
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      fetchUpNext(channelSlug);
+    }, 10000);
+
+    const handleVisibility = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        fetchUpNext(channelSlug);
+      }
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibility);
+    }
 
     return () => {
       window.removeEventListener('promptfm:channel-changed', handleChannelChange);
       clearInterval(interval);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibility);
+      }
     };
   }, [channelSlug, fetchUpNext]);
 

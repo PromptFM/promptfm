@@ -15,11 +15,18 @@ export async function GET(req: NextRequest) {
 
     if (returnAll) {
       const allSchedules = getAllChannelsSchedule();
-      return NextResponse.json({
-        success: true,
-        channels: allSchedules,
-        timestamp: new Date().toISOString(),
-      });
+      return NextResponse.json(
+        {
+          success: true,
+          channels: allSchedules,
+          timestamp: new Date().toISOString(),
+        },
+        {
+          headers: {
+            'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
+          },
+        }
+      );
     }
 
     const [schedule, nowPlaying] = await Promise.all([
@@ -27,20 +34,27 @@ export async function GET(req: NextRequest) {
       getNowPlaying(channelSlug),
     ]);
 
-    return NextResponse.json({
-      success: true,
-      channel: schedule.channel,
-      current_show: schedule.current_show,
-      upcoming_shows: schedule.upcoming_shows,
-      blocks: schedule.blocks,
-      now_playing: {
-        ...nowPlaying.item,
-        elapsed_seconds: nowPlaying.elapsedSeconds,
-        duration_seconds: nowPlaying.item.duration_hint_seconds || (nowPlaying.item.type === 'music' ? 210 : 30),
-        rank: nowPlaying.rank ?? null,
+    return NextResponse.json(
+      {
+        success: true,
+        channel: schedule.channel,
+        current_show: schedule.current_show,
+        upcoming_shows: schedule.upcoming_shows,
+        blocks: schedule.blocks,
+        now_playing: {
+          ...nowPlaying.item,
+          elapsed_seconds: nowPlaying.elapsedSeconds,
+          duration_seconds: nowPlaying.item.duration_hint_seconds || (nowPlaying.item.type === 'music' ? 210 : 30),
+          rank: nowPlaying.rank ?? null,
+        },
+        timestamp: schedule.generated_at_utc,
       },
-      timestamp: schedule.generated_at_utc,
-    });
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
+        },
+      }
+    );
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('Error fetching broadcast schedule:', message);
