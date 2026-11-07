@@ -139,7 +139,7 @@ test.describe('PromptFM Home Page & Navigation', () => {
     // Verify structured drawer categories and links
     await expect(nav.getByRole('link', { name: /Broadcast Channels/i })).toBeVisible();
     await expect(nav.getByRole('link', { name: /Broadcast Schedule/i })).toBeVisible();
-    await expect(nav.getByRole('link', { name: /Weekly Top 40 Charts/i })).toBeVisible();
+    await expect(nav.getByRole('link', { name: /Weekly Top 20 Charts/i })).toBeVisible();
     await expect(nav.getByRole('link', { name: /Support & Funding/i })).toBeVisible();
     await expect(nav.getByRole('link', { name: /Contribute & Open Source/i })).toBeVisible();
     await expect(nav.getByRole('link', { name: /About PromptFM/i })).toBeVisible();

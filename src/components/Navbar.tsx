@@ -317,7 +317,7 @@ export default function Navbar() {
                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-zinc-200 hover:text-emerald-400 hover:bg-zinc-800/60 transition-colors text-sm font-medium"
               >
                 <Music2 className="w-4 h-4 text-emerald-400" />
-                <span>Weekly Top 40 Charts</span>
+                <span>Weekly Top 20 Charts</span>
               </Link>
             </div>
           </div>

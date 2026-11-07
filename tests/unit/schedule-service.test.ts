@@ -52,10 +52,10 @@ describe('Station 24/7 Schedule Service', () => {
 
     expect(firstBlock.clock_milestones[0]).toEqual({
       minute: 0,
-      title: 'Hourly Community Top 40 Countdown',
+      title: 'Community Headliners & Vault Rotation',
       type: 'music',
       icon: 'Radio',
-      description: 'Top upvoted community AI music productions headlining the hour.',
+      description: 'Featured community AI music productions headlining the hour from across the approved library.',
     });
     expect(firstBlock.clock_milestones[1]).toEqual({
       minute: 15,
@@ -160,6 +160,49 @@ describe('Station 24/7 Schedule Service', () => {
     const fallbackSchedule = getStationSchedule('unknown-channel-slug');
     expect(fallbackSchedule.channel.slug).toBe('main');
     expect(fallbackSchedule.blocks.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('creates countdown schedule blocks with createCountdownShowBlock', async () => {
+    const { createCountdownShowBlock, COUNTDOWN_HOURLY_MILESTONES } = await import('@/lib/radio/schedule');
+
+    expect(COUNTDOWN_HOURLY_MILESTONES).toHaveLength(4);
+    expect(COUNTDOWN_HOURLY_MILESTONES[0]?.title).toBe('Scheduled Community Chart Countdown');
+    expect(COUNTDOWN_HOURLY_MILESTONES[0]?.description).toBe('Official community chart countdown played strictly in order.');
+    expect(COUNTDOWN_HOURLY_MILESTONES[1]?.title).toBe('Countdown Mid-Tier Climbers');
+    expect(COUNTDOWN_HOURLY_MILESTONES[1]?.description).toBe('Chart climbers advancing toward the top positions.');
+    expect(COUNTDOWN_HOURLY_MILESTONES[2]?.title).toBe('Countdown Top 10 Contenders');
+    expect(COUNTDOWN_HOURLY_MILESTONES[2]?.description).toBe('The highest-ranking tracks battling for the week\'s top spots.');
+    expect(COUNTDOWN_HOURLY_MILESTONES[3]?.title).toBe('Countdown Podium & #1 Reveal');
+    expect(COUNTDOWN_HOURLY_MILESTONES[3]?.description).toBe('The countdown finale culminating in the community #1 song.');
+
+    // Default parameters (size 20, desc)
+    const defaultBlock = createCountdownShowBlock();
+    expect(defaultBlock.id).toBe('main-top-20-countdown');
+    expect(defaultBlock.time_utc).toBe('18:00 - 19:00 UTC');
+    expect(defaultBlock.start_hour_utc).toBe(18);
+    expect(defaultBlock.end_hour_utc).toBe(19);
+    expect(defaultBlock.show).toBe('The Weekly Top 20 Countdown');
+    expect(defaultBlock.is_countdown).toBe(true);
+    expect(defaultBlock.countdown_size).toBe(20);
+    expect(defaultBlock.countdown_order).toBe('desc');
+    expect(defaultBlock.dj.name).toBe('DJ Vance');
+
+    // Custom Top 40 block
+    const top40Block = createCountdownShowBlock({
+      id: 'custom-top-40',
+      time_utc: '19:00 - 21:00 UTC',
+      start_hour_utc: 19,
+      end_hour_utc: 21,
+      show: 'Special Top 40 Event',
+      countdown_size: 40,
+      countdown_order: 'asc',
+      is_live: true,
+    });
+    expect(top40Block.id).toBe('custom-top-40');
+    expect(top40Block.time_utc).toBe('19:00 - 21:00 UTC');
+    expect(top40Block.countdown_size).toBe(40);
+    expect(top40Block.countdown_order).toBe('asc');
+    expect(top40Block.is_live).toBe(true);
   });
 });
 
