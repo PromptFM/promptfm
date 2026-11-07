@@ -19,6 +19,8 @@ export interface UnifiedSongRequestInput {
   trackId?: string;
   channelSlug?: string;
   priority?: boolean;
+  dedicationTarget?: string;
+  allowFallbackRequest?: boolean;
 }
 
 export interface QueueETAInfo {
@@ -27,8 +29,10 @@ export interface QueueETAInfo {
   waitSeconds: number;
   waitMinutes: number;
   displayTime: string;
+  batchId: string;
   estimatedAirDate: Date;
   formattedETA: string;
+  isProvisional: boolean;
 }
 
 export interface UnifiedSongQueueResult {
@@ -81,6 +85,7 @@ export function calculateQueueETA(
   const hoursStr = String(estimatedAirDate.getUTCHours()).padStart(2, '0');
   const minStr = String(estimatedAirDate.getUTCMinutes()).padStart(2, '0');
   const displayTime = `${hoursStr}:${minStr} UTC`;
+  const batchId = `BATCH-${hoursStr}:${minStr}`;
 
   const position = safeItemsAhead + 1;
   const formattedETA =
@@ -94,8 +99,10 @@ export function calculateQueueETA(
     waitSeconds,
     waitMinutes,
     displayTime,
+    batchId,
     estimatedAirDate,
     formattedETA,
+    isProvisional: true,
   };
 }
 
@@ -109,8 +116,10 @@ export function formatQueueConfirmation(params: {
   position: number;
   waitMinutes: number;
   displayTime: string;
+  batchId?: string;
+  isUnmatched?: boolean;
 }): string {
-  const { status, trackTitle, artistName, position, waitMinutes, displayTime } = params;
+  const { status, trackTitle, artistName, position, waitMinutes, displayTime, batchId, isUnmatched } = params;
   const byArtist = artistName ? ` by ${artistName}` : '';
   const minText = `~${waitMinutes} min${waitMinutes === 1 ? '' : 's'}`;
 
@@ -122,8 +131,15 @@ export function formatQueueConfirmation(params: {
     return `ℹ️ Track "${trackTitle}"${byArtist} is already in the live queue! Position: #${position} (Estimated: ${minText} • ~${displayTime}).`;
   }
 
-  const posLabel = position === 1 ? 'Position: #1 (Up Next)' : `Position: #${position}`;
-  return `🎵 Track "${trackTitle}"${byArtist} queued for live airplay! ${posLabel} (Estimated: ${minText} • ~${displayTime}).`;
+  const posText = position === 1 ? 'Up next (#1 in queue)' : `#${position} in queue`;
+  const batchLabel = batchId ? ` • Scheduled for ${batchId}` : '';
+  const timeEst = `~${displayTime} (est. in ~${waitMinutes}m, provisional)`;
+
+  if (isUnmatched) {
+    return `🎵 Track request "${trackTitle}" added to airplay queue! Position: ${posText}${batchLabel} (${timeEst}). Check live queue anytime with /queue.`;
+  }
+
+  return `🎵 Track "${trackTitle}"${byArtist} queued for live airplay! Position: ${posText}${batchLabel} (${timeEst}). Check live queue anytime with /queue.`;
 }
 
 /**
@@ -140,23 +156,32 @@ export async function queueSong(input: UnifiedSongRequestInput): Promise<Unified
   if (queryText) {
     const safety = await evaluateContentSafety(queryText);
     if (!safety.safe) {
-      const { data: rejectedReq } = await supabase
+      let rejectedReq: any = null;
+      const rejectBuilder = supabase
         .from('community_requests')
         .insert({
-          platform: input.source,
+          platform: input.source === 'cli' || input.source === 'mcp' || input.source === 'web_admin' ? 'web' : input.source,
           platform_user_id: input.userId || 'anon',
           platform_user_name: input.requestedBy,
           platform_message_id: input.messageId || null,
           type: 'song',
           content: queryText,
+          target: input.dedicationTarget || null,
+          batch_id: null,
           status: 'rejected',
-        })
-        .select()
-        .single();
+        });
+
+      if (typeof (rejectBuilder as any)?.select === 'function') {
+        const sel = await (rejectBuilder as any).select().single();
+        rejectedReq = sel?.data;
+      } else {
+        const res = await rejectBuilder;
+        rejectedReq = res?.data;
+      }
 
       const refusal =
         safety.refusalMessage ||
-        `🚫 Request declined: PromptFM operates as a family-safe community station (${safety.category.replace('_', ' ')}).`;
+        `🚫 Request declined: Your submission violates PromptFM broadcast ethics (${safety.category.replace('_', ' ')}). PromptFM operates as a family-safe and inclusive 24/7 radio station.`;
 
       return {
         status: 'rejected',
@@ -165,7 +190,7 @@ export async function queueSong(input: UnifiedSongRequestInput): Promise<Unified
         confirmationMessage: refusal,
         isRejected: true,
         rejectionReason: safety.reason,
-        requestId: rejectedReq?.id,
+        requestId: rejectedReq?.id || 'rejected',
       };
     }
   }
@@ -188,9 +213,8 @@ export async function queueSong(input: UnifiedSongRequestInput): Promise<Unified
     // 1. Semantic RAG Vibe Search
     try {
       const matches = await findTracksByVibe(queryText, {
-        channelSlug,
         limit: 1,
-        matchThreshold: 0.15,
+        ...(input.channelSlug && input.channelSlug !== 'main' ? { channelSlug: input.channelSlug } : {}),
       });
       if (matches && matches.length > 0 && matches[0]) {
         selectedTrack = matches[0];
@@ -238,7 +262,7 @@ export async function queueSong(input: UnifiedSongRequestInput): Promise<Unified
     }
   }
 
-  if (!selectedTrack) {
+  if (!selectedTrack && !input.allowFallbackRequest) {
     const noMatchEta = calculateQueueETA(0, 0, 180);
     return {
       status: 'no_match',
@@ -248,30 +272,41 @@ export async function queueSong(input: UnifiedSongRequestInput): Promise<Unified
     };
   }
 
-  // ── C. Deduplication: Check Currently Playing ──────────────────────────────
-  try {
-    const nowPlaying = await getNowPlaying(channelSlug);
-    if (nowPlaying?.item?.id === selectedTrack.id) {
-      const liveEta = calculateQueueETA(0, 0, 180);
-      const msg = formatQueueConfirmation({
-        status: 'currently_playing',
-        trackTitle: selectedTrack.title,
-        artistName: selectedTrack.artist_name,
-        position: 0,
-        waitMinutes: 0,
-        displayTime: 'Now',
-      });
+  const isDedication = Boolean(input.dedicationTarget);
 
-      return {
-        status: 'currently_playing',
-        track: selectedTrack,
-        position: 0,
-        eta: liveEta,
-        confirmationMessage: msg,
-      };
+  // ── C. Deduplication: Check Currently Playing ──────────────────────────────
+  if (selectedTrack && !isDedication) {
+    try {
+      const nowPlaying = await getNowPlaying(channelSlug);
+      const isLiveSameTrack = nowPlaying?.item?.id === selectedTrack.id;
+      const cleanQ = (queryText || '').toLowerCase();
+      const cleanTitle = (selectedTrack.title || '').toLowerCase();
+      const isExplicitMatch =
+        Boolean(input.trackId) ||
+        (cleanQ && (cleanQ === cleanTitle || cleanQ.includes(cleanTitle) || cleanTitle.includes(cleanQ)));
+
+      if (isLiveSameTrack && isExplicitMatch) {
+        const liveEta = calculateQueueETA(0, 0, 180);
+        const msg = formatQueueConfirmation({
+          status: 'currently_playing',
+          trackTitle: selectedTrack.title,
+          artistName: selectedTrack.artist_name,
+          position: 0,
+          waitMinutes: 0,
+          displayTime: 'Now',
+        });
+
+        return {
+          status: 'currently_playing',
+          track: selectedTrack,
+          position: 0,
+          eta: liveEta,
+          confirmationMessage: msg,
+        };
+      }
+    } catch {
+      // Non-fatal if nowPlaying check fails
     }
-  } catch {
-    // Non-fatal if nowPlaying check fails
   }
 
   // ── D. Deduplication: Check Pending Items in Channel Queue ─────────────────
@@ -283,18 +318,52 @@ export async function queueSong(input: UnifiedSongRequestInput): Promise<Unified
 
   const channelId = channel?.id || 'channel-main';
 
-  const { data: activeQueue } = await supabase
-    .from('channel_queue')
-    .select('id, track_id, created_at')
-    .eq('channel_id', channelId)
-    .is('played_at', null)
-    .order('created_at', { ascending: true })
-    .limit(50);
+  let queueItems: any[] = [];
+  try {
+    const queueListRes = await supabase
+      .from('channel_queue')
+      .select('id, track_id, prompt_used, created_at')
+      .eq('channel_id', channelId)
+      .is('played_at', null)
+      .order('created_at', { ascending: true })
+      .limit(50);
 
-  const queueItems = activeQueue || [];
-  const existingIndex = queueItems.findIndex((item) => item.track_id === selectedTrack.id);
+    if (Array.isArray(queueListRes?.data)) {
+      queueItems = queueListRes.data;
+    }
+  } catch {
+    // Non-blocking
+  }
 
-  if (existingIndex !== -1) {
+  let pendingCount = queueItems.length;
+  try {
+    const countRes = await supabase
+      .from('channel_queue')
+      .select('id', { count: 'exact', head: true })
+      .eq('channel_id', channelId)
+      .is('played_at', null);
+
+    if (countRes && typeof countRes.count === 'number') {
+      pendingCount = countRes.count;
+    }
+  } catch {
+    // Non-blocking
+  }
+
+  const existingIndex =
+    selectedTrack && !isDedication
+      ? queueItems.findIndex((item) => {
+          if (item.track_id !== selectedTrack.id) return false;
+          if (input.trackId) return true;
+          if (!queryText) return true;
+          const cleanQ = queryText.toLowerCase();
+          const cleanTitle = selectedTrack.title.toLowerCase();
+          const cleanItemPrompt = (item.prompt_used || '').toLowerCase();
+          return cleanQ === cleanItemPrompt || cleanQ.includes(cleanTitle) || cleanTitle.includes(cleanQ);
+        })
+      : -1;
+
+  if (existingIndex !== -1 && selectedTrack && !isDedication) {
     const existingPosition = existingIndex + 1;
     const existingEta = calculateQueueETA(existingIndex);
     const existingMsg = formatQueueConfirmation({
@@ -304,6 +373,7 @@ export async function queueSong(input: UnifiedSongRequestInput): Promise<Unified
       position: existingPosition,
       waitMinutes: existingEta.waitMinutes,
       displayTime: existingEta.displayTime,
+      batchId: existingEta.batchId,
     });
 
     return {
@@ -317,51 +387,97 @@ export async function queueSong(input: UnifiedSongRequestInput): Promise<Unified
   }
 
   // ── E. Calculate Position & Live ETA ───────────────────────────────────────
-  const isPriority = Boolean(input.priority);
-  const itemsAhead = isPriority ? 0 : queueItems.length;
-  const eta = calculateQueueETA(itemsAhead);
-  const position = isPriority ? 1 : queueItems.length + 1;
+  let remainingCurrentTrack = 120;
+  try {
+    const { data: stateData } = await supabase
+      .from('station_state')
+      .select('airplay_item, started_at')
+      .eq('channel_slug', channelSlug)
+      .maybeSingle();
 
-  // ── F. Insert into channel_queue ───────────────────────────────────────────
-  const handle = input.requestedBy.startsWith('@') ? input.requestedBy : `@${input.requestedBy}`;
-  const requestedByFormatted = `${handle} (${input.source})`;
-  const { data: queueRow } = await supabase
-    .from('channel_queue')
-    .insert({
+    if (stateData?.started_at) {
+      const startedMs = new Date(stateData.started_at).getTime();
+      const elapsedSec = Math.max(0, Math.floor((Date.now() - startedMs) / 1000));
+      const hintSec = (stateData.airplay_item as { duration_hint_seconds?: number })?.duration_hint_seconds ?? 210;
+      remainingCurrentTrack = Math.max(30, hintSec - elapsedSec);
+    }
+  } catch {
+    // Non-blocking fallback
+  }
+
+  const isPriority = Boolean(input.priority);
+  const itemsAhead = isPriority ? 0 : pendingCount;
+  const eta = calculateQueueETA(itemsAhead, remainingCurrentTrack, 210);
+  const position = isPriority ? 1 : pendingCount + 1;
+
+  // ── F. Insert into channel_queue (if track resolved) ───────────────────────
+  let queueRow: any = null;
+  if (selectedTrack) {
+    let requestedByFormatted = '';
+    if (input.dedicationTarget) {
+      const cleanTarget = `@${input.dedicationTarget.replace(/^@/, '')}`;
+      requestedByFormatted = `@${input.requestedBy.replace(/^@/, '')} (Dedicated to ${cleanTarget})`;
+    } else {
+      const handle = input.requestedBy.startsWith('@') ? input.requestedBy : `@${input.requestedBy}`;
+      requestedByFormatted = `${handle} (${input.source})`;
+    }
+
+    const queueBuilder = supabase.from('channel_queue').insert({
       channel_id: channelId,
       track_id: selectedTrack.id,
       prompt_used: queryText || selectedTrack.title,
       requested_by: requestedByFormatted,
       priority: isPriority,
-    })
-    .select()
-    .single();
+    });
+
+    if (typeof (queueBuilder as any)?.select === 'function') {
+      const selRes = await (queueBuilder as any).select().single();
+      queueRow = selRes?.data;
+    } else {
+      const res = await queueBuilder;
+      queueRow = res?.data;
+    }
+  }
 
   // ── G. Log to community_requests for Audit & Admin Sync ────────────────────
-  const { data: reqRow } = await supabase
-    .from('community_requests')
-    .insert({
-      platform: input.source === 'cli' || input.source === 'mcp' || input.source === 'web_admin' ? 'web' : input.source,
-      platform_user_id: input.userId || 'station-user',
-      platform_user_name: input.requestedBy,
-      platform_message_id: input.messageId || null,
-      type: 'song',
-      content: queryText || selectedTrack.title,
-      target: selectedTrack.id,
-      batch_id: `QUEUE-#${position}`,
-      status: 'scheduled',
-      estimated_air_time: eta.estimatedAirDate.toISOString(),
-    })
-    .select()
-    .single();
+  let reqRow: any = null;
+  let reqError: any = null;
+  const reqBuilder = supabase.from('community_requests').insert({
+    platform: input.source === 'cli' || input.source === 'mcp' || input.source === 'web_admin' ? 'web' : input.source,
+    platform_user_id: input.userId || 'station-user',
+    platform_user_name: input.requestedBy,
+    platform_message_id: input.messageId || null,
+    type: 'song',
+    content: queryText || (selectedTrack ? selectedTrack.title : 'song request'),
+    target: selectedTrack ? selectedTrack.id : (input.dedicationTarget || null),
+    batch_id: eta.batchId,
+    status: 'scheduled',
+    estimated_air_time: eta.estimatedAirDate.toISOString(),
+  });
+
+  if (typeof (reqBuilder as any)?.select === 'function') {
+    const selRes = await (reqBuilder as any).select().single();
+    reqRow = selRes?.data;
+    reqError = selRes?.error;
+  } else {
+    const res = await reqBuilder;
+    reqRow = res?.data;
+    reqError = res?.error;
+  }
+
+  if (reqError) {
+    throw new Error(`Failed to log request: ${reqError.message}`);
+  }
 
   const confirmMsg = formatQueueConfirmation({
     status: 'queued',
-    trackTitle: selectedTrack.title,
-    artistName: selectedTrack.artist_name,
+    trackTitle: selectedTrack ? selectedTrack.title : (queryText || 'request'),
+    artistName: selectedTrack?.artist_name,
     position,
     waitMinutes: eta.waitMinutes,
     displayTime: eta.displayTime,
+    batchId: eta.batchId,
+    isUnmatched: !selectedTrack,
   });
 
   return {

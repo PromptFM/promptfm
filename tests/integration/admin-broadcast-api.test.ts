@@ -10,6 +10,29 @@ describe('Admin Broadcast & Social Dispatch API (POST /api/admin/broadcast)', ()
     vi.clearAllMocks();
   });
 
+  it('rejects unauthorized requests when ADMIN_API_KEY is configured', async () => {
+    const original = process.env.ADMIN_API_KEY;
+    process.env.ADMIN_API_KEY = 'broadcast-admin-secret';
+    try {
+      const req = new NextRequest('http://localhost:3000/api/admin/broadcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: 'test' }),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(401);
+      const json = await res.json();
+      expect(json.error).toBe('Unauthorized');
+    } finally {
+      if (original !== undefined) {
+        process.env.ADMIN_API_KEY = original;
+      } else {
+        delete process.env.ADMIN_API_KEY;
+      }
+    }
+  });
+
   it('rejects requests with missing message body', async () => {
     const req = new NextRequest('http://localhost:3000/api/admin/broadcast', {
       method: 'POST',

@@ -201,8 +201,8 @@ describe('Unified Song Pathway Integration (Cross-Entrypoint Testing)', () => {
 
     expect(json.type).toBe(4);
     expect(json.data.content).toContain('Neon Odyssey');
-    expect(json.data.content).toContain('Position: #1 (Up Next)');
-    expect(json.data.content).toContain('Estimated:');
+    expect(json.data.content).toContain('Position: Up next (#1 in queue)');
+    expect(json.data.content).toContain('est. in ~');
 
     // Confirm stored in channel_queue
     expect(mockQueue).toHaveLength(1);
@@ -228,13 +228,13 @@ describe('Unified Song Pathway Integration (Cross-Entrypoint Testing)', () => {
     const json = await res.json();
     expect(json.success).toBe(true);
     expect(json.slot.confirmationMessage).toContain('Midnight Rain');
-    expect(json.slot.confirmationMessage).toContain('Position: #1 (Up Next)');
+    expect(json.slot.confirmationMessage).toContain('Position: Up next (#1 in queue)');
 
     // Verify Telegram sendMessage fetch call
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining('api.telegram.org/bot'),
       expect.objectContaining({
-        body: expect.stringContaining('Position: #1 (Up Next)'),
+        body: expect.stringContaining('Position: Up next (#1 in queue)'),
       })
     );
   });
@@ -267,7 +267,7 @@ describe('Unified Song Pathway Integration (Cross-Entrypoint Testing)', () => {
     expect(data.track.title).toBe('Neon Odyssey');
     expect(data.queue_position).toBe(1);
     expect(data.estimated_air_time).toBeDefined();
-    expect(data.message).toContain('Position: #1 (Up Next)');
+    expect(data.message).toContain('Position: Up next (#1 in queue)');
   });
 
   it('Cross-Path Deduplication: Prevents double-booking across Discord and Telegram', async () => {

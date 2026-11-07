@@ -5,26 +5,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendDiscordNotification, sendTelegramNotification } from '@/lib/chat/bridge';
 import { postTweetToX, TweetResult } from '@/lib/social/x-client';
+import { isAdminAuthorized } from '@/lib/auth/admin-auth';
 
 export const dynamic = 'force-dynamic';
 
-function isAuthorized(req: NextRequest): boolean {
-  const adminKey = process.env.ADMIN_API_KEY;
-  if (!adminKey) return true; // Default allow in local dev
-
-  const authHeader = req.headers.get('authorization');
-  const xAdminKey = req.headers.get('x-admin-key');
-  const queryKey = req.nextUrl.searchParams.get('key');
-
-  return (
-    authHeader === `Bearer ${adminKey}` ||
-    xAdminKey === adminKey ||
-    queryKey === adminKey
-  );
-}
-
 export async function POST(req: NextRequest) {
-  if (!isAuthorized(req)) {
+  if (!isAdminAuthorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

@@ -34,7 +34,29 @@ import {
   Video,
   ExternalLink,
   RefreshCw,
+  Edit3,
+  Terminal,
+  Power,
+  PowerOff,
 } from 'lucide-react';
+import {
+  webMcpModerateTrack,
+  webMcpRemoveFromQueue,
+  webMcpRejectRequest,
+  webMcpResolveReport,
+  webMcpAuditReports,
+  webMcpBroadcast,
+  webMcpCreateChannel,
+  webMcpStartStream,
+  webMcpStopStream,
+  webMcpEditTrack,
+  webMcpDeleteTrack,
+  webMcpVoiceDrop,
+  webMcpInjectInterstitial,
+  webMcpInjectAd,
+  webMcpAirRequest,
+  callMcpTool,
+} from '@/lib/mcp/client';
 import { createClient } from '@/lib/supabase/client';
 import { type Track, type AITool, type ContentReport, REASON_LABELS } from '@/types/database';
 import { OFFICIAL_CHANNELS, type RadioChannel, getAllChannels } from '@/lib/radio/channels';
@@ -72,12 +94,49 @@ export default function AdminDashboard() {
   const [authChecking, setAuthChecking] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'submissions' | 'library' | 'queue' | 'batches' | 'reports' | 'channels' | 'upload' | 'social' | 'streams'>('submissions');
+  const [activeTab, setActiveTab] = useState<'submissions' | 'library' | 'queue' | 'batches' | 'reports' | 'channels' | 'upload' | 'social' | 'streams' | 'mcp'>('submissions');
   const [pendingTracks, setPendingTracks] = useState<Track[]>([]);
   const [libraryTracks, setLibraryTracks] = useState<Track[]>([]);
+
+  // Track Metadata Editing State (Issue #35)
+  const [editingTrack, setEditingTrack] = useState<Track | null>(null);
+  const [editForm, setEditForm] = useState({
+    title: '',
+    artist_name: '',
+    category: '',
+    description: '',
+    lyrics: '',
+    tool_used: 'Suno',
+    is_explicit: false,
+  });
+  const [editSaving, setEditSaving] = useState(false);
+
+  // Web MCP Studio State (Issue #72)
+  const [mcpVoicePrompt, setMcpVoicePrompt] = useState('Introduce the weekend dance party and play a fresh synthwave drop');
+  const [mcpVoiceDj, setMcpVoiceDj] = useState('dj_neon');
+  const [mcpVoiceResult, setMcpVoiceResult] = useState<any>(null);
+  const [mcpVoiceLoading, setMcpVoiceLoading] = useState(false);
+
+  const [mcpInterstitialType, setMcpInterstitialType] = useState<'news' | 'weather' | 'announcement' | 'custom_prompt'>('weather');
+  const [mcpInterstitialPrompt, setMcpInterstitialPrompt] = useState('Tokyo');
+  const [mcpInterstitialResult, setMcpInterstitialResult] = useState<any>(null);
+  const [mcpInterstitialLoading, setMcpInterstitialLoading] = useState(false);
+
+  const [mcpAdSponsor, setMcpAdSponsor] = useState('Suno AI');
+  const [mcpAdCopy, setMcpAdCopy] = useState('Unlock your musical imagination with Suno v4. Prompt the future on PromptFM.');
+  const [mcpAdResult, setMcpAdResult] = useState<any>(null);
+  const [mcpAdLoading, setMcpAdLoading] = useState(false);
+
+  const [mcpRawTool, setMcpRawTool] = useState('promptfm_get_top_tracks');
+  const [mcpRawArgs, setMcpRawArgs] = useState('{\n  "limit": 5\n}');
+  const [mcpRawResult, setMcpRawResult] = useState<any>(null);
+  const [mcpRawLoading, setMcpRawLoading] = useState(false);
   const [queueItems, setQueueItems] = useState<QueuedItem[]>([]);
   const [communityRequests, setCommunityRequests] = useState<CommunityRequestRow[]>([]);
   const [reports, setReports] = useState<ContentReport[]>([]);
+  const [auditSummary, setAuditSummary] = useState<any>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [showAuditPanel, setShowAuditPanel] = useState(false);
   const [channels, setChannels] = useState<RadioChannel[]>(() => getAllChannels());
   const [channelForm, setChannelForm] = useState({
     slug: '',
@@ -320,6 +379,7 @@ export default function AdminDashboard() {
             allowExplicitAllDay: item.allow_explicit_24_7 ?? existing?.allowExplicitAllDay ?? guard.allow_explicit_24_7,
             ageGateDisclaimer: item.age_gate_disclaimer || existing?.ageGateDisclaimer || guard.age_gate_disclaimer,
             streamUrl: `https://stream.promptfm.live/live?channel=${item.slug}`,
+            isActive: item.is_active !== undefined ? Boolean(item.is_active) : (existing?.isActive ?? false),
           });
         }
       }
@@ -507,19 +567,45 @@ export default function AdminDashboard() {
 
   const handleActionReport = async (reportId: string, action: 'actioned' | 'dismissed') => {
     setActionLoadingId(reportId);
+    const actorName = user?.email || 'Web Studio Admin';
     try {
       const res = await fetch('/api/admin/reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reportId, action }),
+        body: JSON.stringify({ reportId, action, actor: actorName }),
       });
       if (res.ok) {
         setReports((prev) =>
-          prev.map((r) => (r.id === reportId ? { ...r, status: action } : r))
+          prev.map((r) =>
+            r.id === reportId
+              ? {
+                  ...r,
+                  status: action,
+                  resolved_by: actorName,
+                  resolved_at: new Date().toISOString(),
+                }
+              : r
+          )
         );
       }
     } finally {
       setActionLoadingId(null);
+    }
+  };
+
+  const handleRunAudit = async () => {
+    setAuditLoading(true);
+    setShowAuditPanel(true);
+    try {
+      const res = await fetch('/api/admin/reports?audit=true');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.audit) setAuditSummary(data.audit);
+      }
+    } catch (err) {
+      console.warn('Could not run reports audit:', err);
+    } finally {
+      setAuditLoading(false);
     }
   };
 
@@ -633,6 +719,40 @@ export default function AdminDashboard() {
       alert(`Error creating channel: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setChannelCreating(false);
+    }
+  };
+
+  const handleToggleChannelStatus = async (slug: string, nextStatus: boolean) => {
+    setActionLoadingId(`channel-status-${slug}`);
+    try {
+      const res = await fetch('/api/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: `admin-ui-toggle-${Date.now()}`,
+          method: 'tools/call',
+          params: {
+            name: 'promptfm_admin_set_channel_status',
+            arguments: {
+              slug,
+              is_active: nextStatus,
+            },
+          },
+        }),
+      });
+
+      if (res.ok) {
+        setChannels((prev) =>
+          prev.map((c) => (c.slug === slug ? { ...c, isActive: nextStatus } : c))
+        );
+      } else {
+        throw new Error('Failed to update channel status');
+      }
+    } catch (err: unknown) {
+      alert(`Error updating channel status: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -1332,13 +1452,108 @@ export default function AdminDashboard() {
                   Reports submitted via Web UI, Discord, Telegram, and MCP.
                 </p>
               </div>
-              <button
-                onClick={refreshData}
-                className="text-xs text-zinc-400 hover:text-emerald-400 transition-colors"
-              >
-                Refresh
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleRunAudit}
+                  disabled={auditLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 text-xs font-semibold transition-colors"
+                >
+                  {auditLoading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <ShieldAlert className="w-3.5 h-3.5" />
+                  )}
+                  Audit Reports Window
+                </button>
+                <button
+                  onClick={refreshData}
+                  className="text-xs text-zinc-400 hover:text-emerald-400 transition-colors"
+                >
+                  Refresh
+                </button>
+              </div>
             </div>
+
+            {/* Audit Results Panel */}
+            {showAuditPanel && auditSummary && (
+              <div
+                className={`p-4 rounded-xl border ${
+                  auditSummary.clean
+                    ? 'border-emerald-500/30 bg-emerald-950/20'
+                    : 'border-amber-500/30 bg-amber-950/20'
+                } space-y-3`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {auditSummary.clean ? (
+                      <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                    ) : (
+                      <ShieldAlert className="w-5 h-5 text-amber-400" />
+                    )}
+                    <h3 className="text-sm font-bold text-white">
+                      {auditSummary.clean
+                        ? 'Audit Clean: All moderation changes carry valid attribution'
+                        : `Audit Alert: ${auditSummary.unaudited_count} unaudited modification(s) detected`}
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setShowAuditPanel(false)}
+                    className="text-xs text-zinc-400 hover:text-white"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 text-center text-xs">
+                  <div className="p-2 rounded bg-zinc-900/60 border border-zinc-800">
+                    <p className="text-zinc-500">Total Analyzed</p>
+                    <p className="font-bold text-white text-sm">{auditSummary.total_reports}</p>
+                  </div>
+                  <div className="p-2 rounded bg-zinc-900/60 border border-zinc-800">
+                    <p className="text-zinc-500">Pending</p>
+                    <p className="font-bold text-amber-400 text-sm">{auditSummary.pending_count}</p>
+                  </div>
+                  <div className="p-2 rounded bg-zinc-900/60 border border-zinc-800">
+                    <p className="text-zinc-500">Actioned</p>
+                    <p className="font-bold text-red-400 text-sm">{auditSummary.actioned_count}</p>
+                  </div>
+                  <div className="p-2 rounded bg-zinc-900/60 border border-zinc-800">
+                    <p className="text-zinc-500">Dismissed</p>
+                    <p className="font-bold text-zinc-300 text-sm">{auditSummary.dismissed_count}</p>
+                  </div>
+                  <div className="p-2 rounded bg-zinc-900/60 border border-zinc-800">
+                    <p className="text-zinc-500">Unaudited</p>
+                    <p className={`font-bold text-sm ${auditSummary.unaudited_count > 0 ? 'text-amber-400' : 'text-zinc-400'}`}>
+                      {auditSummary.unaudited_count}
+                    </p>
+                  </div>
+                  <div className="p-2 rounded bg-zinc-900/60 border border-zinc-800">
+                    <p className="text-zinc-500">Suspicious</p>
+                    <p className={`font-bold text-sm ${auditSummary.suspicious_count > 0 ? 'text-red-400' : 'text-zinc-400'}`}>
+                      {auditSummary.suspicious_count}
+                    </p>
+                  </div>
+                </div>
+
+                {auditSummary.flagged_items && auditSummary.flagged_items.length > 0 && (
+                  <div className="mt-3 space-y-2 border-t border-zinc-800 pt-2">
+                    <p className="text-xs font-semibold text-amber-300">Flagged Moderation Tickets:</p>
+                    {auditSummary.flagged_items.map((item: any, idx: number) => (
+                      <div key={idx} className="p-2 rounded bg-zinc-900/80 border border-zinc-800 text-xs space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono font-bold text-white">{item.report.id}</span>
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] uppercase font-bold ${item.severity === 'high' ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                            {item.severity} severity
+                          </span>
+                        </div>
+                        <p className="text-zinc-300">{item.message}</p>
+                        <p className="text-zinc-400 italic">💡 {item.recommendation}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {reports.length === 0 ? (
               <div className="text-center py-16 text-zinc-500 border border-zinc-800/80 rounded-2xl bg-zinc-900/40">
@@ -1388,6 +1603,30 @@ export default function AdminDashboard() {
                         {report.reporter_id && <span>By: {report.reporter_id}</span>}
                         <span>{new Date(report.created_at).toLocaleTimeString()}</span>
                       </div>
+
+                      {report.status !== 'pending' && (
+                        <div className="pt-2 text-[11px] text-zinc-400 border-t border-zinc-800/80 flex items-center gap-3 flex-wrap">
+                          {report.resolved_by ? (
+                            <span className="text-emerald-400/90 font-medium">
+                              Resolved by: <strong>{report.resolved_by}</strong>
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                              ⚠️ Unattributed Legacy Resolution
+                            </span>
+                          )}
+                          {report.resolved_at && (
+                            <span className="text-zinc-500">
+                              at {new Date(report.resolved_at).toLocaleString()}
+                            </span>
+                          )}
+                          {report.notes && (
+                            <span className="italic text-zinc-400">
+                              &ldquo;{report.notes}&rdquo;
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {report.status === 'pending' && (
@@ -1465,6 +1704,15 @@ export default function AdminDashboard() {
                         <span className="px-1.5 py-0.5 rounded bg-zinc-800 font-mono text-[10px] text-zinc-400">
                           /{ch.slug}
                         </span>
+                        {ch.isActive ? (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            Active
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                            Disabled
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-zinc-400">{ch.vibe || ch.description}</p>
                     </div>
@@ -1506,6 +1754,36 @@ export default function AdminDashboard() {
                       {ch.ageGateDisclaimer}
                     </div>
                   )}
+
+                  <div className="mt-3 pt-3 border-t border-zinc-800/80 flex items-center justify-between">
+                    <span className="text-xs text-zinc-400">
+                      Status: <strong className={ch.isActive ? 'text-emerald-400' : 'text-zinc-500'}>{ch.isActive ? 'Enabled (On Air)' : 'Disabled (Offline)'}</strong>
+                    </span>
+                    <button
+                      type="button"
+                      disabled={actionLoadingId === `channel-status-${ch.slug}`}
+                      onClick={() => handleToggleChannelStatus(ch.slug, !ch.isActive)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+                        ch.isActive
+                          ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30 hover:bg-rose-500/20'
+                          : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20'
+                      }`}
+                    >
+                      {actionLoadingId === `channel-status-${ch.slug}` ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : ch.isActive ? (
+                        <>
+                          <PowerOff className="w-3.5 h-3.5" />
+                          <span>Disable Channel</span>
+                        </>
+                      ) : (
+                        <>
+                          <Power className="w-3.5 h-3.5" />
+                          <span>Enable Channel</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

@@ -2,6 +2,7 @@
 
 .env.local
 .env.*.local
+node_modules
 node_modules/
 node_modules
 .next/
@@ -28,7 +29,7 @@ Thumbs.db
 !.env.example
 !.env.local.example
 .stryker-tmp
-reports/
+/reports/
 coverage/
 
 # Playwright

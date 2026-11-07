@@ -18,6 +18,7 @@ let mockTracks: any[] = [];
 let mockNowPlaying: any = null;
 let mockRagShouldThrow = false;
 let mockNowPlayingShouldThrow = false;
+let mockCommunityRequestsShouldError = false;
 
 // Mock dependencies
 vi.mock('@/lib/supabase/server', () => ({
@@ -130,6 +131,13 @@ vi.mock('@/lib/supabase/server', () => ({
       if (table === 'community_requests') {
         return {
           insert: (data: any) => {
+            if (mockCommunityRequestsShouldError) {
+              return {
+                select: () => ({
+                  single: async () => ({ data: null, error: { message: 'Mock DB constraint violation' } }),
+                }),
+              };
+            }
             const row = { id: `req-${Date.now()}-${Math.random()}`, ...data };
             mockCommunityRequests.push(row);
             return {
@@ -197,6 +205,7 @@ describe('Unified Song Pathway (Issue #43)', () => {
     mockCommunityRequests = [];
     mockRagShouldThrow = false;
     mockNowPlayingShouldThrow = false;
+    mockCommunityRequestsShouldError = false;
     mockTracks = [
       {
         id: 'track-synth',
@@ -334,10 +343,11 @@ describe('Unified Song Pathway (Issue #43)', () => {
         position: 1,
         waitMinutes: 2,
         displayTime: '12:02 UTC',
+        batchId: 'BATCH-12:02',
       });
 
       expect(msg).toBe(
-        '🎵 Track "Neon Skyline" by Synthwave AI queued for live airplay! Position: #1 (Up Next) (Estimated: ~2 mins • ~12:02 UTC).'
+        '🎵 Track "Neon Skyline" by Synthwave AI queued for live airplay! Position: Up next (#1 in queue) • Scheduled for BATCH-12:02 (~12:02 UTC (est. in ~2m, provisional)). Check live queue anytime with /queue.'
       );
     });
 
@@ -348,10 +358,11 @@ describe('Unified Song Pathway (Issue #43)', () => {
         position: 3,
         waitMinutes: 7,
         displayTime: '12:07 UTC',
+        batchId: 'BATCH-12:07',
       });
 
       expect(msg).toBe(
-        '🎵 Track "Mystery Sound" queued for live airplay! Position: #3 (Estimated: ~7 mins • ~12:07 UTC).'
+        '🎵 Track "Mystery Sound" queued for live airplay! Position: #3 in queue • Scheduled for BATCH-12:07 (~12:07 UTC (est. in ~7m, provisional)). Check live queue anytime with /queue.'
       );
     });
 
@@ -427,7 +438,7 @@ describe('Unified Song Pathway (Issue #43)', () => {
       expect(result.position).toBe(1);
       expect(result.eta.waitMinutes).toBeGreaterThanOrEqual(1);
       expect(result.confirmationMessage).toContain('Neon Skyline');
-      expect(result.confirmationMessage).toContain('Position: #1 (Up Next)');
+      expect(result.confirmationMessage).toContain('Position: Up next (#1 in queue)');
 
       // Verify channel_queue insertion
       expect(mockChannelQueue).toHaveLength(1);
@@ -614,7 +625,7 @@ describe('Unified Song Pathway (Issue #43)', () => {
       expect(result.status).toBe('rejected');
       expect(result.isRejected).toBe(true);
       expect(result.rejectionReason).toContain('Violation of broadcast ethics');
-      expect(result.confirmationMessage).toContain('PromptFM operates as a family-safe community station');
+      expect(result.confirmationMessage).toContain('PromptFM operates as a family-safe and inclusive 24/7 radio station');
       expect(mockChannelQueue).toHaveLength(0);
       expect(mockCommunityRequests).toHaveLength(1);
       expect(mockCommunityRequests[0].status).toBe('rejected');
@@ -682,9 +693,9 @@ describe('Unified Song Pathway (Issue #43)', () => {
       expect(result.status).toBe('queued');
       expect(result.position).toBe(3);
       expect(result.eta.itemsAhead).toBe(2);
-      expect(result.eta.waitSeconds).toBe(480);
-      expect(result.eta.waitMinutes).toBe(8);
-      expect(mockCommunityRequests[0].batch_id).toBe('QUEUE-#3');
+      expect(result.eta.waitSeconds).toBe(540);
+      expect(result.eta.waitMinutes).toBe(9);
+      expect(mockCommunityRequests[0].batch_id).toMatch(/^BATCH-/);
       expect(mockCommunityRequests[0].platform_user_id).toBe('station-user');
       expect(mockCommunityRequests[0].platform_message_id).toBeNull();
       expect(mockCommunityRequests[0].target).toBe('track-synth');
@@ -716,6 +727,42 @@ describe('Unified Song Pathway (Issue #43)', () => {
       expect(res.status).toBe('queued');
       expect(mockCommunityRequests[0].content).toBe('Solar Echoes');
       expect(mockCommunityRequests[0].platform).toBe('web');
+    });
+
+    it('throws when community_requests insert returns database error', async () => {
+      mockCommunityRequestsShouldError = true;
+      await expect(
+        queueSong({
+          source: 'web',
+          requestedBy: 'user',
+          prompt: 'Neon Skyline',
+        })
+      ).rejects.toThrow('Failed to log request: Mock DB constraint violation');
+    });
+
+    it('formats requestedBy with dedication when dedicationTarget is provided', async () => {
+      const result = await queueSong({
+        source: 'discord',
+        requestedBy: 'user',
+        prompt: 'Neon Skyline',
+        dedicationTarget: 'FriendName',
+      });
+      expect(result.status).toBe('queued');
+      expect(mockChannelQueue[0].requested_by).toBe('@user (Dedicated to @FriendName)');
+    });
+
+    it('schedules fallback request when allowFallbackRequest is true and no track matches', async () => {
+      mockTracks = [];
+      const result = await queueSong({
+        source: 'telegram',
+        requestedBy: 'user',
+        prompt: 'unmatched melody',
+        allowFallbackRequest: true,
+      });
+      expect(result.status).toBe('queued');
+      expect(result.confirmationMessage).toContain('Track request "unmatched melody" added to airplay queue!');
+      expect(mockChannelQueue).toHaveLength(0);
+      expect(mockCommunityRequests).toHaveLength(1);
     });
   });
 

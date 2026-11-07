@@ -11,6 +11,7 @@ import { broadcastToCommunity } from '../chat/bridge';
 import { evaluateContentSafety } from '../safety/guardrails';
 import { findTracksByVibe } from './rag';
 import { queueSong } from '../song/pathway';
+import { isFeatureEnabled } from '../flags/feature-flags';
 
 export type RequestType = 'song' | 'dedication' | 'weather' | 'news' | 'zodiac';
 
@@ -31,6 +32,54 @@ export interface SlotAllocationResult {
   confirmationMessage: string;
   isRejected?: boolean;
   rejectionReason?: string;
+  queuePosition?: number;
+  isProvisional?: boolean;
+  estimatedMinutes?: number;
+}
+
+export interface QueueETAResult {
+  queuePosition: number;
+  estimatedSeconds: number;
+  estimatedMinutes: number;
+  displayTime: string;
+  batchId: string;
+  isProvisional: boolean;
+}
+
+/**
+ * Calculates a realistic dynamic ETA based on queue position and remaining track time.
+ * Marks the schedule as provisional to prevent misleading listeners when airplay drifts.
+ */
+export function calculateQueueETA(params: {
+  queuePosition: number;
+  remainingSecondsOnCurrentTrack?: number;
+  averageTrackSeconds?: number;
+  baseTime?: number;
+}): QueueETAResult {
+  const position = Math.max(1, params.queuePosition);
+  const remainingCurrent = params.remainingSecondsOnCurrentTrack ?? 120;
+  const avgTrack = params.averageTrackSeconds ?? 210;
+
+  // Queue position #1 plays after current track finishes; subsequent items wait for items ahead
+  const estimatedSeconds = Math.max(30, remainingCurrent + (position - 1) * avgTrack);
+  const estimatedMinutes = Math.max(1, Math.round(estimatedSeconds / 60));
+
+  const baseMs = params.baseTime ?? Date.now();
+  const targetDate = new Date(baseMs + estimatedSeconds * 1000);
+  const hoursStr = String(targetDate.getUTCHours()).padStart(2, '0');
+  const minStr = String(targetDate.getUTCMinutes()).padStart(2, '0');
+
+  const batchId = `BATCH-${hoursStr}:${minStr}`;
+  const displayTime = `${hoursStr}:${minStr} UTC`;
+
+  return {
+    queuePosition: position,
+    estimatedSeconds,
+    estimatedMinutes,
+    displayTime,
+    batchId,
+    isProvisional: true,
+  };
 }
 
 /**
@@ -58,6 +107,18 @@ export function calculateNextBatchSlot(delayMinutes = 15): { batchId: string; ai
  * and either schedules it into a batch or refuses it upfront.
  */
 export async function scheduleListenerRequest(payload: ListenerRequestPayload): Promise<SlotAllocationResult> {
+  // ── 0. Kill Switch / Feature Flag Check ────────────────────────────────────
+  if (!isFeatureEnabled('community_requests', true)) {
+    return {
+      requestId: 'paused',
+      batchId: 'PAUSED',
+      estimatedAirTime: 'None',
+      confirmationMessage: '⏸️ Song and dedication requests are temporarily paused by station administrators.',
+      isRejected: true,
+      rejectionReason: 'Feature flag community_requests is disabled',
+    };
+  }
+
   // If request is for a song, delegate to the unified song pathway (Issue #43)
   if (payload.type === 'song') {
     const songRes = await queueSong({
@@ -66,16 +127,31 @@ export async function scheduleListenerRequest(payload: ListenerRequestPayload): 
       userId: payload.platform_user_id,
       messageId: payload.platform_message_id,
       prompt: payload.content,
-      trackId: payload.target,
+      dedicationTarget: payload.target,
+      allowFallbackRequest: true,
     });
+
+    if (songRes.isRejected) {
+      return {
+        requestId: songRes.requestId || 'rejected',
+        batchId: 'REJECTED',
+        estimatedAirTime: 'None',
+        confirmationMessage: songRes.confirmationMessage,
+        isRejected: true,
+        rejectionReason: songRes.rejectionReason,
+      };
+    }
 
     return {
       requestId: songRes.requestId || songRes.queueItemId || 'song-req',
-      batchId: `QUEUE-#${songRes.position}`,
+      batchId: songRes.eta.batchId,
       estimatedAirTime: songRes.eta.displayTime,
       confirmationMessage: songRes.confirmationMessage,
-      isRejected: songRes.isRejected,
-      rejectionReason: songRes.rejectionReason,
+      isRejected: false,
+      rejectionReason: undefined,
+      queuePosition: songRes.position,
+      isProvisional: true,
+      estimatedMinutes: songRes.eta.waitMinutes,
     };
   }
 
@@ -115,8 +191,138 @@ export async function scheduleListenerRequest(payload: ListenerRequestPayload): 
     };
   }
 
-  // ── B. Allocate into Next Available 15-Minute Broadcast Batch ───────────────
-  const { batchId, airDate, displayTime } = calculateNextBatchSlot(15);
+  // ── B. Allocate into Broadcast Batch or Live Queue Slot ─────────────────────
+  let batchId = '';
+  let airDate = new Date();
+  let displayTime = '';
+  let queuePosition: number | undefined;
+  let isProvisional: boolean | undefined;
+  let estimatedMinutes: number | undefined;
+
+  let matchedTrack: { id: string; title: string; artist_name?: string } | null = null;
+  if (payload.type === 'dedication') {
+    try {
+      const vibeMatches = await findTracksByVibe(payload.content, { limit: 1 });
+      if (vibeMatches && vibeMatches.length > 0 && vibeMatches[0]) {
+        matchedTrack = vibeMatches[0];
+      }
+    } catch {
+      // Vibe semantic search fallback
+    }
+
+    if (!matchedTrack) {
+      try {
+        const { data: directMatch } = await supabase
+          .from('tracks')
+          .select('id, title, artist_name')
+          .eq('status', 'approved')
+          .ilike('title', `%${payload.content}%`)
+          .limit(1)
+          .maybeSingle();
+
+        if (directMatch) {
+          matchedTrack = directMatch;
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
+    if (!matchedTrack && payload.type === 'dedication') {
+      try {
+        const { data: anyApproved } = await supabase
+          .from('tracks')
+          .select('id, title, artist_name')
+          .eq('status', 'approved')
+          .limit(1)
+          .maybeSingle();
+
+        if (anyApproved) {
+          matchedTrack = anyApproved;
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
+    let pendingCount = 0;
+    let remainingCurrentTrack = 120;
+    try {
+      const { data: channel } = await supabase
+        .from('channels')
+        .select('id')
+        .eq('slug', 'main')
+        .maybeSingle();
+
+      if (channel) {
+        const queueRes = await supabase
+          .from('channel_queue')
+          .select('id', { count: 'exact', head: true })
+          .eq('channel_id', channel.id)
+          .is('played_at', null);
+
+        if (queueRes && typeof queueRes.count === 'number') {
+          pendingCount = queueRes.count;
+        }
+
+        if (matchedTrack) {
+          let requestedBy = `@${payload.platform_user_name} (${payload.platform})`;
+          if (payload.type === 'dedication') {
+            const cleanTarget = payload.target ? `@${payload.target.replace(/^@/, '')}` : '@friend';
+            requestedBy = `@${payload.platform_user_name} (Dedicated to ${cleanTarget}: "${payload.content}")`;
+          } else if (payload.target) {
+            const cleanTarget = `@${payload.target.replace(/^@/, '')}`;
+            requestedBy = `@${payload.platform_user_name} (Dedicated to ${cleanTarget})`;
+          }
+
+          await supabase.from('channel_queue').insert({
+            channel_id: channel.id,
+            track_id: matchedTrack.id,
+            prompt_used: payload.content,
+            requested_by: requestedBy,
+          });
+        }
+
+        try {
+          const { data: stateData } = await supabase
+            .from('station_state')
+            .select('airplay_item, started_at')
+            .eq('channel_slug', 'main')
+            .maybeSingle();
+
+          if (stateData?.started_at) {
+            const startedMs = new Date(stateData.started_at).getTime();
+            const elapsedSec = Math.max(0, Math.floor((Date.now() - startedMs) / 1000));
+            const hintSec = (stateData.airplay_item as { duration_hint_seconds?: number })?.duration_hint_seconds ?? 210;
+            remainingCurrentTrack = Math.max(30, hintSec - elapsedSec);
+          }
+        } catch {
+          // Ignore station_state read failure
+        }
+      }
+    } catch {
+      // Non-blocking fallback
+    }
+
+    const pos = pendingCount + 1;
+    const eta = calculateQueueETA({
+      queuePosition: pos,
+      remainingSecondsOnCurrentTrack: remainingCurrentTrack,
+      averageTrackSeconds: 210,
+    });
+
+    queuePosition = eta.queuePosition;
+    estimatedMinutes = eta.estimatedMinutes;
+    isProvisional = true;
+    batchId = eta.batchId;
+    displayTime = eta.displayTime;
+    airDate = new Date(Date.now() + eta.estimatedSeconds * 1000);
+  } else {
+    const slot = calculateNextBatchSlot(15);
+    batchId = slot.batchId;
+    airDate = slot.airDate;
+    displayTime = slot.displayTime;
+  }
 
   const { data: request, error } = await supabase
     .from('community_requests')
@@ -142,9 +348,13 @@ export async function scheduleListenerRequest(payload: ListenerRequestPayload): 
   const activeDJ = getActiveDJ(undefined, airDate);
   let confirmText = '';
   switch (payload.type) {
-    case 'dedication':
-      confirmText = `✅ Dedication accepted for @${payload.target || 'friend'}! Scheduled for ${batchId} (approx. ${displayTime}). ${activeDJ.name} will announce your dedication on air.`;
+    case 'dedication': {
+      const posText = queuePosition === 1 ? 'Up next (#1 in queue)' : `#${queuePosition} in queue`;
+      const timeEst = `~${displayTime} (est. in ~${estimatedMinutes}m, provisional)`;
+      const cleanTarget = payload.target ? `@${payload.target.replace(/^@/, '')}` : '@friend';
+      confirmText = `✅ Dedication accepted for ${cleanTarget}! Position: ${posText} • Scheduled for ${batchId} (${timeEst}). ${activeDJ.name} will announce your dedication on air. Check live queue anytime with /queue.`;
       break;
+    }
     case 'weather':
       confirmText = `🌤️ Weather check for ${payload.target || payload.content} scheduled in ${batchId} (~${displayTime}) with ${activeDJ.name}.`;
       break;
@@ -160,6 +370,9 @@ export async function scheduleListenerRequest(payload: ListenerRequestPayload): 
     batchId,
     estimatedAirTime: displayTime,
     confirmationMessage: confirmText,
+    queuePosition,
+    isProvisional,
+    estimatedMinutes,
   };
 }
 
@@ -297,6 +510,7 @@ Deliver this dedication on air with high radio warmth, charisma, and enthusiasm.
   await broadcastToCommunity({
     title: `ON AIR NOW: Dedication from @${req.platform_user_name}`,
     message: `🎙️ "${script}"\n\nTune in live: https://promptfm.live`,
+    category: 'dedication',
     author: dj.name,
   });
 
@@ -364,6 +578,7 @@ Deliver them warmly together in ONE single seamless radio host announcement. Kee
   await broadcastToCommunity({
     title: `ON AIR NOW: Community Batch Shoutout (${batchId})`,
     message: `🎙️ "${script}"\n\nFeaturing shoutouts from: ${requests.map((r) => `@${r.platform_user_name}`).join(', ')}\nTune in: https://promptfm.live`,
+    category: 'dedication',
     author: dj.name,
   });
 

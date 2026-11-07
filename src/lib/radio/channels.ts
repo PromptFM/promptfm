@@ -21,6 +21,8 @@ export interface RadioChannel {
   allowExplicitAllDay?: boolean;
   ageGateDisclaimer?: string;
   streamUrl: string;
+  isActive: boolean;
+  enabled?: boolean;
 }
 
 export const DEFAULT_CHANNEL_SLUG = 'main';
@@ -42,6 +44,8 @@ export const OFFICIAL_CHANNELS: readonly RadioChannel[] = [
     requiresAgeGate: false,
     allowExplicitAllDay: false,
     streamUrl: DEFAULT_STREAM_URL,
+    isActive: true,
+    enabled: true,
   },
   {
     slug: 'cyberpunk',
@@ -59,6 +63,8 @@ export const OFFICIAL_CHANNELS: readonly RadioChannel[] = [
     requiresAgeGate: false,
     allowExplicitAllDay: false,
     streamUrl: `${DEFAULT_STREAM_URL}?channel=cyberpunk`,
+    isActive: false,
+    enabled: false,
   },
   {
     slug: 'chillout',
@@ -76,6 +82,8 @@ export const OFFICIAL_CHANNELS: readonly RadioChannel[] = [
     requiresAgeGate: false,
     allowExplicitAllDay: false,
     streamUrl: `${DEFAULT_STREAM_URL}?channel=chillout`,
+    isActive: false,
+    enabled: false,
   },
   {
     slug: 'kids',
@@ -93,6 +101,8 @@ export const OFFICIAL_CHANNELS: readonly RadioChannel[] = [
     requiresAgeGate: false,
     allowExplicitAllDay: false,
     streamUrl: `${DEFAULT_STREAM_URL}?channel=kids`,
+    isActive: false,
+    enabled: false,
   },
   {
     slug: 'afterdark',
@@ -111,35 +121,122 @@ export const OFFICIAL_CHANNELS: readonly RadioChannel[] = [
     allowExplicitAllDay: true,
     ageGateDisclaimer: 'LEGAL AGE CONFIRMATION & CONSENT: This channel broadcasts uncensored audio containing adult language, profanity, and mature themes 24 hours a day. By proceeding, you certify under penalty of law that you are at least 18 years of age (or the legal age of majority in your jurisdiction), understand the adult nature of the programming, and affirmatively consent to receiving explicit broadcast content. If you are under 18, please select a Family Safe channel.',
     streamUrl: `${DEFAULT_STREAM_URL}?channel=afterdark`,
+    isActive: false,
+    enabled: false,
   },
 ] as const;
 
+const channelActiveOverrides = new Map<string, boolean>();
+
 /**
- * Returns all official PromptFM radio channels.
+ * Resets dynamic runtime channel active overrides (used in testing and maintenance).
  */
-export function getAllChannels(): RadioChannel[] {
-  return [...OFFICIAL_CHANNELS];
+export function resetChannelActiveOverrides(): void {
+  channelActiveOverrides.clear();
+}
+
+/**
+ * Sets dynamic runtime active status override for a channel slug.
+ */
+export function setChannelActiveOverride(slug: string, isActive: boolean): void {
+  channelActiveOverrides.set(slug.toLowerCase().trim(), isActive);
+}
+
+/**
+ * Returns whether a channel slug corresponds to an active (enabled) channel.
+ */
+export function isChannelActive(slug?: string | null): boolean {
+  if (!slug) return false;
+  const clean = slug.toLowerCase().trim();
+  if (channelActiveOverrides.has(clean)) {
+    return Boolean(channelActiveOverrides.get(clean));
+  }
+  const channel = OFFICIAL_CHANNELS.find((c) => c.slug === clean);
+  return channel?.isActive ?? false;
+}
+
+/**
+ * Checks whether a channel is currently public and enabled.
+ */
+export function isChannelPublic(slug?: string | null): boolean {
+  return isChannelActive(slug);
+}
+
+/**
+ * Returns all official PromptFM radio channels with current active state.
+ * Can optionally filter to public-only/active channels.
+ */
+export function getAllChannels(options: { publicOnly?: boolean } = {}): RadioChannel[] {
+  if (options.publicOnly) {
+    return getPublicChannels();
+  }
+  return OFFICIAL_CHANNELS.map((ch) => {
+    const active = channelActiveOverrides.has(ch.slug)
+      ? Boolean(channelActiveOverrides.get(ch.slug))
+      : ch.isActive;
+    return {
+      ...ch,
+      isActive: active,
+      enabled: active,
+    };
+  });
+}
+
+/**
+ * Returns only currently active/enabled radio channels.
+ */
+export function getActiveChannels(): RadioChannel[] {
+  return getAllChannels().filter((c) => c.isActive !== false);
+}
+
+/**
+ * Returns all active public PromptFM radio channels.
+ * Channels disabled or pending multi-channel scheduling are excluded.
+ */
+export function getPublicChannels(): RadioChannel[] {
+  return getActiveChannels();
+}
+
+/**
+ * Resolves an active public channel by slug, falling back to main stage if not public.
+ */
+export function getPublicChannelBySlug(slug?: string | null): RadioChannel {
+  const publicChannels = getPublicChannels();
+  const defaultChannel = publicChannels[0] || OFFICIAL_CHANNELS[0]!;
+  if (!slug) {
+    return defaultChannel;
+  }
+  const clean = slug.toLowerCase().trim();
+  return publicChannels.find((c) => c.slug === clean) || defaultChannel;
 }
 
 /**
  * Validates whether a string is a recognized official channel slug.
  */
-export function isValidChannelSlug(slug?: string | null): boolean {
+export function isValidChannelSlug(
+  slug?: string | null,
+  options: { publicOnly?: boolean } = {}
+): boolean {
   if (!slug) return false;
   const clean = slug.toLowerCase().trim();
-  return OFFICIAL_CHANNELS.some((c) => c.slug === clean);
+  const list = options.publicOnly ? getPublicChannels() : OFFICIAL_CHANNELS;
+  return list.some((c) => c.slug === clean);
 }
 
 /**
- * Resolves a channel by slug, falling back to main stage if not recognized.
+ * Resolves a channel by slug, falling back to main stage if not recognized or if inactive when requireActive is true.
  */
-export function getChannelBySlug(slug?: string | null): RadioChannel {
+export function getChannelBySlug(slug?: string | null, requireActive = false): RadioChannel {
+  const all = getAllChannels();
   if (!slug) {
-    return OFFICIAL_CHANNELS[0]!;
+    return all[0]!;
   }
   const clean = slug.toLowerCase().trim();
-  const found = OFFICIAL_CHANNELS.find((c) => c.slug === clean);
-  return found || OFFICIAL_CHANNELS[0]!;
+  const found = all.find((c) => c.slug === clean);
+  if (requireActive && found && !found.isActive) {
+    return all[0]!;
+  }
+  return found || all[0]!;
 }
 
 /**
