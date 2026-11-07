@@ -108,7 +108,7 @@ test.describe('Issue #84: Up Next Widgets & Accessibility (E2E)', () => {
     await page.goto('/');
 
     // Check the toggle button accessibility attributes before clicking
-    const queueToggleBtn = page.getByRole('button', { name: /Toggle live airplay queue/i });
+    const queueToggleBtn = page.getByRole('button', { name: /Toggle Up Next airplay queue/i });
     await expect(queueToggleBtn).toBeVisible();
     await expect(queueToggleBtn).toHaveAttribute('aria-expanded', 'false');
     await expect(queueToggleBtn).toHaveAttribute('aria-haspopup', 'dialog');

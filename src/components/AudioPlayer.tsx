@@ -920,7 +920,7 @@ export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerPro
           <button
             type="button"
             onClick={() => setShowUpNext((prev) => !prev)}
-            aria-label="Toggle live airplay queue"
+            aria-label="Toggle Up Next airplay queue"
             aria-expanded={showUpNext}
             aria-controls="player-queue-popover"
             aria-haspopup="dialog"
