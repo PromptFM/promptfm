@@ -53,6 +53,37 @@ describe('MCP Admin Tools Integration', () => {
     expect(data.success).toBe(true);
     expect(data.report_id).toBe(rep.reportId);
     expect(data.action).toBe('actioned');
+    expect(data.resolved_by).toBe('mcp_admin');
+    expect(data.resolved_at).toBeDefined();
+  });
+
+  it('audits reports via promptfm_admin_audit_reports tool', async () => {
+    const req = new NextRequest('http://localhost:3000/api/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'req-mcp-audit-1',
+        method: 'tools/call',
+        params: {
+          name: 'promptfm_admin_audit_reports',
+          arguments: {
+            limit: 25,
+          },
+        },
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.result).toBeDefined();
+
+    const data = JSON.parse(json.result.content[0].text);
+    expect(data.success).toBe(true);
+    expect(data.audit).toBeDefined();
+    expect(typeof data.audit.total_reports).toBe('number');
+    expect(typeof data.audit.clean).toBe('boolean');
   });
 
   it('removes an item from the live queue via promptfm_admin_remove_from_queue', async () => {
@@ -246,6 +277,120 @@ describe('MCP Admin Tools Integration', () => {
     const data = JSON.parse(json.result.content[0].text);
     expect(data.success).toBe(true);
     expect(data.sessions).toBeDefined();
+  });
+
+  it('updates channel active status via promptfm_admin_set_channel_status', async () => {
+    const req = new NextRequest('http://localhost:3000/api/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'req-mcp-status-ch',
+        method: 'tools/call',
+        params: {
+          name: 'promptfm_admin_set_channel_status',
+          arguments: {
+            slug: 'cyberpunk',
+            is_active: true,
+          },
+        },
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    const data = JSON.parse(json.result.content[0].text);
+    expect(data.success).toBe(true);
+    expect(data.slug).toBe('cyberpunk');
+    expect(data.is_active).toBe(true);
+  });
+
+  it('toggles channel active status via promptfm_admin_toggle_channel', async () => {
+    const req = new NextRequest('http://localhost:3000/api/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'req-mcp-toggle-ch',
+        method: 'tools/call',
+        params: {
+          name: 'promptfm_admin_toggle_channel',
+          arguments: {
+            slug: 'chillout',
+          },
+        },
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    const data = JSON.parse(json.result.content[0].text);
+    expect(data.success).toBe(true);
+    expect(data.slug).toBe('chillout');
+    expect(typeof data.is_active).toBe('boolean');
+  });
+
+  it('updates track metadata via promptfm_admin_edit_track', async () => {
+    const req = new NextRequest('http://localhost:3000/api/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'req-mcp-edit-track',
+        method: 'tools/call',
+        params: {
+          name: 'promptfm_admin_edit_track',
+          arguments: {
+            track_id: '11111111-2222-3333-4444-555555555555',
+            title: 'Updated Cyber Anthem',
+            artist_name: 'Neon DJ 2.0',
+            category: 'Cyberpunk & Synth',
+            lyrics: 'Neon city lights, midnight rides',
+            is_explicit: false,
+          },
+        },
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.result).toBeDefined();
+
+    const data = JSON.parse(json.result.content[0].text);
+    expect(data.success).toBe(true);
+    expect(data.track).toBeDefined();
+    expect(data.track.title).toBe('Updated Cyber Anthem');
+  });
+
+  it('deletes a track via promptfm_admin_delete_track', async () => {
+    const req = new NextRequest('http://localhost:3000/api/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'req-mcp-delete-track',
+        method: 'tools/call',
+        params: {
+          name: 'promptfm_admin_delete_track',
+          arguments: {
+            track_id: '11111111-2222-3333-4444-555555555555',
+            soft_delete: false,
+          },
+        },
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.result).toBeDefined();
+
+    const data = JSON.parse(json.result.content[0].text);
+    expect(data.success).toBe(true);
+    expect(data.deleted_id).toBe('11111111-2222-3333-4444-555555555555');
   });
 
   it('queries infra budget and free-tier policy via promptfm_admin_get_infra_budget', async () => {

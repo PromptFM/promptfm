@@ -1,7 +1,9 @@
 // tests/integration/radio-started-api.test.ts
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import { POST, GET } from '@/app/api/radio/started/route';
+import { broadcastToCommunity } from '@/lib/chat/bridge';
+import { resetAirplayDedupeCache } from '@/lib/dj/rotation';
 
 vi.mock('@/lib/supabase/server', () => {
   const createChain = () => {
@@ -37,6 +39,11 @@ vi.mock('@/lib/chat/bridge', () => ({
 }));
 
 describe('Liquidsoap /api/radio/started API Endpoint', () => {
+  beforeEach(() => {
+    resetAirplayDedupeCache();
+    vi.clearAllMocks();
+  });
+
   it('accepts track started POST signal from Liquidsoap and returns 200 with airplay item', async () => {
     const req = new NextRequest('http://localhost:3000/api/radio/started', {
       method: 'POST',
@@ -69,6 +76,43 @@ describe('Liquidsoap /api/radio/started API Endpoint', () => {
     expect(data.now_playing.id).toBe('track-started-123');
   });
 
+  it('accepts track started POST signal with title only', async () => {
+    const req = new NextRequest('http://localhost:3000/api/radio/started', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        channel: 'main',
+        title: 'Live On Stream Track',
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+
+    const data = await res.json();
+    expect(data.success).toBe(true);
+    expect(data.now_playing.title).toBe('Live On Stream Track');
+  });
+
+  it('accepts track started GET signal with title query parameter', async () => {
+    const req = new NextRequest('http://localhost:3000/api/radio/started?channel=main&title=Live+On+Stream+Track');
+
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+
+    const data = await res.json();
+    expect(data.success).toBe(true);
+    expect(data.now_playing.title).toBe('Live On Stream Track');
+  });
+
+  it('handles missing item_id and title with a bad request response on GET', async () => {
+    const req = new NextRequest('http://localhost:3000/api/radio/started?channel=main');
+    const res = await GET(req);
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toBeDefined();
+  });
+
   it('handles missing item_id with a bad request response', async () => {
     const req = new NextRequest('http://localhost:3000/api/radio/started', {
       method: 'POST',
@@ -82,5 +126,43 @@ describe('Liquidsoap /api/radio/started API Endpoint', () => {
     expect(res.status).toBe(400);
     const data = await res.json();
     expect(data.error).toBeDefined();
+  });
+
+  it('deduplicates duplicate POST requests for the same track without re-broadcasting', async () => {
+    const makeReq = () =>
+      new NextRequest('http://localhost:3000/api/radio/started', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel: 'main',
+          item_id: 'track-started-123',
+        }),
+      });
+
+    // First airplay notification
+    const res1 = await POST(makeReq());
+    expect(res1.status).toBe(200);
+    expect(broadcastToCommunity).toHaveBeenCalledTimes(1);
+
+    // Duplicate call (e.g. Liquidsoap retry at 18:59)
+    const res2 = await POST(makeReq());
+    expect(res2.status).toBe(200);
+    // Should NOT call broadcastToCommunity a second time
+    expect(broadcastToCommunity).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT broadcast to community when a non-main channel track starts', async () => {
+    const req = new NextRequest('http://localhost:3000/api/radio/started', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        channel: 'cyberpunk',
+        item_id: 'track-started-123',
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    expect(broadcastToCommunity).not.toHaveBeenCalled();
   });
 });

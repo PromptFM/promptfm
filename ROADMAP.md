@@ -17,6 +17,7 @@ This document tracks upcoming features, architectural milestones, and infrastruc
 ---
 
 ### 2. Autonomous 24/7 Playback & Clock Daemon
+- [x] **Now-Playing Drift & Queue ETA Precision**: Fixed station state synchronization when a track finishes, eliminated stale airplay drift, and added deterministic queue ETA calculation with queue position and requester attribution.
 - [ ] **Background Rotation Worker**: Implement an automated clock daemon (Node.js/TypeScript or lightweight container) that calculates track durations, rotates active DJs by schedule, and updates the `now_playing` status continuously.
 - [ ] **Auto-Trigger Interstitial Drops**: Automatically trigger news bulletins, weather reports, and sponsor reads at scheduled clock wheel minutes (`:00`, `:20`, `:40`).
 - [ ] **Automated Discord & Telegram Airplay Dispatch**: Push "Now Playing" and spoken transcript embeds upon each automated track transition.
@@ -56,7 +57,21 @@ This document tracks upcoming features, architectural milestones, and infrastruc
 
 ---
 
-### 8. $0 Infrastructure Budget Guardrails & Free-Tier Optimization (Issue #108)
+### 8. Vercel Flags SDK & Emergency Kill-Switch Architecture (#48)
+- [x] **Native Vercel Flags SDK (`flags/next`)**: Dynamic discovery endpoint at `/.well-known/vercel/flags` with secure access proof verification.
+- [x] **Percentage Rollouts & A/B Testing**: Deterministic 32-bit FNV-1a hashing for gradual traffic exposure and weighted variant splits.
+- [x] **Subsystem Kill Switches**: Emergency runtime toggles for `community_requests`, `community_voting`, `voice_drops`, `maintenance_mode`, and channel broadcasts without code deployment.
+- [x] **Vercel CLI & Dashboard Runbook**: Documented operational workflows using `vercel flags` commands and the Vercel Toolbar in `docs/admin-guide.md`.
+
+---
+
+### 9. Web MCP Actions Console & Admin Track Management (#72, #35, #36)
+- [x] **Interactive Web MCP Console**: In-browser client executing public and admin Model Context Protocol actions directly from the station UI without CLI/curl requirements.
+- [x] **Admin Track Curation & Soft Deletion**: Full administrative track editing, metadata updating, soft deletion with airplay protection, and audit logging.
+
+---
+
+### 10. $0 Infrastructure Budget Guardrails & Free-Tier Optimization (Issue #108)
 - [x] **Vercel Preview Gate & Ignored Build Step**: Configured `ignoreCommand` via `scripts/vercel-budget-gate.sh` to enforce $0 budget policy by skipping preview builds on automated bot branches and doc/infra PRs.
 - [x] **Forked PR Authorization & Bot Prevention**: Gated preview deployments from forked pull requests until maintainer-approved; automatically skipped Dependabot and Renovate PRs to conserve Vercel Active CPU.
 - [x] **Edge CDN Caching for High-Frequency Routes**: Added `s-maxage` headers (`s-maxage=5` on `/api/radio/now`, `s-maxage=30` on `/api/radio/schedule`) to prevent repetitive serverless function executions.

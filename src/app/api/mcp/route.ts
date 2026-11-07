@@ -11,13 +11,25 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { broadcastToCommunity } from '@/lib/chat/bridge';
 import { createBroadcastDrop } from '@/lib/dj/engine';
 import { fetchLiveWeatherSummary, getNowPlaying, getUpNext } from '@/lib/dj/rotation';
+import { getStationQueue, formatQueueForDiscord, formatQueueForTelegram } from '@/lib/dj/queue';
 import { getAllDJs, getActiveDJ, getDJById, getAdsConfig, getActiveAdSpot } from '@/lib/dj/roster';
 import { rejectScheduledRequest, synthesizeScheduledRequest } from '@/lib/dj/batches';
-import { submitContentReport, getRecentReports, resolveContentReport } from '@/lib/safety/reports';
+import {
+  submitContentReport,
+  getRecentReports,
+  resolveContentReport,
+  auditContentReports,
+} from '@/lib/safety/reports';
 import { autoGenerateChannelGuardrails } from '@/lib/safety/channel-guardrails';
-import { getAllChannels } from '@/lib/radio/channels';
+import {
+  getAllChannels,
+  setChannelActiveOverride,
+  isChannelActive,
+} from '@/lib/radio/channels';
 import { findTracksByVibe, indexTrackEmbedding } from '@/lib/dj/rag';
+import { queueSong, getSongQueueStatus } from '@/lib/song/pathway';
 import { postTweetToX } from '@/lib/social/x-client';
+import { editTrackMetadata, deleteTrack } from '@/lib/dj/track-management';
 import {
   startStream,
   stopStream,
@@ -201,6 +213,17 @@ const PUBLIC_MCP_TOOLS = [
 
 const ADMIN_MCP_TOOLS = [
   {
+    name: 'promptfm_admin_audit_reports',
+    description:
+      'Audits community content reports to identify unattributed status changes, potential tampering from unauthenticated windows, or dismissed DMCA/harassment reports.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        limit: { type: 'number', description: 'Max number of reports to audit (default: 100)' },
+      },
+    },
+  },
+  {
     name: 'promptfm_admin_list_reports',
     description: 'Lists all filed safety, copyright, and ethics reports currently awaiting moderation action.',
     inputSchema: {
@@ -351,6 +374,10 @@ const ADMIN_MCP_TOOLS = [
           type: 'string',
           description: 'Optional admin notes explaining the moderation decision',
         },
+        actor: {
+          type: 'string',
+          description: 'Admin or operator identifier taking moderation action (default: "mcp_admin")',
+        },
       },
       required: ['report_id', 'action'],
     },
@@ -424,6 +451,31 @@ const ADMIN_MCP_TOOLS = [
     },
   },
   {
+    name: 'promptfm_admin_set_channel_status',
+    description:
+      'Enables or disables a radio broadcast channel for airplay, public discovery, and station rotation.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        slug: { type: 'string', description: 'Slug of the channel to update (e.g. "cyberpunk", "kids")' },
+        is_active: { type: 'boolean', description: 'true to enable channel, false to disable / take offline' },
+      },
+      required: ['slug', 'is_active'],
+    },
+  },
+  {
+    name: 'promptfm_admin_toggle_channel',
+    description:
+      'Toggles a radio broadcast channel between active/enabled and disabled/offline.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        slug: { type: 'string', description: 'Slug of the channel to toggle' },
+      },
+      required: ['slug'],
+    },
+  },
+  {
     name: 'promptfm_admin_start_stream',
     description:
       'Starts an RTMP video/audio live stream broadcast of PromptFM to YouTube Live or TikTok Live.',
@@ -479,6 +531,43 @@ const ADMIN_MCP_TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {},
+    },
+  },
+  {
+    name: 'promptfm_admin_edit_track',
+    description:
+      'Updates track metadata (title, artist_name, category, description, lyrics, is_explicit, tool_used) for an existing track in the PromptFM catalog by UUID or exact title match.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        track_id: { type: 'string', description: 'The UUID or title of the track to edit' },
+        title: { type: 'string', description: 'Updated title of the track' },
+        artist_name: { type: 'string', description: 'Updated artist or producer name' },
+        category: { type: 'string', description: 'Updated musical genre or theme category' },
+        description: { type: 'string', description: 'Updated description of vibe or generation prompt' },
+        lyrics: { type: 'string', description: 'Updated track lyrics transcript' },
+        is_explicit: { type: 'boolean', description: 'Whether the track contains explicit lyrics' },
+        tool_used: { type: 'string', description: 'AI music generator tool used (Suno, Udio, etc.)' },
+        audit_actor: { type: 'string', description: 'Station operator or agent making the update' },
+      },
+      required: ['track_id'],
+    },
+  },
+  {
+    name: 'promptfm_admin_delete_track',
+    description:
+      'Deletes or archives a track from the PromptFM library by UUID or title match. Supports permanent hard delete or soft-delete archival.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        track_id: { type: 'string', description: 'The UUID or title of the track to delete' },
+        soft_delete: {
+          type: 'boolean',
+          description: 'If true, sets status to "rejected" (soft delete archive); if false, permanently deletes track record',
+        },
+        audit_actor: { type: 'string', description: 'Station operator or agent executing the deletion' },
+      },
+      required: ['track_id'],
     },
   },
 ];
@@ -666,61 +755,30 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
       const channelSlug = (args.channel as string) || 'main';
       if (!prompt) throw new Error('Missing prompt');
 
-      // Use pgvector Semantic RAG to find the best matching vibe
-      const vibeMatches = await findTracksByVibe(prompt, {
+      const result = await queueSong({
+        source: 'mcp',
+        requestedBy: requester,
+        prompt,
         channelSlug,
-        limit: 1,
-        matchThreshold: 0.2,
       });
 
-      let selected: any = vibeMatches[0];
-      if (!selected) {
-        const { data: top } = await supabase
-          .from('tracks')
-          .select('id, title, artist_name, tool_used, audio_url')
-          .eq('status', 'approved')
-          .order('upvotes_count', { ascending: false })
-          .limit(1)
-          .single();
-        if (top) {
-          selected = {
-            id: top.id,
-            title: top.title,
-            artist_name: top.artist_name,
-            tool_used: top.tool_used,
-            audio_url: top.audio_url,
-            similarity: 0,
-            matchMethod: 'lexical_fallback',
-          };
-        }
+      if (result.status === 'rejected') {
+        throw new Error(result.confirmationMessage);
       }
-
-      if (!selected) {
-        throw new Error('No approved tracks currently available in library to queue.');
-      }
-
-      const { data: channel } = await supabase
-        .from('channels')
-        .select('id')
-        .eq('slug', channelSlug)
-        .single();
-
-      if (channel) {
-        await supabase.from('channel_queue').insert({
-          channel_id: channel.id,
-          track_id: selected.id,
-          prompt_used: prompt,
-          requested_by: requester,
-        });
+      if (result.status === 'no_match') {
+        throw new Error(result.confirmationMessage);
       }
 
       return {
-        success: true,
-        message: `Queued "${selected.title}" by ${selected.artist_name} for airplay on ${channelSlug}!`,
-        track: selected,
-        prompt_used: prompt,
-        similarity_score: selected.similarity,
-        match_engine: selected.matchMethod,
+        success: result.status === 'queued' || result.status === 'already_queued',
+        status: result.status,
+        message: result.confirmationMessage,
+        track: result.track,
+        queue_position: result.position,
+        estimated_air_time: result.eta.displayTime,
+        estimated_wait_minutes: result.eta.waitMinutes,
+        similarity_score: result.track?.similarity,
+        match_engine: result.track?.matchMethod,
       };
     }
 
@@ -831,11 +889,12 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
     case 'promptfm_get_up_next': {
       const channel = (args.channel as string) || 'main';
       const limit = typeof args.limit === 'number' ? Math.min(args.limit, 10) : 5;
-      const upcoming = await getUpNext(channel, limit);
+      const stationQueue = await getStationQueue({ channelSlug: channel, upcomingLimit: limit, scheduledLimit: limit });
       return {
         channel,
-        upcoming_count: upcoming.length,
-        up_next: upcoming.map((item, idx) => ({
+        upcoming_count: stationQueue.upcoming.length,
+        scheduled_count: stationQueue.scheduledRequests.length,
+        up_next: stationQueue.upcoming.map((item, idx) => ({
           position: idx + 1,
           id: item.id,
           title: item.title,
@@ -843,6 +902,19 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
           tool_used: item.tool_used,
           upvotes_count: item.upvotes_count ?? 0,
         })),
+        scheduled_requests: stationQueue.scheduledRequests.map((req) => ({
+          id: req.id,
+          type: req.type,
+          content: req.content,
+          target: req.target,
+          platform: req.platform,
+          platform_user_name: req.platform_user_name,
+          batch_id: req.batch_id,
+          status: req.status,
+          estimated_air_time: req.estimated_air_time,
+        })),
+        formatted_discord: formatQueueForDiscord(stationQueue),
+        formatted_telegram: formatQueueForTelegram(stationQueue),
       };
     }
 
@@ -881,6 +953,15 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
   }
 
   switch (name) {
+    case 'promptfm_admin_audit_reports': {
+      const limit = typeof args.limit === 'number' ? args.limit : 100;
+      const audit = await auditContentReports({ limit });
+      return {
+        success: true,
+        audit,
+      };
+    }
+
     case 'promptfm_admin_list_reports': {
       const limit = typeof args.limit === 'number' ? Math.min(args.limit, 50) : 20;
       const reports = await getRecentReports(limit);
@@ -1116,16 +1197,19 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
       const reportId = args.report_id as string;
       const action = args.action as 'actioned' | 'dismissed';
       const notes = args.notes as string | undefined;
+      const actor = (args.actor as string | undefined) || 'mcp_admin';
 
       if (!reportId || !action) throw new Error('Missing report_id or action');
 
-      const result = await resolveContentReport(reportId, action, notes);
+      const result = await resolveContentReport(reportId, action, notes, actor);
       return {
         success: true,
         report_id: result.reportId,
         action: result.status,
         notes: result.notes,
-        message: `Report ${reportId} marked as ${action}.`,
+        resolved_by: result.resolved_by,
+        resolved_at: result.resolved_at,
+        message: `Report ${reportId} marked as ${action} by ${result.resolved_by}.`,
       };
     }
 
@@ -1207,6 +1291,9 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
         customDisclaimer,
       });
 
+      const isActive = typeof args.is_active === 'boolean' ? args.is_active : true;
+      setChannelActiveOverride(slug, isActive);
+
       const newChannel = {
         slug,
         name,
@@ -1223,6 +1310,7 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
         allow_explicit_24_7: guardrails.allow_explicit_24_7,
         age_gate_disclaimer: guardrails.age_gate_disclaimer,
         stream_url: `https://stream.promptfm.live/live?channel=${slug}`,
+        is_active: isActive,
       };
 
       const dbPayload = {
@@ -1234,6 +1322,7 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
         requires_age_gate: guardrails.requires_age_gate,
         allow_explicit_24_7: guardrails.allow_explicit_24_7,
         age_gate_disclaimer: guardrails.age_gate_disclaimer,
+        is_active: isActive,
       };
 
       try {
@@ -1241,7 +1330,7 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
         const { error } = await supabase.from('channels').upsert(dbPayload, { onConflict: 'slug' });
         if (error) {
           await supabase.from('channels').upsert(
-            { slug, name, description },
+            { slug, name, description, is_active: isActive },
             { onConflict: 'slug' }
           );
         }
@@ -1287,6 +1376,7 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
           allow_explicit_24_7: ch.allowExplicitAllDay ?? false,
           age_gate_disclaimer: ch.ageGateDisclaimer ?? '',
           stream_url: ch.streamUrl,
+          is_active: ch.isActive,
         });
       }
       for (const ch of dbChannels) {
@@ -1317,6 +1407,7 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
           allow_explicit_24_7: ch.allow_explicit_24_7 ?? existing.allow_explicit_24_7 ?? guard.allow_explicit_24_7,
           age_gate_disclaimer: ch.age_gate_disclaimer || existing.age_gate_disclaimer || guard.age_gate_disclaimer,
           stream_url: `https://stream.promptfm.live/live?channel=${ch.slug}`,
+          is_active: ch.is_active !== undefined ? Boolean(ch.is_active) : (existing.is_active ?? true),
         });
       }
 
@@ -1325,6 +1416,53 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
         success: true,
         count: channels.length,
         channels,
+      };
+    }
+
+    case 'promptfm_admin_set_channel_status': {
+      const slug = String(args.slug || '').toLowerCase().trim();
+      if (!slug) {
+        throw new Error('Channel slug is required.');
+      }
+      const isActive = Boolean(args.is_active ?? args.enabled);
+      setChannelActiveOverride(slug, isActive);
+
+      try {
+        const supabase = createAdminClient();
+        await supabase.from('channels').upsert({ slug, is_active: isActive }, { onConflict: 'slug' });
+      } catch (err) {
+        console.warn('[MCP Admin] Channel status update DB fallback note:', err);
+      }
+
+      return {
+        success: true,
+        slug,
+        is_active: isActive,
+        message: `Channel "${slug}" has been ${isActive ? 'enabled' : 'disabled'}.`,
+      };
+    }
+
+    case 'promptfm_admin_toggle_channel': {
+      const slug = String(args.slug || '').toLowerCase().trim();
+      if (!slug) {
+        throw new Error('Channel slug is required.');
+      }
+      const currentActive = isChannelActive(slug);
+      const nextActive = !currentActive;
+      setChannelActiveOverride(slug, nextActive);
+
+      try {
+        const supabase = createAdminClient();
+        await supabase.from('channels').upsert({ slug, is_active: nextActive }, { onConflict: 'slug' });
+      } catch (err) {
+        console.warn('[MCP Admin] Channel toggle DB fallback note:', err);
+      }
+
+      return {
+        success: true,
+        slug,
+        is_active: nextActive,
+        message: `Channel "${slug}" toggled to ${nextActive ? 'enabled' : 'disabled'}.`,
       };
     }
 
@@ -1370,6 +1508,38 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
         budget_status: 'operational_zero_cost',
         note: 'PromptFM $0 infra path: Vercel previews gated, crawlers blocked on preview, CI trimmed.',
       };
+    }
+
+    case 'promptfm_admin_edit_track': {
+      const trackId = args.track_id as string;
+      if (!trackId) throw new Error('Missing track_id');
+      const actor = (args.audit_actor as string) || (isAdmin ? 'Admin MCP' : 'Unknown');
+
+      const result = await editTrackMetadata(
+        trackId,
+        {
+          title: args.title as string | undefined,
+          artist_name: args.artist_name as string | undefined,
+          category: args.category as string | undefined,
+          description: args.description as string | undefined,
+          lyrics: args.lyrics as string | undefined,
+          is_explicit: args.is_explicit !== undefined ? Boolean(args.is_explicit) : undefined,
+          tool_used: args.tool_used as string | undefined,
+        },
+        actor
+      );
+
+      return result;
+    }
+
+    case 'promptfm_admin_delete_track': {
+      const trackId = args.track_id as string;
+      if (!trackId) throw new Error('Missing track_id');
+      const softDelete = Boolean(args.soft_delete);
+      const actor = (args.audit_actor as string) || (isAdmin ? 'Admin MCP' : 'Unknown');
+
+      const result = await deleteTrack(trackId, { softDelete, actor });
+      return result;
     }
 
     default:

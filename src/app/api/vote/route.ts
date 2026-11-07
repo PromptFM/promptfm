@@ -5,11 +5,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { castVoteForTrack } from '@/lib/chat/bridge';
 import { updateCurrentAirplayUpvotes } from '@/lib/dj/rotation';
+import { isFeatureEnabled } from '@/lib/flags/feature-flags';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
+    if (!isFeatureEnabled('community_voting', true)) {
+      return NextResponse.json(
+        { error: 'Community voting is currently disabled by station administrators.' },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
     const trackId = body?.trackId?.trim();
 

@@ -5,7 +5,7 @@
 // Displays 24-hour daily programming blocks, live shows, AI DJ personas, and clock wheel milestones.
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { OFFICIAL_CHANNELS, RadioChannel } from '@/lib/radio/channels';
+import { getPublicChannels, getPublicChannelBySlug, RadioChannel } from '@/lib/radio/channels';
 import { formatAudioTime } from '@/lib/radio/progress';
 import {
   Calendar,
@@ -155,8 +155,8 @@ export default function ScheduleView({ initialChannelSlug = 'main', onTuneIn }: 
     return () => clearInterval(tick);
   }, [durationSeconds, activeSlug, fetchSchedule]);
 
-  const activeChannel =
-    OFFICIAL_CHANNELS.find((c) => c.slug === activeSlug) || OFFICIAL_CHANNELS[0]!;
+  const publicChannels = getPublicChannels();
+  const activeChannel = getPublicChannelBySlug(activeSlug);
 
   const getChannelIcon = (slug: string) => {
     switch (slug) {
@@ -223,32 +223,34 @@ export default function ScheduleView({ initialChannelSlug = 'main', onTuneIn }: 
       </div>
 
       {/* Channel Switcher Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
-        {OFFICIAL_CHANNELS.map((ch) => {
-          const isActive = ch.slug === activeSlug;
-          return (
-            <button
-              key={ch.slug}
-              type="button"
-              onClick={() => setActiveSlug(ch.slug)}
-              className={[
-                'flex items-center gap-2 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap flex-shrink-0 border',
-                isActive
-                  ? 'bg-zinc-800 text-white border-emerald-500/50 shadow-md shadow-emerald-500/10'
-                  : 'bg-zinc-900/50 text-zinc-400 border-zinc-800 hover:text-white hover:bg-zinc-800/60',
-              ].join(' ')}
-            >
-              {getChannelIcon(ch.slug)}
-              <span>{ch.shortName}</span>
-              {ch.badge && (
-                <span className="text-[10px] px-1.5 py-0.2 bg-zinc-800/80 rounded text-zinc-300">
-                  {ch.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      {publicChannels.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
+          {publicChannels.map((ch) => {
+            const isActive = ch.slug === activeSlug;
+            return (
+              <button
+                key={ch.slug}
+                type="button"
+                onClick={() => setActiveSlug(ch.slug)}
+                className={[
+                  'flex items-center gap-2 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap flex-shrink-0 border',
+                  isActive
+                    ? 'bg-zinc-800 text-white border-emerald-500/50 shadow-md shadow-emerald-500/10'
+                    : 'bg-zinc-900/50 text-zinc-400 border-zinc-800 hover:text-white hover:bg-zinc-800/60',
+                ].join(' ')}
+              >
+                {getChannelIcon(ch.slug)}
+                <span>{ch.shortName}</span>
+                {ch.badge && (
+                  <span className="text-[10px] px-1.5 py-0.2 bg-zinc-800/80 rounded text-zinc-300">
+                    {ch.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Channel Header Banner */}
       <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-zinc-900 to-zinc-950 border border-zinc-800 relative overflow-hidden">

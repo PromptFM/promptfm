@@ -2,19 +2,26 @@
 // PromptFM Live Theme Channels Discovery Endpoint
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllChannels } from '@/lib/radio/channels';
+import { getAllChannels, getActiveChannels } from '@/lib/radio/channels';
 import { getActiveDJ } from '@/lib/dj/roster';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const channels = getAllChannels();
+  const onlyActive =
+    req.nextUrl?.searchParams?.get('active') === 'true' ||
+    req.nextUrl?.searchParams?.get('active_only') === 'true' ||
+    req.nextUrl?.searchParams?.get('public_only') === 'true';
+
+  const channels = onlyActive ? getActiveChannels() : getAllChannels();
   const now = new Date();
 
   const enrichedChannels = channels.map((channel) => {
     const activeDJ = getActiveDJ(channel.slug, now);
     return {
       ...channel,
+      is_active: channel.isActive,
+      enabled: channel.isActive,
       active_dj: {
         id: activeDJ.id,
         name: activeDJ.name,

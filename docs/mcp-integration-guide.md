@@ -180,4 +180,66 @@ curl -X POST https://promptfm.live/api/mcp \
 | `promptfm_admin_inject_interstitial` | `type` ("news" \| "weather" \| "announcement"), `prompt?`, `city?` | Forces an interstitial audio drop to play next on air. |
 | `promptfm_admin_inject_ad` | `sponsor?`, `copy?`, `dj_id?` | Injects a sponsor read or audio commercial into the live broadcast stream. |
 | `promptfm_admin_reject_request` | `request_id`, `reason` | Rejects a listener dedication and sends an automated polite explanation to Discord/Telegram. |
+| `promptfm_admin_air_request` | `request_id` | Forces immediate synthesis and airplay for a community dedication. |
+| `promptfm_admin_remove_from_queue` | `queue_id` | Removes an item from the upcoming airplay queue. |
+| `promptfm_admin_edit_track` | `track_id`, `title?`, `artist?`, `category?`, `description?`, `lyrics?`, `is_explicit?`, `ai_tool?`, `bpm?`, `genre?`, `reindex_vector?` | Updates track metadata and automatically re-indexes vector embeddings. |
+| `promptfm_admin_delete_track` | `track_id`, `soft_delete?` | Deletes or archives a track, automatically removing any orphaned queue entries. |
+
+---
+
+## 6. Web MCP Client & Embedded Consoles (Issue #72)
+
+PromptFM provides a first-class browser-side client library and UI components so listeners and administrators can interact with MCP capabilities directly from the web application without needing external desktop tools.
+
+### A. TypeScript Client Library (`@/lib/mcp/client`)
+
+The web MCP client module exposes typed helper methods that communicate with `/api/mcp`:
+
+```typescript
+import {
+  callMcpTool,
+  executeWebMcpCommand,
+  parseMcpCommandString,
+  webMcpQueueSong,
+  webMcpSearchVibe,
+  webMcpGetNowPlaying,
+  webMcpEditTrack,
+  webMcpDeleteTrack,
+} from '@/lib/mcp/client';
+
+// Search by vibe
+const vibeResult = await webMcpSearchVibe('cyberpunk lo-fi study beat');
+
+// Edit metadata as admin
+const editResult = await webMcpEditTrack(
+  {
+    track_id: '0df3ba68-1234-5678-9abc-def012345678',
+    title: 'Neon Skyline (Remastered)',
+    category: 'Synthwave',
+    is_explicit: false,
+  },
+  adminApiKey
+);
+```
+
+### B. Natural Command Parsing (`executeWebMcpCommand`)
+
+Listeners and admins can use standard command syntax directly in web inputs:
+- `/song <prompt>` $\to$ calls `promptfm_queue_song_request`
+- `/vibe <prompt>` $\to$ calls `promptfm_search_tracks_by_vibe`
+- `/np` or `/nowplaying` $\to$ calls `promptfm_get_now_playing`
+- `/next` or `/queue` $\to$ calls `promptfm_get_up_next`
+- `/vote <track_id>` $\to$ calls `promptfm_upvote_track`
+- `/schedule` $\to$ calls `promptfm_get_schedule`
+- `/djs` $\to$ calls `promptfm_get_djs`
+- `/report <track_id> <reason>` $\to$ calls `promptfm_report_content`
+
+### C. Web MCP Studio in Admin Console (`/admin`)
+
+Station administrators can navigate to the **Web MCP Studio** tab in `/admin` to:
+1. Synthesize AI voice drops and host announcements.
+2. Inject news/weather interstitials and sponsor commercials on the fly.
+3. Air pending listener dedication requests with one click.
+4. Execute arbitrary MCP tool calls with JSON argument validation and real-time response inspecting.
+
 
