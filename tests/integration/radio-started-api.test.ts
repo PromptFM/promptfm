@@ -150,4 +150,19 @@ describe('Liquidsoap /api/radio/started API Endpoint', () => {
     // Should NOT call broadcastToCommunity a second time
     expect(broadcastToCommunity).toHaveBeenCalledTimes(1);
   });
+
+  it('does NOT broadcast to community when a non-main channel track starts', async () => {
+    const req = new NextRequest('http://localhost:3000/api/radio/started', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        channel: 'cyberpunk',
+        item_id: 'track-started-123',
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    expect(broadcastToCommunity).not.toHaveBeenCalled();
+  });
 });
