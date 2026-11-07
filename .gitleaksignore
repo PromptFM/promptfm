@@ -8,3 +8,5 @@ d1829142092bd302b5e84f283226a3fc8dcd777a:src/lib/ads/adsense.ts:generic-api-key:
 ca8c123a73b628a97df848699c4d6b48ebfe7de6:tests/unit/x-client.test.ts:generic-api-key:75
 ca8c123a73b628a97df848699c4d6b48ebfe7de6:tests/unit/x-client.test.ts:generic-api-key:76
 ca8c123a73b628a97df848699c4d6b48ebfe7de6:tests/unit/x-client.test.ts:generic-api-key:83
+61a06fa3278e6f2f56e4cd4a2ae1003bb044f8fb:tests/integration/vercel-flags.test.ts:generic-api-key:10
+6b3313deaf85229e227e4abbcd6808c0fedfd6c5:docs/mcp-integration-guide.md:curl-auth-header:126
