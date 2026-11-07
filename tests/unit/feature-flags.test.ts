@@ -681,12 +681,14 @@ describe('Admin Feature-Flag & Kill-Switch System (Unit)', () => {
       ]);
 
       const apiData = getVercelDiscoveryApiData();
-      expect(apiData.definitions['community_requests']).toBeDefined();
-      expect(apiData.definitions['community_requests'].options).toEqual([
+      expect(apiData.definitions).toBeDefined();
+      const communityDef = apiData.definitions?.['community_requests'];
+      expect(communityDef).toBeDefined();
+      expect(communityDef?.options).toEqual([
         { label: 'Off', value: false },
         { label: 'On', value: true },
       ]);
-      expect(apiData.definitions['community_requests'].origin).toBe('https://promptfm.live/admin');
+      expect(communityDef?.origin).toBe('https://promptfm.live/admin');
 
       // Direct Vercel flag callable evaluation
       const communityFlag = vercelFlags.community_requests;
