@@ -10,6 +10,7 @@ import { getActiveDJ } from './roster';
 import { broadcastToCommunity } from '../chat/bridge';
 import { evaluateContentSafety } from '../safety/guardrails';
 import { findTracksByVibe } from './rag';
+import { isFeatureEnabled } from '../flags/feature-flags';
 
 export type RequestType = 'song' | 'dedication' | 'weather' | 'news' | 'zodiac';
 
@@ -30,6 +31,54 @@ export interface SlotAllocationResult {
   confirmationMessage: string;
   isRejected?: boolean;
   rejectionReason?: string;
+  queuePosition?: number;
+  isProvisional?: boolean;
+  estimatedMinutes?: number;
+}
+
+export interface QueueETAResult {
+  queuePosition: number;
+  estimatedSeconds: number;
+  estimatedMinutes: number;
+  displayTime: string;
+  batchId: string;
+  isProvisional: boolean;
+}
+
+/**
+ * Calculates a realistic dynamic ETA based on queue position and remaining track time.
+ * Marks the schedule as provisional to prevent misleading listeners when airplay drifts.
+ */
+export function calculateQueueETA(params: {
+  queuePosition: number;
+  remainingSecondsOnCurrentTrack?: number;
+  averageTrackSeconds?: number;
+  baseTime?: number;
+}): QueueETAResult {
+  const position = Math.max(1, params.queuePosition);
+  const remainingCurrent = params.remainingSecondsOnCurrentTrack ?? 120;
+  const avgTrack = params.averageTrackSeconds ?? 210;
+
+  // Queue position #1 plays after current track finishes; subsequent items wait for items ahead
+  const estimatedSeconds = Math.max(30, remainingCurrent + (position - 1) * avgTrack);
+  const estimatedMinutes = Math.max(1, Math.round(estimatedSeconds / 60));
+
+  const baseMs = params.baseTime ?? Date.now();
+  const targetDate = new Date(baseMs + estimatedSeconds * 1000);
+  const hoursStr = String(targetDate.getUTCHours()).padStart(2, '0');
+  const minStr = String(targetDate.getUTCMinutes()).padStart(2, '0');
+
+  const batchId = `BATCH-${hoursStr}:${minStr}`;
+  const displayTime = `${hoursStr}:${minStr} UTC`;
+
+  return {
+    queuePosition: position,
+    estimatedSeconds,
+    estimatedMinutes,
+    displayTime,
+    batchId,
+    isProvisional: true,
+  };
 }
 
 /**
@@ -57,6 +106,18 @@ export function calculateNextBatchSlot(delayMinutes = 15): { batchId: string; ai
  * and either schedules it into a batch or refuses it upfront.
  */
 export async function scheduleListenerRequest(payload: ListenerRequestPayload): Promise<SlotAllocationResult> {
+  // ── 0. Kill Switch / Feature Flag Check ────────────────────────────────────
+  if (!isFeatureEnabled('community_requests', true)) {
+    return {
+      requestId: 'paused',
+      batchId: 'PAUSED',
+      estimatedAirTime: 'None',
+      confirmationMessage: '⏸️ Song and dedication requests are temporarily paused by station administrators.',
+      isRejected: true,
+      rejectionReason: 'Feature flag community_requests is disabled',
+    };
+  }
+
   const supabase = createAdminClient();
 
   // ── A. Safety & Ethical Guardrails Pre-flight Check ────────────────────────
@@ -93,33 +154,16 @@ export async function scheduleListenerRequest(payload: ListenerRequestPayload): 
     };
   }
 
-  // ── B. Allocate into Next Available 15-Minute Broadcast Batch ───────────────
-  const { batchId, airDate, displayTime } = calculateNextBatchSlot(15);
+  // ── B. Allocate into Broadcast Batch or Live Queue Slot ─────────────────────
+  let batchId = '';
+  let airDate = new Date();
+  let displayTime = '';
+  let queuePosition: number | undefined;
+  let isProvisional: boolean | undefined;
+  let estimatedMinutes: number | undefined;
 
-  const { data: request, error } = await supabase
-    .from('community_requests')
-    .insert({
-      platform: payload.platform,
-      platform_user_id: payload.platform_user_id,
-      platform_user_name: payload.platform_user_name,
-      platform_message_id: payload.platform_message_id || null,
-      type: payload.type,
-      content: payload.content,
-      target: payload.target || null,
-      batch_id: batchId,
-      status: 'scheduled',
-      estimated_air_time: airDate.toISOString(),
-    })
-    .select()
-    .single();
-
-  if (error || !request) {
-    throw new Error(`Failed to log request: ${error?.message}`);
-  }
-
-  // ── C. Auto-Enqueue Matching Approved Track for Song Requests ──────────────
   let matchedTrack: { id: string; title: string; artist_name?: string } | null = null;
-  if (payload.type === 'song') {
+  if (payload.type === 'song' || payload.type === 'dedication') {
     try {
       const vibeMatches = await findTracksByVibe(payload.content, { limit: 1 });
       if (vibeMatches && vibeMatches.length > 0 && vibeMatches[0]) {
@@ -147,7 +191,26 @@ export async function scheduleListenerRequest(payload: ListenerRequestPayload): 
       }
     }
 
-    if (matchedTrack) {
+    if (!matchedTrack && payload.type === 'dedication') {
+      try {
+        const { data: anyApproved } = await supabase
+          .from('tracks')
+          .select('id, title, artist_name')
+          .eq('status', 'approved')
+          .limit(1)
+          .maybeSingle();
+
+        if (anyApproved) {
+          matchedTrack = anyApproved;
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
+    let pendingCount = 0;
+    let remainingCurrentTrack = 120;
+    try {
       const { data: channel } = await supabase
         .from('channels')
         .select('id')
@@ -155,35 +218,122 @@ export async function scheduleListenerRequest(payload: ListenerRequestPayload): 
         .maybeSingle();
 
       if (channel) {
-        await supabase.from('channel_queue').insert({
-          channel_id: channel.id,
-          track_id: matchedTrack.id,
-          prompt_used: payload.content,
-          requested_by: `@${payload.platform_user_name} (${payload.platform})`,
-        });
+        const queueRes = await supabase
+          .from('channel_queue')
+          .select('id', { count: 'exact', head: true })
+          .eq('channel_id', channel.id)
+          .is('played_at', null);
+
+        if (queueRes && typeof queueRes.count === 'number') {
+          pendingCount = queueRes.count;
+        }
+
+        if (matchedTrack) {
+          let requestedBy = `@${payload.platform_user_name} (${payload.platform})`;
+          if (payload.type === 'dedication') {
+            const cleanTarget = payload.target ? `@${payload.target.replace(/^@/, '')}` : '@friend';
+            requestedBy = `@${payload.platform_user_name} (Dedicated to ${cleanTarget}: "${payload.content}")`;
+          } else if (payload.target) {
+            const cleanTarget = `@${payload.target.replace(/^@/, '')}`;
+            requestedBy = `@${payload.platform_user_name} (Dedicated to ${cleanTarget})`;
+          }
+
+          await supabase.from('channel_queue').insert({
+            channel_id: channel.id,
+            track_id: matchedTrack.id,
+            prompt_used: payload.content,
+            requested_by: requestedBy,
+          });
+        }
+
+        try {
+          const { data: stateData } = await supabase
+            .from('station_state')
+            .select('airplay_item, started_at')
+            .eq('channel_slug', 'main')
+            .maybeSingle();
+
+          if (stateData?.started_at) {
+            const startedMs = new Date(stateData.started_at).getTime();
+            const elapsedSec = Math.max(0, Math.floor((Date.now() - startedMs) / 1000));
+            const hintSec = (stateData.airplay_item as { duration_hint_seconds?: number })?.duration_hint_seconds ?? 210;
+            remainingCurrentTrack = Math.max(30, hintSec - elapsedSec);
+          }
+        } catch {
+          // Ignore station_state read failure
+        }
       }
+    } catch {
+      // Non-blocking fallback
     }
+
+    const pos = pendingCount + 1;
+    const eta = calculateQueueETA({
+      queuePosition: pos,
+      remainingSecondsOnCurrentTrack: remainingCurrentTrack,
+      averageTrackSeconds: 210,
+    });
+
+    queuePosition = eta.queuePosition;
+    estimatedMinutes = eta.estimatedMinutes;
+    isProvisional = true;
+    batchId = eta.batchId;
+    displayTime = eta.displayTime;
+    airDate = new Date(Date.now() + eta.estimatedSeconds * 1000);
+  } else {
+    const slot = calculateNextBatchSlot(15);
+    batchId = slot.batchId;
+    airDate = slot.airDate;
+    displayTime = slot.displayTime;
+  }
+
+  const { data: request, error } = await supabase
+    .from('community_requests')
+    .insert({
+      platform: payload.platform,
+      platform_user_id: payload.platform_user_id,
+      platform_user_name: payload.platform_user_name,
+      platform_message_id: payload.platform_message_id || null,
+      type: payload.type,
+      content: payload.content,
+      target: payload.target || null,
+      batch_id: batchId,
+      status: 'scheduled',
+      estimated_air_time: airDate.toISOString(),
+    })
+    .select()
+    .single();
+
+  if (error || !request) {
+    throw new Error(`Failed to log request: ${error?.message}`);
   }
 
   const activeDJ = getActiveDJ(undefined, airDate);
   let confirmText = '';
   switch (payload.type) {
-    case 'dedication':
-      confirmText = `✅ Dedication accepted for @${payload.target || 'friend'}! Scheduled for ${batchId} (approx. ${displayTime}). ${activeDJ.name} will announce your dedication on air.`;
+    case 'dedication': {
+      const posText = queuePosition === 1 ? 'Up next (#1 in queue)' : `#${queuePosition} in queue`;
+      const timeEst = `~${displayTime} (est. in ~${estimatedMinutes}m, provisional)`;
+      const cleanTarget = payload.target ? `@${payload.target.replace(/^@/, '')}` : '@friend';
+      confirmText = `✅ Dedication accepted for ${cleanTarget}! Position: ${posText} • Scheduled for ${batchId} (${timeEst}). ${activeDJ.name} will announce your dedication on air. Check live queue anytime with /queue.`;
       break;
+    }
     case 'weather':
       confirmText = `🌤️ Weather check for ${payload.target || payload.content} scheduled in ${batchId} (~${displayTime}) with ${activeDJ.name}.`;
       break;
     case 'zodiac':
       confirmText = `✨ Cosmic AI Zodiac reading for ${payload.target || payload.content} locked in for ${batchId} (~${displayTime}) with ${activeDJ.name}.`;
       break;
-    case 'song':
+    case 'song': {
+      const posText = queuePosition === 1 ? 'Up next (#1 in queue)' : `#${queuePosition} in queue`;
+      const timeEst = `~${displayTime} (est. in ~${estimatedMinutes}m, provisional)`;
       if (matchedTrack) {
-        confirmText = `🎵 Track "${matchedTrack.title}"${matchedTrack.artist_name ? ` by ${matchedTrack.artist_name}` : ''} queued for live airplay! Scheduled for ${batchId} (~${displayTime}).`;
+        confirmText = `🎵 Track "${matchedTrack.title}"${matchedTrack.artist_name ? ` by ${matchedTrack.artist_name}` : ''} queued for live airplay! Position: ${posText} • Scheduled for ${batchId} (${timeEst}). Check live queue anytime with /queue.`;
       } else {
-        confirmText = `🎵 Track request "${payload.content}" added to airplay queue for ${batchId} (~${displayTime}).`;
+        confirmText = `🎵 Track request "${payload.content}" added to airplay queue! Position: ${posText} • Scheduled for ${batchId} (${timeEst}). Check live queue anytime with /queue.`;
       }
       break;
+    }
     default:
       confirmText = `📢 Request scheduled for airplay in ${batchId} (~${displayTime}) with ${activeDJ.name}.`;
   }
@@ -193,6 +343,9 @@ export async function scheduleListenerRequest(payload: ListenerRequestPayload): 
     batchId,
     estimatedAirTime: displayTime,
     confirmationMessage: confirmText,
+    queuePosition,
+    isProvisional,
+    estimatedMinutes,
   };
 }
 
@@ -330,6 +483,7 @@ Deliver this dedication on air with high radio warmth, charisma, and enthusiasm.
   await broadcastToCommunity({
     title: `ON AIR NOW: Dedication from @${req.platform_user_name}`,
     message: `🎙️ "${script}"\n\nTune in live: https://promptfm.live`,
+    category: 'dedication',
     author: dj.name,
   });
 
@@ -397,6 +551,7 @@ Deliver them warmly together in ONE single seamless radio host announcement. Kee
   await broadcastToCommunity({
     title: `ON AIR NOW: Community Batch Shoutout (${batchId})`,
     message: `🎙️ "${script}"\n\nFeaturing shoutouts from: ${requests.map((r) => `@${r.platform_user_name}`).join(', ')}\nTune in: https://promptfm.live`,
+    category: 'dedication',
     author: dj.name,
   });
 

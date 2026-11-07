@@ -39,6 +39,8 @@ import {
   RadioChannel,
   DEFAULT_CHANNEL_SLUG,
   getChannelBySlug,
+  getPublicChannels,
+  getPublicChannelBySlug,
   getStreamUrlForChannel,
   isValidChannelSlug,
 } from '@/lib/radio/channels';
@@ -130,7 +132,8 @@ export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerPro
     autoPlay: boolean;
   } | null>(null);
 
-  const currentChannel = getChannelBySlug(currentChannelSlug);
+  const publicChannels = getPublicChannels();
+  const currentChannel = getPublicChannelBySlug(currentChannelSlug);
 
   // Fetch Now Playing info for a given channel
   const fetchNowPlaying = useCallback(async (slug?: string) => {
@@ -282,7 +285,7 @@ export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerPro
   }, [fetchNowPlaying]);
 
   const switchChannel = useCallback((slug: string, autoPlay = false) => {
-    const targetChannel = getChannelBySlug(slug);
+    const targetChannel = getChannelBySlug(slug, true);
     const validSlug = targetChannel.slug;
 
     if (targetChannel.requiresAgeGate && typeof window !== 'undefined') {
@@ -315,9 +318,9 @@ export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerPro
         const urlParams = new URLSearchParams(window.location.search);
         const urlChannel = urlParams.get('channel');
         const storedChannel = localStorage.getItem('promptfm_channel');
-        if (urlChannel && isValidChannelSlug(urlChannel)) {
+        if (urlChannel && isValidChannelSlug(urlChannel, { publicOnly: true })) {
           initialSlug = urlChannel;
-        } else if (storedChannel && isValidChannelSlug(storedChannel)) {
+        } else if (storedChannel && isValidChannelSlug(storedChannel, { publicOnly: true })) {
           initialSlug = storedChannel;
         }
       } catch {
@@ -477,7 +480,7 @@ export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerPro
           />
         </div>
         {/* Channel Switcher Popover Menu */}
-        {showChannelMenu && (
+        {showChannelMenu && publicChannels.length > 1 && (
           <div className="absolute bottom-full left-3 sm:left-6 mb-2 w-[calc(100vw-24px)] sm:w-80 bg-zinc-900 border border-zinc-700/80 rounded-2xl p-3 shadow-2xl z-50 animate-in fade-in slide-in-from-bottom-2 space-y-2">
             <div className="flex items-center justify-between px-1 text-xs font-bold text-zinc-300 border-b border-zinc-800 pb-2">
               <span className="flex items-center gap-1.5 text-emerald-400">
@@ -494,15 +497,19 @@ export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerPro
             </div>
 
             <div className="space-y-1.5">
-              {OFFICIAL_CHANNELS.map((ch) => {
+              {publicChannels.map((ch) => {
                 const isSelected = ch.slug === currentChannelSlug;
+                const isChannelDisabled = ch.isActive === false;
                 return (
                   <button
                     key={ch.slug}
                     type="button"
+                    disabled={isChannelDisabled}
                     onClick={() => switchChannel(ch.slug, isPlaying)}
                     className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-all ${
-                      isSelected
+                      isChannelDisabled
+                        ? 'opacity-40 cursor-not-allowed text-zinc-500'
+                        : isSelected
                         ? 'bg-zinc-800 text-white border border-emerald-500/50 shadow-sm'
                         : 'hover:bg-zinc-800/60 text-zinc-300 border border-transparent'
                     }`}
@@ -514,9 +521,13 @@ export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerPro
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
                           <span className="text-xs font-bold truncate">{ch.shortName}</span>
-                          <span className="text-[10px] text-zinc-400 font-medium">({ch.djName})</span>
+                          {isChannelDisabled ? (
+                            <span className="text-[10px] text-zinc-500 font-medium">(Offline)</span>
+                          ) : (
+                            <span className="text-[10px] text-zinc-400 font-medium">({ch.djName})</span>
+                          )}
                         </div>
-                        <p className="text-[10px] text-zinc-400 truncate">{ch.badge}</p>
+                        <p className="text-[10px] text-zinc-400 truncate">{isChannelDisabled ? 'Channel Offline' : ch.badge}</p>
                       </div>
                     </div>
                     {isSelected && <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />}
@@ -723,21 +734,31 @@ export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerPro
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 sm:gap-2">
               {/* Channel Selector Button */}
-              <button
-                type="button"
-                onClick={() => setShowChannelMenu((prev) => !prev)}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-zinc-800 hover:bg-zinc-750 text-emerald-400 border border-emerald-500/30 hover:border-emerald-500/60 transition-colors flex-shrink-0"
-                title="Switch radio channel"
-                aria-label={`Current channel: ${currentChannel.shortName}. Click to change channel`}
-              >
-                {getStationIcon(currentChannel.slug)}
-                <span className="hidden xs:inline">{currentChannel.shortName}</span>
-                <ChevronUp
-                  className={`w-3 h-3 text-emerald-400 transition-transform ${
-                    showChannelMenu ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
+              {publicChannels.length > 1 ? (
+                <button
+                  type="button"
+                  onClick={() => setShowChannelMenu((prev) => !prev)}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-zinc-800 hover:bg-zinc-750 text-emerald-400 border border-emerald-500/30 hover:border-emerald-500/60 transition-colors flex-shrink-0"
+                  title="Switch radio channel"
+                  aria-label={`Current channel: ${currentChannel.shortName}. Click to change channel`}
+                >
+                  {getStationIcon(currentChannel.slug)}
+                  <span className="hidden xs:inline">{currentChannel.shortName}</span>
+                  <ChevronUp
+                    className={`w-3 h-3 text-emerald-400 transition-transform ${
+                      showChannelMenu ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+              ) : (
+                <div
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-zinc-800 text-emerald-400 border border-emerald-500/30 flex-shrink-0"
+                  title="PromptFM Main Stage"
+                >
+                  {getStationIcon(currentChannel.slug)}
+                  <span className="hidden xs:inline">{currentChannel.shortName}</span>
+                </div>
+              )}
 
               <div className="flex items-center gap-1 min-w-0">
                 <span className="text-white font-semibold text-xs sm:text-sm truncate max-w-[110px] xs:max-w-[160px] sm:max-w-xs md:max-w-sm">

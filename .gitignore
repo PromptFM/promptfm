@@ -28,7 +28,7 @@ Thumbs.db
 !.env.example
 !.env.local.example
 .stryker-tmp
-reports/
+/reports/
 coverage/
 
 # Playwright

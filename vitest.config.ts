@@ -21,10 +21,14 @@ export default defineConfig({
       },
     },
   },
+  ssr: {
+    noExternal: ['flags'],
+  },
   resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-    },
+    alias: [
+      { find: 'next/headers', replacement: path.resolve(__dirname, './node_modules/next/headers.js') },
+      { find: '@', replacement: path.resolve(__dirname, './src') },
+    ],
   },
 });
 
