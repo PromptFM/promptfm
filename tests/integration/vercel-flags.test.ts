@@ -7,7 +7,7 @@ import { createAccessProof } from 'flags';
 import { GET as getVercelFlags } from '@/app/.well-known/vercel/flags/route';
 
 describe('Vercel Flags Discovery Endpoint (Integration)', () => {
-  const TEST_SECRET = 'test-secret-32-bytes-flags-secret-key-12345';
+  const TEST_SECRET = Buffer.alloc(32, 0).toString('base64url');
 
   beforeEach(() => {
     process.env.FLAGS_SECRET = TEST_SECRET;
