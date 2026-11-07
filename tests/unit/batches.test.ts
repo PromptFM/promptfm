@@ -29,24 +29,45 @@ vi.mock('@/lib/supabase/server', () => {
         if (table === 'channel_queue') {
           return {
             select: (cols?: string, opts?: { count?: string; head?: boolean }) => {
+              if (opts?.head) {
+                return {
+                  eq: (col: string, val: any) => ({
+                    is: (isCol: string, isVal: any) => {
+                      if (col !== 'channel_id' || isCol !== 'played_at') {
+                        return Promise.resolve({ count: 0, data: [], error: null });
+                      }
+                      return Promise.resolve({
+                        count: mockQueueTable.length,
+                        data: null,
+                        error: null,
+                      });
+                    },
+                  }),
+                };
+              }
               return {
-                eq: (col: string, val: any) => ({
-                  is: (isCol: string, isVal: any) => {
-                    if (col !== 'channel_id' || isCol !== 'played_at') {
-                      return Promise.resolve({ count: 0, data: [], error: null });
-                    }
-                    return Promise.resolve({
-                      count: mockQueueTable.length,
-                      data: null,
-                      error: null,
-                    });
-                  },
+                eq: () => ({
+                  is: () => ({
+                    order: () => ({
+                      limit: async () => ({
+                        data: mockQueueTable.map((item) => ({
+                          ...item,
+                          track: { id: item.track_id, title: 'Sunset Grooves' },
+                        })),
+                        error: null,
+                      }),
+                    }),
+                  }),
                 }),
               };
             },
             insert: (data: any) => {
               mockQueueTable.push(data);
-              return Promise.resolve({ data, error: null });
+              return {
+                select: () => ({
+                  single: async () => ({ data, error: null }),
+                }),
+              };
             },
           };
         }

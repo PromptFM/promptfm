@@ -514,17 +514,20 @@ export default function AdminDashboard() {
   const handleQueueTrack = async (track: Track, channelSlug = 'main') => {
     setActionLoadingId(`queue-${track.id}`);
     try {
-      const { data: ch } = await supabase.from('channels').select('id').eq('slug', channelSlug).maybeSingle();
-      if (!ch?.id) return;
-      const { error } = await supabase.from('channel_queue').insert({
-        channel_id: ch.id,
-        track_id: track.id,
-        requested_by: user?.email || 'Station Admin',
-        prompt_used: `Priority airplay requested from Station Studio Library`,
+      const res = await fetch('/api/admin/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          track_id: track.id,
+          channel: channelSlug,
+          requested_by: user?.email || 'Station Admin',
+        }),
       });
-      if (!error) {
+      if (res.ok) {
         await refreshData();
       }
+    } catch (err) {
+      console.error('Failed to queue track via unified pathway:', err);
     } finally {
       setActionLoadingId(null);
     }
@@ -1262,7 +1265,12 @@ export default function AdminDashboard() {
                       </button>
 
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-white truncate">{item.track.title}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold text-white truncate">{item.track.title}</p>
+                          <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            {index === 0 ? 'Up Next' : `ETA: ~${Math.max(1, Math.ceil((120 + index * 180) / 60))} mins`}
+                          </span>
+                        </div>
                         <p className="text-xs text-zinc-400 truncate">
                           {item.track.artist_name} • Requested by{' '}
                           <span className="text-emerald-400">{item.requested_by}</span>
