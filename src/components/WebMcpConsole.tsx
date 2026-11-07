@@ -122,6 +122,7 @@ export default function WebMcpConsole({
             Channel:
           </span>
           <select
+            aria-label="Target radio channel"
             value={selectedChannel}
             onChange={(e) => setSelectedChannel(e.target.value)}
             className="bg-zinc-900 border border-zinc-700 hover:border-zinc-500 rounded-lg px-2.5 py-1 text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
