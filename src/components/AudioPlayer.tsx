@@ -46,6 +46,7 @@ import {
   buildQueueDisplayItems,
   calculateTrackProgress,
   formatAudioTime,
+  getQueueDisplayMode,
 } from '@/lib/radio/progress';
 import { formatPageTitle, updateMediaSession } from '@/lib/player/media-session';
 
@@ -527,6 +528,10 @@ export default function AudioPlayer() {
 
         {/* Up Next Popover Modal */}
         {showUpNext && (() => {
+          const queueMode = getQueueDisplayMode(
+            nowPlaying ? ({ ...nowPlaying, id: nowPlaying.id || '' } as any) : null,
+            upNextList as any
+          );
           const modalQueueItems = buildQueueDisplayItems(
             nowPlaying ? ({ ...nowPlaying, id: nowPlaying.id || '' } as any) : null,
             upNextList as any,
@@ -535,23 +540,97 @@ export default function AudioPlayer() {
           );
 
           return (
-            <div className="absolute bottom-full right-3 sm:right-6 mb-2 max-w-[calc(100vw-24px)] sm:max-w-sm w-full bg-zinc-900 border border-zinc-700 rounded-xl p-3 shadow-2xl z-50 space-y-2 animate-in fade-in slide-in-from-bottom-2">
+            <div
+              id="player-queue-popover"
+              role="dialog"
+              aria-label={`Broadcast queue for ${currentChannel.name}`}
+              className="absolute bottom-full right-3 sm:right-6 mb-2 max-w-[calc(100vw-24px)] sm:max-w-sm w-full bg-zinc-900 border border-zinc-700 rounded-xl p-3 shadow-2xl z-50 space-y-2 animate-in fade-in slide-in-from-bottom-2"
+            >
               <div className="flex items-center justify-between text-[11px] font-semibold text-emerald-400">
                 <span className="flex items-center gap-1.5">
-                  <ListMusic className="w-3.5 h-3.5" />
-                  Up Next on {currentChannel.name}
+                  <ListMusic className="w-3.5 h-3.5" aria-hidden="true" />
+                  {queueMode === 'now-playing-only'
+                    ? `Live Queue on ${currentChannel.name}`
+                    : `Up Next on ${currentChannel.name}`}
                 </span>
                 <button
+                  type="button"
                   onClick={() => setShowUpNext(false)}
-                  className="text-zinc-500 hover:text-white"
+                  aria-label="Close queue popover"
+                  className="text-zinc-500 hover:text-white p-0.5"
                 >
                   ✕
                 </button>
               </div>
-              {modalQueueItems.length === 0 ? (
-                <p className="text-xs text-zinc-400 py-2">
+
+              {queueMode === 'empty' ? (
+                <p className="text-xs text-zinc-400 py-2" data-testid="player-queue-empty">
                   Automated rotation selecting from top-voted community tracks.
                 </p>
+              ) : queueMode === 'now-playing-only' ? (
+                <div className="space-y-2">
+                  {modalQueueItems.slice(0, 1).map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-2 rounded-lg text-xs bg-emerald-950/40 border border-emerald-500/60 shadow-sm space-y-1.5"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 flex-shrink-0 bg-emerald-500 text-black font-extrabold">
+                          <span className="w-1.5 h-1.5 rounded-full bg-black animate-ping" />
+                          ON AIR
+                        </span>
+                        <img
+                          src={item.cover_art_url || '/logo-mark.png'}
+                          alt={`${item.title} cover art`}
+                          className="w-8 h-8 rounded object-cover border border-zinc-800 flex-shrink-0"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src = '/logo-mark.png';
+                          }}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium truncate text-emerald-300 font-bold">{item.title}</p>
+                          <p className="text-[11px] text-zinc-400 truncate">{item.artist}</p>
+                        </div>
+                      </div>
+
+                      {item.progressPercent !== undefined && (
+                        <div className="space-y-1 pt-1 border-t border-emerald-500/20">
+                          <div className="flex justify-between text-[10px] text-zinc-400 font-mono">
+                            <span className="text-emerald-400 font-semibold">Playing Now</span>
+                            <span>{formatAudioTime(elapsedSeconds)} / {formatAudioTime(durationSeconds)}</span>
+                          </div>
+                          <div
+                            className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden"
+                            role="progressbar"
+                            aria-valuenow={item.progressPercent}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-label="Track playback progress"
+                          >
+                            <div
+                              className="h-full bg-emerald-400 rounded-full transition-all duration-1000 ease-linear"
+                              style={{ width: `${item.progressPercent}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Explicit status when no upcoming tracks are queued */}
+                  <div
+                    className="p-2.5 rounded-lg bg-zinc-950/80 border border-dashed border-zinc-800 text-xs space-y-1"
+                    data-testid="player-queue-standing-by"
+                  >
+                    <div className="flex items-center gap-1.5 text-zinc-300 font-medium">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
+                      <span>No upcoming tracks queued</span>
+                    </div>
+                    <p className="text-[11px] text-zinc-400 leading-snug">
+                      Automated rotation will select the next track from top-voted community songs.
+                    </p>
+                  </div>
+                </div>
               ) : (
                 <div className="space-y-1.5">
                   {modalQueueItems.slice(0, 4).map((item, i) => {
@@ -580,7 +659,7 @@ export default function AudioPlayer() {
                           </span>
                           <img
                             src={item.cover_art_url || '/logo-mark.png'}
-                            alt={item.title}
+                            alt={`${item.title} cover art`}
                             className="w-8 h-8 rounded object-cover border border-zinc-800 flex-shrink-0"
                             onError={(e) => {
                               (e.currentTarget as HTMLImageElement).src = '/logo-mark.png';
@@ -606,7 +685,14 @@ export default function AudioPlayer() {
                               <span className="text-emerald-400 font-semibold">Playing Now</span>
                               <span>{formatAudioTime(elapsedSeconds)} / {formatAudioTime(durationSeconds)}</span>
                             </div>
-                            <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
+                            <div
+                              className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden"
+                              role="progressbar"
+                              aria-valuenow={item.progressPercent}
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                              aria-label="Track playback progress"
+                            >
                               <div
                                 className="h-full bg-emerald-400 rounded-full transition-all duration-1000 ease-linear"
                                 style={{ width: `${item.progressPercent}%` }}
@@ -625,7 +711,7 @@ export default function AudioPlayer() {
                 onClick={() => setShowUpNext(false)}
                 className="mt-2.5 flex items-center justify-center gap-1.5 text-center text-xs text-emerald-400 hover:text-emerald-300 font-medium py-1.5 px-2 rounded-lg bg-zinc-950/70 border border-zinc-800 hover:border-emerald-500/30 transition-colors"
               >
-                <Calendar className="w-3.5 h-3.5" />
+                <Calendar className="w-3.5 h-3.5" aria-hidden="true" />
                 <span>Full 24-Hour Broadcast Schedule &rarr;</span>
               </Link>
             </div>
@@ -775,7 +861,10 @@ export default function AudioPlayer() {
           <button
             type="button"
             onClick={() => setShowUpNext((prev) => !prev)}
-            aria-label="Toggle Up Next airplay queue"
+            aria-label="Toggle live airplay queue"
+            aria-expanded={showUpNext}
+            aria-controls="player-queue-popover"
+            aria-haspopup="dialog"
             className={`flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-lg text-xs font-semibold transition-all border ${
               showUpNext
                 ? 'bg-emerald-500 text-black border-emerald-400 shadow-md shadow-emerald-500/20'
@@ -783,7 +872,7 @@ export default function AudioPlayer() {
             }`}
             title="See upcoming tracks"
           >
-            <ListMusic className={`w-3.5 h-3.5 ${showUpNext ? 'text-black' : 'text-emerald-400'}`} />
+            <ListMusic className={`w-3.5 h-3.5 ${showUpNext ? 'text-black' : 'text-emerald-400'}`} aria-hidden="true" />
             <span className="hidden sm:inline">Up Next</span>
           </button>
 
