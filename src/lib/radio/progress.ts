@@ -11,6 +11,24 @@ export interface TrackProgress {
   remainingSeconds: number;
 }
 
+export interface PlaybackProgressAria {
+  role: 'progressbar';
+  'aria-label': string;
+  'aria-valuenow': number;
+  'aria-valuemin': number;
+  'aria-valuemax': number;
+  'aria-valuetext': string;
+}
+
+export interface MobilePlaybackTimeInfo {
+  elapsed: string;
+  duration: string;
+  display: string;
+  ariaLabel: string;
+  percent: number;
+  remainingSeconds: number;
+}
+
 export interface QueueDisplayItem {
   id: string;
   title: string;
@@ -71,6 +89,43 @@ export function calculateTrackProgress(
     formattedDuration: formatAudioTime(safeDuration),
     isComplete,
     remainingSeconds,
+  };
+}
+
+/**
+ * Returns accessible ARIA attributes for a playback progress bar element.
+ */
+export function getPlaybackProgressAria(
+  elapsedSeconds: number,
+  durationSeconds?: number | null,
+  label?: string
+): PlaybackProgressAria {
+  const progress = calculateTrackProgress(elapsedSeconds, durationSeconds);
+  return {
+    role: 'progressbar',
+    'aria-label': label || 'Playback progress',
+    'aria-valuenow': progress.percent,
+    'aria-valuemin': 0,
+    'aria-valuemax': 100,
+    'aria-valuetext': `${progress.formattedElapsed} of ${progress.formattedDuration}`,
+  };
+}
+
+/**
+ * Formats elapsed and duration times optimized for mobile listeners and screen readers (Issue #87).
+ */
+export function formatMobilePlaybackTime(
+  elapsedSeconds: number,
+  durationSeconds?: number | null
+): MobilePlaybackTimeInfo {
+  const progress = calculateTrackProgress(elapsedSeconds, durationSeconds);
+  return {
+    elapsed: progress.formattedElapsed,
+    duration: progress.formattedDuration,
+    display: `${progress.formattedElapsed} / ${progress.formattedDuration}`,
+    ariaLabel: `Playback time: ${progress.formattedElapsed} of ${progress.formattedDuration}`,
+    percent: progress.percent,
+    remainingSeconds: progress.remainingSeconds,
   };
 }
 

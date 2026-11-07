@@ -32,6 +32,23 @@ test.describe('PromptFM Home Page & Navigation', () => {
     await expect(playButton).toBeVisible();
   });
 
+  test('renders accessible progress bar and mobile player controls on iPhone viewport (Issue #87)', async ({ page }) => {
+    // Mobile viewport (iPhone 13/14: 390x844)
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+
+    // Audio player container should exist with role="region"
+    const player = page.getByRole('region', { name: /Live radio player/i });
+    await expect(player).toBeVisible();
+
+    // Accessible playback progress bar
+    const progressBar = player.getByRole('progressbar');
+    await expect(progressBar).toBeVisible();
+    await expect(progressBar).toHaveAttribute('aria-label', /Playback progress/i);
+    await expect(progressBar).toHaveAttribute('aria-valuemin', '0');
+    await expect(progressBar).toHaveAttribute('aria-valuemax', '100');
+  });
+
   test('navigates to the live status page from the navigation or footer', async ({ page }) => {
     await page.goto('/');
 

@@ -11,10 +11,11 @@ import { synthesizeScheduledRequest, rejectScheduledRequest, synthesizeBatchAnno
 import { getAllDJs, getActiveDJ, getDJById, getAdsConfig, getActiveAdSpot } from '../src/lib/dj/roster';
 import { createAdminClient } from '../src/lib/supabase/server';
 import { broadcastToCommunity, castVoteForTrack } from '../src/lib/chat/bridge';
-import { submitContentReport, getRecentReports, resolveContentReport } from '../src/lib/safety/reports';
+import { submitContentReport, getRecentReports, resolveContentReport, auditContentReports } from '../src/lib/safety/reports';
 import { autoGenerateChannelGuardrails } from '../src/lib/safety/channel-guardrails';
-import { getAllChannels } from '../src/lib/radio/channels';
+import { getAllChannels, setChannelActiveOverride, isChannelActive } from '../src/lib/radio/channels';
 import { findTracksByVibe, indexTrackEmbedding } from '../src/lib/dj/rag';
+import { editTrackMetadata, deleteTrack } from '../src/lib/dj/track-management';
 import {
   registerTelegramWebhook,
   getTelegramWebhookInfo,
@@ -112,7 +113,10 @@ Live Video Streaming (YouTube & TikTok):
 Moderation & Schedule:
   channels list           List radio broadcast channels, assigned DJs & guardrail policies
   channels create <slug> <name> Create a channel with automated 18+ guardrails & disclaimers
-                          Flags: --18plus --dj <id> --desc "Vibe description"
+                          Flags: --18plus --dj <id> --desc "Vibe description" --disabled
+  channels enable <slug>  Enable a radio broadcast channel for airplay and discovery
+  channels disable <slug> Disable a radio broadcast channel (take offline / rollback)
+  channels toggle <slug>  Toggle a radio broadcast channel active/disabled status
   requests list           View scheduled Discord/Telegram requests by batch
   requests air <id>       Force-synthesize & air a scheduled dedication or request
   requests reject <id>    Remove item from batch with reason & notify user on Telegram/Discord
@@ -120,6 +124,10 @@ Moderation & Schedule:
   admin pending           List community tracks waiting for review
   admin approve <id>      Approve a pending track for airplay
   admin reject <id>       Reject a track
+  admin list              List all tracks in database
+  admin edit <id>         Update track metadata (title, artist, category, lyrics, explicit)
+                          Flags: --title "New" --artist "New" --category "New" --desc "New" --explicit true/false
+  admin delete <id>       Delete a track by UUID or title (supports --soft archival)
   schedule                Display declarative hourly programming from schedule.yaml
   help                    Show this guide
 `);
@@ -1118,7 +1126,116 @@ Moderation & Schedule:
         return;
       }
 
-      console.log('Admin subcommands: pending, approve <id>, reject <id>');
+      if (sub === 'edit') {
+        if (!targetId) {
+          console.error('Usage: npm run promptfm admin edit <id_or_title> [--title "New"] [--artist "New"] [--category "New"] [--desc "New"] [--lyrics "New"] [--explicit true|false] [--tool "Suno"]');
+          return;
+        }
+
+        const title = parseArg('--title');
+        const artist = parseArg('--artist');
+        const category = parseArg('--category');
+        const desc = parseArg('--desc') || parseArg('--description');
+        const lyrics = parseArg('--lyrics');
+        const tool = parseArg('--tool');
+        const explicitFlag = parseArg('--explicit');
+        const isExplicit = explicitFlag !== undefined ? explicitFlag === 'true' || explicitFlag === '1' : undefined;
+
+        try {
+          const res = await editTrackMetadata(
+            targetId,
+            {
+              title,
+              artist_name: artist,
+              category,
+              description: desc,
+              lyrics,
+              tool_used: tool,
+              is_explicit: isExplicit,
+            },
+            'Admin CLI'
+          );
+
+          console.log(`✅ ${res.message}`);
+          console.log(`• Title: "${res.track.title}" by ${res.track.artist_name}`);
+          console.log(`• Category: ${res.track.category} | Tool: ${res.track.tool_used} | Explicit: ${res.track.is_explicit ? 'Yes' : 'No'}`);
+          if (res.indexed) {
+            console.log(`• Semantic pgvector embedding re-indexed successfully.`);
+          }
+        } catch (err: unknown) {
+          console.error(`Failed to edit track:`, err instanceof Error ? err.message : String(err));
+        }
+        return;
+      }
+
+      if (sub === 'delete') {
+        if (!targetId) {
+          console.error('Usage: npm run promptfm admin delete <id_or_title> [--soft]');
+          return;
+        }
+
+        const isSoft = args.includes('--soft');
+
+        try {
+          const res = await deleteTrack(targetId, { softDelete: isSoft, actor: 'Admin CLI' });
+          console.log(`🗑️ ${res.message}`);
+        } catch (err: unknown) {
+          console.error(`Failed to delete track:`, err instanceof Error ? err.message : String(err));
+        }
+        return;
+      }
+
+      console.log('Admin subcommands: pending, approve <id>, reject <id>, edit <id> [flags], delete <id> [--soft]');
+      break;
+    }
+
+    case 'track':
+    case 'tracks': {
+      const sub = args[1];
+      const targetId = args[2];
+      if (sub === 'edit') {
+        const title = parseArg('--title');
+        const artist = parseArg('--artist');
+        const category = parseArg('--category');
+        const desc = parseArg('--desc') || parseArg('--description');
+        const lyrics = parseArg('--lyrics');
+        const tool = parseArg('--tool');
+        const explicitFlag = parseArg('--explicit');
+        const isExplicit = explicitFlag !== undefined ? explicitFlag === 'true' || explicitFlag === '1' : undefined;
+
+        if (!targetId) {
+          console.error('Usage: npm run promptfm track edit <id_or_title> [flags]');
+          return;
+        }
+
+        try {
+          const res = await editTrackMetadata(
+            targetId,
+            { title, artist_name: artist, category, description: desc, lyrics, tool_used: tool, is_explicit: isExplicit },
+            'Admin CLI'
+          );
+          console.log(`✅ ${res.message}`);
+        } catch (err: unknown) {
+          console.error(`Failed to edit track:`, err instanceof Error ? err.message : String(err));
+        }
+        return;
+      }
+
+      if (sub === 'delete') {
+        if (!targetId) {
+          console.error('Usage: npm run promptfm track delete <id_or_title> [--soft]');
+          return;
+        }
+        try {
+          const res = await deleteTrack(targetId, { softDelete: args.includes('--soft'), actor: 'Admin CLI' });
+          console.log(`🗑️ ${res.message}`);
+        } catch (err: unknown) {
+          console.error(`Failed to delete track:`, err instanceof Error ? err.message : String(err));
+        }
+        return;
+      }
+
+      console.log('Usage: npm run promptfm track [edit|delete] <id_or_title>');
       break;
     }
 
@@ -1160,28 +1277,60 @@ Moderation & Schedule:
         return;
       }
 
+      if (sub === 'audit') {
+        const limit = parseInt(parseArg('--limit') || '100', 10);
+        console.log('🔍 Auditing content reports for unattributed or suspicious modifications...\n');
+        const audit = await auditContentReports({ limit });
+
+        console.log('📋 Content Reports Moderation & Security Audit');
+        console.log('='.repeat(60));
+        console.log(`Audit Timestamp: ${audit.timestamp}`);
+        console.log(`Total Reports Analyzed: ${audit.total_reports}`);
+        console.log(`  • Pending:   ${audit.pending_count}`);
+        console.log(`  • Actioned:  ${audit.actioned_count}`);
+        console.log(`  • Dismissed: ${audit.dismissed_count}`);
+        console.log(`  • Reviewed:  ${audit.reviewed_count}`);
+        console.log(`Unaudited Modifications: ${audit.unaudited_count}`);
+        console.log(`Suspicious / High-Risk:   ${audit.suspicious_count}`);
+        console.log(`Status: ${audit.clean ? '✅ PASS - All resolved reports carry valid actor attribution' : '⚠️ WARNING - Unattributed or suspicious status changes detected!'}`);
+        console.log('='.repeat(60));
+
+        if (audit.flagged_items.length > 0) {
+          console.log('\n🚨 Flagged Items:');
+          for (const item of audit.flagged_items) {
+            console.log(`\n• [${item.severity.toUpperCase()}] ${item.report.id} (${item.report.reason}) -> ${item.report.status}`);
+            console.log(`  Target:         ${item.report.target_type} (${item.report.target_id})`);
+            console.log(`  Issue:          ${item.issue}`);
+            console.log(`  Message:        ${item.message}`);
+            console.log(`  Recommendation: ${item.recommendation}`);
+          }
+        }
+        return;
+      }
+
       if (sub === 'resolve' || sub === 'action') {
         const reportId = args[2];
         const action = (parseArg('--action') || 'actioned') as 'actioned' | 'dismissed';
         const notes = parseArg('--notes') || 'Resolved via PromptFM Admin CLI';
+        const actor = parseArg('--actor') || 'CLI Operator';
 
         if (!reportId) {
-          console.error('Usage: npm run promptfm -- report resolve <reportId> [--action actioned|dismissed] [--notes "explanation"]');
+          console.error('Usage: npm run promptfm -- report resolve <reportId> [--action actioned|dismissed] [--notes "explanation"] [--actor "moderator"]');
           return;
         }
 
-        const res = await resolveContentReport(reportId, action, notes);
-        console.log(`✅ Report ${res.reportId} marked as ${res.status.toUpperCase()}!`);
+        const res = await resolveContentReport(reportId, action, notes, actor);
+        console.log(`✅ Report ${res.reportId} marked as ${res.status.toUpperCase()} by ${res.resolved_by}!`);
         if (res.notes) console.log(`   Notes: "${res.notes}"`);
         return;
       }
 
-      console.log('Report commands: npm run promptfm -- report list | report file <id> [reason] [details] | report resolve <id> [--action actioned|dismissed]');
+      console.log('Report commands: npm run promptfm -- report list | report audit [--limit N] | report file <id> [reason] [details] | report resolve <id> [--action actioned|dismissed] [--notes "..."] [--actor "..."]');
       break;
     }
 
     case 'channels': {
-      const sub = args[1]; // 'list' | 'create'
+      const sub = args[1]; // 'list' | 'create' | 'enable' | 'disable' | 'toggle'
       if (sub === 'list' || !sub) {
         const official = getAllChannels();
         let dbChannels: any[] = [];
@@ -1207,6 +1356,7 @@ Moderation & Schedule:
             allowExplicit247: ch.allowExplicitAllDay ?? false,
             minAge: ch.minAge ?? 0,
             badge: ch.badge,
+            isActive: ch.isActive,
           });
         }
         for (const ch of dbChannels) {
@@ -1231,6 +1381,7 @@ Moderation & Schedule:
             allowExplicit247: ch.allow_explicit_24_7 ?? existing.allowExplicit247 ?? guard.allow_explicit_24_7,
             minAge: ch.min_age ?? existing.minAge ?? guard.min_age,
             badge: ch.badge || existing.badge || (guard.allow_explicit_24_7 ? '🔞 18+ Explicit' : '📻 Channel'),
+            isActive: ch.is_active !== undefined ? Boolean(ch.is_active) : (existing.isActive ?? false),
           });
         }
 
@@ -1242,7 +1393,37 @@ Moderation & Schedule:
             : ch.isFamilySafe
             ? '✅ FAMILY SAFE (All Ages)'
             : '⚡ 16+ STANDARD';
-          console.log(`• [${ch.slug.padEnd(12)}] "${ch.name}" | Host: ${ch.djName || ch.djId} | ${rating}`);
+          const status = ch.isActive ? '🟢 [ACTIVE]' : '🔴 [DISABLED]';
+          console.log(`• [${ch.slug.padEnd(12)}] "${ch.name}" | ${status} | Host: ${ch.djName || ch.djId} | ${rating}`);
+        }
+        return;
+      }
+
+      if (sub === 'enable' || sub === 'disable' || sub === 'toggle') {
+        const slug = args[2]?.toLowerCase().trim();
+        if (!slug) {
+          console.error(`Usage: npm run promptfm -- channels ${sub} <slug>`);
+          return;
+        }
+
+        const currentActive = isChannelActive(slug);
+        const nextActive = sub === 'enable' ? true : sub === 'disable' ? false : !currentActive;
+        setChannelActiveOverride(slug, nextActive);
+
+        try {
+          const supabase = createAdminClient();
+          const { error } = await supabase.from('channels').upsert({ slug, is_active: nextActive }, { onConflict: 'slug' });
+          if (error) {
+            console.warn(`[Warning] Database update had error: ${error.message}. Local override applied.`);
+          }
+        } catch (err: any) {
+          console.warn(`[Note] Database optional/offline. Local state updated.`);
+        }
+
+        if (nextActive) {
+          console.log(`✅ Channel "${slug}" is now ENABLED (Active for airplay & discovery).`);
+        } else {
+          console.log(`⛔ Channel "${slug}" is now DISABLED (Offline / Rolled back).`);
         }
         return;
       }
@@ -1251,11 +1432,13 @@ Moderation & Schedule:
         const slug = args[2]?.toLowerCase().trim();
         const name = args[3]?.trim();
         const is18Plus = args.includes('--18plus');
+        const isDisabled = args.includes('--disabled');
+        const isActive = !isDisabled;
         const djId = parseArg('--dj') || 'dj_neon';
         const desc = parseArg('--desc') || '';
 
         if (!slug || !name) {
-          console.error('Usage: npm run promptfm -- channels create <slug> <name> [--18plus] [--dj <djId>] [--desc "Description"]');
+          console.error('Usage: npm run promptfm -- channels create <slug> <name> [--18plus] [--disabled] [--dj <djId>] [--desc "Description"]');
           return;
         }
 
@@ -1280,6 +1463,7 @@ Moderation & Schedule:
           allow_explicit_24_7: guardrails.allow_explicit_24_7,
           age_gate_disclaimer: guardrails.age_gate_disclaimer,
           stream_url: `https://stream.promptfm.live/live?channel=${slug}`,
+          is_active: isActive,
         };
 
         const dbPayload = {
@@ -1291,7 +1475,10 @@ Moderation & Schedule:
           requires_age_gate: guardrails.requires_age_gate,
           allow_explicit_24_7: guardrails.allow_explicit_24_7,
           age_gate_disclaimer: guardrails.age_gate_disclaimer,
+          is_active: isActive,
         };
+
+        setChannelActiveOverride(slug, isActive);
 
         try {
           const supabase = createAdminClient();
@@ -1299,13 +1486,14 @@ Moderation & Schedule:
           if (error) {
             // Fallback to base columns if migration columns are not yet cached
             const { error: fallbackError } = await supabase.from('channels').upsert(
-              { slug, name, description: desc },
+              { slug, name, description: desc, is_active: isActive },
               { onConflict: 'slug' }
             );
             if (fallbackError) {
               console.error('Database Error:', fallbackError.message);
             } else {
               console.log(`✅ Channel "${name}" (${slug}) created in database with automated guardrails:`);
+              console.log(`   - Status:              ${isActive ? 'Active / Enabled' : 'Disabled / Inactive'}`);
               console.log(`   - 18+ Explicit 24/7:   ${guardrails.allow_explicit_24_7}`);
               console.log(`   - Age Gate Required:   ${guardrails.requires_age_gate}`);
               console.log(`   - Minimum Age:         ${guardrails.min_age}`);
@@ -1317,6 +1505,7 @@ Moderation & Schedule:
             }
           } else {
             console.log(`✅ Channel "${name}" (${slug}) created successfully with automated guardrails:`);
+            console.log(`   - Status:              ${isActive ? 'Active / Enabled' : 'Disabled / Inactive'}`);
             console.log(`   - 18+ Explicit 24/7:   ${guardrails.allow_explicit_24_7}`);
             console.log(`   - Age Gate Required:   ${guardrails.requires_age_gate}`);
             console.log(`   - Minimum Age:         ${guardrails.min_age}`);
@@ -1332,7 +1521,7 @@ Moderation & Schedule:
         return;
       }
 
-      console.log('Channels subcommands: npm run promptfm -- channels list | channels create <slug> <name> [--18plus]');
+      console.log('Channels subcommands: npm run promptfm -- channels list | channels create <slug> <name> [--18plus] [--disabled] | channels enable <slug> | channels disable <slug> | channels toggle <slug>');
       break;
     }
 

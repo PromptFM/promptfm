@@ -101,6 +101,9 @@ export interface ContentReport {
   reporter_id?: string | null;
   status: ReportStatus;
   created_at: string;
+  resolved_by?: string | null;
+  resolved_at?: string | null;
+  notes?: string | null;
 }
 
 export interface DatabaseChannel {
@@ -129,4 +132,32 @@ export interface UploadUrlResponse {
   presignedUrl: string;
   publicUrl: string;
   key: string;
+}
+
+export type FeatureFlagCategory =
+  | 'streaming'
+  | 'ai_dj'
+  | 'community'
+  | 'moderation'
+  | 'monetization'
+  | 'system';
+
+export interface FeatureFlagVariant {
+  key: string;
+  name: string;
+  weight?: number;
+}
+
+export interface FeatureFlag {
+  key: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  category: FeatureFlagCategory;
+  is_kill_switch: boolean;
+  rollout_percentage?: number;
+  variants?: FeatureFlagVariant[];
+  updated_at: string;
+  updated_by: string;
+  notes?: string | null;
 }

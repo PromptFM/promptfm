@@ -160,6 +160,7 @@ CREATE TABLE IF NOT EXISTS public.channels (
   name         TEXT        NOT NULL,
   description  TEXT,
   is_private   BOOLEAN     NOT NULL DEFAULT false,
+  is_active    BOOLEAN     NOT NULL DEFAULT true,
   invite_token TEXT,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -264,7 +265,10 @@ CREATE TABLE IF NOT EXISTS public.content_reports (
   reporter_platform   TEXT        NOT NULL CHECK (reporter_platform IN ('web', 'discord', 'telegram', 'mcp', 'api')),
   reporter_id         TEXT,       -- User UUID, platform ID, or IP hash
   status              TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'reviewed', 'actioned', 'dismissed')),
-  created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  resolved_by         TEXT,       -- Admin identifier or actor who resolved the report
+  resolved_at         TIMESTAMPTZ, -- Timestamp when resolution occurred
+  notes               TEXT        -- Moderation explanation or resolution notes
 );
 
 CREATE INDEX IF NOT EXISTS idx_content_reports_status
@@ -288,6 +292,10 @@ ALTER TABLE public.tracks ADD COLUMN IF NOT EXISTS cover_art_url TEXT;
 
 ALTER TABLE public.community_requests ADD COLUMN IF NOT EXISTS is_explicit BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE public.community_requests ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+
+ALTER TABLE public.content_reports ADD COLUMN IF NOT EXISTS resolved_by TEXT;
+ALTER TABLE public.content_reports ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ;
+ALTER TABLE public.content_reports ADD COLUMN IF NOT EXISTS notes TEXT;
 
 -- ----------------------------------------------------------------
 -- 12. STATION STATE (Persistent Airplay across serverless lambdas)
