@@ -70,7 +70,6 @@ export default function Navbar() {
           href="/"
           onClick={closeMenu}
           className="flex items-center gap-2.5 group flex-shrink-0"
-          aria-label="PromptFM home"
         >
           <div className="relative">
             <Image

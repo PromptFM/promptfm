@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Submit AI Music to PromptFM Radio',
     description:
-      'Submit your original AI tracks for airplay across 4 live stations and the weekly community chart.',
+      'Submit your original AI tracks for airplay on the PromptFM Main Stage and the weekly community chart.',
     url: '/submit',
   },
 };
