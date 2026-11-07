@@ -10,6 +10,7 @@ import { getActiveDJ } from './roster';
 import { broadcastToCommunity } from '../chat/bridge';
 import { evaluateContentSafety } from '../safety/guardrails';
 import { findTracksByVibe } from './rag';
+import { queueSong } from '../song/pathway';
 import { isFeatureEnabled } from '../flags/feature-flags';
 
 export type RequestType = 'song' | 'dedication' | 'weather' | 'news' | 'zodiac';
@@ -118,6 +119,42 @@ export async function scheduleListenerRequest(payload: ListenerRequestPayload): 
     };
   }
 
+  // If request is for a song, delegate to the unified song pathway (Issue #43)
+  if (payload.type === 'song') {
+    const songRes = await queueSong({
+      source: payload.platform,
+      requestedBy: payload.platform_user_name,
+      userId: payload.platform_user_id,
+      messageId: payload.platform_message_id,
+      prompt: payload.content,
+      dedicationTarget: payload.target,
+      allowFallbackRequest: true,
+    });
+
+    if (songRes.isRejected) {
+      return {
+        requestId: songRes.requestId || 'rejected',
+        batchId: 'REJECTED',
+        estimatedAirTime: 'None',
+        confirmationMessage: songRes.confirmationMessage,
+        isRejected: true,
+        rejectionReason: songRes.rejectionReason,
+      };
+    }
+
+    return {
+      requestId: songRes.requestId || songRes.queueItemId || 'song-req',
+      batchId: songRes.eta.batchId,
+      estimatedAirTime: songRes.eta.displayTime,
+      confirmationMessage: songRes.confirmationMessage,
+      isRejected: false,
+      rejectionReason: undefined,
+      queuePosition: songRes.position,
+      isProvisional: true,
+      estimatedMinutes: songRes.eta.waitMinutes,
+    };
+  }
+
   const supabase = createAdminClient();
 
   // ── A. Safety & Ethical Guardrails Pre-flight Check ────────────────────────
@@ -163,7 +200,7 @@ export async function scheduleListenerRequest(payload: ListenerRequestPayload): 
   let estimatedMinutes: number | undefined;
 
   let matchedTrack: { id: string; title: string; artist_name?: string } | null = null;
-  if (payload.type === 'song' || payload.type === 'dedication') {
+  if (payload.type === 'dedication') {
     try {
       const vibeMatches = await findTracksByVibe(payload.content, { limit: 1 });
       if (vibeMatches && vibeMatches.length > 0 && vibeMatches[0]) {
@@ -324,16 +361,6 @@ export async function scheduleListenerRequest(payload: ListenerRequestPayload): 
     case 'zodiac':
       confirmText = `✨ Cosmic AI Zodiac reading for ${payload.target || payload.content} locked in for ${batchId} (~${displayTime}) with ${activeDJ.name}.`;
       break;
-    case 'song': {
-      const posText = queuePosition === 1 ? 'Up next (#1 in queue)' : `#${queuePosition} in queue`;
-      const timeEst = `~${displayTime} (est. in ~${estimatedMinutes}m, provisional)`;
-      if (matchedTrack) {
-        confirmText = `🎵 Track "${matchedTrack.title}"${matchedTrack.artist_name ? ` by ${matchedTrack.artist_name}` : ''} queued for live airplay! Position: ${posText} • Scheduled for ${batchId} (${timeEst}). Check live queue anytime with /queue.`;
-      } else {
-        confirmText = `🎵 Track request "${payload.content}" added to airplay queue! Position: ${posText} • Scheduled for ${batchId} (${timeEst}). Check live queue anytime with /queue.`;
-      }
-      break;
-    }
     default:
       confirmText = `📢 Request scheduled for airplay in ${batchId} (~${displayTime}) with ${activeDJ.name}.`;
   }
