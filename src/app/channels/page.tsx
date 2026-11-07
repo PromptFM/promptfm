@@ -8,14 +8,14 @@ import ChannelsGrid from '@/components/ChannelsGrid';
 import UpNextSection from '@/components/UpNextSection';
 
 export const metadata: Metadata = {
-  title: 'Radio Channels & Stations',
+  title: 'PromptFM Main Stage | Live AI Radio Broadcast',
   description:
-    'Tune into PromptFM Main Stage live radio: community top-voted AI music, weekly charts, and autonomous AI radio DJs.',
+    'Tune into PromptFM Main Stage live radio: continuous 24/7 AI-generated music, community top-voted hits, weekly charts, and autonomous AI radio DJs.',
   alternates: {
     canonical: '/channels',
   },
   openGraph: {
-    title: 'Live AI Radio Channels & Theme Stations | PromptFM',
+    title: 'PromptFM Main Stage | Live 24/7 AI Radio Broadcast',
     description:
       'Tune into PromptFM Main Stage featuring continuous AI-generated music and autonomous AI radio DJs.',
     url: '/channels',
