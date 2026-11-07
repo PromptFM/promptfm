@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { scheduleListenerRequest, type RequestType } from '@/lib/dj/batches';
 import { getNowPlaying, getUpNext } from '@/lib/dj/rotation';
+import { getStationQueue, formatQueueForDiscord, formatQueueForTelegram } from '@/lib/dj/queue';
 import { castVoteForTrack } from '@/lib/chat/bridge';
 import { submitContentReport } from '@/lib/safety/reports';
 import { getBotHelpText } from '@/lib/community/commands';
@@ -220,19 +221,8 @@ export async function POST(req: NextRequest) {
         text.startsWith('/q@') ||
         text.startsWith('/n@')
       ) {
-        const upcoming = await getUpNext('main', 5);
-        let replyText = `⏭️ *Up Next on PromptFM:*\n\n`;
-        if (upcoming.length === 0) {
-          replyText += `Continuous community stream loaded. Request a song with /song <prompt>!`;
-        } else {
-          upcoming.forEach((item, index) => {
-            const etaStr = item.estimated_air_time ? ` (~${item.estimated_air_time}, provisional)` : '';
-            const reqStr = item.requested_by ? ` • 👤 Req by ${item.requested_by}` : '';
-            replyText += `${index + 1}. *"${item.title}"* by ${item.artist}${etaStr}${reqStr} ${item.tool_used ? `(${item.tool_used})` : ''} — 🔥 ${item.upvotes_count ?? 0} votes\n`;
-          });
-          replyText += `\n_ℹ️ Times are provisional estimates and update as tracks play live._`;
-        }
-        replyText += `\n[Tune in Live](${siteUrl})`;
+        const stationQueue = await getStationQueue({ channelSlug: 'main', upcomingLimit: 5, scheduledLimit: 5 });
+        const replyText = formatQueueForTelegram(stationQueue, siteUrl);
 
         if (botToken && chatId) {
           await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -247,7 +237,7 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        return NextResponse.json({ success: true, upcoming });
+        return NextResponse.json({ success: true, upcoming: stationQueue.upcoming, queue: stationQueue });
       }
 
       // Direct /vote <trackId> command
@@ -481,21 +471,11 @@ export async function POST(req: NextRequest) {
         commandName === 'q' ||
         commandName === 'n'
       ) {
-        const upcoming = await getUpNext('main', 5);
-        let listText = `⏭️ **Up Next on PromptFM:**\n\n`;
-        if (upcoming.length === 0) {
-          listText += `Continuous community stream loaded. Request a song with /song <prompt>!`;
-        } else {
-          upcoming.forEach((item, index) => {
-            const etaStr = item.estimated_air_time ? ` (~${item.estimated_air_time}, provisional)` : '';
-            const reqStr = item.requested_by ? ` • 👤 Req by ${item.requested_by}` : '';
-            listText += `${index + 1}. **"${item.title}"** by ${item.artist}${etaStr}${reqStr} — 🔥 ${item.upvotes_count ?? 0} votes\n`;
-          });
-          listText += `\n_ℹ️ Times are provisional estimates and update as tracks play live._`;
-        }
+        const stationQueue = await getStationQueue({ channelSlug: 'main', upcomingLimit: 5, scheduledLimit: 5 });
+        const content = formatQueueForDiscord(stationQueue, siteUrl);
         return NextResponse.json({
           type: 4,
-          data: { content: listText },
+          data: { content },
         });
       }
 
