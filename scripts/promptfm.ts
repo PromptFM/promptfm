@@ -7,6 +7,7 @@ loadEnvConfig(process.cwd());
 
 import { createBroadcastDrop, fetchLiveHeadlines } from '../src/lib/dj/engine';
 import { getNextAirplayItem, fetchLiveWeatherSummary, getNowPlaying, getUpNext } from '../src/lib/dj/rotation';
+import { getStationQueue, formatQueueForCLI } from '../src/lib/dj/queue';
 import { synthesizeScheduledRequest, rejectScheduledRequest, synthesizeBatchAnnouncement } from '../src/lib/dj/batches';
 import { getAllDJs, getActiveDJ, getDJById, getAdsConfig, getActiveAdSpot } from '../src/lib/dj/roster';
 import { createAdminClient } from '../src/lib/supabase/server';
@@ -70,7 +71,7 @@ Airplay Queue ("Up Next"):
   next                    Test the rotation clock: calculate what plays next (music, news, or weather)
   vote <trackId>          Cast an upvote for a track from terminal
   vibe <prompt>           pgvector semantic RAG search: discover tracks matching any vibe prompt
-  queue list              View the upcoming songs scheduled to play next
+  q / queue [list]        View the upcoming songs and scheduled requests to play next
   queue next <trackId>    Bump a track to the very top of the live queue
   queue remove <queueId>  Remove an item from the upcoming queue
   queue <prompt>          Find & queue a track matching a text vibe using semantic RAG
@@ -451,36 +452,14 @@ Moderation & Schedule:
       break;
     }
 
+    case 'q':
     case 'queue': {
       const sub = args[1];
       const supabase = createAdminClient();
 
-      if (sub === 'list') {
-        const { data: qData, error } = await supabase
-          .from('channel_queue')
-          .select('id, track_id, prompt_used, requested_by, created_at, track:tracks(title, artist_name, tool_used)')
-          .is('played_at', null)
-          .order('created_at', { ascending: true })
-          .limit(15);
-
-        if (error) {
-          console.error('Error fetching queue:', error.message);
-          return;
-        }
-
-        console.log(`\n🎵 PromptFM Active "Up Next" Queue (${qData?.length || 0} upcoming):`);
-        if (!qData || qData.length === 0) {
-          console.log('• Queue is empty. Looping community top chart tracks.');
-        } else {
-          qData.forEach((item, index) => {
-            const tr = (item as unknown as { track: { title: string; artist_name: string; tool_used: string } }).track;
-            console.log(
-              `  #${index + 1} [Queue ID: ${item.id}] "${tr?.title || 'Unknown'}" by ${tr?.artist_name || 'N/A'} (Requested by: ${item.requested_by}${
-                item.prompt_used ? ` - "${item.prompt_used}"` : ''
-              })`
-            );
-          });
-        }
+      if (!sub || sub === 'list') {
+        const stationQueue = await getStationQueue({ channelSlug: 'main', upcomingLimit: 10, scheduledLimit: 10 });
+        console.log(formatQueueForCLI(stationQueue));
         return;
       }
 
@@ -1617,7 +1596,13 @@ Moderation & Schedule:
   }
 }
 
-main().catch((err) => {
-  console.error('Fatal CLI Error:', err);
-  process.exit(1);
-});
+main()
+  .then(() => {
+    if (command !== 'listen') {
+      process.exit(0);
+    }
+  })
+  .catch((err) => {
+    console.error('Fatal CLI Error:', err);
+    process.exit(1);
+  });

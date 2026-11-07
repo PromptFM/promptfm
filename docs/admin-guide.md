@@ -82,7 +82,7 @@ Every administrative capability is designed with **100% feature parity** across 
 | **Approve Community Track** | Click "Approve" (✓) | `admin approve <trackId>` | `promptfm_admin_moderate_track` (`action: 'approved'`) |
 | **Reject Community Track** | Click "Reject" (✗) | `admin reject <trackId>` | `promptfm_admin_moderate_track` (`action: 'rejected'`) |
 | **Audio Preview / Stream** | In-browser audio player | `listen` (mpv/ffplay) | Track `audio_url` in response |
-| **Inspect Live "Up Next" Queue** | Live Queue Tab | `queue list` / `next` | `promptfm_get_up_next` |
+| **Inspect Live "Up Next" Queue** | Live Queue Tab | `q` / `queue list` | `promptfm_get_up_next` (includes scheduled batch requests) |
 | **Remove Item from Queue** | Trash icon on queue item | `queue remove <queueId>` | `promptfm_admin_remove_from_queue` |
 | **Bump Track to Front of Queue** | N/A | `queue next <trackId>` | `promptfm_admin_inject_interstitial` |
 | **List Community Batches/Requests** | Batches Tab | `requests list` | `promptfm_admin_list_requests` |

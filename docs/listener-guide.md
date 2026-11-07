@@ -10,8 +10,8 @@ Listeners can directly control the radio stream, inspect the airplay queue, vote
 
 | Command | Platform | Description | Example |
 | :--- | :--- | :--- | :--- |
-| `/song <title or vibe>` | Discord & Telegram | Requests and auto-enqueues an approved AI music track into the live radio stream next | `/song cyberpunk neon synthwave` |
-| `/queue` or `/next` | Discord & Telegram | Displays the upcoming 5 tracks scheduled on air and pending listener requests | `/queue` |
+| `/song <title or vibe>` (or `/s`) | Discord & Telegram | Requests and auto-enqueues an approved AI music track into the live radio stream next | `/song cyberpunk neon synthwave` |
+| `/queue`, `/next`, `/q`, `/n` | Discord & Telegram | Displays upcoming airplay tracks and scheduled listener batch requests with ETA & status (never blank) | `/q` |
 | `/nowplaying` or `/np` | Discord & Telegram | Displays the active on-air song, artist, AI tool, host DJ, and interactive upvote button | `/nowplaying` |
 | `/vote <track_id>` | Discord & Telegram | Casts an upvote for any track to boost its weekly chart ranking | `/vote 186f9b8c-...` |
 | `/dedicate @user <message>` | Discord & Telegram | Submits a shoutout or dedication to be announced in the next 15-minute batch | `/dedicate @maria Happy Birthday!` |

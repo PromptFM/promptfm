@@ -11,6 +11,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { broadcastToCommunity } from '@/lib/chat/bridge';
 import { createBroadcastDrop } from '@/lib/dj/engine';
 import { fetchLiveWeatherSummary, getNowPlaying, getUpNext } from '@/lib/dj/rotation';
+import { getStationQueue, formatQueueForDiscord, formatQueueForTelegram } from '@/lib/dj/queue';
 import { getAllDJs, getActiveDJ, getDJById, getAdsConfig, getActiveAdSpot } from '@/lib/dj/roster';
 import { rejectScheduledRequest, synthesizeScheduledRequest } from '@/lib/dj/batches';
 import { submitContentReport, getRecentReports, resolveContentReport } from '@/lib/safety/reports';
@@ -821,11 +822,12 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
     case 'promptfm_get_up_next': {
       const channel = (args.channel as string) || 'main';
       const limit = typeof args.limit === 'number' ? Math.min(args.limit, 10) : 5;
-      const upcoming = await getUpNext(channel, limit);
+      const stationQueue = await getStationQueue({ channelSlug: channel, upcomingLimit: limit, scheduledLimit: limit });
       return {
         channel,
-        upcoming_count: upcoming.length,
-        up_next: upcoming.map((item, idx) => ({
+        upcoming_count: stationQueue.upcoming.length,
+        scheduled_count: stationQueue.scheduledRequests.length,
+        up_next: stationQueue.upcoming.map((item, idx) => ({
           position: idx + 1,
           id: item.id,
           title: item.title,
@@ -833,6 +835,19 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
           tool_used: item.tool_used,
           upvotes_count: item.upvotes_count ?? 0,
         })),
+        scheduled_requests: stationQueue.scheduledRequests.map((req) => ({
+          id: req.id,
+          type: req.type,
+          content: req.content,
+          target: req.target,
+          platform: req.platform,
+          platform_user_name: req.platform_user_name,
+          batch_id: req.batch_id,
+          status: req.status,
+          estimated_air_time: req.estimated_air_time,
+        })),
+        formatted_discord: formatQueueForDiscord(stationQueue),
+        formatted_telegram: formatQueueForTelegram(stationQueue),
       };
     }
 
