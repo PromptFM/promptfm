@@ -29,6 +29,19 @@ body {
   overflow-x: hidden;
 }
 
+/* ── Mobile Safe Area Handling ───────────────────────────────────────────── */
+:root {
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.mb-safe {
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 /* ── Custom range (volume) slider ─────────────────────────────────────────── */
 input[type='range'] {
   -webkit-appearance: none;

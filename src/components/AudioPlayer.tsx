@@ -47,6 +47,10 @@ import {
   calculateTrackProgress,
   formatAudioTime,
 } from '@/lib/radio/progress';
+import {
+  formatMobilePlayerTime,
+  getPopoverPositionClasses,
+} from '@/lib/radio/mobile-layout';
 import { formatPageTitle, updateMediaSession } from '@/lib/player/media-session';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -443,7 +447,7 @@ export default function AudioPlayer() {
         className={[
           'fixed bottom-0 inset-x-0 z-50',
           'bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800',
-          'px-3 py-2 sm:px-6 sm:py-2.5',
+          'px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:py-2.5',
           'flex items-center justify-between gap-2 sm:gap-4',
         ].join(' ')}
         role="region"
@@ -458,8 +462,11 @@ export default function AudioPlayer() {
         </div>
         {/* Channel Switcher Popover Menu */}
         {showChannelMenu && (
-          <div className="absolute bottom-full left-3 sm:left-6 mb-2 w-[calc(100vw-24px)] sm:w-80 bg-zinc-900 border border-zinc-700/80 rounded-2xl p-3 shadow-2xl z-50 animate-in fade-in slide-in-from-bottom-2 space-y-2">
-            <div className="flex items-center justify-between px-1 text-xs font-bold text-zinc-300 border-b border-zinc-800 pb-2">
+          <div
+            data-testid="channels-popover"
+            className={`${getPopoverPositionClasses('channels')} bg-zinc-900 border border-zinc-700/80 rounded-2xl p-3 shadow-2xl space-y-2`}
+          >
+            <div className="flex items-center justify-between px-1 text-xs font-bold text-zinc-300 border-b border-zinc-800 pb-2 flex-shrink-0">
               <span className="flex items-center gap-1.5 text-emerald-400">
                 <Radio className="w-3.5 h-3.5" />
                 Live Radio Channels
@@ -467,13 +474,14 @@ export default function AudioPlayer() {
               <button
                 type="button"
                 onClick={() => setShowChannelMenu(false)}
-                className="text-zinc-500 hover:text-white text-xs px-1"
+                className="text-zinc-500 hover:text-white text-xs px-1 min-w-[24px] min-h-[24px] flex items-center justify-center rounded"
+                aria-label="Close channels menu"
               >
                 ✕
               </button>
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 overflow-y-auto max-h-[50vh] pr-0.5">
               {OFFICIAL_CHANNELS.map((ch) => {
                 const isSelected = ch.slug === currentChannelSlug;
                 return (
@@ -509,19 +517,26 @@ export default function AudioPlayer() {
 
         {/* Transcript Popover Modal */}
         {showTranscript && nowPlaying?.transcript && (
-          <div className="absolute bottom-full left-3 sm:left-6 mb-2 max-w-[calc(100vw-24px)] sm:max-w-md w-full bg-zinc-900 border border-zinc-700 rounded-xl p-3 shadow-2xl z-50 space-y-1.5 animate-in fade-in slide-in-from-bottom-2">
-            <div className="flex items-center justify-between text-[11px] font-semibold text-emerald-400">
+          <div
+            data-testid="transcript-popover"
+            className={`${getPopoverPositionClasses('transcript')} bg-zinc-900 border border-zinc-700 rounded-xl p-3 shadow-2xl space-y-1.5`}
+          >
+            <div className="flex items-center justify-between text-[11px] font-semibold text-emerald-400 border-b border-zinc-800 pb-1.5 flex-shrink-0">
               <span>🎙️ Spoken on Air by {nowPlaying.active_dj?.name || currentChannel.djName}</span>
               <button
+                type="button"
                 onClick={() => setShowTranscript(false)}
-                className="text-zinc-500 hover:text-white"
+                className="text-zinc-500 hover:text-white min-w-[20px] min-h-[20px] flex items-center justify-center"
+                aria-label="Close transcript"
               >
                 ✕
               </button>
             </div>
-            <p className="text-xs text-zinc-200 leading-relaxed italic">
-              &ldquo;{nowPlaying.transcript}&rdquo;
-            </p>
+            <div className="overflow-y-auto max-h-[40vh] pr-0.5">
+              <p className="text-xs text-zinc-200 leading-relaxed italic">
+                &ldquo;{nowPlaying.transcript}&rdquo;
+              </p>
+            </div>
           </div>
         )}
 
@@ -535,26 +550,31 @@ export default function AudioPlayer() {
           );
 
           return (
-            <div className="absolute bottom-full right-3 sm:right-6 mb-2 max-w-[calc(100vw-24px)] sm:max-w-sm w-full bg-zinc-900 border border-zinc-700 rounded-xl p-3 shadow-2xl z-50 space-y-2 animate-in fade-in slide-in-from-bottom-2">
-              <div className="flex items-center justify-between text-[11px] font-semibold text-emerald-400">
+            <div
+              data-testid="upnext-popover"
+              className={`${getPopoverPositionClasses('upNext')} bg-zinc-900 border border-zinc-700 rounded-xl p-3 shadow-2xl space-y-2`}
+            >
+              <div className="flex items-center justify-between text-[11px] font-semibold text-emerald-400 border-b border-zinc-800 pb-1.5 flex-shrink-0">
                 <span className="flex items-center gap-1.5">
                   <ListMusic className="w-3.5 h-3.5" />
                   Up Next on {currentChannel.name}
                 </span>
                 <button
+                  type="button"
                   onClick={() => setShowUpNext(false)}
-                  className="text-zinc-500 hover:text-white"
+                  className="text-zinc-500 hover:text-white min-w-[20px] min-h-[20px] flex items-center justify-center"
+                  aria-label="Close Up Next queue"
                 >
                   ✕
                 </button>
               </div>
-              {modalQueueItems.length === 0 ? (
-                <p className="text-xs text-zinc-400 py-2">
-                  Automated rotation selecting from top-voted community tracks.
-                </p>
-              ) : (
-                <div className="space-y-1.5">
-                  {modalQueueItems.slice(0, 4).map((item, i) => {
+              <div className="overflow-y-auto max-h-[50vh] pr-0.5 space-y-1.5">
+                {modalQueueItems.length === 0 ? (
+                  <p className="text-xs text-zinc-400 py-2">
+                    Automated rotation selecting from top-voted community tracks.
+                  </p>
+                ) : (
+                  modalQueueItems.slice(0, 4).map((item, i) => {
                     const isCurrent = item.isCurrent;
                     return (
                       <div
@@ -616,14 +636,14 @@ export default function AudioPlayer() {
                         )}
                       </div>
                     );
-                  })}
-                </div>
-              )}
+                  })
+                )}
+              </div>
 
               <Link
                 href={`/schedule?channel=${currentChannel.slug}`}
                 onClick={() => setShowUpNext(false)}
-                className="mt-2.5 flex items-center justify-center gap-1.5 text-center text-xs text-emerald-400 hover:text-emerald-300 font-medium py-1.5 px-2 rounded-lg bg-zinc-950/70 border border-zinc-800 hover:border-emerald-500/30 transition-colors"
+                className="mt-2 flex items-center justify-center gap-1.5 text-center text-xs text-emerald-400 hover:text-emerald-300 font-medium py-1.5 px-2 rounded-lg bg-zinc-950/70 border border-zinc-800 hover:border-emerald-500/30 transition-colors flex-shrink-0"
               >
                 <Calendar className="w-3.5 h-3.5" />
                 <span>Full 24-Hour Broadcast Schedule &rarr;</span>
@@ -706,7 +726,7 @@ export default function AudioPlayer() {
               <button
                 type="button"
                 onClick={() => setShowChannelMenu((prev) => !prev)}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-zinc-800 hover:bg-zinc-750 text-emerald-400 border border-emerald-500/30 hover:border-emerald-500/60 transition-colors flex-shrink-0"
+                className="flex items-center gap-1 px-1.5 xs:px-2 py-0.5 rounded-md text-[11px] font-bold bg-zinc-800 hover:bg-zinc-750 text-emerald-400 border border-emerald-500/30 hover:border-emerald-500/60 transition-colors flex-shrink-0"
                 title="Switch radio channel"
                 aria-label={`Current channel: ${currentChannel.shortName}. Click to change channel`}
               >
@@ -719,13 +739,13 @@ export default function AudioPlayer() {
                 />
               </button>
 
-              <div className="flex items-center gap-1 min-w-0">
-                <span className="text-white font-semibold text-xs sm:text-sm truncate max-w-[110px] xs:max-w-[160px] sm:max-w-xs md:max-w-sm">
+              <div className="flex items-center gap-1 min-w-0 flex-1">
+                <span className="text-white font-semibold text-xs sm:text-sm truncate min-w-0 flex-1">
                   {nowPlaying ? nowPlaying.title : currentChannel.name}
                 </span>
               </div>
 
-              <div className="hidden xs:flex items-center">
+              <div className="hidden xs:flex items-center flex-shrink-0">
                 <EqualizerBars playing={isPlaying} />
               </div>
 
@@ -735,13 +755,13 @@ export default function AudioPlayer() {
               </span>
             </div>
 
-            <div className="flex items-center gap-2 mt-0.5">
-              <p className="text-[11px] sm:text-xs text-zinc-400 truncate max-w-[120px] xs:max-w-[160px] sm:max-w-xs">
+            <div className="flex items-center gap-1.5 sm:gap-2 mt-0.5 min-w-0">
+              <p className="text-[11px] sm:text-xs text-zinc-400 truncate min-w-0 flex-1">
                 {nowPlaying ? nowPlaying.artist : isPlaying ? currentChannel.vibe : 'Click play to tune in'}
               </p>
               {nowPlaying && (
-                <span className="text-[10px] font-mono text-emerald-400/90 bg-zinc-900 border border-zinc-800 px-1.5 py-0.2 rounded hidden sm:inline-flex">
-                  {formatAudioTime(elapsedSeconds)} / {formatAudioTime(durationSeconds)}
+                <span className="text-[10px] font-mono text-emerald-400/90 bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded inline-flex items-center flex-shrink-0">
+                  {formatMobilePlayerTime(elapsedSeconds, durationSeconds)}
                 </span>
               )}
               {nowPlaying?.transcript && (
@@ -749,6 +769,7 @@ export default function AudioPlayer() {
                   type="button"
                   onClick={() => setShowTranscript((prev) => !prev)}
                   className="flex items-center gap-1 text-[10px] font-semibold text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 flex-shrink-0"
+                  aria-label="View spoken transcript"
                 >
                   <MessageSquareQuote className="w-3 h-3" />
                   <span className="hidden xs:inline">Transcript</span>
@@ -804,23 +825,23 @@ export default function AudioPlayer() {
             </button>
           )}
 
-          {/* Report button (visible on sm+) */}
+          {/* Report button — accessible on mobile and desktop */}
           <button
             type="button"
             onClick={() => setReportOpen(true)}
             aria-label="Report current broadcast"
             title="Report track or broadcast violation"
-            className="hidden sm:inline-flex text-zinc-500 hover:text-amber-400 p-1.5 rounded-lg hover:bg-zinc-800 transition-colors"
+            className="text-zinc-500 hover:text-amber-400 p-1.5 rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center flex-shrink-0"
           >
             <Flag className="w-3.5 h-3.5" />
           </button>
 
-          {/* Volume controls (desktop & tablet only — mobile uses hardware volume) */}
-          <div className="hidden sm:flex items-center gap-1.5">
+          {/* Volume controls — mute button accessible on mobile, slider on sm+ */}
+          <div className="flex items-center gap-1 sm:gap-1.5">
             <button
               onClick={handleMuteToggle}
               aria-label={muted ? 'Unmute' : 'Mute'}
-              className="text-zinc-400 hover:text-white transition-colors p-1"
+              className="text-zinc-400 hover:text-white transition-colors p-1 rounded-md hover:bg-zinc-800"
             >
               {muted || volume === 0 ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
             </button>
@@ -833,7 +854,7 @@ export default function AudioPlayer() {
               value={muted ? 0 : volume}
               onChange={handleVolumeChange}
               aria-label="Volume"
-              className="w-20 md:w-24 h-1 rounded-full accent-emerald-400 cursor-pointer appearance-none bg-zinc-700"
+              className="hidden sm:inline-block w-20 md:w-24 h-1 rounded-full accent-emerald-400 cursor-pointer appearance-none bg-zinc-700"
             />
           </div>
         </div>
