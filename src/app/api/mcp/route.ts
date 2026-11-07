@@ -27,17 +27,13 @@ import {
 } from '@/lib/radio/channels';
 import { findTracksByVibe, indexTrackEmbedding } from '@/lib/dj/rag';
 import { postTweetToX } from '@/lib/social/x-client';
+import { editTrackMetadata, deleteTrack } from '@/lib/dj/track-management';
 import {
   startStream,
   stopStream,
   getStreamStatus,
   type StreamPlatform,
 } from '@/lib/streaming/rtmp-controller';
-import {
-  getAllFeatureFlags,
-  setFeatureFlag,
-  type FeatureFlagCategory,
-} from '@/lib/flags/feature-flags';
 import type { ReportReason, ReportTargetType } from '@/types/database';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
@@ -213,48 +209,6 @@ const PUBLIC_MCP_TOOLS = [
 // ── Admin-Only MCP Tools ─────────────────────────────────────────────────────
 
 const ADMIN_MCP_TOOLS = [
-  {
-    name: 'promptfm_admin_list_feature_flags',
-    description:
-      'Lists all PromptFM runtime feature flags, status, categories, and emergency kill switches.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        category: {
-          type: 'string',
-          enum: ['streaming', 'ai_dj', 'community', 'moderation', 'monetization', 'system'],
-          description: 'Filter flags by functional domain category',
-        },
-        kill_switch_only: {
-          type: 'boolean',
-          description: 'Return only emergency kill switches',
-        },
-      },
-    },
-  },
-  {
-    name: 'promptfm_admin_set_feature_flag',
-    description:
-      'Enables, disables, or toggles a runtime feature flag or emergency kill switch with notes and actor attribution.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        key: {
-          type: 'string',
-          description: 'The identifier of the feature flag (e.g. "community_requests", "maintenance_mode", "ai_dj_speech")',
-        },
-        enabled: {
-          type: 'boolean',
-          description: 'Whether to enable (true) or disable (false) the feature flag',
-        },
-        notes: {
-          type: 'string',
-          description: 'Reason or context for changing this feature flag',
-        },
-      },
-      required: ['key', 'enabled'],
-    },
-  },
   {
     name: 'promptfm_admin_audit_reports',
     description:
@@ -565,6 +519,43 @@ const ADMIN_MCP_TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {},
+    },
+  },
+  {
+    name: 'promptfm_admin_edit_track',
+    description:
+      'Updates track metadata (title, artist_name, category, description, lyrics, is_explicit, tool_used) for an existing track in the PromptFM catalog by UUID or exact title match.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        track_id: { type: 'string', description: 'The UUID or title of the track to edit' },
+        title: { type: 'string', description: 'Updated title of the track' },
+        artist_name: { type: 'string', description: 'Updated artist or producer name' },
+        category: { type: 'string', description: 'Updated musical genre or theme category' },
+        description: { type: 'string', description: 'Updated description of vibe or generation prompt' },
+        lyrics: { type: 'string', description: 'Updated track lyrics transcript' },
+        is_explicit: { type: 'boolean', description: 'Whether the track contains explicit lyrics' },
+        tool_used: { type: 'string', description: 'AI music generator tool used (Suno, Udio, etc.)' },
+        audit_actor: { type: 'string', description: 'Station operator or agent making the update' },
+      },
+      required: ['track_id'],
+    },
+  },
+  {
+    name: 'promptfm_admin_delete_track',
+    description:
+      'Deletes or archives a track from the PromptFM library by UUID or title match. Supports permanent hard delete or soft-delete archival.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        track_id: { type: 'string', description: 'The UUID or title of the track to delete' },
+        soft_delete: {
+          type: 'boolean',
+          description: 'If true, sets status to "rejected" (soft delete archive); if false, permanently deletes track record',
+        },
+        audit_actor: { type: 'string', description: 'Station operator or agent executing the deletion' },
+      },
+      required: ['track_id'],
     },
   },
 ];
@@ -967,30 +958,6 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
   }
 
   switch (name) {
-    case 'promptfm_admin_list_feature_flags': {
-      const category = args.category as FeatureFlagCategory | undefined;
-      const killSwitchOnly = Boolean(args.kill_switch_only);
-      const flags = getAllFeatureFlags({ category, killSwitchOnly });
-      return {
-        success: true,
-        flags,
-      };
-    }
-
-    case 'promptfm_admin_set_feature_flag': {
-      const { key, enabled, notes } = args as { key: string; enabled: boolean; notes?: string };
-      const updated = await setFeatureFlag({
-        key,
-        enabled,
-        actor: 'mcp_admin',
-        notes: notes || 'Updated via MCP admin tool',
-      });
-      return {
-        success: true,
-        flag: updated,
-      };
-    }
-
     case 'promptfm_admin_audit_reports': {
       const limit = typeof args.limit === 'number' ? args.limit : 100;
       const audit = await auditContentReports({ limit });
@@ -1536,6 +1503,38 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
         success: true,
         ...status,
       };
+    }
+
+    case 'promptfm_admin_edit_track': {
+      const trackId = args.track_id as string;
+      if (!trackId) throw new Error('Missing track_id');
+      const actor = (args.audit_actor as string) || (isAdmin ? 'Admin MCP' : 'Unknown');
+
+      const result = await editTrackMetadata(
+        trackId,
+        {
+          title: args.title as string | undefined,
+          artist_name: args.artist_name as string | undefined,
+          category: args.category as string | undefined,
+          description: args.description as string | undefined,
+          lyrics: args.lyrics as string | undefined,
+          is_explicit: args.is_explicit !== undefined ? Boolean(args.is_explicit) : undefined,
+          tool_used: args.tool_used as string | undefined,
+        },
+        actor
+      );
+
+      return result;
+    }
+
+    case 'promptfm_admin_delete_track': {
+      const trackId = args.track_id as string;
+      if (!trackId) throw new Error('Missing track_id');
+      const softDelete = Boolean(args.soft_delete);
+      const actor = (args.audit_actor as string) || (isAdmin ? 'Admin MCP' : 'Unknown');
+
+      const result = await deleteTrack(trackId, { softDelete, actor });
+      return result;
     }
 
     default:

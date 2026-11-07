@@ -15,6 +15,7 @@ import { submitContentReport, getRecentReports, resolveContentReport, auditConte
 import { autoGenerateChannelGuardrails } from '../src/lib/safety/channel-guardrails';
 import { getAllChannels, setChannelActiveOverride, isChannelActive } from '../src/lib/radio/channels';
 import { findTracksByVibe, indexTrackEmbedding } from '../src/lib/dj/rag';
+import { editTrackMetadata, deleteTrack } from '../src/lib/dj/track-management';
 import {
   registerTelegramWebhook,
   getTelegramWebhookInfo,
@@ -40,13 +41,6 @@ import {
   stopStream,
   type StreamPlatform,
 } from '../src/lib/streaming/rtmp-controller';
-import {
-  getAllFeatureFlags,
-  getFeatureFlag,
-  setFeatureFlag,
-  toggleFeatureFlag,
-  type FeatureFlagCategory,
-} from '../src/lib/flags/feature-flags';
 import { execSync } from 'child_process';
 import { readFileSync, writeFileSync, appendFileSync, existsSync } from 'fs';
 import { join, basename } from 'path';
@@ -116,14 +110,6 @@ Live Video Streaming (YouTube & TikTok):
   stream stop youtube     Stop YouTube live stream
   stream stop tiktok      Stop TikTok live stream
 
-Feature Flags & Emergency Kill Switches:
-  flags list [--cat <category>] List all feature flags, status & emergency kill switches
-  flags get <key>               Inspect feature flag status and audit history
-  flags enable <key> [--notes]  Enable a feature flag with optional audit reason
-  flags disable <key> [--notes] Disable a feature flag with optional audit reason
-  flags toggle <key> [--notes]  Toggle a feature flag on/off
-  flags kill <key> [--notes]    Emergency kill-switch: immediately disable a feature
-
 Moderation & Schedule:
   channels list           List radio broadcast channels, assigned DJs & guardrail policies
   channels create <slug> <name> Create a channel with automated 18+ guardrails & disclaimers
@@ -138,6 +124,10 @@ Moderation & Schedule:
   admin pending           List community tracks waiting for review
   admin approve <id>      Approve a pending track for airplay
   admin reject <id>       Reject a track
+  admin list              List all tracks in database
+  admin edit <id>         Update track metadata (title, artist, category, lyrics, explicit)
+                          Flags: --title "New" --artist "New" --category "New" --desc "New" --explicit true/false
+  admin delete <id>       Delete a track by UUID or title (supports --soft archival)
   schedule                Display declarative hourly programming from schedule.yaml
   help                    Show this guide
 `);
@@ -1136,90 +1126,117 @@ Moderation & Schedule:
         return;
       }
 
-      console.log('Admin subcommands: pending, approve <id>, reject <id>');
+      if (sub === 'edit') {
+        if (!targetId) {
+          console.error('Usage: npm run promptfm admin edit <id_or_title> [--title "New"] [--artist "New"] [--category "New"] [--desc "New"] [--lyrics "New"] [--explicit true|false] [--tool "Suno"]');
+          return;
+        }
+
+        const title = parseArg('--title');
+        const artist = parseArg('--artist');
+        const category = parseArg('--category');
+        const desc = parseArg('--desc') || parseArg('--description');
+        const lyrics = parseArg('--lyrics');
+        const tool = parseArg('--tool');
+        const explicitFlag = parseArg('--explicit');
+        const isExplicit = explicitFlag !== undefined ? explicitFlag === 'true' || explicitFlag === '1' : undefined;
+
+        try {
+          const res = await editTrackMetadata(
+            targetId,
+            {
+              title,
+              artist_name: artist,
+              category,
+              description: desc,
+              lyrics,
+              tool_used: tool,
+              is_explicit: isExplicit,
+            },
+            'Admin CLI'
+          );
+
+          console.log(`✅ ${res.message}`);
+          console.log(`• Title: "${res.track.title}" by ${res.track.artist_name}`);
+          console.log(`• Category: ${res.track.category} | Tool: ${res.track.tool_used} | Explicit: ${res.track.is_explicit ? 'Yes' : 'No'}`);
+          if (res.indexed) {
+            console.log(`• Semantic pgvector embedding re-indexed successfully.`);
+          }
+        } catch (err: unknown) {
+          console.error(`Failed to edit track:`, err instanceof Error ? err.message : String(err));
+        }
+        return;
+      }
+
+      if (sub === 'delete') {
+        if (!targetId) {
+          console.error('Usage: npm run promptfm admin delete <id_or_title> [--soft]');
+          return;
+        }
+
+        const isSoft = args.includes('--soft');
+
+        try {
+          const res = await deleteTrack(targetId, { softDelete: isSoft, actor: 'Admin CLI' });
+          console.log(`🗑️ ${res.message}`);
+        } catch (err: unknown) {
+          console.error(`Failed to delete track:`, err instanceof Error ? err.message : String(err));
+        }
+        return;
+      }
+
+      console.log('Admin subcommands: pending, approve <id>, reject <id>, edit <id> [flags], delete <id> [--soft]');
       break;
     }
 
-    case 'flags':
-    case 'flag': {
-      const sub = args[1] || 'list';
-      const flagKey = args[2];
-      const notes = parseArg('--notes') || parseArg('-m');
-      const actor = parseArg('--actor') || 'cli_admin';
-      const categoryFilter = parseArg('--cat') || parseArg('--category');
-      const killSwitchOnly = args.includes('--kill-switch') || args.includes('--killswitch');
+    case 'track':
+    case 'tracks': {
+      const sub = args[1];
+      const targetId = args[2];
+      if (sub === 'edit') {
+        const title = parseArg('--title');
+        const artist = parseArg('--artist');
+        const category = parseArg('--category');
+        const desc = parseArg('--desc') || parseArg('--description');
+        const lyrics = parseArg('--lyrics');
+        const tool = parseArg('--tool');
+        const explicitFlag = parseArg('--explicit');
+        const isExplicit = explicitFlag !== undefined ? explicitFlag === 'true' || explicitFlag === '1' : undefined;
 
-      if (sub === 'list') {
-        const flags = getAllFeatureFlags({
-          category: categoryFilter as FeatureFlagCategory | undefined,
-          killSwitchOnly,
-        });
-
-        console.log(`\n🚩 PromptFM Runtime Feature Flags & Kill Switches (${flags.length}):`);
-        console.log('--------------------------------------------------------------------------------');
-        flags.forEach((f) => {
-          const statusIcon = f.enabled ? '🟢 ON ' : '🔴 OFF';
-          const killIcon = f.is_kill_switch ? '⚡ [KILL-SWITCH]' : '                ';
-          console.log(`${statusIcon} | ${killIcon} | ${f.key.padEnd(24)} | [${f.category.padEnd(12)}] | ${f.name}`);
-        });
-        console.log('--------------------------------------------------------------------------------');
-        console.log('Tip: toggle or kill a flag with: npm run promptfm flags [enable|disable|toggle|kill] <key>');
-        return;
-      }
-
-      if (!flagKey) {
-        console.error('❌ Error: Flag key required. Example: npm run promptfm flags enable community_requests');
-        return;
-      }
-
-      if (sub === 'get') {
-        const flag = getFeatureFlag(flagKey);
-        if (!flag) {
-          console.error(`❌ Feature flag "${flagKey}" not found.`);
+        if (!targetId) {
+          console.error('Usage: npm run promptfm track edit <id_or_title> [flags]');
           return;
         }
-        console.log(`\n🚩 Feature Flag: ${flag.name} (${flag.key})`);
-        console.log(`• Status:      ${flag.enabled ? '🟢 ENABLED' : '🔴 DISABLED'}`);
-        console.log(`• Category:    ${flag.category}`);
-        console.log(`• Kill Switch: ${flag.is_kill_switch ? 'YES ⚡' : 'NO'}`);
-        console.log(`• Description: ${flag.description}`);
-        console.log(`• Updated By:  ${flag.updated_by}`);
-        console.log(`• Updated At:  ${flag.updated_at}`);
-        if (flag.notes) console.log(`• Notes:       ${flag.notes}`);
+
+        try {
+          const res = await editTrackMetadata(
+            targetId,
+            { title, artist_name: artist, category, description: desc, lyrics, tool_used: tool, is_explicit: isExplicit },
+            'Admin CLI'
+          );
+          console.log(`✅ ${res.message}`);
+        } catch (err: unknown) {
+          console.error(`Failed to edit track:`, err instanceof Error ? err.message : String(err));
+        }
         return;
       }
 
-      if (sub === 'enable') {
-        const updated = await setFeatureFlag({
-          key: flagKey,
-          enabled: true,
-          actor,
-          notes: notes || 'Enabled via station CLI',
-        });
-        console.log(`🟢 Feature flag "${updated.key}" (${updated.name}) is now ENABLED.`);
+      if (sub === 'delete') {
+        if (!targetId) {
+          console.error('Usage: npm run promptfm track delete <id_or_title> [--soft]');
+          return;
+        }
+        try {
+          const res = await deleteTrack(targetId, { softDelete: args.includes('--soft'), actor: 'Admin CLI' });
+          console.log(`🗑️ ${res.message}`);
+        } catch (err: unknown) {
+          console.error(`Failed to delete track:`, err instanceof Error ? err.message : String(err));
+        }
         return;
       }
 
-      if (sub === 'disable' || sub === 'kill') {
-        const updated = await setFeatureFlag({
-          key: flagKey,
-          enabled: false,
-          actor,
-          notes: notes || (sub === 'kill' ? 'Emergency kill switch triggered via CLI' : 'Disabled via station CLI'),
-        });
-        console.log(`🔴 Feature flag "${updated.key}" (${updated.name}) is now DISABLED.`);
-        return;
-      }
-
-      if (sub === 'toggle') {
-        const updated = await toggleFeatureFlag(flagKey, actor, notes || 'Toggled via station CLI');
-        const status = updated.enabled ? '🟢 ENABLED' : '🔴 DISABLED';
-        console.log(`🔄 Feature flag "${updated.key}" toggled to ${status}.`);
-        return;
-      }
-
-      console.log('Usage: npm run promptfm flags [list|get|enable|disable|toggle|kill] [key] [--notes "..."]');
-      return;
+      console.log('Usage: npm run promptfm track [edit|delete] <id_or_title>');
+      break;
     }
 
     case 'report': {

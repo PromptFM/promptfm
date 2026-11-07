@@ -142,6 +142,12 @@ export type FeatureFlagCategory =
   | 'monetization'
   | 'system';
 
+export interface FeatureFlagVariant {
+  key: string;
+  name: string;
+  weight?: number;
+}
+
 export interface FeatureFlag {
   key: string;
   name: string;
@@ -149,8 +155,9 @@ export interface FeatureFlag {
   enabled: boolean;
   category: FeatureFlagCategory;
   is_kill_switch: boolean;
+  rollout_percentage?: number;
+  variants?: FeatureFlagVariant[];
   updated_at: string;
   updated_by: string;
   notes?: string | null;
 }
-

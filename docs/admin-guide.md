@@ -77,6 +77,8 @@ Every administrative capability is designed with **100% feature parity** across 
 | Capability | Web Studio (`/admin`) | Terminal CLI (`npm run promptfm`) | MCP Admin Tool (`/api/mcp`) |
 | :--- | :---: | :---: | :---: |
 | **Inspect Station Music Library** | Library Tab | `admin list` | `promptfm_get_top_tracks` |
+| **Edit Track Metadata** | Library Tab ("Edit" button) | `admin edit <id> [options]` | `promptfm_admin_edit_track` |
+| **Delete / Archive Track** | Library Tab ("Delete" button) | `admin delete <id> [--soft]` | `promptfm_admin_delete_track` |
 | **Queue Track on Air from Library** | Click "Queue on Air" (+) | `queue <title/prompt>` | `promptfm_queue_song_request` |
 | **Review Pending Submissions** | Submissions Tab | `admin pending` | `promptfm_admin_list_pending` |
 | **Approve Community Track** | Click "Approve" (✓) | `admin approve <trackId>` | `promptfm_admin_moderate_track` (`action: 'approved'`) |
@@ -105,8 +107,9 @@ Every administrative capability is designed with **100% feature parity** across 
 | **Start YouTube Live Broadcast** | Click "Start YouTube Live" | `stream start youtube <key>` | `promptfm_admin_start_stream` (`platform: 'youtube'`) |
 | **Start TikTok Live Broadcast** | Click "Start TikTok Live" | `stream start tiktok <key> [url]` | `promptfm_admin_start_stream` (`platform: 'tiktok'`) |
 | **Stop Live Video Broadcast** | Click "Stop Stream" | `stream stop <platform>` | `promptfm_admin_stop_stream` |
-| **List Runtime Feature Flags** | Feature Flags Tab | `flags list [--cat <cat>]` | `promptfm_admin_list_feature_flags` |
-| **Emergency Kill Switch / Flag Toggle** | Toggle Switch / Kill Button | `flags [enable\|disable\|toggle\|kill] <key>` | `promptfm_admin_set_feature_flag` |
+| **Web MCP Studio & Interactive Tools** | Web MCP Studio Tab | `npm run promptfm` | Dual-Tier JSON-RPC (`/api/mcp`) |
+| **Feature Flags & Traffic Exposure** | Vercel Dashboard / Flags Explorer | `vercel flags [list\|set\|rollout\|split]` | Vercel Flags SDK (`flags/next`) |
+| **Emergency Kill-Switch Control** | Vercel Toolbar & Dashboard | `vercel flags set <key> false` | Vercel Flags SDK (`flags/next`) |
 
 ---
 
@@ -124,6 +127,8 @@ The PromptFM CLI is a standalone station management suite located in `scripts/pr
 | `report file <id> <reason> [details]` | Files a report directly from the terminal. | `npm run promptfm -- report file track-123 copyright_dmca "Sampled vocal"` |
 | `report resolve <id> --action <actioned\|dismissed>` | Resolves a safety or copyright report, recording actor attribution, timestamp, and notes across database and memory cache. | `npm run promptfm -- report resolve rep_123 --action actioned --notes "Removed from rotation" --actor "compliance_alex"` |
 | `admin list` | Lists all approved tracks in the station music library with ranks and votes. | `npm run promptfm -- admin list` |
+| `admin edit <id> [options]` | Updates track metadata (title, artist, category, lyrics, explicit flags) and automatically re-indexes vector embeddings. | `npm run promptfm -- admin edit 0df3ba68-... --title "Cyber Dreams (Remix)" --category Electronic` |
+| `admin delete <id> [--soft]` | Deletes a track from the library and cleans up any orphaned queue items. Performs hard deletion by default, or archival soft-delete with `--soft`. | `npm run promptfm -- admin delete 0df3ba68-... --soft` |
 | `admin pending` | Lists all community track submissions awaiting review. | `npm run promptfm -- admin pending` |
 | `admin approve <trackId>` | Approves a track to air on the live stream and leaderboard. | `npm run promptfm -- admin approve 0df3ba68-...` |
 | `admin reject <trackId>` | Rejects an inappropriate track and removes it from airplay. | `npm run promptfm -- admin reject 0df3ba68-...` |
@@ -181,16 +186,66 @@ The PromptFM CLI is a standalone station management suite located in `scripts/pr
 | `bot discord test [webhookUrl]` | Dispatches an on-air rich embed test card to the Discord channel webhook. | `npm run promptfm -- bot discord test https://discord.com/api/webhooks/...` |
 | `bot discord post-guide [webhookUrl]` | Broadcasts the Listener Command & Airplay Schedule Guide embed to Discord. | `npm run promptfm -- bot discord post-guide https://discord.com/api/webhooks/...` |
 
-#### 7. Feature Flags & Emergency Kill Switches
+#### 7. Vercel Feature Flags, A/B Testing & Emergency Kill-Switches
+
+Feature flags and progressive delivery in PromptFM are managed natively using **Vercel Flags** (`flags/next`), the **Vercel CLI** (`vercel flags`), and the **Vercel Dashboard / Vercel Toolbar**.
+
+PromptFM exposes the official Vercel Flags Discovery Endpoint at `/.well-known/vercel/flags`, allowing the Vercel Toolbar and Vercel Flags Explorer to discover all registered station flags, inspect variants, configure percentage rollouts (traffic exposure), and trigger emergency kill-switches.
+
+##### A. Managing Flags via Vercel CLI (`vercel flags`)
+
+The Vercel CLI provides full terminal control over feature flags, progressive rollouts, and A/B test splits:
+
 | Command | Description | Example |
 | :--- | :--- | :--- |
-| `flags list` | Lists all runtime feature flags, status, categories & emergency kill-switches. | `npm run promptfm -- flags list` |
-| `flags list --cat <category>` | Filters feature flags by domain category (`system`, `streaming`, `community`, `ai_dj`, `monetization`, `moderation`). | `npm run promptfm -- flags list --cat community` |
-| `flags get <key>` | Inspects flag status, actor attribution, and audit notes. | `npm run promptfm -- flags get community_requests` |
-| `flags enable <key> [--notes]` | Enables a feature flag with optional audit note. | `npm run promptfm -- flags enable ai_dj_speech --notes "Rate limits resolved"` |
-| `flags disable <key> [--notes]` | Disables a feature flag with optional audit note. | `npm run promptfm -- flags disable community_requests --notes "Incident #48 peak traffic"` |
-| `flags toggle <key> [--notes]` | Inverts a feature flag boolean state. | `npm run promptfm -- flags toggle sponsor_ads` |
-| `flags kill <key> [--notes]` | **Emergency kill-switch:** Immediately shuts off a feature and notifies community channels. | `npm run promptfm -- flags kill maintenance_mode --notes "Database maintenance in progress"` |
+| `vercel flags list` | Lists all feature flags, current variants, and targeting rules for the project. | `vercel flags list` |
+| `vercel flags inspect <flag>` | Displays detailed configuration, rollout percentage, and audit history for a flag. | `vercel flags inspect community_requests` |
+| `vercel flags set <flag> <value>` | Serves a specific boolean value or variant in production or preview environments. | `vercel flags set community_requests false` |
+| `vercel flags rollout <flag>` | Configures progressive traffic exposure percentage (0% to 100%). | `vercel flags rollout new_player_ui --percentage 25` |
+| `vercel flags split <flag>` | Configures weighted variant splits for A/B testing across listeners. | `vercel flags split modern_visualizer` |
+| `vercel flags open [flag]` | Opens the Vercel Dashboard directly to the project's feature flags console. | `vercel flags open maintenance_mode` |
+
+##### B. Managing Flags via Vercel Dashboard & Vercel Toolbar
+
+1. **Vercel Toolbar & Flags Explorer (Preview & Production)**:
+   - On any preview deployment or production site, open the **Vercel Toolbar** (bottom-right icon).
+   - Click the **Flags** icon to open the **Flags Explorer**.
+   - View all registered PromptFM flags with their descriptions and default states.
+   - Instantly override flag values for testing without redeploying.
+
+2. **Environment & Security Configuration**:
+   - `FLAGS_SECRET`: A 32-byte secret configured in Vercel Project Settings $\to$ Environment Variables. Secures the `/.well-known/vercel/flags` endpoint so only authorized Vercel tools and dashboard extensions can inspect definitions and generate overrides.
+   - Local/CI Overrides: In local development, developers can override any flag instantly using environment variables:
+     - `PROMPTFM_FLAG_COMMUNITY_REQUESTS=false`
+     - `FLAG_MAINTENANCE_MODE=true`
+
+##### C. Emergency Kill-Switch Runbook for On-Call Engineers
+
+When incidents, upstream rate limits, or degradation occur, on-call engineers can halt station subsystems immediately:
+
+1. **Emergency Maintenance Mode**:
+   ```bash
+   vercel flags set maintenance_mode true
+   ```
+   *Puts the station in maintenance mode and halts non-essential listener pipelines.*
+
+2. **Pause Listener Song Requests (`community_requests`)**:
+   ```bash
+   vercel flags set community_requests false
+   ```
+   *Disables `/song` queueing across Discord, Telegram, and Web without taking down the station stream.*
+
+3. **Halt AI Speech Synthesis (`ai_dj_speech`)**:
+   ```bash
+   vercel flags set ai_dj_speech false
+   ```
+   *Switches the station to pure music-only rotation if TTS or LLM APIs experience rate limits.*
+
+4. **Emergency Audio Output Mute (`live_audio_stream`)**:
+   ```bash
+   vercel flags set live_audio_stream false
+   ```
+   *Instantly pauses client-side audio player playback during catastrophic audio or licensing emergencies.*
 
 ---
 
@@ -202,22 +257,31 @@ Access the visual web console at `https://promptfm.vercel.app/admin` (or `http:/
    - Preview tracks with an inline 30-second audio player.
    - Inspect AI tool metadata (Suno, Udio, Stable Audio).
    - Click **Approve** (green check) or **Reject** (red cross).
-2. **Live Queue Tab**:
+2. **Library Tab**:
+   - View, search, and manage all approved station tracks.
+   - **Edit Metadata Modal**: Update title, artist, category, description, lyrics, explicit flag, BPM, and trigger automatic pgvector re-indexing.
+   - **Delete Track**: Soft-delete (archival) or hard-delete with automatic removal of orphaned queue entries.
+   - Queue any track directly to the live broadcast with one click (+).
+3. **Live Queue Tab**:
    - Live view of upcoming scheduled items in real time.
    - Remove songs or re-order airplay.
-3. **Batches Tab**:
+4. **Batches Tab**:
    - Live view of listener requests scheduled into 30-minute clock batches.
    - Click **Air Now** to immediately synthesize and play the request drop.
    - Click **Reject / Remove from Batch** with custom rejection reason (e.g. *Religious hostility*, *18+ Adult theme outside watershed*). Automatically dispatches a refusal notification back to the user on Telegram or Discord!
-4. **Reports Tab**:
+5. **Reports Tab**:
    - Displays all filed community reports with target ID, reason code, details, reporter handle, and timestamp.
    - Actions: **"Dismiss"** or **"Take Action"** (marks ticket resolved across system).
-5. **Upload MP3 Tab**:
+6. **Upload MP3 Tab**:
    - Upload MP3 files directly from your computer to Cloudflare R2.
    - Bypasses moderation and immediately adds the track to the station rotation.
-6. **Channels & Guardrails Tab**:
+7. **Channels & Guardrails Tab**:
    - View all live radio channels, assigned DJs, and statutory guardrails.
    - Create new channels with automated 18+ COPPA/statutory age gate banners and policies.
+8. **Web MCP Studio Tab**:
+   - Interactive admin console to directly execute Model Context Protocol (MCP) actions within the web browser.
+   - Quick-action generators for AI Voice Drops, Interstitials, Sponsor Ads, Dedicated Air Requests, Station Broadcasts, and Channel provisioning.
+   - Interactive JSON-RPC raw tool caller with parameter inspector and formatted live response output.
 
 ---
 
@@ -241,8 +305,8 @@ AI agents can manage the station autonomously by connecting to the MCP endpoint 
 | `promptfm_admin_air_request` | Forces immediate synthesis and airplay for a dedication. | `request_id` |
 | `promptfm_admin_inject_interstitial` | Injects an on-air voice drop or weather update. | `type`, `prompt?`, `city?` |
 | `promptfm_admin_inject_ad` | Injects a sponsor commercial or ad read. | `sponsor?`, `copy?` |
-| `promptfm_admin_list_feature_flags` | Lists runtime feature flags, status, categories & emergency kill-switches. | `category?`, `kill_switch_only?` |
-| `promptfm_admin_set_feature_flag` | Enables, disables, or toggles runtime feature flags and kill switches. | `key`, `enabled`, `notes?` |
+| `promptfm_admin_edit_track` | Edits track metadata and reindexes embeddings in pgvector. | `track_id`, `title?`, `artist?`, `category?`, `description?`, `lyrics?`, `is_explicit?`, `ai_tool?`, `bpm?`, `genre?`, `reindex_vector?` |
+| `promptfm_admin_delete_track` | Deletes or archives a track and purges orphaned queue items. | `track_id`, `soft_delete?` |
 
 ---
 

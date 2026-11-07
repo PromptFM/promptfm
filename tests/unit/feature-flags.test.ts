@@ -12,6 +12,9 @@ import {
   registerFeatureFlag,
   initFeatureFlagsFromDatabase,
   resetFeatureFlagsForTesting,
+  evaluateRollout,
+  evaluateVariant,
+  evaluateFeatureFlag,
   type FeatureFlag,
 } from '@/lib/flags/feature-flags';
 import * as chatBridge from '@/lib/chat/bridge';
@@ -597,6 +600,104 @@ describe('Admin Feature-Flag & Kill-Switch System (Unit)', () => {
       expect(res.status).toBe(403);
       const json = await res.json();
       expect(json.error).toContain('disabled by station administrators');
+    });
+  });
+
+  describe('Percentage Rollout & Traffic Exposure', () => {
+    it('evaluates deterministic rollout hashing', () => {
+      // 0% rollout -> false for any entity
+      expect(evaluateRollout('test_flag', 'user_1', 0)).toBe(false);
+      expect(evaluateRollout('test_flag', 'user_2', 0)).toBe(false);
+
+      // 100% rollout -> true for any entity
+      expect(evaluateRollout('test_flag', 'user_1', 100)).toBe(true);
+      expect(evaluateRollout('test_flag', 'user_2', 100)).toBe(true);
+
+      // Consistency: same user + flag produces identical result
+      const res1 = evaluateRollout('test_flag', 'user_abc', 50);
+      const res2 = evaluateRollout('test_flag', 'user_abc', 50);
+      expect(res1).toBe(res2);
+    });
+
+    it('distributes traffic across A/B test variants deterministically', () => {
+      const variants = [
+        { key: 'control', name: 'Control', weight: 50 },
+        { key: 'treatment', name: 'Treatment', weight: 50 },
+      ];
+
+      const v1 = evaluateVariant('ab_flag', 'user_1', variants);
+      const v2 = evaluateVariant('ab_flag', 'user_1', variants);
+      expect(v1).toBe(v2);
+      expect(['control', 'treatment']).toContain(v1);
+    });
+
+    it('evaluateFeatureFlag respects enabled state, kill switch, rollout percentage, and variants', async () => {
+      await registerFeatureFlag({
+        key: 'new_player_ui',
+        name: 'New Player UI',
+        description: 'Testing modern audio visualizer',
+        category: 'system',
+        enabled: true,
+        is_kill_switch: false,
+        rollout_percentage: 50,
+        variants: [
+          { key: 'minimal', name: 'Minimal', weight: 50 },
+          { key: 'spectrogram', name: 'Spectrogram', weight: 50 },
+        ],
+        updated_at: new Date().toISOString(),
+        updated_by: 'admin',
+      });
+
+      const evalResult = evaluateFeatureFlag('new_player_ui', { entityId: 'listener_99' });
+      expect(typeof evalResult.enabled).toBe('boolean');
+      expect(evalResult.rollout_percentage).toBe(50);
+      expect(['minimal', 'spectrogram']).toContain(evalResult.variant);
+
+      // Kill switch or disabled flag overrides rollout to false
+      await setFeatureFlag({
+        key: 'new_player_ui',
+        enabled: false,
+        actor: 'admin',
+      });
+      const disabledEval = evaluateFeatureFlag('new_player_ui', { entityId: 'listener_99' });
+      expect(disabledEval.enabled).toBe(false);
+    });
+  });
+
+  describe('Vercel Flags SDK Integration', () => {
+    it('exports Vercel-compatible flag declarations and discovery api data', async () => {
+      const { getVercelFlagDefinitions, getVercelDiscoveryApiData, vercelFlags } = await import('@/lib/flags/vercel');
+      const defs = getVercelFlagDefinitions();
+      expect(Array.isArray(defs)).toBe(true);
+      expect(defs.length).toBeGreaterThanOrEqual(DEFAULT_FEATURE_FLAGS.length);
+
+      const reqFlag = defs.find((d) => d.key === 'community_requests');
+      expect(reqFlag).toBeDefined();
+      expect(reqFlag?.defaultValue).toBe(true);
+      expect(reqFlag?.origin).toBe('https://promptfm.live/admin');
+      expect(reqFlag?.options).toEqual([
+        { label: 'Off', value: false },
+        { label: 'On', value: true },
+      ]);
+
+      const apiData = getVercelDiscoveryApiData();
+      expect(apiData.definitions['community_requests']).toBeDefined();
+      expect(apiData.definitions['community_requests'].options).toEqual([
+        { label: 'Off', value: false },
+        { label: 'On', value: true },
+      ]);
+      expect(apiData.definitions['community_requests'].origin).toBe('https://promptfm.live/admin');
+
+      // Direct Vercel flag callable evaluation
+      const communityFlag = vercelFlags.community_requests;
+      expect(communityFlag).toBeDefined();
+      expect(typeof communityFlag).toBe('function');
+      const evaluated = await communityFlag!.run({
+        identify: {},
+        request: new Request('http://localhost:3000'),
+      });
+      expect(typeof evaluated).toBe('boolean');
+      expect(evaluated).toBe(true);
     });
   });
 });

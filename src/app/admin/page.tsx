@@ -34,11 +34,31 @@ import {
   Video,
   ExternalLink,
   RefreshCw,
+  Edit3,
+  Terminal,
   Power,
   PowerOff,
 } from 'lucide-react';
+import {
+  webMcpModerateTrack,
+  webMcpRemoveFromQueue,
+  webMcpRejectRequest,
+  webMcpResolveReport,
+  webMcpAuditReports,
+  webMcpBroadcast,
+  webMcpCreateChannel,
+  webMcpStartStream,
+  webMcpStopStream,
+  webMcpEditTrack,
+  webMcpDeleteTrack,
+  webMcpVoiceDrop,
+  webMcpInjectInterstitial,
+  webMcpInjectAd,
+  webMcpAirRequest,
+  callMcpTool,
+} from '@/lib/mcp/client';
 import { createClient } from '@/lib/supabase/client';
-import { type Track, type AITool, type ContentReport, type FeatureFlag, REASON_LABELS } from '@/types/database';
+import { type Track, type AITool, type ContentReport, REASON_LABELS } from '@/types/database';
 import { OFFICIAL_CHANNELS, type RadioChannel, getAllChannels } from '@/lib/radio/channels';
 import { autoGenerateChannelGuardrails } from '@/lib/safety/channel-guardrails';
 import type { User } from '@supabase/supabase-js';
@@ -74,11 +94,43 @@ export default function AdminDashboard() {
   const [authChecking, setAuthChecking] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'submissions' | 'library' | 'queue' | 'batches' | 'reports' | 'channels' | 'upload' | 'social' | 'streams' | 'flags'>('submissions');
-  const [featureFlags, setFeatureFlags] = useState<FeatureFlag[]>([]);
-  const [flagLoading, setFlagLoading] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'submissions' | 'library' | 'queue' | 'batches' | 'reports' | 'channels' | 'upload' | 'social' | 'streams' | 'mcp'>('submissions');
   const [pendingTracks, setPendingTracks] = useState<Track[]>([]);
   const [libraryTracks, setLibraryTracks] = useState<Track[]>([]);
+
+  // Track Metadata Editing State (Issue #35)
+  const [editingTrack, setEditingTrack] = useState<Track | null>(null);
+  const [editForm, setEditForm] = useState({
+    title: '',
+    artist_name: '',
+    category: '',
+    description: '',
+    lyrics: '',
+    tool_used: 'Suno',
+    is_explicit: false,
+  });
+  const [editSaving, setEditSaving] = useState(false);
+
+  // Web MCP Studio State (Issue #72)
+  const [mcpVoicePrompt, setMcpVoicePrompt] = useState('Introduce the weekend dance party and play a fresh synthwave drop');
+  const [mcpVoiceDj, setMcpVoiceDj] = useState('dj_neon');
+  const [mcpVoiceResult, setMcpVoiceResult] = useState<any>(null);
+  const [mcpVoiceLoading, setMcpVoiceLoading] = useState(false);
+
+  const [mcpInterstitialType, setMcpInterstitialType] = useState<'news' | 'weather' | 'announcement' | 'custom_prompt'>('weather');
+  const [mcpInterstitialPrompt, setMcpInterstitialPrompt] = useState('Tokyo');
+  const [mcpInterstitialResult, setMcpInterstitialResult] = useState<any>(null);
+  const [mcpInterstitialLoading, setMcpInterstitialLoading] = useState(false);
+
+  const [mcpAdSponsor, setMcpAdSponsor] = useState('Suno AI');
+  const [mcpAdCopy, setMcpAdCopy] = useState('Unlock your musical imagination with Suno v4. Prompt the future on PromptFM.');
+  const [mcpAdResult, setMcpAdResult] = useState<any>(null);
+  const [mcpAdLoading, setMcpAdLoading] = useState(false);
+
+  const [mcpRawTool, setMcpRawTool] = useState('promptfm_get_top_tracks');
+  const [mcpRawArgs, setMcpRawArgs] = useState('{\n  "limit": 5\n}');
+  const [mcpRawResult, setMcpRawResult] = useState<any>(null);
+  const [mcpRawLoading, setMcpRawLoading] = useState(false);
   const [queueItems, setQueueItems] = useState<QueuedItem[]>([]);
   const [communityRequests, setCommunityRequests] = useState<CommunityRequestRow[]>([]);
   const [reports, setReports] = useState<ContentReport[]>([]);
@@ -291,17 +343,6 @@ export default function AdminDashboard() {
       }
     } catch (e) {
       console.warn('Could not load reports:', e);
-    }
-
-    // Fetch runtime feature flags
-    try {
-      const flRes = await fetch('/api/admin/flags');
-      if (flRes.ok) {
-        const flData = await flRes.json();
-        if (flData.flags) setFeatureFlags(flData.flags);
-      }
-    } catch (e) {
-      console.warn('Could not load feature flags:', e);
     }
 
     // Fetch channels with guardrails
@@ -678,32 +719,6 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleToggleFeatureFlag = async (key: string, enabledState?: boolean) => {
-    setFlagLoading(key);
-    try {
-      const targetFlag = featureFlags.find((f) => f.key === key);
-      const nextEnabled = enabledState !== undefined ? enabledState : (targetFlag ? !targetFlag.enabled : false);
-      const res = await fetch('/api/admin/flags', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          key,
-          enabled: nextEnabled,
-          actor: user?.email || 'admin@promptfm.live',
-          notes: 'Updated via Web Studio Admin Console',
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setFeatureFlags((prev) => prev.map((f) => (f.key === key ? data.flag : f)));
-      }
-    } catch (err) {
-      console.error('Failed to update feature flag:', err);
-    } finally {
-      setFlagLoading(null);
-    }
-  };
-
   const handleToggleChannelStatus = async (slug: string, nextStatus: boolean) => {
     setActionLoadingId(`channel-status-${slug}`);
     try {
@@ -932,17 +947,6 @@ export default function AdminDashboard() {
             >
               <Video className="w-3.5 h-3.5 text-red-400" />
               Live Streams (YouTube / TikTok)
-            </button>
-            <button
-              onClick={() => setActiveTab('flags')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
-                activeTab === 'flags'
-                  ? 'bg-amber-500 text-black shadow-sm'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              <Flag className="w-3.5 h-3.5 text-amber-400" />
-              Feature Flags & Kill Switches ({featureFlags.length})
             </button>
           </div>
         </div>
@@ -2358,172 +2362,6 @@ export default function AdminDashboard() {
               </h4>
               <p>
                 The streaming controller sidecar runs on your <strong>GCP e2-micro Always-Free VM</strong> alongside Icecast. When triggered from this console, it spawns FFmpeg with hardware-efficient parameters (<code>-c:v libx264 -preset veryfast -b:v 1500k -g 60 -c:a aac -b:a 192k</code>), pulling the live Icecast 128kbps audio stream without consuming egress bandwidth, looping the high-resolution PromptFM visual art overlay, and multiplexing the RTMP feed directly to YouTube and TikTok.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Feature Flags & Emergency Kill Switches Tab */}
-        {activeTab === 'flags' && (
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 bg-gradient-to-r from-amber-950/30 via-zinc-900/60 to-zinc-900/60 border border-amber-500/30 rounded-2xl">
-              <div>
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Flag className="w-4 h-4 text-amber-400" />
-                  Runtime Feature Flags & Kill Switches
-                </h3>
-                <p className="text-xs text-zinc-400 mt-1">
-                  Instantly toggle station capabilities or activate emergency kill switches during incidents without deploying code.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={refreshData}
-                className="self-start sm:self-auto px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-300 rounded-lg flex items-center gap-1.5 transition-colors"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                Refresh State
-              </button>
-            </div>
-
-            {/* Emergency Kill Switches Alert Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {featureFlags
-                .filter((f) => f.is_kill_switch)
-                .map((f) => (
-                  <div
-                    key={f.key}
-                    className={`p-4 rounded-xl border transition-all ${
-                      f.enabled
-                        ? 'bg-zinc-900/70 border-zinc-800'
-                        : 'bg-red-950/20 border-red-500/40 shadow-lg shadow-red-950/30'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-white">{f.name}</span>
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                            ⚡ KILL-SWITCH
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-zinc-400 mt-1">{f.description}</p>
-                        <p className="text-[10px] text-zinc-500 font-mono mt-1.5">
-                          key: <code>{f.key}</code> • by: {f.updated_by}
-                        </p>
-                      </div>
-
-                      <div className="flex flex-col items-end gap-2 shrink-0">
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            f.enabled
-                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                              : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                          }`}
-                        >
-                          {f.enabled ? '🟢 ACTIVE' : '🔴 KILLED'}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleFeatureFlag(f.key)}
-                          disabled={flagLoading === f.key}
-                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                            f.enabled
-                              ? 'bg-red-600/80 hover:bg-red-600 text-white shadow-sm'
-                              : 'bg-emerald-600/80 hover:bg-emerald-600 text-white shadow-sm'
-                          }`}
-                        >
-                          {flagLoading === f.key && <Loader2 className="w-3 h-3 animate-spin" />}
-                          {f.enabled ? 'Trigger Kill' : 'Re-enable'}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-            </div>
-
-            {/* Complete Feature Flags Table */}
-            <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl overflow-hidden">
-              <div className="px-5 py-3.5 border-b border-zinc-800 flex items-center justify-between">
-                <h4 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">
-                  All Registered Domain Feature Flags ({featureFlags.length})
-                </h4>
-                <span className="text-[11px] text-zinc-500">Fast in-memory cache + Supabase sync</span>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-zinc-950/60 text-zinc-400 border-b border-zinc-800 text-[11px]">
-                    <tr>
-                      <th className="px-4 py-3">Flag Key & Name</th>
-                      <th className="px-4 py-3">Category</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Last Modified</th>
-                      <th className="px-4 py-3 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-800/60">
-                    {featureFlags.map((flag) => (
-                      <tr key={flag.key} className="hover:bg-zinc-900/60 transition-colors">
-                        <td className="px-4 py-3">
-                          <div className="font-semibold text-white">{flag.name}</div>
-                          <div className="font-mono text-[10px] text-zinc-500">{flag.key}</div>
-                          {flag.notes && <div className="text-[10px] text-zinc-400 mt-0.5">Note: {flag.notes}</div>}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 font-mono text-[10px]">
-                            {flag.category}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                              flag.enabled
-                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                                : 'bg-zinc-800 text-zinc-400'
-                            }`}
-                          >
-                            <span
-                              className={`w-1.5 h-1.5 rounded-full ${flag.enabled ? 'bg-emerald-400' : 'bg-zinc-500'}`}
-                            />
-                            {flag.enabled ? 'ENABLED' : 'DISABLED'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-[11px] text-zinc-400">
-                          <div>{new Date(flag.updated_at).toLocaleString()}</div>
-                          <div className="text-[10px] text-zinc-500">by {flag.updated_by}</div>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleFeatureFlag(flag.key)}
-                            disabled={flagLoading === flag.key}
-                            className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
-                              flag.enabled
-                                ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
-                                : 'bg-emerald-600 hover:bg-emerald-500 text-black'
-                            }`}
-                          >
-                            {flagLoading === flag.key ? 'Updating...' : flag.enabled ? 'Disable' : 'Enable'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Terminal CLI & Env Reference */}
-            <div className="bg-zinc-950/70 border border-zinc-800/80 rounded-2xl p-5 text-xs text-zinc-400 space-y-2">
-              <h4 className="font-bold text-white flex items-center gap-2 text-xs">
-                <span>💻</span> CLI & Environment Variable Overrides
-              </h4>
-              <p>
-                Flip flags from your terminal using: <code>npm run promptfm -- flags enable &lt;key&gt;</code> or <code>flags kill &lt;key&gt;</code>.
-              </p>
-              <p>
-                Environment variables take precedence over database values: <code>PROMPTFM_FLAG_COMMUNITY_REQUESTS=false</code> or <code>FLAG_MAINTENANCE_MODE=true</code>.
               </p>
             </div>
           </div>

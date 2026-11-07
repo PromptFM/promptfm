@@ -5,14 +5,16 @@
 
 import { createAdminClient } from '../supabase/server';
 import { broadcastToCommunity } from '../chat/bridge';
-import type { FeatureFlag, FeatureFlagCategory } from '../../types/database';
+import type { FeatureFlag, FeatureFlagCategory, FeatureFlagVariant } from '../../types/database';
 
-export type { FeatureFlag, FeatureFlagCategory };
+export type { FeatureFlag, FeatureFlagCategory, FeatureFlagVariant };
 
 export interface UpdateFeatureFlagInput {
   key: string;
   enabled: boolean;
   actor: string;
+  rollout_percentage?: number;
+  variants?: FeatureFlagVariant[];
   notes?: string | null;
 }
 
@@ -214,6 +216,8 @@ export async function setFeatureFlag(input: UpdateFeatureFlagInput): Promise<Fea
   const updated: FeatureFlag = {
     ...existing,
     enabled: Boolean(input.enabled),
+    rollout_percentage: input.rollout_percentage !== undefined ? input.rollout_percentage : existing.rollout_percentage,
+    variants: input.variants !== undefined ? input.variants : existing.variants,
     updated_at: now,
     updated_by: trimmedActor,
     notes: input.notes !== undefined ? (input.notes ? input.notes.trim() : null) : existing.notes,
@@ -257,6 +261,8 @@ export async function setFeatureFlag(input: UpdateFeatureFlagInput): Promise<Fea
       enabled: updated.enabled,
       category: updated.category,
       is_kill_switch: updated.is_kill_switch,
+      rollout_percentage: updated.rollout_percentage,
+      variants: updated.variants,
       updated_at: updated.updated_at,
       updated_by: updated.updated_by,
       notes: updated.notes,
@@ -318,6 +324,8 @@ export async function initFeatureFlagsFromDatabase(): Promise<void> {
             enabled: item.enabled,
             category: item.category || existing?.category || 'system',
             is_kill_switch: Boolean(item.is_kill_switch ?? existing?.is_kill_switch),
+            rollout_percentage: typeof item.rollout_percentage === 'number' ? item.rollout_percentage : existing?.rollout_percentage,
+            variants: Array.isArray(item.variants) ? item.variants : existing?.variants,
             updated_at: item.updated_at || new Date().toISOString(),
             updated_by: item.updated_by || 'system',
             notes: item.notes ?? existing?.notes ?? null,
@@ -335,5 +343,113 @@ export async function initFeatureFlagsFromDatabase(): Promise<void> {
  */
 export function resetFeatureFlagsForTesting(): void {
   memoryFlags = new Map(DEFAULT_FEATURE_FLAGS.map((f) => [f.key, { ...f }]));
+}
+
+/**
+ * Fast deterministic 32-bit FNV-1a hash for sticky rollouts and A/B test assignment
+ */
+export function hashString(str: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+/**
+ * Deterministically checks whether an entityId falls within a 0..100 rollout percentage
+ */
+export function evaluateRollout(key: string, entityId: string, rolloutPercentage: number): boolean {
+  if (rolloutPercentage <= 0) return false;
+  if (rolloutPercentage >= 100) return true;
+  const hash = hashString(`${key}:${entityId}`);
+  const bucket = hash % 100;
+  return bucket < rolloutPercentage;
+}
+
+/**
+ * Deterministically assigns an entityId to an A/B test variant
+ */
+export function evaluateVariant(
+  key: string,
+  entityId: string,
+  variants: FeatureFlagVariant[]
+): string {
+  if (!variants || variants.length === 0) return '';
+  const first = variants[0];
+  if (!first) return '';
+
+  const totalWeight = variants.reduce((sum, v) => sum + (v.weight ?? 1), 0);
+  if (totalWeight <= 0) return first.key;
+
+  const hash = hashString(`${key}:variant:${entityId}`);
+  const bucket = hash % totalWeight;
+
+  let acc = 0;
+  for (const variant of variants) {
+    acc += variant.weight ?? 1;
+    if (bucket < acc) {
+      return variant.key;
+    }
+  }
+  return first.key;
+}
+
+export interface EvaluateFlagOptions {
+  entityId?: string;
+  fallback?: boolean;
+}
+
+export interface FlagEvaluationResult {
+  enabled: boolean;
+  variant?: string;
+  rollout_percentage?: number;
+  flag?: FeatureFlag;
+}
+
+/**
+ * Full feature flag evaluation supporting kill switches, environment overrides,
+ * percentage rollouts, and A/B testing variants.
+ */
+export function evaluateFeatureFlag(
+  key: string,
+  options?: EvaluateFlagOptions
+): FlagEvaluationResult {
+  const flag = getFeatureFlag(key);
+  const baseEnabled = isFeatureEnabled(key, options?.fallback ?? false);
+
+  if (!flag) {
+    return { enabled: baseEnabled };
+  }
+
+  if (!baseEnabled) {
+    return {
+      enabled: false,
+      rollout_percentage: flag.rollout_percentage,
+      flag,
+    };
+  }
+
+  let enabled = true;
+  if (flag.rollout_percentage !== undefined && flag.rollout_percentage < 100) {
+    if (options?.entityId) {
+      enabled = evaluateRollout(key, options.entityId, flag.rollout_percentage);
+    } else {
+      enabled = true;
+    }
+  }
+
+  let variant: string | undefined;
+  if (flag.variants && flag.variants.length > 0 && options?.entityId) {
+    variant = evaluateVariant(key, options.entityId, flag.variants);
+  }
+
+  return {
+    enabled,
+    variant,
+    rollout_percentage: flag.rollout_percentage,
+    flag,
+  };
 }
 
