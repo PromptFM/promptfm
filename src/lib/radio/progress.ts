@@ -175,3 +175,65 @@ export function buildQueueDisplayItems(
 
   return items;
 }
+
+export interface QueueStateSummary {
+  hasNowPlaying: boolean;
+  hasUpcoming: boolean;
+  onlyNowPlaying: boolean;
+  isEmpty: boolean;
+  upcomingCount: number;
+  totalCards: number;
+}
+
+export type QueueDisplayMode = 'empty' | 'now-playing-only' | 'active-queue';
+
+/**
+ * Summarizes the active broadcast queue state, distinguishing between
+ * empty queue, now-playing only, and queues with upcoming tracks.
+ */
+export function getQueueStateSummary(
+  nowPlaying: QueueInputTrack | null,
+  upNext: QueueInputTrack[]
+): QueueStateSummary {
+  const currentId = nowPlaying?.id;
+  const filteredUpNext = (upNext || []).filter(
+    (item) => Boolean(item) && (!currentId || item.id !== currentId)
+  );
+
+  const hasNowPlaying = Boolean(nowPlaying && nowPlaying.id);
+  const upcomingCount = filteredUpNext.length;
+  const hasUpcoming = upcomingCount > 0;
+  const onlyNowPlaying = hasNowPlaying && !hasUpcoming;
+  const isEmpty = !hasNowPlaying && !hasUpcoming;
+  const totalCards = (hasNowPlaying ? 1 : 0) + upcomingCount;
+
+  return {
+    hasNowPlaying,
+    hasUpcoming,
+    onlyNowPlaying,
+    isEmpty,
+    upcomingCount,
+    totalCards,
+  };
+}
+
+/**
+ * Returns the high-level display mode for the Up Next widgets:
+ * - 'empty': no track on air and no upcoming tracks
+ * - 'now-playing-only': an active track is on air, but no upcoming tracks exist
+ * - 'active-queue': upcoming tracks exist in the queue
+ */
+export function getQueueDisplayMode(
+  nowPlaying: QueueInputTrack | null,
+  upNext: QueueInputTrack[]
+): QueueDisplayMode {
+  const summary = getQueueStateSummary(nowPlaying, upNext);
+  if (summary.hasUpcoming) {
+    return 'active-queue';
+  }
+  if (summary.onlyNowPlaying) {
+    return 'now-playing-only';
+  }
+  return 'empty';
+}
+

@@ -6,6 +6,8 @@ import {
   formatAudioTime,
   calculateTrackProgress,
   buildQueueDisplayItems,
+  getQueueStateSummary,
+  getQueueDisplayMode,
   getPlaybackProgressAria,
   formatMobilePlaybackTime,
 } from '@/lib/radio/progress';
@@ -50,6 +52,18 @@ describe('Radio Playback Progress & Queue Card Labeling', () => {
       expect(prog.percent).toBe(100);
       expect(prog.isComplete).toBe(true);
       expect(prog.remainingSeconds).toBe(0);
+    });
+
+    it('uses duration_hint_seconds when durationSeconds is 0 or undefined in buildQueueDisplayItems', () => {
+      const trackWithHint = {
+        id: 'track-hint',
+        title: 'Hint Track',
+        artist: 'Hint Artist',
+        duration_hint_seconds: 240,
+      };
+      const cards = buildQueueDisplayItems(trackWithHint, [], 60, 0);
+      expect(cards[0]?.formattedTime).toBe('1:00 / 4:00');
+      expect(cards[0]?.progressPercent).toBe(25);
     });
 
     it('uses fallback duration of 180s when duration is 0, negative, or missing', () => {
@@ -178,32 +192,36 @@ describe('Radio Playback Progress & Queue Card Labeling', () => {
       expect(cards[0]?.formattedTime).toBe('0:30 / 3:00');
     });
 
-    it('falls back to default logo when cover_art_url is undefined or empty', () => {
-      const trackNoCover = {
-        id: 'track-no-cover',
-        title: 'No Cover',
-        artist: 'Unknown',
-      };
-      const upNextNoCover = [
-        { title: 'Upcoming No Cover', artist: 'Upcoming Artist' },
-      ];
-      const cards = buildQueueDisplayItems(trackNoCover, upNextNoCover, 0, 180);
-
-      expect(cards[0]?.cover_art_url).toBe('/logo-mark.png');
-      expect(cards[1]?.cover_art_url).toBe('/logo-mark.png');
-      expect(cards[1]?.id).toBe('upnext-0');
-    });
-
     it('filters out duplicates of currently playing track from upNext list', () => {
-      const duplicateList = [
-        { id: 'now-1', title: 'Current Hit', artist: 'DJ Neon' },
-        { id: 'unique-next', title: 'Unique Next', artist: 'Artist B' },
+      const duplicateUpcoming = [
+        { id: 'now-1', title: 'Duplicate Current Hit', artist: 'DJ Neon' },
+        { id: 'next-1', title: 'Real Next', artist: 'Artist A' },
       ];
-      const cards = buildQueueDisplayItems(mockNowPlaying, duplicateList, 10, 180);
-
+      const cards = buildQueueDisplayItems(mockNowPlaying, duplicateUpcoming, 0, 180);
       expect(cards.length).toBe(2);
       expect(cards[0]?.id).toBe('now-1');
-      expect(cards[1]?.id).toBe('unique-next');
+      expect(cards[0]?.isCurrent).toBe(true);
+      expect(cards[1]?.id).toBe('next-1');
+      expect(cards[1]?.isCurrent).toBe(false);
+      expect(cards[1]?.badgeLabel).toBe('#1 NEXT');
+    });
+
+    it('uses fallback cover art /logo-mark.png when cover_art_url is missing, and preserves custom cover art', () => {
+      const trackWithoutCover = { id: 'now-nocover', title: 'Track 1', artist: 'Artist 1' };
+      const upcomingWithCover = [
+        { id: 'next-withcover', title: 'Track 2', artist: 'Artist 2', cover_art_url: '/custom-cover.jpg' },
+        { id: 'next-emptycover', title: 'Track 3', artist: 'Artist 3', cover_art_url: '' },
+      ];
+      const cards = buildQueueDisplayItems(trackWithoutCover, upcomingWithCover, 0, 180);
+      expect(cards[0]?.cover_art_url).toBe('/logo-mark.png');
+      expect(cards[1]?.cover_art_url).toBe('/custom-cover.jpg');
+      expect(cards[2]?.cover_art_url).toBe('/logo-mark.png');
+    });
+
+    it('assigns fallback upnext-index id when upcoming item does not have an id', () => {
+      const upcomingWithoutId = [{ title: 'No ID Track', artist: 'Mystery Artist' }];
+      const cards = buildQueueDisplayItems(null, upcomingWithoutId, 0, 180);
+      expect(cards[0]?.id).toBe('upnext-0');
     });
 
     it('uses duration_hint_seconds from nowPlaying when durationSeconds is omitted or 0', () => {
@@ -222,6 +240,117 @@ describe('Radio Playback Progress & Queue Card Labeling', () => {
       const cards = buildQueueDisplayItems(mockNowPlaying, []);
       expect(cards[0]?.progressPercent).toBe(0);
       expect(cards[0]?.formattedTime).toBe('0:00 / 3:00');
+    });
+  });
+
+  describe('Issue #84: Queue State Summary & Empty Upcoming Track Differentiation', () => {
+    const mockTrackOnAir = {
+      id: 'active-song-1',
+      title: 'Current Hit',
+      artist: 'Resident AI',
+      type: 'music',
+      upvotes_count: 42,
+    };
+
+    const mockUpcoming = [
+      { id: 'upcoming-song-1', title: 'Next In Line', artist: 'Suno Beats', type: 'music' },
+      { id: 'upcoming-song-2', title: 'Future Wave', artist: 'Udio Master', type: 'music' },
+    ];
+
+    describe('getQueueStateSummary', () => {
+      it('correctly identifies empty queue state when neither nowPlaying nor upNext exists', () => {
+        const summary = getQueueStateSummary(null, []);
+        expect(summary.isEmpty).toBe(true);
+        expect(summary.hasNowPlaying).toBe(false);
+        expect(summary.hasUpcoming).toBe(false);
+        expect(summary.onlyNowPlaying).toBe(false);
+        expect(summary.upcomingCount).toBe(0);
+        expect(summary.totalCards).toBe(0);
+      });
+
+      it('detects "only now playing exists" when upNext is empty but nowPlaying is present', () => {
+        const summary = getQueueStateSummary(mockTrackOnAir, []);
+        expect(summary.isEmpty).toBe(false);
+        expect(summary.hasNowPlaying).toBe(true);
+        expect(summary.hasUpcoming).toBe(false);
+        expect(summary.onlyNowPlaying).toBe(true);
+        expect(summary.upcomingCount).toBe(0);
+        expect(summary.totalCards).toBe(1);
+      });
+
+      it('detects "only now playing exists" if upNext accidentally only contains the same active track', () => {
+        const duplicateUpNext = [{ id: 'active-song-1', title: 'Current Hit', artist: 'Resident AI' }];
+        const summary = getQueueStateSummary(mockTrackOnAir, duplicateUpNext);
+        expect(summary.hasNowPlaying).toBe(true);
+        expect(summary.hasUpcoming).toBe(false);
+        expect(summary.onlyNowPlaying).toBe(true);
+        expect(summary.upcomingCount).toBe(0);
+        expect(summary.totalCards).toBe(1);
+      });
+
+      it('detects active upcoming queue when real distinct upcoming tracks exist', () => {
+        const summary = getQueueStateSummary(mockTrackOnAir, mockUpcoming);
+        expect(summary.isEmpty).toBe(false);
+        expect(summary.hasNowPlaying).toBe(true);
+        expect(summary.hasUpcoming).toBe(true);
+        expect(summary.onlyNowPlaying).toBe(false);
+        expect(summary.upcomingCount).toBe(2);
+        expect(summary.totalCards).toBe(3);
+      });
+
+      it('handles queue with upcoming tracks but null nowPlaying', () => {
+        const summary = getQueueStateSummary(null, mockUpcoming);
+        expect(summary.isEmpty).toBe(false);
+        expect(summary.hasNowPlaying).toBe(false);
+        expect(summary.hasUpcoming).toBe(true);
+        expect(summary.onlyNowPlaying).toBe(false);
+        expect(summary.upcomingCount).toBe(2);
+        expect(summary.totalCards).toBe(2);
+      });
+
+      it('filters out falsy or nullish entries in upNext list', () => {
+        const summary = getQueueStateSummary(mockTrackOnAir, [null as any, undefined as any]);
+        expect(summary.hasUpcoming).toBe(false);
+        expect(summary.onlyNowPlaying).toBe(true);
+        expect(summary.upcomingCount).toBe(0);
+      });
+
+      it('handles undefined or null upNext list gracefully', () => {
+        const summary = getQueueStateSummary(mockTrackOnAir, null as any);
+        expect(summary.hasUpcoming).toBe(false);
+        expect(summary.onlyNowPlaying).toBe(true);
+        expect(summary.upcomingCount).toBe(0);
+        expect(summary.totalCards).toBe(1);
+      });
+
+      it('handles nowPlaying object without an id as not having an active track', () => {
+        const trackNoId = { title: 'Unknown', artist: 'Unknown' } as any;
+        const summary = getQueueStateSummary(trackNoId, []);
+        expect(summary.hasNowPlaying).toBe(false);
+        expect(summary.onlyNowPlaying).toBe(false);
+        expect(summary.isEmpty).toBe(true);
+        expect(summary.totalCards).toBe(0);
+      });
+
+      it('correctly calculates totalCards when both nowPlaying and upcoming items exist', () => {
+        const summary = getQueueStateSummary(mockTrackOnAir, mockUpcoming);
+        expect(summary.totalCards).toBe(3);
+      });
+    });
+
+    describe('getQueueDisplayMode', () => {
+      it('returns "empty" when neither on-air nor upcoming tracks are present', () => {
+        expect(getQueueDisplayMode(null, [])).toBe('empty');
+      });
+
+      it('returns "now-playing-only" when on-air track is present but upcoming queue is empty', () => {
+        expect(getQueueDisplayMode(mockTrackOnAir, [])).toBe('now-playing-only');
+      });
+
+      it('returns "active-queue" when upcoming tracks are present', () => {
+        expect(getQueueDisplayMode(mockTrackOnAir, mockUpcoming)).toBe('active-queue');
+        expect(getQueueDisplayMode(null, mockUpcoming)).toBe('active-queue');
+      });
     });
   });
 });
