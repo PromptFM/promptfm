@@ -48,6 +48,7 @@ import {
   buildQueueDisplayItems,
   calculateTrackProgress,
   formatAudioTime,
+  getPlaybackProgressAria,
 } from '@/lib/radio/progress';
 import { formatPageTitle, updateMediaSession } from '@/lib/player/media-session';
 
@@ -98,7 +99,11 @@ function EqualizerBars({ playing }: { playing: boolean }) {
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-export default function AudioPlayer() {
+export interface AudioPlayerProps {
+  initialNowPlaying?: NowPlayingInfo | null;
+}
+
+export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerProps = {}) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const controllerRef = useRef<StreamPlayerController | null>(null);
 
@@ -112,7 +117,7 @@ export default function AudioPlayer() {
   const [showChannelMenu, setShowChannelMenu] = useState(false);
 
   // Now Playing & Live Transcript State
-  const [nowPlaying, setNowPlaying] = useState<NowPlayingInfo | null>(null);
+  const [nowPlaying, setNowPlaying] = useState<NowPlayingInfo | null>(initialNowPlaying);
   const [voted, setVoted] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
   const [showUpNext, setShowUpNext] = useState(false);
@@ -439,6 +444,13 @@ export default function AudioPlayer() {
     }
   };
 
+  const trackProgress = calculateTrackProgress(elapsedSeconds, durationSeconds);
+  const progressAria = getPlaybackProgressAria(
+    elapsedSeconds,
+    durationSeconds,
+    nowPlaying?.title ? `Playback progress: ${nowPlaying.title}` : 'Playback progress'
+  );
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <>
@@ -452,11 +464,19 @@ export default function AudioPlayer() {
         role="region"
         aria-label="Live radio player"
       >
-        {/* Real-time Broadcast Progress Bar */}
-        <div className="absolute top-0 left-0 right-0 h-[2px] bg-zinc-800/80 overflow-hidden">
+        {/* Real-time Broadcast Progress Bar with full ARIA semantics (Issue #87) */}
+        <div
+          role="progressbar"
+          aria-label={progressAria['aria-label']}
+          aria-valuenow={trackProgress.percent}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuetext={`${trackProgress.formattedElapsed} of ${trackProgress.formattedDuration}`}
+          className="absolute top-0 left-0 right-0 h-[3px] bg-zinc-800/90 overflow-hidden"
+        >
           <div
-            className="h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400 transition-all duration-1000 ease-linear"
-            style={{ width: `${Math.min(100, Math.round((elapsedSeconds / durationSeconds) * 100))}%` }}
+            className="h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400 transition-all duration-1000 ease-linear motion-reduce:transition-none"
+            style={{ width: `${trackProgress.percent}%` }}
           />
         </div>
         {/* Channel Switcher Popover Menu */}
@@ -761,8 +781,13 @@ export default function AudioPlayer() {
                 {nowPlaying ? nowPlaying.artist : isPlaying ? currentChannel.vibe : 'Click play to tune in'}
               </p>
               {nowPlaying && (
-                <span className="text-[10px] font-mono text-emerald-400/90 bg-zinc-900 border border-zinc-800 px-1.5 py-0.2 rounded hidden sm:inline-flex">
-                  {formatAudioTime(elapsedSeconds)} / {formatAudioTime(durationSeconds)}
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-mono text-emerald-400/90 bg-zinc-900/90 border border-zinc-800 px-1.5 py-0.5 rounded flex-shrink-0 tabular-nums shadow-sm"
+                  aria-label={`Playback time: ${trackProgress.formattedElapsed} of ${trackProgress.formattedDuration}`}
+                >
+                  <span>{trackProgress.formattedElapsed}</span>
+                  <span className="text-zinc-600" aria-hidden="true">/</span>
+                  <span className="text-zinc-400">{trackProgress.formattedDuration}</span>
                 </span>
               )}
               {nowPlaying?.transcript && (
@@ -776,6 +801,19 @@ export default function AudioPlayer() {
                 </button>
               )}
             </div>
+
+            {/* Mobile-only inline playback progress indicator for iPhone / small screens (Issue #87) */}
+            {nowPlaying && (
+              <div
+                className="sm:hidden w-full h-[2px] bg-zinc-800/80 rounded-full overflow-hidden mt-1"
+                aria-hidden="true"
+              >
+                <div
+                  className="h-full bg-gradient-to-r from-emerald-400 to-teal-400 rounded-full transition-all duration-1000 ease-linear motion-reduce:transition-none"
+                  style={{ width: `${trackProgress.percent}%` }}
+                />
+              </div>
+            )}
           </div>
         </div>
 
