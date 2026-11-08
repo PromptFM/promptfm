@@ -56,7 +56,7 @@ export default function HomePage() {
         <div className={heroGrid.container}>
           <a
             href="#channels"
-            className={heroGrid.primaryButton}
+            className={`${heroGrid.primaryButton} whitespace-nowrap`}
           >
             <Radio className="w-4 h-4" />
             Tune In Main Stage
@@ -64,28 +64,28 @@ export default function HomePage() {
           <div className={heroGrid.secondaryGrid}>
             <Link
               href="/top"
-              className={heroGrid.secondaryButton}
+              className={`${heroGrid.secondaryButton} whitespace-nowrap`}
             >
               <Music2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
               Weekly Charts
             </Link>
             <a
               href="#funding"
-              className="flex items-center justify-center gap-1.5 sm:gap-2 border border-emerald-500/50 hover:border-emerald-400 text-emerald-300 hover:text-white font-semibold px-3 py-2.5 sm:px-5 sm:py-3 rounded-xl transition-colors text-xs sm:text-base bg-emerald-950/30 shadow-md shadow-emerald-500/10"
+              className="flex items-center justify-center gap-1.5 sm:gap-2 border border-emerald-500/50 hover:border-emerald-400 text-emerald-300 hover:text-white font-semibold px-3 py-2.5 sm:px-5 sm:py-3 rounded-xl transition-colors text-xs sm:text-base bg-emerald-950/30 shadow-md shadow-emerald-500/10 whitespace-nowrap"
             >
               <Heart className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 fill-emerald-400/20" />
               Support Station
             </a>
             <a
               href="#contribute"
-              className={heroGrid.secondaryButton}
+              className={`${heroGrid.secondaryButton} whitespace-nowrap`}
             >
               <Code2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
               Contribute
             </a>
             <Link
               href="/submit"
-              className={heroGrid.secondaryButton}
+              className={`${heroGrid.secondaryButton} whitespace-nowrap`}
             >
               <Upload className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               Submit
