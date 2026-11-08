@@ -276,6 +276,14 @@ describe('Liquidsoap Synchronization & Track Started Flow', () => {
       }
     });
 
+    it('sets staged_item when getNextAirplayItem pre-fetches and clears staged_item when markTrackStarted runs', async () => {
+      const nextItem = await getNextAirplayItem('main', false);
+      expect(nextItem).toBeDefined();
+
+      const startedItem = await markTrackStarted('main', nextItem.id);
+      expect(startedItem.id).toBe(nextItem.id);
+    });
+
     it('isolates channel airplay state when starting track on non-main channel', async () => {
       await markTrackStarted('main', 'track-101');
       const mainBefore = await getNowPlaying('main');
