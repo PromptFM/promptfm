@@ -33,3 +33,4 @@ describe('GitHub Sponsors & Multi-Rail Funding Configuration', () => {
     expect(content).not.toContain('https://github.com/sponsors/atrifan');
   });
 });
+
