@@ -17,3 +17,8 @@ output "image_used" {
   description = "Ubuntu image the VM was created from"
   value       = data.oci_core_images.ubuntu_arm.images[0].display_name
 }
+
+output "home_region" {
+  description = "Tenancy home region (Always Free A1 lives here)"
+  value       = local.home_region
+}

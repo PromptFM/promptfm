@@ -2,6 +2,14 @@
 # PromptFM streamer host on Oracle Cloud Always Free (Ampere A1, up to 10 TB/month outbound).
 # Moves audio egress off GCP, where only 1 GB/month is free.
 
+data "oci_identity_region_subscriptions" "all" {
+  tenancy_id = nonsensitive(local.oci.tenancy_ocid)
+}
+
+locals {
+  home_region = [for r in data.oci_identity_region_subscriptions.all.region_subscriptions : r.region_name if r.is_home_region][0]
+}
+
 data "oci_identity_availability_domains" "ads" {
   compartment_id = local.compartment_id
 }
@@ -119,6 +127,11 @@ resource "oci_core_instance" "streamer" {
   }
 
   lifecycle {
+    precondition {
+      condition     = nonsensitive(local.oci.region) == local.home_region
+      error_message = "Always Free A1 only exists in the home region (${local.home_region}). The credentials secret is set to ${nonsensitive(local.oci.region)}."
+    }
+
     # A newer Ubuntu image must not recreate the VM and lose the streamer state.
     ignore_changes = [source_details[0].source_id, metadata["user_data"]]
   }
