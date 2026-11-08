@@ -53,6 +53,12 @@ vi.mock('@/lib/dj/engine', () => ({
 describe('Schedule-Driven Rotation Engine', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        current: { temperature_2m: 21, weather_code: 0 },
+      }),
+    } as any);
   });
 
   it('plays 100% music without calling news or weather drops when schedule has only music', async () => {

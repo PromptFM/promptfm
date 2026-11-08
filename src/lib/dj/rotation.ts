@@ -787,11 +787,13 @@ export async function markTrackStarted(
           (actual as AirplayItem).artist ||
           'PromptFM Core';
         itemToStart = {
-          id: actual.id,
+          id: actual.id || itemId || 'track-resolved',
           type: (actual as AirplayItem).type || 'music',
-          title: actual.title,
+          title: actual.title || title || 'PromptFM Track',
           artist: artistName,
-          audio_url: actual.audio_url,
+          audio_url:
+            actual.audio_url ||
+            'https://oxfacfdpxbxilucooijy.supabase.co/storage/v1/object/public/tracks/promptfm_ambient_ai_anthem.mp3',
           cover_art_url: actual.cover_art_url || '/logo-mark.png',
           category: actual.category,
           description: actual.description,
