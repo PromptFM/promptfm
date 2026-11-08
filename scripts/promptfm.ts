@@ -60,6 +60,7 @@ import {
   fetchRemoteZone,
   validateRemoteZone,
   applyRemoteZone,
+  resolveHostingerToken,
   type HostingerDNSRecord,
 } from '../src/lib/infra/hostinger-dns';
 import { execSync } from 'child_process';
@@ -1909,11 +1910,11 @@ Moderation & Schedule:
       }
 
       if (action === 'snapshot') {
-        const token = process.env.HOSTINGER_API_TOKEN || process.env.HOSTINGER_TOKEN;
+        const token = resolveHostingerToken();
         const stateFile = parseArg('--state') || join(process.cwd(), `infra/dns/${targetDomain}.state.json`);
         console.log(`\n📸 Exporting DNS state snapshot for ${targetDomain}...`);
         if (!token) {
-          console.log(`ℹ️  No HOSTINGER_API_TOKEN found in environment. Using existing local state or template.`);
+          console.log(`ℹ️  No HOSTINGER_API_TOKEN found in environment or local credentials. Using existing local state or template.`);
           if (existsSync(defaultStatePath)) {
             const current = loadZoneState(defaultStatePath);
             const state = createZoneState(targetDomain, current.zone);
@@ -2026,7 +2027,7 @@ Moderation & Schedule:
       }
 
       if (action === 'apply') {
-        const token = process.env.HOSTINGER_API_TOKEN || process.env.HOSTINGER_TOKEN;
+        const token = resolveHostingerToken();
         const stateFile = parseArg('--state') || join(process.cwd(), `infra/dns/${targetDomain}.state.json`);
         if (!existsSync(stateFile)) {
           console.error(`❌ State file not found: ${stateFile}`);
@@ -2035,7 +2036,7 @@ Moderation & Schedule:
         const state = loadZoneState(stateFile);
 
         if (!token) {
-          console.log(`⚠️  HOSTINGER_API_TOKEN not found in environment.`);
+          console.log(`⚠️  HOSTINGER_API_TOKEN not found in environment or local credentials.`);
           console.log(`State is saved locally and validated at ${stateFile}.`);
           console.log(`Set HOSTINGER_API_TOKEN to execute remote Hostinger API deployment.`);
           return;

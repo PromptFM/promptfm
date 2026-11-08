@@ -328,24 +328,62 @@ export function formatMigrationSummary(plan: DNSMigrationPlan): string {
   return lines.join('\n');
 }
 
-export const HOSTINGER_API_BASE = 'https://api.hostinger.com/v1';
+export const HOSTINGER_API_BASE =
+  process.env.HOSTINGER_API_BASE || 'https://developers.hostinger.com/api/dns/v1';
+
+/**
+ * Resolves the Hostinger API token from:
+ * 1. Explicit argument
+ * 2. HOSTINGER_API_TOKEN or HOSTINGER_TOKEN environment variables
+ * 3. Fallback to local IDE OAuth credentials in ~/.config/hostinger-mcp/credentials.json
+ */
+export function resolveHostingerToken(explicitToken?: string): string {
+  if (explicitToken !== undefined) {
+    return explicitToken.trim();
+  }
+  if (process.env.HOSTINGER_API_TOKEN && process.env.HOSTINGER_API_TOKEN.trim() !== '') {
+    return process.env.HOSTINGER_API_TOKEN.trim();
+  }
+  if (process.env.HOSTINGER_TOKEN && process.env.HOSTINGER_TOKEN.trim() !== '') {
+    return process.env.HOSTINGER_TOKEN.trim();
+  }
+
+  try {
+    const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+    if (homeDir) {
+      const credsPath = path.join(homeDir, '.config/hostinger-mcp/credentials.json');
+      if (fs.existsSync(credsPath)) {
+        const raw = fs.readFileSync(credsPath, 'utf8');
+        const data = JSON.parse(raw);
+        if (data && typeof data.access_token === 'string' && data.access_token.trim() !== '') {
+          return data.access_token.trim();
+        }
+      }
+    }
+  } catch {
+    // Ignore credentials read errors and fall through
+  }
+
+  return '';
+}
 
 /**
  * Fetches the current DNS zone records for a domain from Hostinger REST API.
  */
 export async function fetchRemoteZone(
   domain: string,
-  apiToken = process.env.HOSTINGER_API_TOKEN || process.env.HOSTINGER_TOKEN || ''
+  apiToken = resolveHostingerToken()
 ): Promise<HostingerDNSRecord[]> {
-  if (!apiToken) {
+  const token = resolveHostingerToken(apiToken);
+  if (!token) {
     throw new Error('Hostinger API token is required (HOSTINGER_API_TOKEN).');
   }
 
-  const url = `${HOSTINGER_API_BASE}/dns/records/${encodeURIComponent(domain.trim())}`;
+  const url = `${HOSTINGER_API_BASE}/zones/${encodeURIComponent(domain.trim())}`;
   const res = await fetch(url, {
     method: 'GET',
     headers: {
-      Authorization: `Bearer ${apiToken}`,
+      Authorization: `Bearer ${token}`,
       Accept: 'application/json',
     },
   });
@@ -367,17 +405,18 @@ export async function fetchRemoteZone(
 export async function validateRemoteZone(
   domain: string,
   zone: HostingerDNSRecord[],
-  apiToken = process.env.HOSTINGER_API_TOKEN || process.env.HOSTINGER_TOKEN || ''
+  apiToken = resolveHostingerToken()
 ): Promise<{ valid: boolean; error?: string }> {
-  if (!apiToken) {
+  const token = resolveHostingerToken(apiToken);
+  if (!token) {
     throw new Error('Hostinger API token is required (HOSTINGER_API_TOKEN).');
   }
 
-  const url = `${HOSTINGER_API_BASE}/dns/records/${encodeURIComponent(domain.trim())}/validate`;
+  const url = `${HOSTINGER_API_BASE}/zones/${encodeURIComponent(domain.trim())}/validate`;
   const res = await fetch(url, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiToken}`,
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
       Accept: 'application/json',
     },
@@ -404,18 +443,19 @@ export async function validateRemoteZone(
 export async function applyRemoteZone(
   domain: string,
   zone: HostingerDNSRecord[],
-  apiToken = process.env.HOSTINGER_API_TOKEN || process.env.HOSTINGER_TOKEN || '',
+  apiToken = resolveHostingerToken(),
   overwrite = true
 ): Promise<{ success: boolean; data?: unknown }> {
-  if (!apiToken) {
+  const token = resolveHostingerToken(apiToken);
+  if (!token) {
     throw new Error('Hostinger API token is required (HOSTINGER_API_TOKEN).');
   }
 
-  const url = `${HOSTINGER_API_BASE}/dns/records/${encodeURIComponent(domain.trim())}`;
+  const url = `${HOSTINGER_API_BASE}/zones/${encodeURIComponent(domain.trim())}`;
   const res = await fetch(url, {
     method: 'PUT',
     headers: {
-      Authorization: `Bearer ${apiToken}`,
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
       Accept: 'application/json',
     },

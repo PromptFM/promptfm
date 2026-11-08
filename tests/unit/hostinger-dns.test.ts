@@ -503,7 +503,7 @@ describe('Hostinger DNS State Management & Domain Migration Engine', () => {
 
       const records = await fetchRemoteZone('  promptfm.live  ', 'test-token');
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.hostinger.com/v1/dns/records/promptfm.live',
+        'https://developers.hostinger.com/api/dns/v1/zones/promptfm.live',
         {
           method: 'GET',
           headers: {
@@ -560,7 +560,7 @@ describe('Hostinger DNS State Management & Domain Migration Engine', () => {
       const res = await validateRemoteZone('  promptfm.live  ', sampleLiveZone, 'test-token');
       expect(res.valid).toBe(true);
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.hostinger.com/v1/dns/records/promptfm.live/validate',
+        'https://developers.hostinger.com/api/dns/v1/zones/promptfm.live/validate',
         {
           method: 'POST',
           headers: {
@@ -603,7 +603,7 @@ describe('Hostinger DNS State Management & Domain Migration Engine', () => {
       const res = await applyRemoteZone('  promptfm.live  ', sampleLiveZone, 'test-token', false);
       expect(res.success).toBe(true);
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.hostinger.com/v1/dns/records/promptfm.live',
+        'https://developers.hostinger.com/api/dns/v1/zones/promptfm.live',
         {
           method: 'PUT',
           headers: {
@@ -626,7 +626,7 @@ describe('Hostinger DNS State Management & Domain Migration Engine', () => {
 
       await applyRemoteZone('promptfm.live', sampleLiveZone, 'test-token');
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.hostinger.com/v1/dns/records/promptfm.live',
+        'https://developers.hostinger.com/api/dns/v1/zones/promptfm.live',
         expect.objectContaining({
           body: JSON.stringify({ overwrite: true, zone: sampleLiveZone }),
         })

@@ -36,3 +36,14 @@ coverage/
 test-results/
 playwright-report/
 tests/e2e/screenshots/
+
+# Infrastructure Secrets & Local State
+*.tfvars
+!*.tfvars.example
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+*.key.json
+infra/ansible/group_vars/
+infra/ansible/.vault_pass
