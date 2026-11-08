@@ -395,7 +395,7 @@ PromptFM is an independent project. To maintain 100% legal compliance and operat
 ### Supported Donation Rails
 - **Stripe Checkout:** Direct card, Apple Pay, and Google Pay support via [Stripe Donation](https://donate.stripe.com/6oUaEYdUpa9zgEA2H3cQU00).
 - **PayPal.Me:** Direct 1-click tips via [paypal.me/promptfm](https://paypal.me/promptfm).
-- **GitHub Sponsors:** 0% platform fee developer patronage at [github.com/sponsors/PromptFM](https://github.com/sponsors/PromptFM).
+- **GitHub Sponsors:** 0% platform fee developer patronage at [github.com/sponsors/promptfm/signup](https://github.com/sponsors/promptfm/signup).
 - **Ko-fi:** 1-click tips via Apple Pay, Google Pay, and PayPal at [ko-fi.com/promptfm](https://ko-fi.com/promptfm).
 - **Bitcoin (BTC):** Direct on-chain contribution on Bitcoin Mainnet only to `bc1qaplta50757v7c4vrk7vnry0vfd6c47rpmyvnj9` ([View on Mempool](https://mempool.space/address/bc1qaplta50757v7c4vrk7vnry0vfd6c47rpmyvnj9)).
 - **Ethereum / USDC:** Direct ERC-20 & ETH contribution on Ethereum Mainnet only to `0x9581F969727Ff987958d050C80662578C50F6A9f` ([View on Etherscan](https://etherscan.io/address/0x9581F969727Ff987958d050C80662578C50F6A9f)).

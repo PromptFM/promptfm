@@ -116,3 +116,4 @@ export function generateAllBadges(outputDir: string): Record<string, string> {
 
   return generated;
 }
+

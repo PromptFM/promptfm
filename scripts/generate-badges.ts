@@ -9,3 +9,4 @@ const outputDir = path.resolve(process.cwd(), 'public/badges');
 console.log(`Generating repository badges into ${outputDir}...`);
 const generated = generateAllBadges(outputDir);
 console.log(`Successfully generated ${Object.keys(generated).length} SVG badges.`);
+

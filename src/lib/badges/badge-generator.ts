@@ -79,3 +79,4 @@ export function generateBadgeSvg(options: BadgeOptions): string {
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalWidth}" height="28" role="img" aria-label="${ariaLabel}"><title>${ariaLabel}</title><g shape-rendering="crispEdges"><rect width="${labelWidth}" height="28" fill="${labelColor}"/><rect x="${labelWidth}" width="${messageWidth}" height="28" fill="${color}"/></g><g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="100">${logoElement}<text transform="scale(.1)" x="${labelCenterX}" y="175" textLength="${labelTextLength}">${escapedLabel}</text><text transform="scale(.1)" x="${messageCenterX}" y="175" textLength="${messageTextLength}" font-weight="bold">${escapedMessage}</text></g></svg>`;
 }
+

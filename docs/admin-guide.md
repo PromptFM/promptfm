@@ -413,7 +413,7 @@ PromptFM maintains an open-ledger, transparent funding model where 100% of liste
 | **Stripe Checkout** | Card / Digital Wallets | Visa, MC, Amex, Apple Pay, Google Pay, Link | `https://donate.stripe.com/6oUaEYdUpa9zgEA2H3cQU00` |
 | **PayPal.Me** | Balance / Bank / Card | PayPal account, debit/credit | `https://paypal.me/promptfm` |
 | **Ko-fi** | Tip Jar / Subscriptions | Apple Pay, Google Pay, Card, PayPal | `https://ko-fi.com/promptfm` |
-| **GitHub Sponsors** | Developer Patronage | Monthly / One-time (0% platform fee) | `https://github.com/sponsors/PromptFM` |
+| **GitHub Sponsors** | Developer Patronage | Monthly / One-time (0% platform fee) | `https://github.com/sponsors/promptfm/signup` |
 | **Bitcoin (BTC)** | Direct On-Chain | Bitcoin Mainnet Only | `bc1qaplta50757v7c4vrk7vnry0vfd6c47rpmyvnj9` |
 | **Ethereum (ETH / USDC)** | Direct On-Chain | Ethereum Mainnet Only (ERC-20) | `0x9581F969727Ff987958d050C80662578C50F6A9f` |
 

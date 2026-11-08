@@ -248,7 +248,7 @@ export default function FundingSection() {
 
             {/* GitHub Sponsors */}
             <a
-              href="https://github.com/sponsors/PromptFM"
+              href="https://github.com/sponsors/promptfm/signup"
               target="_blank"
               rel="noopener noreferrer"
               className="p-4 rounded-xl border border-zinc-800 bg-zinc-950/80 hover:border-purple-500 hover:bg-zinc-900 transition-all group flex flex-col justify-between"

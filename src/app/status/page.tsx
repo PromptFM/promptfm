@@ -257,7 +257,7 @@ export default async function StatusPage() {
 
               {/* GitHub Sponsors */}
               <a
-                href="https://github.com/sponsors/PromptFM"
+                href="https://github.com/sponsors/promptfm/signup"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="p-4 rounded-xl border border-neutral-700 bg-neutral-800 hover:border-purple-500 hover:bg-neutral-800/80 transition-all group"
