@@ -195,6 +195,31 @@ export function diffZone(
 }
 
 /**
+ * Safely replaces all occurrences of a search string case-insensitively without regex.
+ * Prevents ReDoS, regex injection, and incomplete character escaping (CWE-020, CWE-400).
+ */
+export function replaceCaseInsensitive(str: string, search: string, replacement: string): string {
+  if (!str || !search) {
+    return str;
+  }
+  let result = '';
+  let startIndex = 0;
+  const lowerStr = str.toLowerCase();
+  const lowerSearch = search.toLowerCase();
+
+  while (startIndex < str.length) {
+    const index = lowerStr.indexOf(lowerSearch, startIndex);
+    if (index === -1) {
+      result += str.slice(startIndex);
+      break;
+    }
+    result += str.slice(startIndex, index) + replacement;
+    startIndex = index + search.length;
+  }
+  return result;
+}
+
+/**
  * Migrates a DNS zone configuration from one domain to another by substituting domain names.
  */
 export function migrateZoneConfig(
@@ -205,20 +230,15 @@ export function migrateZoneConfig(
   const cleanSource = sourceDomain.trim().toLowerCase();
   const cleanTarget = targetDomain.trim().toLowerCase();
 
-  // Escaped regex pattern to replace source domain
-  const domainRegex = new RegExp(cleanSource.replace(/\./g, '\\.'), 'gi');
+  if (!cleanSource || !cleanTarget) {
+    return sourceZone;
+  }
 
   return sourceZone.map((record) => {
-    const updatedRecords = record.records.map((item) => {
-      let content = item.content;
-      if (domainRegex.test(content)) {
-        content = content.replace(domainRegex, cleanTarget);
-      }
-      return {
-        ...item,
-        content,
-      };
-    });
+    const updatedRecords = record.records.map((item) => ({
+      ...item,
+      content: replaceCaseInsensitive(item.content, cleanSource, cleanTarget),
+    }));
 
     return {
       ...record,

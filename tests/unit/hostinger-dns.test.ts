@@ -7,6 +7,7 @@ import * as path from 'path';
 import {
   validateRecord,
   diffZone,
+  replaceCaseInsensitive,
   migrateZoneConfig,
   createZoneState,
   formatMigrationSummary,
@@ -315,7 +316,35 @@ describe('Hostinger DNS State Management & Domain Migration Engine', () => {
     });
   });
 
+  describe('replaceCaseInsensitive()', () => {
+    it('returns empty or original string if input or search is empty', () => {
+      expect(replaceCaseInsensitive('', 'foo', 'bar')).toBe('');
+      expect(replaceCaseInsensitive('hello', '', 'bar')).toBe('hello');
+    });
+
+    it('replaces all occurrences regardless of casing', () => {
+      const input = 'PREFIX promptfm.live MID PromptFM.LIVE END';
+      const result = replaceCaseInsensitive(input, 'promptfm.live', 'target.com');
+      expect(result).toBe('PREFIX target.com MID target.com END');
+    });
+
+    it('safely handles strings with regex metacharacters without regex injection', () => {
+      const input = 'contact@promptfm.live (alias.*+?[test])';
+      const result = replaceCaseInsensitive(input, '(alias.*+?[test])', '[safe]');
+      expect(result).toBe('contact@promptfm.live [safe]');
+    });
+
+    it('returns original string if search term is not found', () => {
+      expect(replaceCaseInsensitive('hello world', 'missing', 'target')).toBe('hello world');
+    });
+  });
+
   describe('migrateZoneConfig()', () => {
+    it('returns sourceZone unmodified if sourceDomain or targetDomain is empty', () => {
+      expect(migrateZoneConfig(sampleLiveZone, '', 'promptfm.com')).toEqual(sampleLiveZone);
+      expect(migrateZoneConfig(sampleLiveZone, 'promptfm.live', '   ')).toEqual(sampleLiveZone);
+    });
+
     it('transforms source domain occurrences into target domain', () => {
       const migrated = migrateZoneConfig(sampleLiveZone, 'promptfm.live', 'promptfm.com');
 
