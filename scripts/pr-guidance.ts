@@ -35,11 +35,13 @@ function main() {
 
   const changedFiles = getChangedFiles();
   const checksPassed = process.env.CHECKS_PASSED !== 'false';
+  const prBody = process.env.PR_BODY || '';
 
   const { commentMarkdown, hasInfraChanges } = generatePRCommentOutput({
     commitSha,
     changedFiles,
     checksPassed,
+    prBody,
   });
 
   console.log(`\n======================================================`);

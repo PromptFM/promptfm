@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import Image from 'next/image';
 import Script from 'next/script';
-import { Analytics } from '@vercel/analytics/react';
+import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 import AudioPlayer from '@/components/AudioPlayer';
 import CookieConsentBanner from '@/components/CookieConsentBanner';

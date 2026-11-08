@@ -23,10 +23,11 @@ describe('GitHub Actions Workflows Suite', () => {
   });
 
   describe('Apply Terraform Changes Workflow (apply-terraform.yml)', () => {
-    it('exists and executes prepare-infra before terraform apply', () => {
+    it('exists, listens to promptfm-infra/* tags, and executes prepare-infra before terraform apply', () => {
       const content = readWorkflow('apply-terraform.yml');
       expect(content).toContain('name: 🏗️ Apply Terraform Changes');
       expect(content).toContain('workflow_dispatch:');
+      expect(content).toContain('promptfm-infra/*');
       expect(content).toContain('npm run prepare-infra');
       expect(content).toContain('terraform -chdir=infra/terraform init');
       expect(content).toContain('terraform -chdir=infra/terraform apply -auto-approve');
@@ -74,6 +75,16 @@ describe('GitHub Actions Workflows Suite', () => {
       expect(content).toContain('Release GitHub Pages');
       expect(content).toContain('actions/deploy-pages');
       expect(content).toContain('docs');
+    });
+  });
+
+  describe('Playwright CI Optimization (ci.yml) (Issue #83)', () => {
+    it('caches Playwright browser and skips install-deps on cache hit', () => {
+      const content = readWorkflow('ci.yml');
+      expect(content).toContain('Cache Playwright Browsers');
+      expect(content).toContain('playwright-cache');
+      expect(content).toContain("if: steps.playwright-cache.outputs.cache-hit != 'true'");
+      expect(content).not.toContain("if: steps.playwright-cache.outputs.cache-hit == 'true'\n        run: npx playwright install-deps");
     });
   });
 

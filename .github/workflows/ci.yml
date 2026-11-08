@@ -166,25 +166,9 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-browsers-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-      - name: Install Playwright Chromium Browser
+      - name: Install Playwright Chromium with Dependencies
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
-
-      - name: Install Playwright System Dependencies
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
-
-      - name: Restore Next.js Build Cache
-        uses: actions/cache@v4
-        with:
-          path: .next/cache
-          key: nextjs-build-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
-          restore-keys: |
-            nextjs-build-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
-
-      - name: Install Playwright System Dependencies
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
 
       - name: Restore Next.js Build Cache
         uses: actions/cache@v4
@@ -427,6 +411,7 @@ jobs:
         env:
           PR_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           GITHUB_BASE_REF: origin/${{ github.base_ref }}
+          PR_BODY: ${{ github.event.pull_request.body }}
           CHECKS_PASSED: 'true'
         run: |
           npx jiti scripts/pr-guidance.ts

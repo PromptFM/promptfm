@@ -1,10 +1,17 @@
 // src/lib/ci/pr-comment-generator.ts
 // Generates automated PR guidance comments for previews and infrastructure deployment gates.
 
+import {
+  detectEnvAndFlagRequirements,
+  validatePRDescriptionNotes,
+  formatEnvValidationComment,
+} from './pr-env-validator';
+
 export interface PRCommentParams {
   commitSha: string;
   changedFiles: string[];
   checksPassed: boolean;
+  prBody?: string;
 }
 
 export interface InfraChangesResult {
@@ -94,6 +101,20 @@ Please review the failing checks in GitHub Actions.`;
     if (hasAnsible) {
       lines.push(`> [!IMPORTANT]`);
       lines.push(`> **Ansible Update Required:** After merge have an admin run the Update ansible workflow`);
+    }
+  }
+
+  const envRequirements = detectEnvAndFlagRequirements(params.changedFiles);
+  if (
+    envRequirements.requiresEnvNotes ||
+    envRequirements.requiresFlagNotes ||
+    envRequirements.requiresSecretHandoff
+  ) {
+    const envValidation = validatePRDescriptionNotes(params.prBody || '', envRequirements);
+    if (!envValidation.valid) {
+      lines.push(``);
+      lines.push(`---`);
+      lines.push(formatEnvValidationComment(envValidation));
     }
   }
 

@@ -2,6 +2,11 @@ name: 🏗️ Apply Terraform Changes
 
 on:
   workflow_dispatch:
+    inputs:
+      auto_approve:
+        description: 'Auto approve terraform apply'
+        default: 'true'
+        required: false
   push:
     branches: [main]
     paths:
@@ -10,6 +15,8 @@ on:
       - 'scripts/prepare-infra.ts'
       - 'src/lib/infra/prepare-infra.ts'
       - '.github/workflows/apply-terraform.yml'
+    tags:
+      - 'promptfm-infra/*'
 
 permissions:
   contents: read

@@ -94,6 +94,52 @@ describe('PR Comment Guidance Generator', () => {
       expect(comment).toContain('Quality and security checks must pass');
       expect(comment).not.toContain('make an admin run the Make preview link workflow');
     });
+
+    it('appends environment/secret validation warning when env files are changed without notes in PR body', () => {
+      const comment = generatePRGuidanceComment({
+        commitSha: 'a1b2c3d4e5f6',
+        changedFiles: ['.env.example'],
+        checksPassed: true,
+        prBody: 'Just fixing some typos in the UI',
+      });
+
+      expect(comment).toContain('PR Review Check: Environment & Secret Handoff Required');
+      expect(comment).toContain('Missing environment variable notes');
+    });
+
+    it('does not append environment validation warning when PR body notes "None"', () => {
+      const comment = generatePRGuidanceComment({
+        commitSha: 'a1b2c3d4e5f6',
+        changedFiles: ['.env.example'],
+        checksPassed: true,
+        prBody: '## Environment Variables & Secrets Required\nNone',
+      });
+
+      expect(comment).not.toContain('PR Review Check: Environment & Secret Handoff Required');
+    });
+
+    it('does not append warning when feature-flags.ts is changed and PR body specifies feature flag notes', () => {
+      const comment = generatePRGuidanceComment({
+        commitSha: 'a1b2c3d4e5f6',
+        changedFiles: ['src/lib/flags/feature-flags.ts'],
+        checksPassed: true,
+        prBody: 'Updated feature flag definitions for live stream',
+      });
+
+      expect(comment).not.toContain('PR Review Check: Environment & Secret Handoff Required');
+    });
+
+    it('appends warning when feature-flags.ts is changed and body has no flag mention', () => {
+      const comment = generatePRGuidanceComment({
+        commitSha: 'a1b2c3d4e5f6',
+        changedFiles: ['src/lib/flags/feature-flags.ts'],
+        checksPassed: true,
+        prBody: 'Just updating a file',
+      });
+
+      expect(comment).toContain('PR Review Check: Environment & Secret Handoff Required');
+      expect(comment).toContain('Missing feature flag activation/deactivation notes');
+    });
   });
 });
 
