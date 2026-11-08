@@ -127,8 +127,9 @@ If your feature requires new API keys or environment variables in Vercel:
 
 ## ☁️ 6. Deployment & Infrastructure Workflow
 
-### Continuous Deployment (Vercel)
-- Merging a PR into `main` automatically triggers a production deployment to **[promptfm.live](https://promptfm.live)** via Vercel GitHub integration.
+### Production Release Deployments (Tag-Based)
+- Merging a PR into `main` runs full CI validation and triggers testing pipelines. To protect our $0 infrastructure budget and prevent exhausting Vercel Fluid Active CPU, production deployments to **[promptfm.live](https://promptfm.live)** are triggered exclusively via versioned release tags (`promptfm/<version>` or `v*.*.*`).
+- Documentation changes are published to GitHub Pages via `gh-pages/<version>` tags.
 
 ### Vercel Preview Deployments & $0 Infra Policy
 - **Gated Previews:** To keep PromptFM within the $0/month free tier (Vercel Hobby 4-hour Fluid Active CPU limit), preview deployments are gated. Previews for forked pull requests require maintainer authorization before building.
@@ -154,5 +155,5 @@ If your feature requires new API keys or environment variables in Vercel:
    ```
 4. Push to your fork and submit a PR to [`PromptFM/promptfm`](https://github.com/PromptFM/promptfm) targeting the `main` branch.
 5. Fill out all sections of the [Pull Request Template](./.github/PULL_REQUEST_TEMPLATE.md).
-6. Request review from **@atrifan**. Once approved and CI is green, your code will be merged to `main` and deployed to production!
+6. Request review from **@atrifan**. Once approved and CI is green, your code will be merged to `main` and shipped in the next tagged production release!
 

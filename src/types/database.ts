@@ -62,7 +62,7 @@ export interface CommunityRequest {
   content: string;
   target?: string | null;
   batch_id?: string | null;
-  status: 'pending' | 'scheduled' | 'aired' | 'rejected';
+  status: 'pending' | 'accepted' | 'scheduled' | 'queued' | 'airing_soon' | 'playing' | 'aired' | 'played' | 'rejected';
   rejection_reason?: string | null;
   is_explicit?: boolean;
   estimated_air_time?: string | null;

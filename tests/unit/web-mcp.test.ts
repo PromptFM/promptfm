@@ -32,6 +32,7 @@ import {
   webMcpAirRequest,
   webMcpEditTrack,
   webMcpDeleteTrack,
+  webMcpGetRequestStatus,
   parseMcpCommandString,
 } from '@/lib/mcp/client';
 
@@ -196,6 +197,14 @@ describe('Web MCP Client & Command Protocol', () => {
         command: 'queue',
         rawArgs: '',
       });
+      expect(parseMcpCommandString('/request 186f9b8c')).toEqual({
+        command: 'request',
+        rawArgs: '186f9b8c',
+      });
+      expect(parseMcpCommandString('/req Neon Horizon')).toEqual({
+        command: 'request',
+        rawArgs: 'Neon Horizon',
+      });
     });
 
     it('defaults plain natural language prompts without slash to /song', () => {
@@ -298,6 +307,48 @@ describe('Web MCP Client & Command Protocol', () => {
       expect(res.success).toBe(true);
       expect(res.toolName).toBe('promptfm_get_up_next');
       expect(res.data?.up_next?.length).toBe(1);
+    });
+
+    it('executes /request and /req commands via promptfm_get_request_status tool', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          jsonrpc: '2.0',
+          id: 'req-status-1',
+          result: {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  found: true,
+                  request_id: 'req-1234',
+                  status: 'queued',
+                  display_status: 'In Queue',
+                  badge_label: 'QUEUED',
+                  position: 2,
+                }),
+              },
+            ],
+          },
+        }),
+      } as unknown as Response);
+
+      const res = await executeWebMcpCommand('/request req-1234');
+      expect(res.success).toBe(true);
+      expect(res.toolName).toBe('promptfm_get_request_status');
+      expect(res.data?.status).toBe('queued');
+      expect(res.data?.position).toBe(2);
+
+      const shorthandRes = await executeWebMcpCommand('/req Neon');
+      expect(shorthandRes.success).toBe(true);
+      expect(shorthandRes.toolName).toBe('promptfm_get_request_status');
+    });
+
+    it('rejects /request command with error message when argument is missing', async () => {
+      const res = await executeWebMcpCommand('/request');
+      expect(res.success).toBe(false);
+      expect(res.message).toContain('Please provide a request ID');
     });
 
     it('executes /search or /vibe command via promptfm_search_tracks_by_vibe tool', async () => {
@@ -474,6 +525,27 @@ describe('Web MCP Client & Command Protocol', () => {
         '/api/mcp',
         expect.objectContaining({
           body: expect.stringContaining('"prompt":"dreamy lofi"'),
+        })
+      );
+    });
+
+    it('webMcpGetRequestStatus calls promptfm_get_request_status with query', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          jsonrpc: '2.0',
+          id: '2',
+          result: { content: [{ type: 'text', text: JSON.stringify({ found: true, status: 'playing' }) }] },
+        }),
+      } as unknown as Response);
+
+      const res = await webMcpGetRequestStatus('186f9b8c', { channel: 'cyberpunk' });
+      expect(res.found).toBe(true);
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/mcp',
+        expect.objectContaining({
+          body: expect.stringContaining('"query":"186f9b8c"'),
         })
       );
     });

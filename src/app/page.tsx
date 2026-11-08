@@ -13,7 +13,7 @@ import CommunitySection from '@/components/CommunitySection';
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-start text-center px-4 py-8 sm:py-12 pb-36 gap-8 sm:gap-12">
+    <main className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-start text-center px-4 py-8 sm:py-12 pb-[calc(8rem+env(safe-area-inset-bottom,0px))] gap-8 sm:gap-12">
       {/* Hero */}
       <div className="space-y-3.5 max-w-2xl pt-2 sm:pt-4">
         {/* Main Stage Station Icon Treatment — Branded emblem with live pulse indicator */}

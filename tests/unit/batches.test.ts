@@ -927,5 +927,60 @@ describe('Listener Request Batch Scheduling & Consolidation', () => {
       expect(result.audioUrl).toBe('');
       expect(result.script).toBe('');
     });
+
+    it('filters out leaked inbound email requests from synthesized announcements', async () => {
+      mockRequestsTable.push(
+        {
+          id: 'req-email-leaked',
+          platform: 'web',
+          platform_user_id: 'inbox@example.com',
+          platform_user_name: 'inbox',
+          type: 'song',
+          content: '[Inbound Email] DMCA notice: Remove track',
+          target: null,
+          batch_id: 'BATCH-FILTER-EMAIL',
+          status: 'scheduled',
+        },
+        {
+          id: 'req-valid-shoutout',
+          platform: 'discord',
+          platform_user_id: 'discord_456',
+          platform_user_name: 'neon_fan',
+          type: 'dedication',
+          content: 'Keep the synth rolling!',
+          target: 'Nightcruiser',
+          batch_id: 'BATCH-FILTER-EMAIL',
+          status: 'scheduled',
+        }
+      );
+
+      const result = await synthesizeBatchAnnouncement('BATCH-FILTER-EMAIL');
+      expect(result.count).toBe(1);
+      expect(createBroadcastDrop).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'custom_prompt',
+          topicOrText: expect.not.stringContaining('[Inbound Email]'),
+        })
+      );
+    });
+
+    it('returns empty result if batch contains only leaked inbound email requests', async () => {
+      mockRequestsTable.push({
+        id: 'req-only-leaked',
+        platform: 'web',
+        platform_user_id: 'legal@record.org',
+        platform_user_name: 'legal',
+        type: 'song',
+        content: '[Inbound Resend] To: dev@promptfm.live | Copyright',
+        target: null,
+        batch_id: 'BATCH-ONLY-EMAILS',
+        status: 'scheduled',
+      });
+
+      const result = await synthesizeBatchAnnouncement('BATCH-ONLY-EMAILS');
+      expect(result.count).toBe(0);
+      expect(result.audioUrl).toBe('');
+      expect(result.script).toBe('');
+    });
   });
 });

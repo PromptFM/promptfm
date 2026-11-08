@@ -80,6 +80,11 @@ describe('Listener Commands Directory & Bot Help Formatter', () => {
     expect(queueCmd?.desc).toBe('View the upcoming 5 songs in rotation and listener requests');
     expect(queueCmd?.example).toBe('/queue');
 
+    const reqCmd = LISTENER_COMMANDS.find((c) => c.command.startsWith('/request'));
+    expect(reqCmd).toBeDefined();
+    expect(reqCmd?.desc).toContain('lifecycle status');
+    expect(reqCmd?.category).toBe('Airplay');
+
     const npCmd = LISTENER_COMMANDS.find((c) => c.command === '/nowplaying');
     expect(npCmd).toBeDefined();
     expect(npCmd?.category).toBe('Info');
@@ -128,6 +133,7 @@ describe('Listener Commands Directory & Bot Help Formatter', () => {
     expect(text).toContain('PromptFM Interactive Bot & Broadcast Guide');
     expect(text).toContain('`/nowplaying`');
     expect(text).toContain('`/song <vibe or title>`');
+    expect(text).toContain('`/request <id or query>`');
     expect(text).toContain('`:45 - :00`');
     expect(text).toContain('https://promptfm.live');
   });
@@ -135,6 +141,7 @@ describe('Listener Commands Directory & Bot Help Formatter', () => {
   it('generates formatted help text for Telegram Markdown', () => {
     const text = getBotHelpText('markdown_v1');
     expect(text).toContain('*PromptFM Interactive Bot & Broadcast Guide*');
+    expect(text).toContain('/request <id or query>');
     expect(text).toContain('/nowplaying');
     expect(text).toContain('/song <vibe or title>');
     expect(text).toContain(':45 - :00');

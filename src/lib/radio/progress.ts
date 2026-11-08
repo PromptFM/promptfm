@@ -42,6 +42,9 @@ export interface QueueDisplayItem {
   tool_used?: string;
   upvotes_count?: number;
   type?: string;
+  requested_by?: string;
+  isRequested?: boolean;
+  lifecycleStatus?: string;
 }
 
 export type QueueInputTrack = {
@@ -54,6 +57,9 @@ export type QueueInputTrack = {
   upvotes_count?: number;
   type?: string;
   duration_hint_seconds?: number;
+  requested_by?: string;
+  isRequested?: boolean;
+  lifecycleStatus?: string;
 };
 
 /**
@@ -144,16 +150,20 @@ export function buildQueueDisplayItems(
 
   if (nowPlaying && nowPlaying.id) {
     const progress = calculateTrackProgress(elapsedSeconds, durationSeconds || nowPlaying.duration_hint_seconds);
+    const isRequested = Boolean(nowPlaying.requested_by);
     items.push({
       ...nowPlaying,
       id: nowPlaying.id,
       title: nowPlaying.title,
       artist: nowPlaying.artist,
       cover_art_url: nowPlaying.cover_art_url || '/logo-mark.png',
-      badgeLabel: '▶ NOW PLAYING',
+      badgeLabel: isRequested ? '▶ NOW PLAYING YOUR REQUEST' : '▶ NOW PLAYING',
       isCurrent: true,
       progressPercent: progress.percent,
       formattedTime: `${progress.formattedElapsed} / ${progress.formattedDuration}`,
+      requested_by: nowPlaying.requested_by,
+      isRequested,
+      lifecycleStatus: isRequested ? 'playing' : undefined,
     });
   }
 
@@ -162,14 +172,24 @@ export function buildQueueDisplayItems(
   const filteredUpNext = upNext.filter((item) => !currentId || item.id !== currentId);
 
   filteredUpNext.forEach((item, index) => {
+    const isRequested = Boolean(item.requested_by);
+    const badgeLabel = isRequested
+      ? index === 0
+        ? '⏳ AIRING SOON'
+        : '📋 QUEUED REQUEST'
+      : `#${index + 1} NEXT`;
+
     items.push({
       ...item,
       id: item.id || `upnext-${index}`,
       title: item.title,
       artist: item.artist,
       cover_art_url: item.cover_art_url || '/logo-mark.png',
-      badgeLabel: `#${index + 1} NEXT`,
+      badgeLabel,
       isCurrent: false,
+      requested_by: item.requested_by,
+      isRequested,
+      lifecycleStatus: isRequested ? (index === 0 ? 'airing_soon' : 'queued') : undefined,
     });
   });
 

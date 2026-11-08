@@ -12,6 +12,7 @@ import { evaluateContentSafety } from '../safety/guardrails';
 import { findTracksByVibe } from './rag';
 import { queueSong } from '../song/pathway';
 import { isFeatureEnabled } from '../flags/feature-flags';
+import { isEmailRequest } from '../email/inbound';
 
 export type RequestType = 'song' | 'dedication' | 'weather' | 'news' | 'zodiac';
 
@@ -55,13 +56,15 @@ export function calculateQueueETA(params: {
   remainingSecondsOnCurrentTrack?: number;
   averageTrackSeconds?: number;
   baseTime?: number;
+  stagedTrackSeconds?: number;
 }): QueueETAResult {
   const position = Math.max(1, params.queuePosition);
   const remainingCurrent = params.remainingSecondsOnCurrentTrack ?? 120;
   const avgTrack = params.averageTrackSeconds ?? 210;
+  const stagedSec = Math.max(0, params.stagedTrackSeconds ?? 0);
 
-  // Queue position #1 plays after current track finishes; subsequent items wait for items ahead
-  const estimatedSeconds = Math.max(30, remainingCurrent + (position - 1) * avgTrack);
+  // Queue position #1 plays after current track (+ staged track) finishes; subsequent items wait for items ahead
+  const estimatedSeconds = Math.max(30, remainingCurrent + stagedSec + (position - 1) * avgTrack);
   const estimatedMinutes = Math.max(1, Math.round(estimatedSeconds / 60));
 
   const baseMs = params.baseTime ?? Date.now();
@@ -527,15 +530,26 @@ export async function synthesizeBatchAnnouncement(
 ): Promise<{ audioUrl: string; script: string; count: number }> {
   const supabase = createAdminClient();
 
-  const { data: requests, error } = await supabase
+  let query = supabase
     .from('community_requests')
     .select('*')
     .eq('batch_id', batchId)
-    .in('status', ['scheduled', 'pending'])
+    .in('status', ['scheduled', 'pending']);
+
+  if (typeof (query as any).not === 'function') {
+    query = (query as any).not('content', 'ilike', '[Inbound%');
+  }
+
+  const { data: rawRequests, error } = await query
     .order('created_at', { ascending: true })
     .limit(10);
 
-  if (error || !requests || requests.length === 0) {
+  if (error || !rawRequests || rawRequests.length === 0) {
+    return { audioUrl: '', script: '', count: 0 };
+  }
+
+  const requests = rawRequests.filter((r) => !isEmailRequest(r));
+  if (requests.length === 0) {
     return { audioUrl: '', script: '', count: 0 };
   }
 

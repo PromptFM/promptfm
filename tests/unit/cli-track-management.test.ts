@@ -3,6 +3,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as trackMgmt from '@/lib/dj/track-management';
+import { formatRequestLifecycleMessage } from '@/lib/song/lifecycle';
 
 describe('PromptFM Admin Track CLI Actions', () => {
   beforeEach(() => {
@@ -69,5 +70,41 @@ describe('PromptFM Admin Track CLI Actions', () => {
     });
     expect(res.success).toBe(true);
     expect(res.deleted_id).toBe('track-1');
+  });
+
+  it('formats request lifecycle message for CLI output', () => {
+    const mockInfo = {
+      requestId: 'req-cli-1',
+      status: 'airing_soon' as const,
+      displayStatus: 'Airing Soon',
+      badgeLabel: 'AIRING SOON',
+      platform: 'cli' as const,
+      platformUserName: 'terminal_user',
+      type: 'song',
+      prompt: 'cyberpunk beats',
+      batchId: 'BATCH-18:00',
+      createdAt: '2026-11-07T18:00:00.000Z',
+      track: {
+        id: 't-1',
+        title: 'Cyberpunk Drive',
+        artist: 'Neon Wave',
+      },
+      eta: {
+        position: 1,
+        itemsAhead: 0,
+        waitSeconds: 60,
+        waitMinutes: 1,
+        displayTime: '18:00 UTC',
+        batchId: 'BATCH-18:00',
+        estimatedAirDate: new Date('2026-11-07T18:00:00.000Z'),
+        formattedETA: '~1 min',
+        isProvisional: false,
+      },
+    };
+
+    const output = formatRequestLifecycleMessage(mockInfo, 'cli');
+    expect(output).toContain('⏳ AIRING SOON (UP NEXT)');
+    expect(output).toContain('Cyberpunk Drive');
+    expect(output).toContain('terminal_user');
   });
 });

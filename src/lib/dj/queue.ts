@@ -5,6 +5,9 @@
 import { createAdminClient } from '../supabase/server';
 import { getUpNext, type AirplayItem } from './rotation';
 import type { RequestType } from './batches';
+import { isEmailRequest } from '../email/inbound';
+
+export { isEmailRequest };
 
 export interface ScheduledCommunityRequest {
   id: string;
@@ -55,7 +58,21 @@ export function formatAirTime(airTime?: string | null): string {
  */
 export function formatStatus(status?: string | null): string {
   if (!status) return 'Pending';
-  return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+  const clean = status.toLowerCase();
+  switch (clean) {
+    case 'accepted':
+      return 'Accepted';
+    case 'queued':
+      return 'In Queue';
+    case 'airing_soon':
+      return 'Airing Soon';
+    case 'playing':
+      return 'On Air Now';
+    case 'played':
+      return 'Played';
+    default:
+      return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+  }
 }
 
 /**
@@ -64,10 +81,16 @@ export function formatStatus(status?: string | null): string {
 export async function getScheduledRequests(limit = 5): Promise<ScheduledCommunityRequest[]> {
   try {
     const supabase = createAdminClient();
-    const query = supabase
+    let query = supabase
       .from('community_requests')
-      .select('id, platform, platform_user_name, type, content, target, batch_id, status, estimated_air_time, created_at')
-      .in('status', ['pending', 'scheduled'])
+      .select('id, platform, platform_user_id, platform_user_name, type, content, target, batch_id, status, estimated_air_time, created_at')
+      .in('status', ['pending', 'scheduled']);
+
+    if (typeof (query as any).not === 'function') {
+      query = (query as any).not('content', 'ilike', '[Inbound%');
+    }
+
+    const execQuery = query
       .order('created_at', { ascending: true })
       .limit(limit);
 
@@ -76,11 +99,11 @@ export async function getScheduledRequests(limit = 5): Promise<ScheduledCommunit
       timeoutId = setTimeout(() => resolve({ data: null, error: null }), 600);
     });
 
-    const res = await Promise.race([query, timeoutPromise]);
+    const res = await Promise.race([execQuery, timeoutPromise]);
     if (timeoutId) clearTimeout(timeoutId);
 
     if (res?.data && Array.isArray(res.data)) {
-      return res.data as ScheduledCommunityRequest[];
+      return (res.data as ScheduledCommunityRequest[]).filter((r) => !isEmailRequest(r));
     }
     return [];
   } catch {
@@ -140,7 +163,12 @@ export function formatQueueForDiscord(queue: StationQueueResult, siteUrl?: strin
   if (queue.upcoming.length > 0) {
     queue.upcoming.forEach((item, index) => {
       const toolStr = item.tool_used ? ` (${item.tool_used})` : '';
-      text += `${index + 1}. **"${item.title}"** by ${item.artist}${toolStr} — 🔥 ${item.upvotes_count ?? 0} votes\n`;
+      const requestBadge = item.requested_by
+        ? index === 0
+          ? ` — ⏳ **[AIRING SOON]** (Requested by ${item.requested_by})`
+          : ` — 📋 **[QUEUED #${index + 1}]** (Requested by ${item.requested_by})`
+        : '';
+      text += `${index + 1}. **"${item.title}"** by ${item.artist}${toolStr}${requestBadge} — 🔥 ${item.upvotes_count ?? 0} votes\n`;
     });
   }
 
@@ -179,7 +207,12 @@ export function formatQueueForTelegram(queue: StationQueueResult, siteUrl?: stri
   if (queue.upcoming.length > 0) {
     queue.upcoming.forEach((item, index) => {
       const toolStr = item.tool_used ? ` (${item.tool_used})` : '';
-      text += `${index + 1}. *"${item.title}"* by ${item.artist}${toolStr} — 🔥 ${item.upvotes_count ?? 0} votes\n`;
+      const requestBadge = item.requested_by
+        ? index === 0
+          ? ` — ⏳ *[AIRING SOON]* (Requested by ${item.requested_by})`
+          : ` — 📋 *[QUEUED #${index + 1}]* (Requested by ${item.requested_by})`
+        : '';
+      text += `${index + 1}. *"${item.title}"* by ${item.artist}${toolStr}${requestBadge} — 🔥 ${item.upvotes_count ?? 0} votes\n`;
     });
   }
 
@@ -218,7 +251,12 @@ export function formatQueueForCLI(queue: StationQueueResult): string {
     output += `\nUpcoming Tracks:\n`;
     queue.upcoming.forEach((item, index) => {
       const toolStr = item.tool_used ? ` (${item.tool_used})` : '';
-      output += `  #${index + 1} "${item.title}" by ${item.artist}${toolStr} [Votes: ${item.upvotes_count ?? 0}]\n`;
+      const requestBadge = item.requested_by
+        ? index === 0
+          ? ` [AIRING SOON - Requested by ${item.requested_by}]`
+          : ` [QUEUED #${index + 1} - Requested by ${item.requested_by}]`
+        : '';
+      output += `  #${index + 1} "${item.title}" by ${item.artist}${toolStr}${requestBadge} [Votes: ${item.upvotes_count ?? 0}]\n`;
     });
   }
 

@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getNowPlaying, getUpNext } from '@/lib/dj/rotation';
+import { getActiveDJ } from '@/lib/dj/roster';
 import { getScheduledRequests } from '@/lib/dj/queue';
 import { getLiveListenerStats, registerListenerPing } from '@/lib/radio/listeners';
 
@@ -21,10 +22,82 @@ export async function GET(req: NextRequest) {
     registerListenerPing(channelSlug, session);
   }
 
+  const fallbackDJ = getActiveDJ(channelSlug);
+
   try {
-    const [status, upNext, scheduledRequests] = await Promise.all([
-      getNowPlaying(channelSlug),
-      getUpNext(channelSlug, 3),
+    let nowPlayingTimeout: ReturnType<typeof setTimeout> | undefined;
+    const nowPlayingPromise = new Promise<Awaited<ReturnType<typeof getNowPlaying>>>((resolve) => {
+      nowPlayingTimeout = setTimeout(() => {
+        resolve({
+          item: {
+            id: 'demo-fallback',
+            type: 'music',
+            title: 'PromptFM Ambient AI Anthem',
+            artist: 'PromptFM Core',
+            audio_url:
+              'https://oxfacfdpxbxilucooijy.supabase.co/storage/v1/object/public/tracks/promptfm_ambient_ai_anthem.mp3',
+            cover_art_url: '/logo-mark.png',
+            category: 'Ambient & Lo-Fi',
+            tool_used: 'Stable Audio',
+            upvotes_count: 20,
+            dj: { id: fallbackDJ.id, name: fallbackDJ.name, title: fallbackDJ.title },
+          },
+          startedAt: new Date().toISOString(),
+          elapsedSeconds: 0,
+          activeDJ: fallbackDJ,
+          rank: null,
+          totalApprovedTracks: null,
+        });
+      }, 2500);
+
+      getNowPlaying(channelSlug)
+        .then((res) => {
+          if (nowPlayingTimeout) clearTimeout(nowPlayingTimeout);
+          resolve(res);
+        })
+        .catch(() => {
+          if (nowPlayingTimeout) clearTimeout(nowPlayingTimeout);
+          resolve({
+            item: {
+              id: 'demo-fallback',
+              type: 'music',
+              title: 'PromptFM Ambient AI Anthem',
+              artist: 'PromptFM Core',
+              audio_url:
+                'https://oxfacfdpxbxilucooijy.supabase.co/storage/v1/object/public/tracks/promptfm_ambient_ai_anthem.mp3',
+              cover_art_url: '/logo-mark.png',
+              category: 'Ambient & Lo-Fi',
+              tool_used: 'Stable Audio',
+              upvotes_count: 20,
+              dj: { id: fallbackDJ.id, name: fallbackDJ.name, title: fallbackDJ.title },
+            },
+            startedAt: new Date().toISOString(),
+            elapsedSeconds: 0,
+            activeDJ: fallbackDJ,
+            rank: null,
+            totalApprovedTracks: null,
+          });
+        });
+    });
+
+    const status = await nowPlayingPromise;
+
+    let upNextTimeout: ReturnType<typeof setTimeout> | undefined;
+    const upNextPromise = new Promise<import('@/lib/dj/rotation').AirplayItem[]>((resolve) => {
+      upNextTimeout = setTimeout(() => resolve([]), 2500);
+      getUpNext(channelSlug, 3, status)
+        .then((res) => {
+          if (upNextTimeout) clearTimeout(upNextTimeout);
+          resolve(res);
+        })
+        .catch(() => {
+          if (upNextTimeout) clearTimeout(upNextTimeout);
+          resolve([]);
+        });
+    });
+
+    const [upNext, scheduledRequests] = await Promise.all([
+      upNextPromise,
       getScheduledRequests(5).catch(() => []),
     ]);
 
