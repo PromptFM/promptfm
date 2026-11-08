@@ -860,6 +860,30 @@ When a user flags a comment or issue:
 
 ---
 
+### D. Branch Protection, Direct Push Restrictions & CODEOWNERS Matrix
+
+PromptFM enforces strict branch governance on `main` through declarative GitHub Repository Rulesets ([`infra/terraform/github.tf`](file:///Users/trifan/.gemini/antigravity/worktrees/promptfm/vercel_speed_insights/infra/terraform/github.tf)) and [`.github/CODEOWNERS`](file:///Users/trifan/.gemini/antigravity/worktrees/promptfm/vercel_speed_insights/.github/CODEOWNERS):
+
+#### 1. Direct Push & Force Push Prohibition
+- **Strictly Blocked**: Direct `git push origin main` and `git push --force` are permanently rejected for **all users** (including organization admins and core team members).
+- **Mandatory PR Flow**: Every change must arrive via a Pull Request.
+
+#### 2. Pull Request Gate & Review Requirements
+- **Required Approving Reviews**: At least **1 approving review** is required.
+- **CODEOWNERS Enforcement**: Every PR touching repository code, infrastructure (`infra/`), or workflows (`.github/`) requires an approval from a registered code owner (**`@PromptFM/core`** or **`@atrifan`**).
+- **Stale Review Dismissal**: Force-pushes or updates to PR branches automatically invalidate prior approvals.
+- **Conversation Resolution**: All review comments and discussions must be marked resolved before merging.
+- **Linear History**: Rebase and squash merges ensure clean, bisectable git history.
+
+#### 3. Core Team Bypass Rules
+- **Team**: `@PromptFM/core` (`actor_id: 20507550`) and **Repository Admin** (`actor_id: 5`).
+- **Bypass Mode**: `pull_request` (Pull Requests Only).
+  - Allows Core Team members to merge their own pull requests without waiting for external reviews.
+  - **Does NOT** permit direct pushing to `main` outside of a pull request.
+  - Non-core contributors **cannot** merge without an approval from `@PromptFM/core`.
+
+---
+
 ## 17. PostgreSQL & Supabase Database Schema Management
 
 PromptFM uses PostgreSQL hosted on Supabase (`oxfacfdpxbxilucooijy.supabase.co`). All database schema changes and migrations are tracked as code under `supabase/migrations/` and automated through GitHub Actions.

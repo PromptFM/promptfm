@@ -18,8 +18,9 @@ PromptFM is governed by the **PromptFM Community Source-Available License (Versi
 ## 🏛️ 2. Organization & Governance
 
 1. **GitHub Organization:** PromptFM development is managed through our GitHub organization ([`PromptFM`](https://github.com/PromptFM)).
-2. **Review Board:** Every pull request requires an explicit review and approval from a member of the Board (**@atrifan** chairs the board, or **@PromptFM/core**).
+2. **Review Board & CODEOWNERS:** Every pull request requires an explicit review and approval from a member of the Board (**@atrifan** chairs the board, or **@PromptFM/core** per [`.github/CODEOWNERS`](.github/CODEOWNERS)).
 3. **Mandatory GitHub Issue:** Every PR must address or resolve an open GitHub Issue (`Fixes #<number>`). PRs without an issue will be closed.
+4. **Direct Push & Force Push Prohibition:** Direct pushes and force pushes to `main` are strictly rejected by GitHub Repository Rulesets for all users. All code modifications must arrive through Pull Requests. Core Team members (`@PromptFM/core`) can merge approved PRs without external signoff, while community contributions require at least 1 approval from `@PromptFM/core`.
 
 ---
 
