@@ -9,6 +9,7 @@ import { createBroadcastDrop, fetchLiveHeadlines } from './engine';
 import { getActiveDJ, getAdsConfig, getActiveAdSpot, isContentAllowedForAirplay, DJProfile } from './roster';
 import { getStationSchedule } from '../radio/schedule';
 import { broadcastToCommunity } from '../chat/bridge';
+import { syncAirplayRequestTransition } from '../song/lifecycle';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 
@@ -586,14 +587,23 @@ export async function getUpNext(channelSlug = 'main', limit = 5): Promise<Airpla
 async function notifyCommunityAirplay(item: AirplayItem, activeDJ: DJProfile) {
   try {
     if (item.type === 'music') {
+      const isDedication = Boolean(item.requested_by && item.requested_by.toLowerCase().includes('dedicat'));
+      const isSongRequest = Boolean(item.requested_by && !isDedication);
+
       const dedicationText = item.requested_by
-        ? item.requested_by.toLowerCase().includes('dedicat')
+        ? isDedication
           ? `\n\n💝 **Dedication:** ${item.requested_by}`
           : `\n\n🎧 **Requested by:** ${item.requested_by}`
         : '';
 
+      const broadcastTitle = isSongRequest
+        ? `Now Playing Your Request on PromptFM`
+        : isDedication
+        ? `Now Playing Community Dedication on PromptFM`
+        : `Now Playing on PromptFM`;
+
       await broadcastToCommunity({
-        title: `Now Playing on PromptFM`,
+        title: broadcastTitle,
         message: `🎵 **${item.title}** by **${item.artist}**${dedicationText}\n\nVote directly below or request the next track!`,
         category: 'now_playing',
         trackId: item.id,
@@ -849,6 +859,9 @@ export async function markTrackStarted(
   } catch {
     // Ignore background persistence errors
   }
+
+  // Synchronize listener request lifecycle (Issue #98)
+  syncAirplayRequestTransition(itemToStart.id, itemToStart.title, channelSlug).catch(() => {});
 
   // Deduplicate now-playing announcements: only broadcast once per airplay transition.
   // Consecutive duplicate signals (e.g. Liquidsoap retries, reconnects, watchdog) are dropped.
