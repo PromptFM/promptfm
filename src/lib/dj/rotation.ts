@@ -34,6 +34,7 @@ export interface AirplayItem {
     name: string;
     title: string;
   };
+  queue_id?: string;
 }
 
 // In-memory counters and state for track rotation per process
@@ -44,6 +45,9 @@ let lastAdTimestamp = 0;
 // In-memory per-channel airplay track and start timestamp tracking
 const channelAirplayItems = new Map<string, AirplayItem>();
 const channelAirplayStartedAt = new Map<string, number>();
+
+// In-memory per-channel pending airplay items awaiting on-air start confirmation
+const channelPendingAirplayItems = new Map<string, AirplayItem[]>();
 
 let currentAirplayItem: AirplayItem | null = null;
 let currentAirplayStartedAt: number = Date.now();
@@ -77,7 +81,35 @@ export function recordAirplayAnnounced(channelSlug: string, trackId: string): vo
 export function resetAirplayDedupeCache(): void {
   recentAirplayAnnouncedByChannel.clear();
   pendingAirplayItems.clear();
+  channelPendingAirplayItems.clear();
   pendingAirplayItem = null;
+}
+
+export function getPendingAirplayItems(channelSlug = 'main'): AirplayItem[] {
+  return channelPendingAirplayItems.get(channelSlug) || [];
+}
+
+export function clearPendingAirplayItems(channelSlug?: string): void {
+  if (channelSlug) {
+    channelPendingAirplayItems.delete(channelSlug);
+  } else {
+    channelPendingAirplayItems.clear();
+  }
+  pendingAirplayItem = null;
+}
+
+export function resetChannelAirplayItems(channelSlug?: string): void {
+  if (channelSlug) {
+    channelAirplayItems.delete(channelSlug);
+    channelAirplayStartedAt.delete(channelSlug);
+    if (channelSlug === 'main') {
+      currentAirplayItem = null;
+    }
+  } else {
+    channelAirplayItems.clear();
+    channelAirplayStartedAt.clear();
+    currentAirplayItem = null;
+  }
 }
 
 /**
@@ -451,10 +483,7 @@ export async function getUpNext(channelSlug = 'main', limit = 5): Promise<Airpla
   // Retrieve currently active airplay item to ensure it is never duplicated in "Up Next"
   const currentNowPlaying = await getNowPlaying(channelSlug);
   const currentTrackId = currentNowPlaying.item.id;
-  const existingIds = new Set<string>();
-  if (currentTrackId && currentTrackId !== 'demo-fallback') {
-    existingIds.add(currentTrackId);
-  }
+  const currentQueueId = currentNowPlaying.item.queue_id;
 
   const currentElapsed = currentNowPlaying.elapsedSeconds || 0;
   const currentHint = currentNowPlaying.item.duration_hint_seconds || 210;
@@ -487,7 +516,10 @@ export async function getUpNext(channelSlug = 'main', limit = 5): Promise<Airpla
             family_friendly?: boolean;
             duration_hint_seconds?: number;
           };
-          if (existingIds.has(t.id)) continue;
+          // If this exact queued request is already active on air, skip it
+          if (currentQueueId && qi.id === currentQueueId) {
+            continue;
+          }
           if (
             !isContentAllowedForAirplay(
               Boolean(t.is_explicit),
@@ -500,7 +532,6 @@ export async function getUpNext(channelSlug = 'main', limit = 5): Promise<Airpla
           ) {
             continue;
           }
-          existingIds.add(t.id);
 
           const targetTime = new Date(now.getTime() + runningOffsetSeconds * 1000);
           const hoursStr = String(targetTime.getUTCHours()).padStart(2, '0');
@@ -519,6 +550,7 @@ export async function getUpNext(channelSlug = 'main', limit = 5): Promise<Airpla
             upvotes_count: t.upvotes_count,
             queue_position: upNext.length + 1,
             estimated_air_time,
+            queue_id: qi.id,
             requested_by: qi.requested_by,
           });
           runningOffsetSeconds += (t.duration_hint_seconds || 210);
@@ -531,6 +563,14 @@ export async function getUpNext(channelSlug = 'main', limit = 5): Promise<Airpla
   // 2. Fill remainder from top-voted approved library tracks
   const needed = limit - upNext.length;
   if (needed > 0) {
+    const libraryExcludedTrackIds = new Set<string>();
+    if (currentTrackId && currentTrackId !== 'demo-fallback') {
+      libraryExcludedTrackIds.add(currentTrackId);
+    }
+    for (const item of upNext) {
+      libraryExcludedTrackIds.add(item.id);
+    }
+
     const { data: topTracks } = await supabase
       .from('tracks')
       .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, is_explicit, family_friendly, duration_hint_seconds')
@@ -540,7 +580,7 @@ export async function getUpNext(channelSlug = 'main', limit = 5): Promise<Airpla
 
     if (topTracks) {
       for (const t of topTracks) {
-        if (!existingIds.has(t.id) && upNext.length < limit) {
+        if (!libraryExcludedTrackIds.has(t.id) && upNext.length < limit) {
           const isAllowed = isContentAllowedForAirplay(
             Boolean((t as unknown as { is_explicit?: boolean }).is_explicit),
             channelSlug,
@@ -550,7 +590,7 @@ export async function getUpNext(channelSlug = 'main', limit = 5): Promise<Airpla
             (t as unknown as { title?: string }).title
           );
           if (isAllowed) {
-            existingIds.add(t.id);
+            libraryExcludedTrackIds.add(t.id);
 
             const targetTime = new Date(now.getTime() + runningOffsetSeconds * 1000);
             const hoursStr = String(targetTime.getUTCHours()).padStart(2, '0');
@@ -736,12 +776,31 @@ export async function markTrackStarted(
   let itemToStart: AirplayItem | null = null;
   let isUnresolvableUnknown = false;
 
-  if (itemId && pendingAirplayItems.has(itemId)) {
+  // 1. Check channel-isolated pending airplay items first
+  const pendingList = channelPendingAirplayItems.get(channelSlug) || [];
+  const pendingIdx = pendingList.findIndex(
+    (p) => p.id === itemId || p.queue_id === itemId || (title && p.title.toLowerCase().trim() === title.toLowerCase().trim())
+  );
+
+  if (pendingIdx !== -1) {
+    itemToStart = pendingList[pendingIdx]!;
+    pendingList.splice(pendingIdx, 1);
+    channelPendingAirplayItems.set(channelSlug, pendingList);
+    if (itemId) pendingAirplayItems.delete(itemId);
+    if (title) pendingAirplayItems.delete(title.toLowerCase().trim());
+  } else if (itemId && pendingAirplayItems.has(itemId)) {
     itemToStart = pendingAirplayItems.get(itemId)!;
     pendingAirplayItems.delete(itemId);
   } else if (title && pendingAirplayItems.has(title.toLowerCase().trim())) {
     itemToStart = pendingAirplayItems.get(title.toLowerCase().trim())!;
     pendingAirplayItems.delete(title.toLowerCase().trim());
+  } else if (
+    pendingAirplayItem &&
+    (pendingAirplayItem.id === itemId ||
+      pendingAirplayItem.queue_id === itemId ||
+      (title && pendingAirplayItem.title.toLowerCase().trim() === title.toLowerCase().trim()))
+  ) {
+    itemToStart = pendingAirplayItem;
   } else if (itemId === 'demo-fallback' || title === 'PromptFM Ambient AI Anthem') {
     itemToStart = {
       id: 'demo-fallback',
@@ -828,6 +887,46 @@ export async function markTrackStarted(
     };
   }
 
+  // 2. Mark queue row as played now that the track has actually started on air
+  if (itemToStart.queue_id) {
+    try {
+      await supabase
+        .from('channel_queue')
+        .update({ played_at: new Date().toISOString() })
+        .eq('id', itemToStart.queue_id);
+    } catch (err) {
+      console.warn('Failed to update channel_queue played_at:', err);
+    }
+  } else if (itemToStart.id && itemToStart.id !== 'demo-fallback') {
+    try {
+      const { data: channel } = await supabase.from('channels').select('id').eq('slug', channelSlug).maybeSingle();
+      if (channel) {
+        const { data: unplayedQueueItem } = await supabase
+          .from('channel_queue')
+          .select('id, requested_by')
+          .eq('channel_id', channel.id)
+          .eq('track_id', itemToStart.id)
+          .is('played_at', null)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        if (unplayedQueueItem) {
+          itemToStart.queue_id = unplayedQueueItem.id;
+          if (unplayedQueueItem.requested_by) {
+            itemToStart.requested_by = unplayedQueueItem.requested_by;
+          }
+          await supabase
+            .from('channel_queue')
+            .update({ played_at: new Date().toISOString() })
+            .eq('id', unplayedQueueItem.id);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to reconcile unplayed queue row:', err);
+    }
+  }
+
   const startedAt = Date.now();
   channelAirplayItems.set(channelSlug, itemToStart);
   channelAirplayStartedAt.set(channelSlug, startedAt);
@@ -891,7 +990,20 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
       pendingAirplayItems.set(item.title.toLowerCase().trim(), item);
     }
 
-    if (autoPromote) {
+    if (!autoPromote) {
+      const list = channelPendingAirplayItems.get(channelSlug) || [];
+      list.push(item);
+      channelPendingAirplayItems.set(channelSlug, list);
+    } else {
+      const list = channelPendingAirplayItems.get(channelSlug) || [];
+      if (list.length > 0) {
+        channelPendingAirplayItems.set(
+          channelSlug,
+          list.filter((p) => (item.queue_id ? p.queue_id !== item.queue_id : p.id !== item.id))
+        );
+      }
+      pendingAirplayItem = null;
+
       const startedAt = Date.now();
       channelAirplayItems.set(channelSlug, item);
       channelAirplayStartedAt.set(channelSlug, startedAt);
@@ -951,31 +1063,66 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
   const { data: channel } = await supabase.from('channels').select('id').eq('slug', channelSlug).maybeSingle();
 
   if (channel) {
-    const { data: queueItem } = await supabase
+    const pendingList = channelPendingAirplayItems.get(channelSlug) || [];
+    const pendingQueueIds = new Set(pendingList.map((p) => p.queue_id).filter(Boolean));
+
+    const queueQuery = supabase
       .from('channel_queue')
       .select('id, track_id, prompt_used, requested_by, track:tracks(*)')
       .eq('channel_id', channel.id)
       .is('played_at', null)
       .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+      .limit(10);
+
+    let queueItems: any[] | null = null;
+    const queryRes = (await queueQuery) as any;
+    if (queryRes && Array.isArray(queryRes.data)) {
+      queueItems = queryRes.data;
+    } else if (typeof (queueQuery as any)?.maybeSingle === 'function') {
+      const singleRes = await (queueQuery as any).maybeSingle();
+      if (singleRes?.data) {
+        queueItems = [singleRes.data];
+      }
+    } else if (queryRes && queryRes.data) {
+      queueItems = Array.isArray(queryRes.data) ? queryRes.data : [queryRes.data];
+    }
+
+    const queueItem = (queueItems || []).find((qi) => qi.track && !pendingQueueIds.has(qi.id));
 
     if (queueItem && queueItem.track) {
-      // Mark as played
-      await supabase.from('channel_queue').update({ played_at: new Date().toISOString() }).eq('id', queueItem.id);
+      if (autoPromote) {
+        // Mark as played only if immediately promoting to live airplay
+        await supabase.from('channel_queue').update({ played_at: new Date().toISOString() }).eq('id', queueItem.id);
+      }
 
       tracksSinceLastInterstitial++;
       tracksSinceLastAd++;
-      const tr = queueItem.track as unknown as { id: string; title: string; artist_name: string; audio_url: string; tool_used: string; upvotes_count: number };
+      const tr = queueItem.track as unknown as {
+        id: string;
+        title: string;
+        artist_name: string;
+        audio_url: string;
+        tool_used: string;
+        upvotes_count: number;
+        cover_art_url?: string;
+        category?: string;
+        description?: string;
+        lyrics?: string;
+      };
       return await finishAndBroadcast({
         id: tr.id,
         type: 'music',
         title: tr.title,
         artist: tr.artist_name,
         audio_url: tr.audio_url,
+        cover_art_url: tr.cover_art_url || '/logo-mark.png',
+        category: tr.category,
+        description: tr.description,
+        lyrics: tr.lyrics,
         tool_used: tr.tool_used,
         upvotes_count: tr.upvotes_count,
-        requested_by: queueItem.requested_by || undefined,
+        queue_id: queueItem.id,
+        requested_by: queueItem.requested_by,
       });
     }
   }
