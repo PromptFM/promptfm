@@ -680,7 +680,7 @@ export default function SubmitPage() {
                           key={ch}
                           className="px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-zinc-300 font-mono text-[10px]"
                         >
-                          {ch === 'main' ? 'Ch 1 (Main Stage)' : ch === 'cyberpunk' ? 'Ch 2 (Cyberpunk)' : ch === 'chillout' ? 'Ch 3 (Chillout)' : ch === 'kids' ? 'Ch 4 (Kids & Family)' : ch}
+                          {ch === 'main' ? 'PromptFM Main Stage' : ch === 'cyberpunk' ? 'Cyberpunk' : ch === 'chillout' ? 'Chillout' : ch === 'kids' ? 'Kids & Family' : ch}
                         </span>
                       ))}
                   </div>

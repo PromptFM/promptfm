@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const startedItem = await markTrackStarted(channelSlug, itemId, title);
+    const startedItem = await markTrackStarted(channelSlug, itemId || undefined, title || undefined);
 
     return NextResponse.json({
       success: true,
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const startedItem = await markTrackStarted(channelSlug, itemId, title);
+    const startedItem = await markTrackStarted(channelSlug, itemId || undefined, title || undefined);
     return NextResponse.json({
       success: true,
       channel: channelSlug,
@@ -61,4 +61,3 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-
