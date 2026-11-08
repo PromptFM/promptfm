@@ -117,5 +117,25 @@ describe('GitHub Actions Workflows Suite', () => {
       expect(content).toContain('scripts/pr-guidance.ts');
     });
   });
+
+  describe('Workflow syntax validation across all workflows', () => {
+    it('does not reference secrets.* directly inside if conditions', () => {
+      const workflowFiles = fs
+        .readdirSync(workflowsDir)
+        .filter((f) => f.endsWith('.yml') || f.endsWith('.yaml'));
+      for (const file of workflowFiles) {
+        const content = readWorkflow(file);
+        // secrets cannot be used directly in if: conditions in GitHub Actions
+        const matches = content.match(/if:.*\bsecrets\./g);
+        expect(matches, `Workflow ${file} has direct secrets reference in if condition`).toBeNull();
+      }
+    });
+
+    it('does not combine push paths and tags in the same push event block', () => {
+      const terraformWorkflow = readWorkflow('apply-terraform.yml');
+      // paths and tags cannot co-exist under the same push trigger
+      expect(terraformWorkflow).not.toMatch(/push:\s*(\n\s*[^:\n]+:\s*)+paths:[\s\S]*tags:/);
+    });
+  });
 });
 

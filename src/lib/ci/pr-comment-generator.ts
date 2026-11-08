@@ -144,32 +144,30 @@ Please review the failing checks in GitHub Actions.`;
     lines.push(`---`);
     lines.push(`### 🏗️ Infrastructure & Database Changes Detected`);
     lines.push(``);
+    lines.push(`> [!IMPORTANT]`);
+    lines.push(`> **Post-Merge Operational Tasks:**`);
 
     if (hasTerraform) {
-      lines.push(`> [!IMPORTANT]`);
       lines.push(
-        `> **Terraform Update Required:** After merge have an admin run the Update terraform workflow: https://github.com/PromptFM/promptfm/actions/workflows/apply-terraform.yml`
+        `> - **Terraform Update Required:** After merge have an admin run the Update terraform workflow: https://github.com/PromptFM/promptfm/actions/workflows/apply-terraform.yml`
       );
     }
 
     if (hasAnsible) {
-      lines.push(`> [!IMPORTANT]`);
       lines.push(
-        `> **Ansible Update Required:** After merge have an admin run the Update ansible workflow: https://github.com/PromptFM/promptfm/actions/workflows/apply-terraform.yml`
+        `> - **Ansible Update Required:** After merge have an admin run the Update ansible workflow: https://github.com/PromptFM/promptfm/actions/workflows/apply-terraform.yml`
       );
     }
 
     if (hasSql) {
-      lines.push(`> [!IMPORTANT]`);
       lines.push(
-        `> **SQL Schema Update Required:** After merge have an admin run the Update SQL Schema workflow: https://github.com/PromptFM/promptfm/actions/workflows/apply-sql-schema.yml`
+        `> - **SQL Schema Update Required:** After merge have an admin run the Update SQL Schema workflow: https://github.com/PromptFM/promptfm/actions/workflows/apply-sql-schema.yml`
       );
     }
 
     if (hasSecrets) {
-      lines.push(`> [!IMPORTANT]`);
       lines.push(
-        `> **Secrets Update Required:** If new production secrets or credentials are required, have an admin run the Update Secrets workflow: https://github.com/PromptFM/promptfm/actions/workflows/update-secrets.yml`
+        `> - **Secrets Update Required:** If new production secrets or credentials are required, have an admin run the Update Secrets workflow: https://github.com/PromptFM/promptfm/actions/workflows/update-secrets.yml`
       );
     }
   }

@@ -123,6 +123,25 @@ describe('PR Comment Guidance Generator', () => {
       expect(comment).toContain('After merge have an admin run the Update ansible workflow');
     });
 
+    it('does not nest consecutive [!IMPORTANT] alerts inside a single blockquote', () => {
+      const comment = generatePRGuidanceComment({
+        commitSha: 'a1b2c3d4e5f6',
+        changedFiles: [
+          'infra/terraform/main.tf',
+          'supabase/migrations/20261109_new_table.sql',
+          'infra/terraform/secrets.auto.tfvars',
+        ],
+        checksPassed: true,
+      });
+
+      // There should only be one [!IMPORTANT] tag, not stacked unseparated duplicates
+      const importantMatches = comment.match(/\[!IMPORTANT\]/g);
+      expect(importantMatches?.length).toBe(1);
+      expect(comment).toContain('Update terraform workflow');
+      expect(comment).toContain('Update SQL Schema workflow');
+      expect(comment).toContain('Update Secrets workflow');
+    });
+
     it('includes card for Secrets changes with link to update-secrets workflow', () => {
       const comment = generatePRGuidanceComment({
         commitSha: 'a1b2c3d4e5f6',
