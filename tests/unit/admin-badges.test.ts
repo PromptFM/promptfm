@@ -70,5 +70,26 @@ describe('Admin Quick Navigation Badges in README.md', () => {
     expect(content).toContain('https://vercel.com/alextrifan/promptfm/speed-insights');
     expect(content).toMatch(/Vercel Speed Insights/i);
   });
+
+  it('verifies all local badge asset references in README.md exist on disk', () => {
+    const content = fs.readFileSync(readmePath, 'utf8');
+    const badgeRegex = /!\[([^\]]*)\]\((\.\/public\/badges\/[^)]+\.svg|public\/badges\/[^)]+\.svg)\)/g;
+    const matches = [...content.matchAll(badgeRegex)];
+
+    expect(matches.length).toBeGreaterThan(0);
+
+    for (const match of matches) {
+      const relPath = match[2];
+      if (!relPath) continue;
+      const normalizedPath = path.resolve(__dirname, '../../', relPath.replace(/^\.\//, ''));
+      expect(fs.existsSync(normalizedPath), `Local badge asset ${relPath} does not exist on disk`).toBe(true);
+    }
+  });
+
+  it('contains resilient Production and Status badges without fragile shields.io parameters', () => {
+    const content = fs.readFileSync(readmePath, 'utf8');
+    expect(content).toMatch(/\[!\[.*Production.*\]\(.*\)\]\(https:\/\/promptfm\.live\)/i);
+    expect(content).toMatch(/\[!\[.*Status.*\]\(.*\)\]\(https:\/\/promptfm\.live\/status\)/i);
+  });
 });
 

@@ -56,3 +56,4 @@ test.describe('UI Speed & Performance Insights E2E Suite', () => {
     await expect(page.getByRole('heading', { name: /System Status/i })).toBeVisible();
   });
 });
+

@@ -27,6 +27,7 @@
     "test:related": "vitest related",
     "test:mutate": "stryker run",
     "test:mutate:affected": "jiti scripts/mutate-affected.ts",
+    "generate:badges": "jiti scripts/generate-badges.ts",
     "test:speed": "jiti scripts/profile-speed.ts --strict",
     "profile:speed": "jiti scripts/profile-speed.ts",
     "test:e2e": "playwright test",
