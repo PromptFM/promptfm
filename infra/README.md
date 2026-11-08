@@ -228,10 +228,10 @@ make deploy
 ```
 
 ### What `make deploy` executes automatically:
-1. **Initializes & Runs Terraform**: Provisions the `e2-micro` VM, 30 GB standard disk, and firewall rules for ports 8000, 80, and 443.
+1. **Initializes & Runs Terraform**: Provisions the `e2-micro` VM, 30 GB standard disk, and firewall rules for web ports 80 and 443 (port 8000 is strictly blocked from public ingress to ensure zero direct GCP VM egress charges).
 2. **Dynamic Inventory Sync**: Resolves the VM's external IP address and updates Ansible's `inventory.ini`.
 3. **Waits for SSH**: Polls port 22 until the instance is reachable.
-4. **Runs Ansible Playbook**: Installs Docker & Docker Compose, deploys Icecast, Liquidsoap, and Caddy reverse proxy configs, downloads fallback audio, and starts containers.
+4. **Runs Ansible Playbook**: Installs Docker & Docker Compose, deploys Icecast (bound strictly to `127.0.0.1`), Liquidsoap, and Caddy reverse proxy configs, downloads fallback audio, and starts containers.
 5. **Performs Health Check**: Confirms both Icecast and Caddy endpoints are responding with valid HTTP status codes.
 
 ---
@@ -249,7 +249,34 @@ All daily operations can be run with standard `make` targets from the `infra/` f
 | `make ansible` | Configuration Only | Re-runs the Ansible playbook against the live VM without touching cloud resources. |
 | `make status` | Health Inspection | Displays live container status (Icecast, Liquidsoap, Caddy) on the VM. |
 | `make logs` | Tail Live Logs | Follows real-time logs from Icecast, Liquidsoap, and Caddy to inspect rotation and SSL. |
+| `make dns-status` | DNS State | Inspects the active declarative DNS state for `promptfm.live`. |
+| `make dns-snapshot` | DNS Snapshot | Exports live Hostinger DNS records to local state JSON file. |
+| `make dns-migrate` | Domain Migration | Executes Hostinger Ansible playbook to migrate all DNS records to another domain. |
+| `make dns-validate` | DNS Validation | Validates declarative DNS state syntax against Hostinger DNS limits. |
 | `make destroy` | Cloud Teardown | Tears down the GCP VM and firewall rules when no longer needed. |
+
+---
+
+## 10. Declarative Hostinger DNS & Multi-Domain Migration
+
+PromptFM tracks its entire DNS infrastructure as code under [`infra/dns/`](dns/). When migrating the station to another domain (e.g. `promptfm.com` or `horai.eu`), all subdomains, verification tokens, CNAMEs, MX mail routing, and DMARC policies are transformed and migrated automatically:
+
+```bash
+# 1. Inspect active domain DNS records
+npm run promptfm -- dns status promptfm.live
+
+# 2. Preview migration diff to a new target domain
+npm run promptfm -- dns diff promptfm.com --from promptfm.live
+
+# 3. Generate validated target domain state
+npm run promptfm -- dns migrate promptfm.live promptfm.com
+
+# 4. Deploy automatically to Hostinger API (or via Ansible playbook)
+export HOSTINGER_API_TOKEN="your-hostinger-token"
+npm run promptfm -- dns apply promptfm.com
+# OR run the automated Ansible playbook:
+cd infra && make dns-migrate
+```
 
 ---
 

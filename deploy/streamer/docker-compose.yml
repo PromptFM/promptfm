@@ -1,13 +1,13 @@
 version: '3.8'
 
 services:
-  # 1. Icecast 2 Streaming Audio Server
+  # 1. Icecast 2 Streaming Audio Server (Bound to 127.0.0.1 to prevent direct egress bypass)
   icecast:
     image: infiniteproject/icecast:latest
     container_name: promptfm-icecast
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       - ICECAST_SOURCE_PASSWORD=promptfm_source_2026
       - ICECAST_ADMIN_PASSWORD=promptfm_admin_2026

@@ -1,0 +1,78 @@
+---
+# infra/ansible/hostinger-playbook.yml
+# Declarative Hostinger DNS & Domain Migration Automation Playbook.
+# Manages stateful DNS configurations, zero-egress stream routing, and seamless domain migration.
+
+- name: Hostinger DNS & Domain Migration Automation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    source_domain: "promptfm.live"
+    target_domain: "{{ dest_domain | default('promptfm.live') }}"
+    dns_dir: "{{ playbook_dir }}/../dns"
+    source_state_file: "{{ dns_dir }}/{{ source_domain }}.state.json"
+    target_state_file: "{{ dns_dir }}/{{ target_domain }}.state.json"
+    hostinger_token: "{{ lookup('env', 'HOSTINGER_API_TOKEN') | default(lookup('env', 'HOSTINGER_TOKEN'), true) | default('', true) }}"
+
+  tasks:
+    - name: Ensure DNS state directory exists
+      file:
+        path: "{{ dns_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Verify source domain state file exists
+      stat:
+        path: "{{ source_state_file }}"
+      register: src_state
+
+    - name: Fail if source state file is missing
+      fail:
+        msg: "DNS state file for {{ source_domain }} not found at {{ source_state_file }}. Run 'npm run promptfm -- dns snapshot {{ source_domain }}' first."
+      when: not src_state.stat.exists
+
+    - name: Inspect current DNS state for source domain
+      command: npm run promptfm -- dns status {{ source_domain }}
+      register: dns_status_output
+      changed_when: false
+
+    - debug:
+        var: dns_status_output.stdout_lines
+
+    - name: Plan domain migration (Diff preview)
+      command: npm run promptfm -- dns diff {{ target_domain }} --from {{ source_domain }}
+      register: dns_diff_output
+      when: source_domain != target_domain
+      changed_when: false
+
+    - debug:
+        var: dns_diff_output.stdout_lines
+      when: source_domain != target_domain
+
+    - name: Execute automated domain migration transformation
+      command: npm run promptfm -- dns migrate {{ source_domain }} {{ target_domain }}
+      register: dns_migrate_output
+      when: source_domain != target_domain
+
+    - debug:
+        var: dns_migrate_output.stdout_lines
+      when: source_domain != target_domain
+
+    - name: Validate planned DNS records for target domain
+      command: npm run promptfm -- dns validate {{ target_domain }}
+      register: dns_validate_output
+      changed_when: false
+
+    - debug:
+        var: dns_validate_output.stdout_lines
+
+    - name: Deploy DNS records to Hostinger API (when token is provided)
+      command: npm run promptfm -- dns apply {{ target_domain }}
+      when: hostinger_token != "" and apply_remote | default(false) | bool
+      register: dns_apply_output
+
+    - debug:
+        var: dns_apply_output.stdout_lines
+      when: hostinger_token != "" and apply_remote | default(false) | bool

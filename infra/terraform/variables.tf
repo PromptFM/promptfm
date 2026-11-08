@@ -96,4 +96,24 @@ variable "oauth_scopes" {
   ]
 }
 
+# ── Domain & DNS Automation (Hostinger & Zero-Egress Edge) ────────────────────
+
+variable "domain_name" {
+  description = "Primary production domain name for PromptFM (managed via Hostinger DNS)"
+  type        = string
+  default     = "promptfm.live"
+}
+
+variable "stream_subdomain" {
+  description = "Subdomain prefix for audio streaming"
+  type        = string
+  default     = "stream"
+}
+
+variable "cloudflare_tunnel_enabled" {
+  description = "Whether to route audio traffic through Cloudflare Tunnel for $0 GCP egress"
+  type        = bool
+  default     = true
+}
+
 

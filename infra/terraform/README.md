@@ -53,9 +53,11 @@ terraform output
 ```
 
 ### Outputs:
-* `external_ip`: Public IP of the stream server.
-* `icecast_stream_url`: `http://<IP>:8000/stream.mp3`
-* `icecast_admin_url`: `http://<IP>:8000/admin/`
+* `external_ip`: Public IP of the stream server VM.
+* `stream_url`: `https://stream.<domain>/stream.mp3` (Zero-egress edge audio stream).
+* `internal_icecast_url`: `http://127.0.0.1:8000/stream.mp3` (Internal localhost mount).
+* `primary_domain`: Active managed domain name (e.g. `promptfm.live`).
+* `dns_state_tracked`: Boolean indicator if declarative DNS state is present in `infra/dns/`.
 * `monitoring_dashboard_id`: ID of the 0-cost Google Cloud Monitoring Dashboard.
 * `monitoring_dashboard_url`: Direct console URL to view telemetry and API quotas.
 * `vercel_analytics_url`: Direct console URL to view real-time web audience telemetry.

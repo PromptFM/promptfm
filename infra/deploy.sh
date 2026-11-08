@@ -65,8 +65,8 @@ fi
 echo ""
 echo "=========================================================="
 echo "🎉 PromptFM Stream Server Deployment Complete!"
-echo "• Stream URL:  http://${EXTERNAL_IP}:8000/stream.mp3"
-echo "• Admin URL:   http://${EXTERNAL_IP}:8000/admin/"
+echo "• Stream URL:  https://stream.promptfm.live/stream.mp3 (Zero-Egress Edge)"
+echo "• Origin Host: ${EXTERNAL_IP} (Direct port 8000 blocked from public egress)"
 echo "• Monthly Cost: \$0.00 (Always-Free Tier)"
 echo "=========================================================="
 
