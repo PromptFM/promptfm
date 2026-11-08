@@ -424,6 +424,20 @@ export function resolveHostingerToken(explicitToken?: string): string {
     // Ignore credentials read errors and fall through
   }
 
+  // Fallback to Google Cloud Secret Manager (promptfm-hostinger-api-token)
+  try {
+    const { execSync } = require('child_process');
+    const secret = execSync(
+      'gcloud secrets versions access latest --secret=promptfm-hostinger-api-token --project=promptfm-radio-1793623670',
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000 }
+    ).trim();
+    if (secret) {
+      return secret;
+    }
+  } catch {
+    // Ignore gcloud resolution errors
+  }
+
   return '';
 }
 

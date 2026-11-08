@@ -1,7 +1,7 @@
 // tests/unit/dns-cli.test.ts
 // Unit tests for PromptFM Hostinger DNS & Domain Migration CLI command handling.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as hostingerDns from '@/lib/infra/hostinger-dns';
 
 describe('PromptFM Hostinger DNS & Domain Migration CLI', () => {
@@ -100,5 +100,43 @@ describe('PromptFM Hostinger DNS & Domain Migration CLI', () => {
     );
     expect(pkg.scripts['lint:dns']).toBeDefined();
     expect(pkg.scripts['lint:dns']).toContain('dns status promptfm.live --strict');
+  });
+
+  describe('resolveHostingerToken()', () => {
+    const origEnv = { ...process.env };
+
+    beforeEach(() => {
+      process.env = { ...origEnv };
+      delete process.env.HOSTINGER_API_TOKEN;
+      delete process.env.HOSTINGER_TOKEN;
+    });
+
+    afterEach(() => {
+      process.env = { ...origEnv };
+    });
+
+    it('returns explicit token when provided', () => {
+      expect(hostingerDns.resolveHostingerToken('explicit-token')).toBe('explicit-token');
+    });
+
+    it('returns HOSTINGER_API_TOKEN from environment when set', () => {
+      process.env.HOSTINGER_API_TOKEN = 'env-token-123';
+      expect(hostingerDns.resolveHostingerToken()).toBe('env-token-123');
+    });
+
+    it('falls back to Google Cloud Secret Manager when environment and local creds are empty', () => {
+      process.env.HOME = '/tmp/non-existent-home-dir';
+      process.env.USERPROFILE = '/tmp/non-existent-home-dir';
+
+      const childProcess = require('child_process');
+      const spy = vi.spyOn(childProcess, 'execSync').mockReturnValue('gcp-token-xyz\n');
+
+      const token = hostingerDns.resolveHostingerToken();
+      expect(token).toBe('gcp-token-xyz');
+      expect(spy).toHaveBeenCalledWith(
+        expect.stringContaining('gcloud secrets versions access latest --secret=promptfm-hostinger-api-token'),
+        expect.anything()
+      );
+    });
   });
 });
