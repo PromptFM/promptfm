@@ -608,5 +608,55 @@ Query the $0 budget status programmatically from any MCP-enabled client:
 - Inspect `Cache-Control` response headers on `/api/radio/now` and `/api/radio/schedule` using `curl -I https://promptfm.live/api/radio/now`.
 - Verify preview crawler blocking on preview deployments via `curl https://<preview-domain>/robots.txt`.
 
+### E. Tag-Based Release Operations Runbook (Issue #123)
+
+To ensure PromptFM stays strictly within its $0 infrastructure footprint and avoids Vercel Fluid Active CPU quota exhaustion, the core team operates under a tag-based release standard.
+
+#### 1. App Production Release Workflow
+Production builds deploy exclusively to the `production` GitHub environment (`https://promptfm.live`) upon pushing an application release tag:
+- **Supported Tag Patterns**: `promptfm/<version>` (e.g., `promptfm/v1.0.0` or `promptfm/0.1.0`) and semver `v*.*.*` (e.g., `v1.0.0`).
+- **Release Steps**:
+  ```bash
+  # 1. Ensure main branch is checked out and up to date
+  git checkout main
+  git pull origin main
+
+  # 2. Tag the commit
+  git tag promptfm/v1.0.0
+
+  # 3. Push the tag to trigger .github/workflows/release.yml
+  git push origin promptfm/v1.0.0
+  ```
+- **Automated Quality Gate**: `.github/workflows/release.yml` executes:
+  1. `npm test` (unit and integration tests)
+  2. `npm run typecheck` (strict TypeScript validation)
+  3. Registers deployment in GitHub `production` environment
+  4. Triggers Vercel Production Build (via deploy hook or tag integration)
+  5. Probes live endpoint `https://promptfm.live/api/status`
+  6. Stamps deployment status with a verified active checkmark
+
+#### 2. Documentation Portal Release Workflow
+Documentation updates deploy to GitHub Pages under the `github-pages` environment upon pushing a doc release tag:
+- **Supported Tag Pattern**: `gh-pages/<version>` (e.g., `gh-pages/v1.0.0`).
+- **Release Steps**:
+  ```bash
+  git tag gh-pages/v1.0.0
+  git push origin gh-pages/v1.0.0
+  ```
+- **Automated Workflow**: `.github/workflows/pages.yml` packages `docs/` and deploys to the `github-pages` environment without triggering Vercel builds or consuming Active CPU.
+
+#### 3. Emergency Deployments on `main`
+Routine merges to `main` are automatically skipped by `scripts/vercel-budget-gate.js` (`exitCode: 0`). If an emergency production deploy directly from `main` is required without creating a tag:
+- **Option A (Commit Message Tag)**: Include `[deploy-prod]` or `[release]` in the commit message:
+  ```bash
+  git commit -m "hotfix: critical security patch [deploy-prod]"
+  ```
+- **Option B (Vercel Environment Override)**: Set `ENABLE_MAIN_PRODUCTION_DEPLOYS=true` in Vercel Project Environment Variables.
+
+#### 4. Runtime CPU Guardrails & Telemetry Architecture
+To prevent duplicate execution under live listener load:
+- **Single Now-Playing Calculation**: `/api/radio/now` resolves `getNowPlaying()` once and passes it directly to `getUpNext(channelSlug, 3, status)`, stopping duplicate Icecast probes and Supabase rank queries.
+- **Client-Side Telemetry Multiplexer (`src/lib/radio/telemetry-client.ts`)**: Coalesces concurrent in-flight requests and caches telemetry for 8 seconds. Dispatches `promptfm:radio-telemetry` CustomEvents so `AudioPlayer`, `UpNextSection`, and `LiveListenersBadge` share a single network stream rather than maintaining separate polling loops.
+
 
 
