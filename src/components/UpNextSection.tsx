@@ -13,6 +13,12 @@ import {
   QueueDisplayItem,
 } from '@/lib/radio/progress';
 import type { AirplayItem } from '@/lib/dj/rotation';
+import {
+  fetchRadioTelemetry,
+  subscribeRadioTelemetry,
+  getLatestRadioTelemetry,
+  RadioTelemetryPayload,
+} from '@/lib/radio/telemetry-client';
 
 export type UpNextItem = QueueDisplayItem;
 
@@ -25,35 +31,50 @@ export default function UpNextSection() {
   const [loading, setLoading] = useState<boolean>(true);
   const lastFetchedRef = useRef<number>(Date.now());
 
+  const applyTelemetry = useCallback((data: RadioTelemetryPayload) => {
+    if (data.now_playing) {
+      setNowPlaying(data.now_playing as AirplayItem);
+    }
+    if (Array.isArray(data.up_next)) {
+      setUpNextList(data.up_next as AirplayItem[]);
+    }
+    if (typeof data.elapsed_seconds === 'number') {
+      setElapsedSeconds(data.elapsed_seconds);
+      lastFetchedRef.current = Date.now();
+    }
+    if (typeof data.duration_seconds === 'number') {
+      setDurationSeconds(data.duration_seconds);
+    }
+    setLoading(false);
+  }, []);
+
   const fetchUpNext = useCallback(async (slug: string) => {
     try {
-      const res = await fetch(`/api/radio/now?channel=${encodeURIComponent(slug)}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.now_playing) {
-          setNowPlaying(data.now_playing);
-        }
-        if (Array.isArray(data.up_next)) {
-          setUpNextList(data.up_next);
-        }
-        if (typeof data.elapsed_seconds === 'number') {
-          setElapsedSeconds(data.elapsed_seconds);
-          lastFetchedRef.current = Date.now();
-        }
-        if (typeof data.duration_seconds === 'number') {
-          setDurationSeconds(data.duration_seconds);
-        }
-      }
+      const data = await fetchRadioTelemetry(slug);
+      applyTelemetry(data);
     } catch {
       // Retain existing items on network hiccups
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [applyTelemetry]);
 
-  // Poll for latest radio status
+  // Sync with shared radio telemetry broadcasts and channel changes
   useEffect(() => {
-    fetchUpNext(channelSlug);
+    // Check if telemetry cache already has fresh data
+    const cached = getLatestRadioTelemetry(channelSlug);
+    if (cached) {
+      applyTelemetry(cached);
+    } else {
+      fetchUpNext(channelSlug);
+    }
+
+    // Subscribe to shared radio telemetry broadcasts to eliminate duplicate polling (Issue #123)
+    const unsubscribe = subscribeRadioTelemetry((data) => {
+      if (!data.channel || data.channel === channelSlug) {
+        applyTelemetry(data);
+      }
+    });
 
     const handleChannelChange = (e: Event) => {
       const custom = e as CustomEvent<{ slug: string }>;
@@ -64,10 +85,12 @@ export default function UpNextSection() {
     };
 
     window.addEventListener('promptfm:channel-changed', handleChannelChange);
+
+    // Standalone fallback polling (every 15s) in case AudioPlayer is not active
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
       fetchUpNext(channelSlug);
-    }, 10000);
+    }, 15000);
 
     const handleVisibility = () => {
       if (typeof document !== 'undefined' && !document.hidden) {
@@ -80,13 +103,14 @@ export default function UpNextSection() {
     }
 
     return () => {
+      unsubscribe();
       window.removeEventListener('promptfm:channel-changed', handleChannelChange);
       clearInterval(interval);
       if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', handleVisibility);
       }
     };
-  }, [channelSlug, fetchUpNext]);
+  }, [channelSlug, fetchUpNext, applyTelemetry]);
 
   // Second-by-second progress ticker for active track
   useEffect(() => {

@@ -56,6 +56,7 @@ import {
   getPopoverPositionClasses,
 } from '@/lib/radio/mobile-layout';
 import { formatPageTitle, updateMediaSession } from '@/lib/player/media-session';
+import { fetchRadioTelemetry } from '@/lib/radio/telemetry-client';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -144,54 +145,51 @@ export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerPro
   const fetchNowPlaying = useCallback(async (slug?: string) => {
     const targetSlug = slug || currentChannelSlug;
     try {
-      const res = await fetch(`/api/radio/now?channel=${encodeURIComponent(targetSlug)}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (typeof data.listeners_count === 'number') {
-          setListenersCount(data.listeners_count);
-        }
-        if (typeof data.elapsed_seconds === 'number') {
-          setElapsedSeconds(data.elapsed_seconds);
-        }
-        if (typeof data.duration_seconds === 'number') {
-          setDurationSeconds(data.duration_seconds);
-        }
-        if (Array.isArray(data.up_next)) {
-          setUpNextList(
-            data.up_next.map((item: any) => ({
-              id: item.id,
-              type: item.type,
-              title: item.title,
-              artist: item.artist,
-              cover_art_url: item.cover_art_url || '/logo-mark.png',
-              category: item.category,
-              upvotes_count: item.upvotes_count,
-            }))
-          );
-        }
-        if (data.now_playing) {
-          const trackId = data.now_playing.id;
-          if (trackId && typeof window !== 'undefined') {
-            try {
-              const alreadyVoted = localStorage.getItem(`promptfm_voted_${trackId}`) === 'true';
-              setVoted(alreadyVoted);
-            } catch {
-              // Ignore localStorage restrictions
-            }
+      const data = await fetchRadioTelemetry(targetSlug);
+      if (typeof data.listeners_count === 'number') {
+        setListenersCount(data.listeners_count);
+      }
+      if (typeof data.elapsed_seconds === 'number') {
+        setElapsedSeconds(data.elapsed_seconds);
+      }
+      if (typeof data.duration_seconds === 'number') {
+        setDurationSeconds(data.duration_seconds);
+      }
+      if (Array.isArray(data.up_next)) {
+        setUpNextList(
+          data.up_next.map((item: any) => ({
+            id: item.id,
+            type: item.type,
+            title: item.title,
+            artist: item.artist,
+            cover_art_url: item.cover_art_url || '/logo-mark.png',
+            category: item.category,
+            upvotes_count: item.upvotes_count,
+          }))
+        );
+      }
+      if (data.now_playing) {
+        const trackId = data.now_playing.id;
+        if (trackId && typeof window !== 'undefined') {
+          try {
+            const alreadyVoted = localStorage.getItem(`promptfm_voted_${trackId}`) === 'true';
+            setVoted(alreadyVoted);
+          } catch {
+            // Ignore localStorage restrictions
           }
-
-          setNowPlaying({
-            id: trackId,
-            type: data.now_playing.type,
-            title: data.now_playing.title,
-            artist: data.now_playing.artist,
-            cover_art_url: data.now_playing.cover_art_url || '/logo-mark.png',
-            tool_used: data.now_playing.tool_used,
-            upvotes_count: data.now_playing.upvotes_count,
-            transcript: data.now_playing.transcript,
-            active_dj: data.active_dj,
-          });
         }
+
+        setNowPlaying({
+          id: trackId,
+          type: data.now_playing.type,
+          title: data.now_playing.title || '',
+          artist: data.now_playing.artist || '',
+          cover_art_url: data.now_playing.cover_art_url || '/logo-mark.png',
+          tool_used: data.now_playing.tool_used,
+          upvotes_count: data.now_playing.upvotes_count,
+          transcript: data.now_playing.transcript,
+          active_dj: data.active_dj,
+        });
       }
     } catch {
       // Ignore network errors in background poll
