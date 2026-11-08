@@ -479,7 +479,7 @@ npm run promptfm -- tag sql-rollback &lt;version&gt;</pre>
         </div>
         <div class="card">
           <h3>Deployment &amp; Secret Management</h3>
-          <p><strong>apply-terraform.yml:</strong> Applies Terraform infra upon <code>promptfm-infra/*</code> tags or manual dispatch.<br>
+          <p><strong>apply-terraform.yml:</strong> Applies Terraform infra, conditionally executes Ansible via zero-cost IAP tunneling upon <code>infra/ansible</code> or VM state changes, and syncs DNS upon <code>promptfm-infra/*</code> tags or manual dispatch.<br>
              <strong>apply-sql-schema.yml:</strong> Applies Supabase database migrations upon <code>promptfm-sql/*</code> tags or manual dispatch using GCP Secret Manager credentials.<br>
              <strong>rotate-secrets.yml:</strong> Automated rotation for GCP Secret Manager credentials with immediate version N-1 destruction ($0 quota guard).<br>
              <strong>rollback-infra.yml &amp; rollback-sql.yml:</strong> Safe rollbacks to specific commit SHAs or migration versions.</p>

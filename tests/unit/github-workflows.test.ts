@@ -33,6 +33,14 @@ describe('GitHub Actions Workflows Suite', () => {
       expect(content).toContain('terraform -chdir=infra/terraform apply -auto-approve');
       expect(content).toContain('dns apply promptfm.live');
     });
+
+    it('orchestrates Ansible conditionally via zero-cost IAP with skip and force controls', () => {
+      const content = readWorkflow('apply-terraform.yml');
+      expect(content).toContain('force_ansible:');
+      expect(content).toContain('skip_ansible:');
+      expect(content).toContain('npm run promptfm -- ansible');
+      expect(content).toContain('--terraform-log');
+    });
   });
 
   describe('Apply Hostinger DNS Workflow (apply-dns.yml)', () => {

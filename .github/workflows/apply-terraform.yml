@@ -7,6 +7,14 @@ on:
         description: 'Auto approve terraform apply'
         default: 'true'
         required: false
+      force_ansible:
+        description: 'Force Ansible execution regardless of change detection'
+        type: boolean
+        default: false
+      skip_ansible:
+        description: 'Skip Ansible execution entirely'
+        type: boolean
+        default: false
   push:
     tags:
       - 'promptfm-infra/*'
@@ -26,6 +34,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
@@ -64,6 +74,7 @@ jobs:
         run: |
           if [ -f "$HOME/.config/gcloud/promptfm-terraform-key.json" ] && grep -q '^{' "$HOME/.config/gcloud/promptfm-terraform-key.json"; then
             echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/.config/gcloud/promptfm-terraform-key.json" >> $GITHUB_ENV
+            gcloud auth activate-service-account --key-file="$HOME/.config/gcloud/promptfm-terraform-key.json" --project=promptfm-radio-1793623670 || true
             echo "GCP credentials configured successfully from restored key file."
           elif [ -n "${{ secrets.GCP_SA_KEY }}" ]; then
             if echo "${{ secrets.GCP_SA_KEY }}" | grep -q '^{'; then
@@ -73,10 +84,12 @@ jobs:
             fi
             echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-sa-key.json" >> $GITHUB_ENV
             echo "GOOGLE_CREDENTIALS=$(cat /tmp/gcp-sa-key.json | tr -d '\n')" >> $GITHUB_ENV
+            gcloud auth activate-service-account --key-file=/tmp/gcp-sa-key.json --project=promptfm-radio-1793623670 || true
             echo "GCP credentials configured successfully from GitHub secrets."
           else
             echo "ℹ️ Using application default credentials or ambient auth."
           fi
+          gcloud config set project promptfm-radio-1793623670 || true
 
       - name: Initialize Terraform (Free GCS Backend)
         run: terraform -chdir=infra/terraform init
@@ -87,9 +100,32 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Apply Terraform Infrastructure
-        run: terraform -chdir=infra/terraform apply -auto-approve
+        run: |
+          terraform -chdir=infra/terraform apply -auto-approve 2>&1 | tee /tmp/terraform-apply.log
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Ansible (Zero-Cost Configuration Management)
+        run: |
+          if ! command -v ansible-playbook &>/dev/null; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq ansible
+          fi
+
+      - name: Run Ansible Configuration via Zero-Cost IAP (If Needed)
+        run: |
+          FORCE_FLAG=""
+          if [ "${{ github.event.inputs.force_ansible }}" = "true" ]; then
+            FORCE_FLAG="--force"
+          fi
+          SKIP_FLAG=""
+          if [ "${{ github.event.inputs.skip_ansible }}" = "true" ]; then
+            SKIP_FLAG="--skip"
+          fi
+          npm run promptfm -- ansible $FORCE_FLAG $SKIP_FLAG --terraform-log /tmp/terraform-apply.log
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          GCP_PROJECT_ID: 'promptfm-radio-1793623670'
 
       - name: Apply Hostinger DNS Zone State ($0 Egress Enforcement)
         run: npm run promptfm -- dns apply promptfm.live --state infra/dns/promptfm.live.state.json --force
@@ -98,4 +134,3 @@ jobs:
         run: npm run promptfm -- tag infra
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-

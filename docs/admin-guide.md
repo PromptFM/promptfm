@@ -734,7 +734,7 @@ PromptFM leverages automated GitHub Actions workflows to govern releases, Vercel
 | Workflow | File | Trigger | Purpose |
 | :--- | :--- | :--- | :--- |
 | **🚀 Release PromptFM** | `.github/workflows/release-promptfm.yml` | `workflow_dispatch` or push tag `promptfm/*` | Cuts release tag `promptfm/<version>-<short_hash>`, verifies quality gate, deploys to Vercel Production, and creates GitHub Release. |
-| **🏗️ Apply Terraform Changes** | `.github/workflows/apply-terraform.yml` | `workflow_dispatch` or push to `main` (`infra/terraform/**`, `infra/ansible/**`) | Runs `npm run prepare-infra`, initializes free GCS state backend, and applies Terraform infrastructure changes. |
+| **🏗️ Apply Terraform Changes** | `.github/workflows/apply-terraform.yml` | `workflow_dispatch` or push tag `promptfm-infra/*` | Runs `npm run prepare-infra`, initializes free GCS state backend, applies Terraform, conditionally runs Ansible via zero-cost IAP tunneling ($0.00), and synchronizes Hostinger DNS. |
 | **🔍 Create Preview Link in Vercel** | `.github/workflows/create-preview-link.yml` | `workflow_dispatch` (`commit_sha`) | On-demand Vercel preview deployment for a specific commit SHA without auto-triggering on PR approval. |
 | **🔐 Update Secrets in Vercel** | `.github/workflows/update-secrets.yml` | `workflow_dispatch` (`secret_key`, `secret_value`, `environments`) | Securely writes environment variables to Vercel with SecretShare runbook integration. |
 | **⏪ Rollback PromptFM** | `.github/workflows/rollback.yml` | `workflow_dispatch` (`rollback_ref`) | Rolls back production to a specified commit SHA or Tag, generating `promptfm/rollback-<sha>` or `promptfm/rollback-<version>`. |
@@ -765,7 +765,46 @@ terraform {
 
 ---
 
-### C. Required Repository Secrets & Vercel Configuration
+### C. Zero-Cost Ansible Configuration via Google Cloud IAP Tunneling ($0.00)
+
+PromptFM streamer VM configuration is managed by Ansible ([`infra/ansible/`](file:///Users/trifan/.gemini/antigravity/worktrees/promptfm/vercel_speed_insights/infra/ansible/)) and executed through **Google Cloud Identity-Aware Proxy (IAP) TCP Forwarding** at **$0.00 cost**.
+
+#### 1. Why IAP Tunneling is $0.00
+- **No IAP Tunneling Surcharges**: Google Cloud does not charge for Identity-Aware Proxy TCP forwarding (SSH / RDP tunneling). Standard Cloud IAP is completely free.
+- **Zero Public Port 22 Exposure**: The VM does not expose port 22 to the public internet (`0.0.0.0/0`). Connections route strictly through Google's internal IAP proxy block (`35.235.240.0/20`).
+- **No Extra SSH Keys in GitHub Secrets**: `gcloud compute ssh` automatically generates an ephemeral SSH key inside the runner and registers it via Compute Engine instance metadata using the authenticated `GCP_SA_KEY` service account.
+
+#### 2. Change Detection & Decision Engine (`shouldRunAnsible`)
+To avoid unnecessary container restarts and conserve runner minutes, Ansible is applied **only when changes or uninitialized state are detected**:
+
+| Trigger Condition | Evaluated Signal | Decision |
+| :--- | :--- | :--- |
+| **Skip Override** | CLI `--skip` or workflow dispatch `skip_ansible: true` | **SKIP** (`Explicitly skipped via skip_ansible option`) |
+| **Force Override** | CLI `--force` or workflow dispatch `force_ansible: true` | **RUN** (`Forced execution via force_ansible option`) |
+| **Ansible File Changes** | `git diff` detects modifications in `infra/ansible/**` | **RUN** (`Changes detected in infra/ansible configuration files`) |
+| **Terraform VM Modification** | Terraform apply log contains `google_compute_instance.streamer` creation/change | **RUN** (`Terraform provisioned or modified the streamer VM instance`) |
+| **Stream Health Failure** | Streamer audio stack is uninitialized or port 8000 is unhealthy | **RUN** (`Streamer service is marked unhealthy or uninitialized`) |
+| **No Infra/Ansible Changes** | No VM modifications, clean git diff, and stream healthy | **SKIP** (`No Ansible file changes or VM modifications detected`) |
+
+#### 3. CLI & Workflow Commands
+
+```bash
+# Run Ansible streamer orchestration through IAP only if needed
+npm run promptfm -- ansible
+
+# Force live execution regardless of diff
+npm run promptfm -- ansible --force
+
+# Dry-run execution (--check --diff)
+npm run promptfm -- ansible --check
+
+# Pass terraform apply output for automatic VM change detection
+npm run promptfm -- ansible --terraform-log /tmp/terraform-apply.log
+```
+
+---
+
+### D. Required Repository Secrets & Vercel Configuration
 
 To enable these workflows, configure the following secrets in GitHub (**Settings ➔ Secrets and variables ➔ Actions**):
 

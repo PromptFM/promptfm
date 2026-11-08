@@ -71,6 +71,7 @@ import {
   type ReleaseLane,
   type BumpType,
 } from '../src/lib/infra/release-tag';
+import { runAnsibleIapCLI } from './run-ansible-iap';
 import { execSync } from 'child_process';
 import { readFileSync, writeFileSync, appendFileSync, existsSync } from 'fs';
 import { join, basename } from 'path';
@@ -158,6 +159,11 @@ Hostinger Domain & DNS Automation ($0 Egress):
                           Flags: --state <path>
   dns apply <domain>      Apply DNS state to Hostinger domain
                           Flags: --state <path> --force
+
+Infrastructure & Streamer Orchestration ($0 IAP Tunneling):
+  ansible                 Run Ansible streamer playbook via zero-cost IAP tunnel only if needed
+                          Flags: --force --skip --check --terraform-log <path>
+  infra ansible           Alias for running Ansible streamer orchestration
 
 Git Release, Versioning & Rollback Tagging:
   tag suggest [app|infra|sql] Inspect latest git tag and suggest next SemVer bump
@@ -2144,6 +2150,24 @@ Moderation & Schedule:
         console.log(`✅ Successfully created and pushed tag: ${result.tag}`);
       } else {
         console.log(`⚠️  Tag ${result.tag} already exists or push failed non-fatally.`);
+      }
+      break;
+    }
+
+    case 'ansible': {
+      const exitCode = await runAnsibleIapCLI(args.slice(1));
+      process.exit(exitCode);
+      break;
+    }
+
+    case 'infra': {
+      const sub = args[1];
+      if (sub === 'ansible') {
+        const exitCode = await runAnsibleIapCLI(args.slice(2));
+        process.exit(exitCode);
+      } else {
+        console.error(`Unknown infra subcommand: "${sub}". Valid subcommands: ansible.`);
+        process.exit(1);
       }
       break;
     }
