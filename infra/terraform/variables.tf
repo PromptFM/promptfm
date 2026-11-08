@@ -123,4 +123,25 @@ variable "hostinger_api_token" {
   sensitive   = true
 }
 
+# ── GitHub Repository & Community Project IaC ─────────────────────────────────
+
+variable "github_token" {
+  description = "GitHub Personal Access Token for managing repository, labels, and milestones"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "github_owner" {
+  description = "GitHub Organization or Owner login"
+  type        = string
+  default     = "PromptFM"
+}
+
+variable "github_repository" {
+  description = "GitHub Repository Name"
+  type        = string
+  default     = "promptfm"
+}
+
 

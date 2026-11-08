@@ -9,6 +9,7 @@ import {
   resolveHostingerTokenForInfra,
   generateTerraformTfvars,
   generateAnsibleSecrets,
+  loadLocalEnvFiles,
 } from '@/lib/infra/prepare-infra';
 
 describe('Infrastructure Preparation & Credential Orchestrator', () => {
@@ -132,6 +133,24 @@ describe('Infrastructure Preparation & Credential Orchestrator', () => {
       expect(content).toContain('icecast_admin_password:'); // gitleaks:allow
       expect(content).toContain(mockAdmin);
       expect(content).toContain('hostinger_api_token: "hostinger_token"');
+    });
+  });
+
+  describe('loadLocalEnvFiles()', () => {
+    it('loads environment variables from .env.infra.local pulled from Vercel CLI', () => {
+      const envInfraPath = path.join(tmpDir, '.env.infra.local');
+      fs.writeFileSync(
+        envInfraPath,
+        `# Pulled by Vercel CLI\nHOSTINGER_API_TOKEN="token_from_vercel_env_pull"\nGCP_PROJECT_ID=promptfm-radio-1793623670\n`
+      );
+
+      delete process.env.HOSTINGER_API_TOKEN;
+      delete process.env.GCP_PROJECT_ID;
+
+      loadLocalEnvFiles(tmpDir);
+
+      expect(process.env.HOSTINGER_API_TOKEN).toBe('token_from_vercel_env_pull');
+      expect(process.env.GCP_PROJECT_ID).toBe('promptfm-radio-1793623670');
     });
   });
 });

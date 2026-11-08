@@ -7,6 +7,11 @@
 [![Tests](https://img.shields.io/badge/Tests-489%20Passing-brightgreen?style=for-the-badge&logo=vitest)](https://github.com/PromptFM/promptfm)
 [![Mutation Score](https://img.shields.io/badge/Stryker%20Mutation-Core%20Domain-blueviolet?style=for-the-badge)](https://github.com/PromptFM/promptfm)
 [![GCP Free Tier](https://img.shields.io/badge/GCP%20Always--Free-$0.00%2Fmo-4285F4?style=for-the-badge&logo=googlecloud)](https://console.cloud.google.com/?project=promptfm-radio-1793623670)
+[![LOGS](https://img.shields.io/badge/LOGS-Cloud%20Logging-E37400?style=for-the-badge&logo=googlecloud&logoColor=white)](https://console.cloud.google.com/logs/query?project=promptfm-radio-1793623670)
+[![LOGS_VERCEL](https://img.shields.io/badge/LOGS_VERCEL-Runtime%20Logs-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/alex-trifans-projects/promptfm/logs)
+[![DASHBOARDS_GCP](https://img.shields.io/badge/DASHBOARDS_GCP-Cloud%20Monitoring-4285F4?style=for-the-badge&logo=googlecloud&logoColor=white)](https://console.cloud.google.com/monitoring/dashboards/builder/ce33f584-e48f-407a-b2e7-1d1fa9e990ff?project=promptfm-radio-1793623670)
+[![DASHBOARDS_VERCEL](https://img.shields.io/badge/DASHBOARDS_VERCEL-Vercel%20Analytics-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/alex-trifans-projects/promptfm/analytics)
+[![TRACES_GCP](https://img.shields.io/badge/TRACES_GCP-Cloud%20Trace-34A853?style=for-the-badge&logo=googlecloud&logoColor=white)](https://console.cloud.google.com/traces/overview?project=promptfm-radio-1793623670)
 [![License](https://img.shields.io/badge/License-Community%20Source--Available-purple?style=for-the-badge)](LICENSE)
 
 **PromptFM** is an autonomous 24/7 AI-generated music radio platform and community chart. Featuring **5 live theme stations** (including After Dark 18+ Explicit with statutory legal age verification), continuous uninterrupted **100% pure music rotation**, real-time listener voting, and direct MP3/M4A creator uploads with automatic ID3 metadata and album art extraction.
@@ -19,8 +24,11 @@ PromptFM is engineered to operate strictly within 100% zero-cost cloud tiers. Us
 
 | Dashboard | Direct Console Link | What It Monitors | Cost |
 | :--- | :--- | :--- | :--- |
-| **Google Cloud Monitoring** | [PromptFM 0-Cost Telemetry Dashboard](https://console.cloud.google.com/monitoring/dashboards/builder/ce33f584-e48f-407a-b2e7-1d1fa9e990ff?project=promptfm-radio-1793623670) | Gemini 3.5 Flash requests & quotas, Gemini 2.5 Flash TTS synthesis latencies, Cloud Storage operations, service uptime | **$0.00** (Free Tier) |
+| **GCP Cloud Monitoring** | [PromptFM 0-Cost Telemetry Dashboard](https://console.cloud.google.com/monitoring/dashboards/builder/ce33f584-e48f-407a-b2e7-1d1fa9e990ff?project=promptfm-radio-1793623670) | Gemini 3.5 Flash requests & quotas, Gemini 2.5 Flash TTS synthesis latencies, Cloud Storage operations, service uptime | **$0.00** (Free Tier) |
+| **GCP Cloud Logging** | [Cloud Logging Console](https://console.cloud.google.com/logs/query?project=promptfm-radio-1793623670) | Real-time VM streamer logs, Liquidsoap transitions, Icecast access/error logs, and structured JSON stdout | **$0.00** (50GB/mo Free) |
+| **GCP Cloud Trace** | [Cloud Trace Overview](https://console.cloud.google.com/traces/overview?project=promptfm-radio-1793623670) | Distributed W3C trace latency across API requests, TTS synthesis spans, and Supabase RPC calls | **$0.00** (Free Tier) |
 | **Vercel Web Analytics** | [Vercel Realtime Analytics](https://vercel.com/alex-trifans-projects/promptfm/analytics) | Live visitors online, real-time listener telemetry, page views, iOS Safari homescreen users, referral sources, Core Web Vitals | **$0.00** (Hobby Plan) |
+| **Vercel Runtime Logs** | [Vercel Function Logs](https://vercel.com/alex-trifans-projects/promptfm/logs) | Real-time edge and serverless execution logs, API route latencies, and streaming errors | **$0.00** (Included) |
 | **Google AI Studio** | [Gemini AI Studio Dashboard](https://aistudio.google.com) | Gemini API free key quota usage (15 RPM / 1,500 requests/day free allowance) under `Gemini Project` (`gen-lang-client-0217883943`) | **$0.00** |
 | **Station Manager Studio** | [promptfm.live/admin](https://promptfm.live/admin) | On-air queue curation, community submission moderation, Discord/Telegram batch requests, manual DJ voice drops, channel management | **$0.00** |
 | **Icecast 2 Stream Admin** | [stream.promptfm.live:8000/admin](http://stream.promptfm.live:8000/admin/) | Direct Icecast mount points (`/stream.mp3`, `/cyberpunk.mp3`, `/chillout.mp3`, `/kids.mp3`, `/afterdark.mp3`), connected socket listeners, bitrate telemetry | **$0.00** (GCP VM) |
@@ -340,6 +348,9 @@ PromptFM exposes a streamable **Model Context Protocol (MCP)** server at [`https
 PromptFM welcomes open community development, bug fixes, and feature proposals!
 
 - **Contributing Guide:** See [`CONTRIBUTING.md`](CONTRIBUTING.md) for full instructions on local setup, running tests, mutation testing, and submitting pull requests.
+- **Code of Conduct:** Read our [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) for community standards, respectful collaboration, and enforcement guidelines.
+- **Security Policy:** See [`SECURITY.md`](SECURITY.md) for vulnerability disclosure, safe harbor terms, and reporting guidelines.
+- **Accessibility Statement:** Review [`ACCESSIBILITY.md`](ACCESSIBILITY.md) for WCAG 2.1 AA conformance, keyboard navigation shortcuts, and screen reader compatibility.
 - **Licensing:** Governed by the [`PromptFM Community Source-Available License (Version 1.0)`](LICENSE). You may inspect, fork, test, and contribute pull requests. You may **not** copy, extract, resell, or host competing radio/streaming clones.
 - **Review Board:** All pull requests require review and approval from the Board (**@atrifan**).
 - **GitHub Organization:** Community development is hosted under the `promptfm` organization.

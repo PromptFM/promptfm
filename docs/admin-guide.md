@@ -608,6 +608,7 @@ Query the $0 budget status programmatically from any MCP-enabled client:
 - Inspect `Cache-Control` response headers on `/api/radio/now` and `/api/radio/schedule` using `curl -I https://promptfm.live/api/radio/now`.
 - Verify preview crawler blocking on preview deployments via `curl https://<preview-domain>/robots.txt`.
 
+
 ### E. Tag-Based Release Operations Runbook (Issue #123)
 
 To ensure PromptFM stays strictly within its $0 infrastructure footprint and avoids Vercel Fluid Active CPU quota exhaustion, the core team operates under a tag-based release standard.
@@ -720,6 +721,234 @@ VERCEL_ENV=production VERCEL_GIT_COMMIT_REF=main node scripts/vercel-budget-gate
 VERCEL_ENV=production VERCEL_GIT_COMMIT_REF=promptfm/v1.0.0 node scripts/vercel-budget-gate.js
 # Output: [PromptFM Budget Gate] ✅ Proceeding: Tagged production release permitted... (exit 1)
 ```
+
+---
+
+## 15. GitHub Actions Workflows & Deployment Architecture
+
+PromptFM leverages automated GitHub Actions workflows to govern releases, Vercel deployments, Terraform cloud infrastructure, and secret management under the strict $0 Always-Free Tier policy.
+
+### A. Workflows Directory & Triggers
+
+| Workflow | File | Trigger | Purpose |
+| :--- | :--- | :--- | :--- |
+| **🚀 Release PromptFM** | `.github/workflows/release-promptfm.yml` | `workflow_dispatch` or push tag `promptfm/*` | Cuts release tag `promptfm/<version>-<short_hash>`, verifies quality gate, deploys to Vercel Production, and creates GitHub Release. |
+| **🏗️ Apply Terraform Changes** | `.github/workflows/apply-terraform.yml` | `workflow_dispatch` or push to `main` (`infra/terraform/**`, `infra/ansible/**`) | Runs `npm run prepare-infra`, initializes free GCS state backend, and applies Terraform infrastructure changes. |
+| **🔍 Create Preview Link in Vercel** | `.github/workflows/create-preview-link.yml` | `workflow_dispatch` (`commit_sha`) | On-demand Vercel preview deployment for a specific commit SHA without auto-triggering on PR approval. |
+| **🔐 Update Secrets in Vercel** | `.github/workflows/update-secrets.yml` | `workflow_dispatch` (`secret_key`, `secret_value`, `environments`) | Securely writes environment variables to Vercel with SecretShare runbook integration. |
+| **⏪ Rollback PromptFM** | `.github/workflows/rollback.yml` | `workflow_dispatch` (`rollback_ref`) | Rolls back production to a specified commit SHA or Tag, generating `promptfm/rollback-<sha>` or `promptfm/rollback-<version>`. |
+| **📚 Release GitHub Pages** | `.github/workflows/pages.yml` | `workflow_dispatch` or push to `main` (`docs/**`) | Deploys documentation and architectural guides to GitHub Pages. |
+| **💬 PR Quality Gate & Bot** | `.github/workflows/ci.yml` (`pr-guidance-comment`) | `pull_request` (when quality checks pass) | Comments instructions: *"make an admin run the Make preview link workflow on the following sha: `<sha>`"* and posts action cards for Terraform/Ansible updates. |
+
+---
+
+### B. Free Terraform State Architecture: Why NOT in Git?
+
+> [!CAUTION]
+> **Do NOT store Terraform state (`terraform.tfstate`) in Git repositories.**
+> 1. **Secret Leakage**: Terraform state files store sensitive resources (passwords, private keys, API tokens) in unencrypted plain text.
+> 2. **Race Conditions & Corruption**: Git lacks distributed write-locking. Concurrent updates will corrupt the state file and cause divergent cloud reality.
+
+#### Recommended Free Remote State Backend: Google Cloud Storage (GCS)
+The PromptFM repository is pre-configured with a remote GCS backend in [`infra/terraform/versions.tf`](file:///Users/trifan/.gemini/antigravity/worktrees/promptfm/github_workflows_vercel_deploy/infra/terraform/versions.tf):
+```hcl
+terraform {
+  backend "gcs" {
+    bucket = "promptfm-tfstate-promptfm-radio-1793623670"
+    prefix = "terraform/state"
+  }
+}
+```
+- **Why GCS is 100% Free**: Google Cloud provides **5 GB of Standard storage per month** in `us-central1`, `us-west1`, and `us-east1` completely free under the GCP Always-Free Tier. A Terraform state file is ~50 KB, consuming less than 0.001% of the free quota.
+- **Distributed State Locking**: GCS automatically supports atomic state locking via Google Cloud generation numbers, preventing concurrent modification without any additional cost.
+
+---
+
+### C. Required Repository Secrets & Vercel Configuration
+
+To enable these workflows, configure the following secrets in GitHub (**Settings ➔ Secrets and variables ➔ Actions**):
+
+| Secret Name | Required By | Description / Source |
+| :--- | :--- | :--- |
+| `VERCEL_TOKEN` | Release, Preview, Rollback, Secrets | Personal or Team Access Token from [vercel.com/account/tokens](https://vercel.com/account/tokens). |
+| `VERCEL_ORG_ID` | Vercel CLI Operations | Organization / Account ID from Project Settings ➔ General. |
+| `VERCEL_PROJECT_ID` | Vercel CLI Operations | Project ID from Project Settings ➔ General. |
+| `GCP_SA_KEY` | Terraform & Infra Prep | Base64-encoded Service Account JSON key with Compute Admin & Storage Object Admin permissions. |
+| `HOSTINGER_API_TOKEN` | Terraform DNS Sync | API token from Hostinger Console (for managing `@` and subdomain DNS records). |
+| `GH_PAT` | Tagging & PR Bot | GitHub Personal Access Token (or repo token from `git remote -v`) with `repo` and `workflow` scopes. |
+
+#### Vercel Project Settings to Verify:
+1. **Ignored Build Step**:
+   - Set **Command** to: `bash scripts/vercel-budget-gate.sh`
+   - This ensures automatic PR preview builds are skipped unless explicitly tagged with `[preview]`, saving Active CPU hours.
+2. **Deploy Hook (Optional)**:
+   - Create a deploy hook under **Settings ➔ Git ➔ Deploy Hooks** and save it as `VERCEL_DEPLOY_HOOK` in GitHub repository secrets if hook-based triggers are preferred.
+
+---
+
+## 11. GitHub Community Standards & Content Reports Configuration
+
+GitHub tracks community health metrics at [`https://github.com/PromptFM/promptfm/community`](https://github.com/PromptFM/promptfm/community). PromptFM maintains a 100% compliant community profile adhering to all recommended standards:
+
+### A. Community Governance Files
+1. **Code of Conduct:** [`CODE_OF_CONDUCT.md`](../CODE_OF_CONDUCT.md) — Contributor Covenant v2.1 with enforcement by Board Admin (**@atrifan** / `conduct@promptfm.live`).
+2. **Security Policy:** [`SECURITY.md`](../SECURITY.md) — Responsible disclosure policy, private security advisory link, SLA response matrix, and safe harbor.
+3. **Accessibility Commitment:** [`ACCESSIBILITY.md`](../ACCESSIBILITY.md) — WCAG 2.1 AA conformance, keyboard shortcuts (`Space`, `M`, `1-5`), and screen reader `aria-live` specifications.
+4. **Contribution Guide:** [`CONTRIBUTING.md`](../CONTRIBUTING.md) — TDD requirements, local zero-cost simulation, and PR lifecycle.
+5. **Issue & PR Templates:** [`.github/ISSUE_TEMPLATE/`](../.github/ISSUE_TEMPLATE/) and [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md).
+
+### B. Enabling "Repository Admins Accept Content Reports"
+
+GitHub allows repository maintainers to receive content reports from community members on issues, PRs, comments, and discussions. This feature is enabled via the GitHub Web UI (as GitHub provides no programmatic REST API for this setting):
+
+1. Navigate to the repository settings:
+   `https://github.com/PromptFM/promptfm/settings`
+2. In the left navigation menu under the **Access** header, click **Moderation options**, then select **Reported content**.
+3. Under **Reported content**:
+   - Set **Who can report content** to **Prior contributors and collaborators** or **All users** (recommended for public community projects).
+4. Click **Save**.
+5. Once saved, visiting the **Community Standards** checklist will show a green checkmark for **Repository admins accept content reports**, and the community profile API (`/repos/PromptFM/promptfm/community/profile`) will return `"content_reports_enabled": true`.
+
+### C. Triaging Content Reports in GitHub
+When a user flags a comment or issue:
+- Station administrators receive an in-app and email notification.
+- Navigate to **Settings ➔ Moderation options ➔ Reported content** to view pending reports.
+- Available actions:
+  - **Dismiss report**: Mark as reviewed if no violation occurred.
+  - **Hide comment**: Hide the offending content with reason (Abuse, Off-topic, Spam).
+  - **Block user**: Apply temporary or permanent interaction limits in accordance with [`CODE_OF_CONDUCT.md`](../CODE_OF_CONDUCT.md).
+
+---
+
+## 17. PostgreSQL & Supabase Database Schema Management
+
+PromptFM uses PostgreSQL hosted on Supabase (`oxfacfdpxbxilucooijy.supabase.co`). All database schema changes and migrations are tracked as code under `supabase/migrations/` and automated through GitHub Actions.
+
+### A. Architectural Choice: TypeScript Migrator vs. Ansible
+
+- **Why Not Ansible for Database Schema?**
+  Ansible is specifically designed for server/VM configuration (e.g. provisioning the GCP Compute Engine streamer VM running Icecast / Liquidsoap). Supabase is a cloud-managed DBaaS. Running Ansible to execute SQL migrations would require Python `psycopg2` packages, local host inventory, and extra runtime overhead without native type safety.
+- **Why TypeScript Migrator with Vercel Secret Resolution?**
+  - **Single Source of Truth**: Production database credentials (`SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `DATABASE_URL`) are stored in Vercel. In GitHub Actions, `npx vercel env pull .env.production.local --environment=production --yes` pulls live credentials seamlessly.
+  - **Native Node 22 Stack**: Runs directly via `jiti` with `pg` and `@supabase/supabase-js`, with 0 additional system dependencies.
+  - **Idempotency & Auditing**: Schema migrations are tracked in `public.schema_migrations` with SHA256 checksums and UTC timestamps.
+  - **Red-Green-Refactor Tested**: Full unit test and Stryker mutation coverage.
+
+---
+
+### B. SQL Schema Linter & Quality Gate
+
+Every Pull Request that alters `.sql` or `supabase/` files triggers automated SQL linting in CI:
+- **Syntax Validation**: Ensures balanced parentheses `()`, balanced quotes `''`, and dollar quote tags (`$$...$$`).
+- **Idempotent DDL**: Enforces `CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`, and `DROP TABLE IF EXISTS` for repeatable deployments.
+- **Safety Enforcement**: Prohibits dangerous destructive operations like naked `DROP DATABASE`.
+- **Supabase Row Level Security (RLS)**: Enforces `ALTER TABLE ... ENABLE ROW LEVEL SECURITY;` on public tables.
+
+---
+
+### C. 4-Way Operational Control Reference
+
+#### 1. Terminal CLI
+```bash
+# Lint all repository SQL files
+npm run lint:sql
+
+# Check only files changed relative to main branch
+npx jiti scripts/lint-sql.ts --changed
+
+# Preview pending database migrations without modifying database (Dry Run)
+npm run db:migrate -- --dry-run
+
+# Execute pending schema migrations against live database
+npm run db:migrate
+```
+
+#### 2. GitHub Actions Workflow (UI & Web)
+- **Workflow:** `🐘 Apply SQL Schema Migrations` (`.github/workflows/apply-sql-schema.yml`)
+- **Triggers:**
+  - **Automatic**: Merges to `main` touching `supabase/**`, `src/lib/sql/**`, or `scripts/apply-sql-migrations.ts`.
+  - **Manual**: Via **Actions ➔ Apply SQL Schema Migrations ➔ Run workflow** (with optional `dry_run` toggle).
+
+#### 3. PR Guidance Bot Card
+When a pull request includes SQL migrations, the automated PR guidance bot adds:
+```markdown
+> [!IMPORTANT]
+> **SQL Schema Update Required:** After merge have an admin run the [Update SQL Schema workflow](https://github.com/PromptFM/promptfm/actions/workflows/apply-sql-schema.yml)
+```
+
+#### 4. REST / Secret Sync
+Pull production Supabase secrets from Vercel:
+```bash
+npx vercel env pull .env.production.local --environment=production --yes
+```
+
+---
+
+## 18. Secret Management & Secure Handoff Runbook
+
+PromptFM maintains a strict zero-leakage security posture. Production credentials, API tokens, and private keys must never appear in Git history, pull requests, issues, or code review comments.
+
+### A. The 3 Golden Rules of Secret Sharing
+
+1. **NEVER post secrets in GitHub**:
+   - Do not paste API tokens, database connection strings, or service account keys into pull request descriptions, issues, commits, or comments.
+   - Gitleaks CI scanning (`.github/workflows/ci.yml`) will fail and block PR merge if raw secrets are detected.
+2. **Use Ephemeral Encrypted Links for Handoff**:
+   - If a new feature or infrastructure component requires a new production secret (e.g. Resend API Key, Supabase Service Role Key, Gemini API Key):
+   - Generate an encrypted, self-destructing link using **[Password Pusher](https://pwpush.com)** (configured for 1 view or 24-hour expiration) or **[OneTimeSecret](https://onetimesecret.com)**.
+   - Send the secret link directly to **`dev@promptfm.live`** or via private maintainer DM to Board Admin (**@atrifan**).
+3. **Explicitly Document Secret Requirements in PRs**:
+   - Under the **Environment Variables & Secrets Required** section in the PR template, list the *names* of the environment variables (e.g., `RESEND_API_KEY`) and state the handoff method used:
+     ```markdown
+     ### Environment Variables & Secrets Required
+     - `RESEND_API_KEY`: Sent via Password Pusher link to dev@promptfm.live
+     ```
+   - If no new secrets are needed, write:
+     ```markdown
+     ### Environment Variables & Secrets Required
+     None
+     ```
+
+---
+
+### B. Admin Runbook: Injecting Secrets into Vercel & Cloud
+
+Once a secret is received from a contributor:
+
+#### 1. Method A: GitHub Actions Workflow (`update-secrets.yml`)
+1. Go to **Actions ➔ 🔐 Update Secrets in Vercel**.
+2. Click **Run workflow**:
+   - **Secret Key Name**: Enter key (e.g. `RESEND_API_KEY`).
+   - **Secret Value**: Paste secret value (automatically masked in logs).
+   - **Target Environments**: Select `production,preview,development`.
+3. Click **Run workflow**. The workflow syncs the secret to Vercel via API.
+
+#### 2. Method B: Vercel CLI (Local Admin Terminal)
+```bash
+# Add secret to production
+npx vercel env add RESEND_API_KEY production
+
+# Add secret to preview environments
+npx vercel env add RESEND_API_KEY preview
+
+# Pull updated secrets into local development sandbox
+npx vercel env pull .env.local --environment=development --yes
+```
+
+---
+
+### C. Automated PR Checks for Secrets & UI Changes
+
+The automated PR Guidance Bot detects and responds to changed files with dedicated guidance cards:
+- **Missing Secret Notes**: If `.env.example`, `*.tfvars`, or `secrets-sync.ts` is changed without secret handoff notes in the PR description, the bot posts:
+  > `### ⚠️ PR Review Check: Environment & Secret Handoff Required`
+- **Secrets Update Card**: Directs admins to the `update-secrets.yml` workflow:
+  > `> **Secrets Update Required:** If new production secrets or credentials are required, have an admin run the Update Secrets workflow: https://github.com/PromptFM/promptfm/actions/workflows/update-secrets.yml`
+- **UI Changes Card**: When frontend files (`src/app/**`, `src/components/**`, `public/**`) are modified, the bot posts:
+  > `> **UI Preview Required:** Visual or component changes detected. To spin up a live preview URL on Vercel, have a core team member comment /pr-link on this PR or ask an admin to run the Create Preview Link workflow for sha <sha>.`
+
+
+
 
 
 

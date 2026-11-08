@@ -10,26 +10,34 @@ import {
   resolveHostingerTokenForInfra,
   generateTerraformTfvars,
   generateAnsibleSecrets,
+  loadLocalEnvFiles,
 } from '../src/lib/infra/prepare-infra';
 
 async function main() {
+  // Load any secrets pulled by Vercel CLI into local env
+  loadLocalEnvFiles();
+
   console.log(`\n======================================================================`);
   console.log(`🎙️  PromptFM Infrastructure Preparation & Credential Orchestrator`);
   console.log(`    Strictly adhering to GCP Always Free Tier ($0.00 / month)`);
   console.log(`======================================================================\n`);
 
-  const projectId = 'promptfm-radio-1793623670';
-  const domainName = 'promptfm.live';
+  const projectId = process.env.GCP_PROJECT_ID || 'promptfm-radio-1793623670';
+  const domainName = process.env.DOMAIN_NAME || 'promptfm.live';
 
   // 1. Configure and Verify GCP Project
   console.log(`1️⃣  Google Cloud Platform Setup (${projectId})...`);
   try {
     const currentAccount = execSync('gcloud auth list --filter=status:ACTIVE --format="value(account)"', {
       encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'ignore'],
     }).trim();
     if (!currentAccount) {
-      console.log(`⚠️  No active gcloud account found. Initiating gcloud auth login...`);
-      execSync('gcloud auth login', { stdio: 'inherit' });
+      console.log(`⚠️  No active gcloud account found.`);
+      if (process.stdout.isTTY) {
+        console.log(`   Initiating interactive gcloud auth login...`);
+        execSync('gcloud auth login', { stdio: 'inherit' });
+      }
     } else {
       console.log(`   ✓ Active GCP account: ${currentAccount}`);
     }
@@ -53,7 +61,7 @@ async function main() {
   console.log(`\n3️⃣  Resolving Hostinger API Token...`);
   let hostingerToken = resolveHostingerTokenForInfra();
 
-  if (!hostingerToken) {
+  if (!hostingerToken && process.stdout.isTTY) {
     console.log(`   ℹ️  No HOSTINGER_API_TOKEN found in environment or local credentials.`);
     console.log(`   🚀 Launching Hostinger OAuth verification...`);
     try {
@@ -70,7 +78,7 @@ async function main() {
     console.log(`   ⚠️  Hostinger API Token missing. Remote DNS sync will require HOSTINGER_API_TOKEN.`);
   }
 
-  // 4. Generate Terraform Variables (terraform.tfvars)
+  // 4. Generate Terraform Variables (infra/terraform/terraform.tfvars)
   console.log(`\n4️⃣  Generating Terraform Variables (infra/terraform/terraform.tfvars)...`);
   const tfvarsPath = join(process.cwd(), 'infra/terraform/terraform.tfvars');
   generateTerraformTfvars({
@@ -110,4 +118,3 @@ main().catch((err) => {
   console.error('Fatal error preparing infrastructure:', err);
   process.exit(1);
 });
-

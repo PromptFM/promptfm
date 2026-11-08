@@ -1,0 +1,183 @@
+name: 🔍 Create Preview Link in Vercel
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: 'Git commit SHA to generate preview link for'
+        required: true
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  check-trigger:
+    name: check-trigger
+    # Trigger if manually dispatched OR if an issue comment on a PR starts with /pr-link or /preview
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.issue.pull_request != null &&
+       (startsWith(github.event.comment.body, '/pr-link') ||
+        startsWith(github.event.comment.body, '/preview')))
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+      commit_sha: ${{ steps.check.outputs.commit_sha }}
+      pr_number: ${{ steps.check.outputs.pr_number }}
+      requested_by: ${{ steps.check.outputs.requested_by }}
+    steps:
+      - name: Verify Core Authorization and Resolve SHA
+        id: check
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          script: |
+            if (context.eventName === 'workflow_dispatch') {
+              core.setOutput('should_run', 'true');
+              core.setOutput('commit_sha', context.payload.inputs.commit_sha);
+              core.setOutput('pr_number', '');
+              core.setOutput('requested_by', context.actor);
+              return;
+            }
+
+            // Handle issue_comment on a PR
+            const comment = context.payload.comment;
+            const issue = context.payload.issue;
+            const authorAssoc = (comment.author_association || '').toUpperCase();
+            const username = comment.user.login;
+
+            const isAuthorized =
+              ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(authorAssoc) ||
+              username.toLowerCase() === 'atrifan';
+
+            if (!isAuthorized) {
+              core.warning(`Unauthorized /pr-link attempted by @${username}`);
+              await github.rest.reactions.createForIssueComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: comment.id,
+                content: '-1',
+              });
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `⚠️ @${username}, only PromptFM core maintainers and administrators can trigger Vercel preview deployments with \`/pr-link\`.\n\nTo request a preview link, ask a member of the Board (**@atrifan**) or wait for a core maintainer to review and run the preview deployment.`,
+              });
+              core.setOutput('should_run', 'false');
+              return;
+            }
+
+            // Acknowledge with rocket reaction
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: comment.id,
+              content: 'rocket',
+            });
+
+            // Fetch the pull request's current head commit SHA
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: issue.number,
+            });
+
+            const headSha = pr.data.head.sha;
+            core.info(`Authorized /pr-link request by @${username} for PR #${issue.number} (head SHA: ${headSha})`);
+
+            core.setOutput('should_run', 'true');
+            core.setOutput('commit_sha', headSha);
+            core.setOutput('pr_number', issue.number.toString());
+            core.setOutput('requested_by', username);
+
+  create-preview-link:
+    name: create-preview-link
+    needs: [check-trigger]
+    if: needs.check-trigger.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Target Commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.check-trigger.outputs.commit_sha }}
+          fetch-depth: 1
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Deploy Preview to Vercel
+        id: vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "❌ Error: VERCEL_TOKEN secret is not configured in repository secrets."
+            exit 1
+          fi
+          echo "Deploying preview for SHA ${{ needs.check-trigger.outputs.commit_sha }}..."
+          PREVIEW_URL=$(npx vercel deploy --token="$VERCEL_TOKEN" --yes)
+          echo "Preview deployed: $PREVIEW_URL"
+          echo "preview_url=$PREVIEW_URL" >> $GITHUB_OUTPUT
+
+      - name: Post Summary & Findings
+        run: |
+          echo "### 🔍 Vercel Preview Link Generated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit SHA:** \`${{ needs.check-trigger.outputs.commit_sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Preview URL:** [${{ steps.vercel.outputs.preview_url }}](${{ steps.vercel.outputs.preview_url }})" >> $GITHUB_STEP_SUMMARY
+          echo "- **Requested By:** @${{ needs.check-trigger.outputs.requested_by }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Budget Policy:** Protected under PromptFM \$0 Always-Free Tier" >> $GITHUB_STEP_SUMMARY
+
+      - name: Comment Preview Link on PR
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ steps.vercel.outputs.preview_url }}
+          COMMIT_SHA: ${{ needs.check-trigger.outputs.commit_sha }}
+          PR_NUMBER: ${{ needs.check-trigger.outputs.pr_number }}
+          REQUESTED_BY: ${{ needs.check-trigger.outputs.requested_by }}
+        with:
+          github-token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          script: |
+            const sha = process.env.COMMIT_SHA;
+            const previewUrl = process.env.PREVIEW_URL;
+            const explicitPrNumber = process.env.PR_NUMBER;
+            const requestedBy = process.env.REQUESTED_BY;
+            
+            let prNumber = explicitPrNumber ? parseInt(explicitPrNumber, 10) : null;
+            if (!prNumber) {
+              const prs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                commit_sha: sha,
+              });
+              if (prs.data && prs.data.length > 0) {
+                prNumber = prs.data[0].number;
+              }
+            }
+
+            if (prNumber) {
+              const requesterText = requestedBy ? ` (requested by @${requestedBy})` : '';
+              const commentBody = `### 🔍 Vercel Preview Link Ready!\n\n- **Target SHA:** \`${sha}\`\n- **Preview URL:** [${previewUrl}](${previewUrl})\n- **Trigger:** \`/pr-link\`${requesterText}\n\n*Deployed under PromptFM $0 budget policy.*`;
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: commentBody,
+              });
+              console.log(`Commented preview link on PR #${prNumber}`);
+            } else {
+              console.log(`No open PR found for commit ${sha}. Preview link rendered to step summary.`);
+            }
