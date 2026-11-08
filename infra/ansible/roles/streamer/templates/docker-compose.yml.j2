@@ -27,14 +27,25 @@ services:
       - ./fallback.mp3:/etc/liquidsoap/fallback.mp3:ro
     command: ["liquidsoap", "/etc/liquidsoap/radio.liq"]
 
-  # 3. Caddy Automatic HTTPS Reverse Proxy (Let's Encrypt SSL on 443)
+  # 3. Cloudflare Tunnel (Free Zero-Egress Proxy to Edge CDN)
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: promptfm-tunnel
+    restart: unless-stopped
+    environment:
+      - TUNNEL_TOKEN={{ cloudflare_tunnel_token | default(lookup('env', 'CLOUDFLARE_TUNNEL_TOKEN') | default('', true)) }}
+    command: tunnel --no-autoupdate run
+    depends_on:
+      - icecast
+
+  # 4. Caddy Automatic HTTPS Reverse Proxy (Internal loopback only; direct public ingress closed)
   caddy:
     image: caddy:2-alpine
     container_name: promptfm-caddy
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - "127.0.0.1:{{ caddy_http_port | default(80) }}:80"
+      - "127.0.0.1:{{ caddy_https_port | default(443) }}:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

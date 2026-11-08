@@ -55,7 +55,7 @@ output "monitoring_dashboard_url" {
 
 output "vercel_analytics_url" {
   description = "Direct Console URL for Vercel Web Analytics ($0 Tier)"
-  value       = "https://vercel.com/alex-trifans-projects/promptfm/analytics"
+  value       = "https://vercel.com/alextrifan/promptfm/analytics"
 }
 
 # ── OAuth 2.0 & Multi-Cloud Identity Outputs ──────────────────────────────────

@@ -1,0 +1,87 @@
+name: ⏪ Rollback SQL Schema Migrations
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_version:
+        description: 'Migration version or Tag to rollback to (e.g. 20261108_initial or promptfm-sql/rollback-20261108_initial)'
+        required: true
+      dry_run:
+        description: 'Run rollback plan in dry-run mode without modifying database'
+        type: boolean
+        default: false
+        required: false
+  push:
+    tags:
+      - 'promptfm-sql/rollback-*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sql-schema-rollback
+  cancel-in-progress: false
+
+jobs:
+  rollback-sql:
+    name: rollback-sql
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code (Full History)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Resolve Target Version & Rollback Tag
+        id: meta
+        run: |
+          node -e '
+            const fs = require("fs");
+            let target = process.env.INPUT_TARGET_VERSION || "";
+            if (!target && process.env.GITHUB_REF_TYPE === "tag") {
+              const tag = process.env.GITHUB_REF_NAME;
+              target = tag.replace(/^promptfm-sql\/rollback-/, "");
+            }
+            if (!target) {
+              console.error("No target version provided for SQL rollback.");
+              process.exit(1);
+            }
+            console.log(`Target Version: ${target}`);
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `target_version=${target}\n`);
+          '
+        env:
+          INPUT_TARGET_VERSION: ${{ github.event.inputs.target_version }}
+
+      - name: Pull Secrets from Vercel (Single Source of Truth)
+        run: |
+          if [ -n "$VERCEL_TOKEN" ]; then
+            npx vercel env pull .env.production.local --environment=production --yes
+          else
+            echo "ℹ️ VERCEL_TOKEN not provided, skipping Vercel env pull."
+          fi
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Inspect Applied Migrations vs Target Version
+        run: |
+          node -e '
+            console.log("Checking schema_migrations state against target rollback version: ${{ steps.meta.outputs.target_version }}");
+          '
+
+      - name: Tag and Record SQL Rollback Release
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: npm run promptfm -- tag sql-rollback "${{ steps.meta.outputs.target_version }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

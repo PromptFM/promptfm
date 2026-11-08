@@ -8,18 +8,11 @@ on:
         default: 'true'
         required: false
   push:
-    branches: [main]
-    paths:
-      - 'infra/terraform/**'
-      - 'infra/ansible/**'
-      - 'scripts/prepare-infra.ts'
-      - 'src/lib/infra/prepare-infra.ts'
-      - '.github/workflows/apply-terraform.yml'
     tags:
       - 'promptfm-infra/*'
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 concurrency:
@@ -35,7 +28,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Node.js 22
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: 'npm'
@@ -44,9 +37,12 @@ jobs:
         run: npm ci
 
       - name: Pull Secrets from Vercel (Single Source of Truth)
-        if: ${{ secrets.VERCEL_TOKEN != '' }}
         run: |
-          npx vercel env pull .env.infra.local --environment=production --yes
+          if [ -n "$VERCEL_TOKEN" ]; then
+            npx vercel env pull .env.infra.local --environment=production --yes
+          else
+            echo "ℹ️ VERCEL_TOKEN not provided, skipping Vercel env pull."
+          fi
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -87,4 +83,9 @@ jobs:
 
       - name: Apply Terraform Infrastructure
         run: terraform -chdir=infra/terraform apply -auto-approve
+
+      - name: Tag and Record Infrastructure Release
+        run: npm run promptfm -- tag infra
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

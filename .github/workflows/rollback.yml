@@ -41,13 +41,28 @@ jobs:
           node -e '
             const fs = require("fs");
             const { execSync } = require("child_process");
-            const { formatRollbackTag, resolveGitHubToken } = require("./src/lib/infra/release-tag");
+            
+            function formatRollbackTag(targetRef) {
+              const trimmed = (targetRef || "").trim();
+              if (!trimmed) throw new Error("Rollback reference cannot be empty");
+              if (/^[0-9a-f]{7,40}$/i.test(trimmed)) return `promptfm/rollback-${trimmed.slice(0, 7)}`;
+              let version = trimmed.replace(/^promptfm\//i, "").replace(/^v/i, "");
+              return `promptfm/rollback-${version}`;
+            }
+
+            function resolveGitHubToken(options) {
+              if (options?.envToken?.trim()) return options.envToken.trim();
+              if (options?.remoteUrl) {
+                const match = options.remoteUrl.match(/https:\/\/(?:[^:@/]+:)?([a-zA-Z0-9_]{10,})@github\.com/);
+                if (match?.[1]) return match[1];
+              }
+              return process.env.GH_PAT || process.env.GITHUB_TOKEN || null;
+            }
             
             const targetRef = process.env.ROLLBACK_REF;
             const rollbackTag = formatRollbackTag(targetRef);
             console.log(`Computed Rollback Tag: ${rollbackTag}`);
             
-            // Extract remote url
             let remoteUrl = "";
             try {
               remoteUrl = execSync("git remote get-url origin", { encoding: "utf8" }).trim();

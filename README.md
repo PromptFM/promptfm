@@ -1,16 +1,17 @@
 # 📻 PromptFM — 24/7 AI Music Radio & Creator Community
 
 [![Production](https://img.shields.io/badge/Production-promptfm.live-10b981?style=for-the-badge&logo=vercel)](https://promptfm.live)
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/alex-trifans-projects/promptfm)
+[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/alextrifan/promptfm)
 [![System Status](https://img.shields.io/endpoint?url=https://promptfm.live/api/status?format=badge&style=for-the-badge)](https://promptfm.live/status)
 [![CI Quality & Security Gate](https://github.com/PromptFM/promptfm/actions/workflows/ci.yml/badge.svg?branch=main&style=for-the-badge)](https://github.com/PromptFM/promptfm/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/Tests-489%20Passing-brightgreen?style=for-the-badge&logo=vitest)](https://github.com/PromptFM/promptfm)
 [![Mutation Score](https://img.shields.io/badge/Stryker%20Mutation-Core%20Domain-blueviolet?style=for-the-badge)](https://github.com/PromptFM/promptfm)
 [![GCP Free Tier](https://img.shields.io/badge/GCP%20Always--Free-$0.00%2Fmo-4285F4?style=for-the-badge&logo=googlecloud)](https://console.cloud.google.com/?project=promptfm-radio-1793623670)
 [![LOGS](https://img.shields.io/badge/LOGS-Cloud%20Logging-E37400?style=for-the-badge&logo=googlecloud&logoColor=white)](https://console.cloud.google.com/logs/query?project=promptfm-radio-1793623670)
-[![LOGS_VERCEL](https://img.shields.io/badge/LOGS_VERCEL-Runtime%20Logs-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/alex-trifans-projects/promptfm/logs)
+[![LOGS_VERCEL](https://img.shields.io/badge/LOGS_VERCEL-Runtime%20Logs-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/alextrifan/promptfm/logs)
+[![FLAGS_VERCEL](https://img.shields.io/badge/FLAGS_VERCEL-Feature%20Flags-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/alextrifan/promptfm/flags)
 [![DASHBOARDS_GCP](https://img.shields.io/badge/DASHBOARDS_GCP-Cloud%20Monitoring-4285F4?style=for-the-badge&logo=googlecloud&logoColor=white)](https://console.cloud.google.com/monitoring/dashboards/builder/ce33f584-e48f-407a-b2e7-1d1fa9e990ff?project=promptfm-radio-1793623670)
-[![DASHBOARDS_VERCEL](https://img.shields.io/badge/DASHBOARDS_VERCEL-Vercel%20Analytics-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/alex-trifans-projects/promptfm/analytics)
+[![DASHBOARDS_VERCEL](https://img.shields.io/badge/DASHBOARDS_VERCEL-Vercel%20Analytics-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/alextrifan/promptfm/analytics)
 [![TRACES_GCP](https://img.shields.io/badge/TRACES_GCP-Cloud%20Trace-34A853?style=for-the-badge&logo=googlecloud&logoColor=white)](https://console.cloud.google.com/traces/overview?project=promptfm-radio-1793623670)
 [![License](https://img.shields.io/badge/License-Community%20Source--Available-purple?style=for-the-badge)](LICENSE)
 
@@ -27,11 +28,19 @@ PromptFM is engineered to operate strictly within 100% zero-cost cloud tiers. Us
 | **GCP Cloud Monitoring** | [PromptFM 0-Cost Telemetry Dashboard](https://console.cloud.google.com/monitoring/dashboards/builder/ce33f584-e48f-407a-b2e7-1d1fa9e990ff?project=promptfm-radio-1793623670) | Gemini 3.5 Flash requests & quotas, Gemini 2.5 Flash TTS synthesis latencies, Cloud Storage operations, service uptime | **$0.00** (Free Tier) |
 | **GCP Cloud Logging** | [Cloud Logging Console](https://console.cloud.google.com/logs/query?project=promptfm-radio-1793623670) | Real-time VM streamer logs, Liquidsoap transitions, Icecast access/error logs, and structured JSON stdout | **$0.00** (50GB/mo Free) |
 | **GCP Cloud Trace** | [Cloud Trace Overview](https://console.cloud.google.com/traces/overview?project=promptfm-radio-1793623670) | Distributed W3C trace latency across API requests, TTS synthesis spans, and Supabase RPC calls | **$0.00** (Free Tier) |
-| **Vercel Web Analytics** | [Vercel Realtime Analytics](https://vercel.com/alex-trifans-projects/promptfm/analytics) | Live visitors online, real-time listener telemetry, page views, iOS Safari homescreen users, referral sources, Core Web Vitals | **$0.00** (Hobby Plan) |
-| **Vercel Runtime Logs** | [Vercel Function Logs](https://vercel.com/alex-trifans-projects/promptfm/logs) | Real-time edge and serverless execution logs, API route latencies, and streaming errors | **$0.00** (Included) |
+| **Vercel Web Analytics** | [Vercel Realtime Analytics](https://vercel.com/alextrifan/promptfm/analytics) | Live visitors online, real-time listener telemetry, page views, iOS Safari homescreen users, referral sources, Core Web Vitals | **$0.00** (Hobby Plan) |
+| **Vercel Runtime Logs** | [Vercel Function Logs](https://vercel.com/alextrifan/promptfm/logs) | Real-time edge and serverless execution logs, API route latencies, and streaming errors | **$0.00** (Included) |
+| **Vercel Feature Flags** | [Vercel Flags Console](https://vercel.com/alextrifan/promptfm/flags) | Real-time feature flags, emergency kill-switches, AI DJ monologue prompt experiments, and canary channel rollouts | **$0.00** (Included) |
 | **Google AI Studio** | [Gemini AI Studio Dashboard](https://aistudio.google.com) | Gemini API free key quota usage (15 RPM / 1,500 requests/day free allowance) under `Gemini Project` (`gen-lang-client-0217883943`) | **$0.00** |
 | **Station Manager Studio** | [promptfm.live/admin](https://promptfm.live/admin) | On-air queue curation, community submission moderation, Discord/Telegram batch requests, manual DJ voice drops, channel management | **$0.00** |
 | **Icecast 2 Stream Admin** | [stream.promptfm.live:8000/admin](http://stream.promptfm.live:8000/admin/) | Direct Icecast mount points (`/stream.mp3`, `/cyberpunk.mp3`, `/chillout.mp3`, `/kids.mp3`, `/afterdark.mp3`), connected socket listeners, bitrate telemetry | **$0.00** (GCP VM) |
+
+### 🚩 Vercel Feature Flags & Real-Time Kill-Switches
+Station administrators can manage production feature flags, rollout canary channels, toggle experimental Gemini AI DJ prompts, or trigger emergency kill-switches instantly without deploying code or redeploying edge containers:
+- **Direct Admin Console**: [https://vercel.com/alextrifan/promptfm/flags](https://vercel.com/alextrifan/promptfm/flags)
+- **Instant Kill-Switches**: Instantly halt creator audio uploads, voting APIs, or live stream feeders during upstream provider outages with 0 latency.
+- **AI DJ Monologue Experimentation**: Dynamically route traffic between Gemini 3.5 Flash prompt variations to evaluate conversational pacing and engagement.
+- **Zero-Downtime Canary Channels**: Toggle access to experimental theme stations (e.g. Ambient Synthwave, Lo-Fi Study Beats) for select cohorts before general release.
 
 ---
 

@@ -128,6 +128,10 @@ jobs:
         if: needs.detect-changes.outputs.has_sql == 'true' || github.event_name == 'push'
         run: npm run lint:sql
 
+      - name: Run Zero-Egress DNS Architecture Audit
+        if: needs.detect-changes.outputs.has_infra == 'true' || github.event_name == 'push'
+        run: npm run promptfm -- dns status promptfm.live --strict
+
   unit-and-integration-tests:
     name: unit-and-integration-tests
     runs-on: ubuntu-latest
@@ -288,13 +292,72 @@ jobs:
           terraform_version: 1.7.5
 
       - name: Check Terraform Formatting
-        run: terraform fmt -recursive infra/terraform
+        run: terraform fmt -check -recursive infra/terraform
 
       - name: Initialize Terraform (Local Validation)
         run: terraform -chdir=infra/terraform init -backend=false
 
       - name: Validate Terraform Configuration
         run: terraform -chdir=infra/terraform validate
+
+      - name: Check Terraform Live State vs Configuration (Dry-Run Plan)
+        run: |
+          if [ -n "$GCP_SA_KEY" ]; then
+            echo "$GCP_SA_KEY" | base64 -d > /tmp/gcp-sa-key.json
+            export GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-sa-key.json
+            terraform -chdir=infra/terraform init -reconfigure
+            set +e
+            terraform -chdir=infra/terraform plan -detailed-exitcode -no-color
+            TF_EXIT=$?
+            set -e
+            if [ "$TF_EXIT" -eq 0 ]; then
+              echo "✅ Terraform State Check: Infrastructure matches live state (already applied)."
+            elif [ "$TF_EXIT" -eq 2 ]; then
+              echo "ℹ️ Terraform State Check: Unapplied configuration changes detected (plan pending apply)."
+            else
+              echo "❌ Terraform plan error."
+              exit $TF_EXIT
+            fi
+          else
+            echo "ℹ️ GCP_SA_KEY not present in environment; verified syntax and static validation."
+          fi
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+
+  ansible-lint-dryrun:
+    name: ansible-lint-dryrun
+    runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.has_infra == 'true' || github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python & Ansible
+        run: |
+          if ! command -v ansible-playbook &>/dev/null; then
+            sudo apt-get update && sudo apt-get install -y ansible
+          fi
+
+      - name: Lint Ansible Playbooks (Syntax Check)
+        run: |
+          env -u ANSIBLE_VAULT_PASSWORD_FILE ansible-playbook -i infra/ansible/inventory.ini infra/ansible/playbook.yml --syntax-check
+          env -u ANSIBLE_VAULT_PASSWORD_FILE ansible-playbook -i infra/ansible/inventory.ini infra/ansible/hostinger-playbook.yml --syntax-check
+
+      - name: Ansible Dry Run Task Verification
+        run: |
+          echo "Running Ansible playbook dry-run task verification..."
+          env -u ANSIBLE_VAULT_PASSWORD_FILE ansible-playbook -i infra/ansible/inventory.ini infra/ansible/playbook.yml --list-tasks
+          if [ -n "$GCP_SSH_KEY" ]; then
+            mkdir -p ~/.ssh
+            echo "$GCP_SSH_KEY" > ~/.ssh/google_compute_engine
+            chmod 600 ~/.ssh/google_compute_engine
+            env -u ANSIBLE_VAULT_PASSWORD_FILE ansible-playbook -i infra/ansible/inventory.ini infra/ansible/playbook.yml --check --diff || true
+          else
+            echo "ℹ️ GCP_SSH_KEY not provided, verified task structure and syntax."
+          fi
+        env:
+          GCP_SSH_KEY: ${{ secrets.GCP_SSH_KEY }}
 
   secret-leak-detection:
     name: secret-leak-detection
@@ -392,6 +455,7 @@ jobs:
       - unit-and-integration-tests
       - mutation-testing
       - terraform-lint-validate
+      - ansible-lint-dryrun
       - secret-leak-detection
       - codeql-security-scan
       - package-vulnerability-scan

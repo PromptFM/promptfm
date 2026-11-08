@@ -601,7 +601,7 @@ Query the $0 budget status programmatically from any MCP-enabled client:
 ```
 
 #### 3. Web Studio Console (`/admin`)
-- Vercel dashboard metrics can be reviewed at [vercel.com/alex-trifans-projects/promptfm/usage](https://vercel.com/alex-trifans-projects/promptfm/usage).
+- Vercel dashboard metrics can be reviewed at [vercel.com/alextrifan/promptfm/usage](https://vercel.com/alextrifan/promptfm/usage).
 - Deployment protection can be toggled under **Project Settings ➔ Deployment Protection** in the Vercel console.
 
 #### 4. REST API & Dynamic Headers
@@ -665,7 +665,7 @@ To connect GitHub Actions release tag events with Vercel without requiring full 
 
 - **Purpose**: Enables `.github/workflows/release.yml` to trigger an authenticated production build on `main` when a valid release tag (`promptfm/*` or `v*.*.*`) is pushed.
 - **Configuration Details**:
-  - **Project**: `alex-trifans-projects/promptfm` (`prj_n4NJ1yquHGMywU4WBacPbHoLKphL`)
+  - **Project**: `alextrifan/promptfm` (`prj_n4NJ1yquHGMywU4WBacPbHoLKphL`)
   - **Hook Name**: `promptfm-release`
   - **Target Branch**: `main`
   - **Deploy Hook ID**: `Jyx6wAqnF9`
@@ -688,7 +688,7 @@ vercel deploy-hooks rm Jyx6wAqnF9
 ```
 
 ##### Managing Deploy Hooks via Vercel Web Dashboard
-1. Open [vercel.com/alex-trifans-projects/promptfm/settings/git](https://vercel.com/alex-trifans-projects/promptfm/settings/git).
+1. Open [vercel.com/alextrifan/promptfm/settings/git](https://vercel.com/alextrifan/promptfm/settings/git).
 2. Scroll to the **Deploy Hooks** section.
 3. View, edit, or copy the hook URL.
 

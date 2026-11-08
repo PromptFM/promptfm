@@ -65,6 +65,66 @@ export interface DNSMigrationPlan {
   diffs: DNSDiffItem[];
 }
 
+export interface ZeroEgressComplianceResult {
+  compliant: boolean;
+  risk: 'none' | 'direct_vm_egress' | 'missing_stream_record';
+  message: string;
+  recordType?: HostingerRecordType;
+  target?: string;
+}
+
+/**
+ * Validates whether the DNS zone protects against direct GCP VM bandwidth egress charges (Issue #127).
+ * The stream subdomain must point to an edge CNAME proxy (e.g. Cloudflare Tunnel, Edge CDN)
+ * rather than a direct GCP VM IPv4 address.
+ */
+export function validateZeroEgressCompliance(
+  zone: HostingerDNSRecord[],
+  streamSubdomain: string = 'stream'
+): ZeroEgressComplianceResult {
+  const streamRecord = zone.find(
+    (r) => r.name.toLowerCase() === streamSubdomain.toLowerCase()
+  );
+
+  if (!streamRecord) {
+    return {
+      compliant: false,
+      risk: 'missing_stream_record',
+      message: `Stream subdomain "${streamSubdomain}" is missing from DNS zone.`,
+    };
+  }
+
+  const primaryContent = streamRecord.records?.[0]?.content?.trim() || '';
+
+  if (streamRecord.type === 'A') {
+    return {
+      compliant: false,
+      risk: 'direct_vm_egress',
+      recordType: 'A',
+      target: primaryContent,
+      message: `Stream subdomain "${streamSubdomain}" points to an A record instead of an edge CNAME (${primaryContent}). Public listeners will hit the VM directly, incurring GCP egress bandwidth billing.`,
+    };
+  }
+
+  if (streamRecord.type === 'CNAME') {
+    return {
+      compliant: true,
+      risk: 'none',
+      recordType: 'CNAME',
+      target: primaryContent,
+      message: `Stream subdomain "${streamSubdomain}" routes through edge CNAME proxy (${primaryContent}) with $0 GCP egress.`,
+    };
+  }
+
+  return {
+    compliant: false,
+    risk: 'direct_vm_egress',
+    recordType: streamRecord.type,
+    target: primaryContent,
+    message: `Stream subdomain "${streamSubdomain}" uses unexpected record type ${streamRecord.type}. Expected edge CNAME.`,
+  };
+}
+
 /**
  * Validates a single DNS record against Hostinger standards and limits.
  */

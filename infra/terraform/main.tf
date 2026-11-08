@@ -35,13 +35,15 @@ resource "google_storage_bucket" "tf_state" {
   }
 }
 
-# 2. Firewall Rule: Allow HTTP & HTTPS for Caddy SSL proxy on ports 80 and 443
-# Direct port 8000 access is strictly BLOCKED from public ingress to ensure listeners cannot
-# bypass the Cloudflare edge / Caddy SSL layer and trigger GCP VM bandwidth egress charges (Issue #127).
+# 2. Firewall Rule: Restrict public HTTP & HTTPS ingress to prevent direct VM egress charges (Issue #127)
+# When Cloudflare Tunnel is active (default), the cloudflared daemon initiates an outbound connection
+# from the VM to Cloudflare Edge. No inbound ports (80, 443, or 8000) are opened to 0.0.0.0/0.
+# Public listeners route through Cloudflare Edge (stream.promptfm.live CNAME) with unlimited $0 egress.
 resource "google_compute_firewall" "allow_web" {
+  count       = var.cloudflare_tunnel_enabled ? 0 : 1
   name        = "allow-http-https"
   network     = "default"
-  description = "Allows incoming HTTP/HTTPS traffic for Caddy SSL proxy on ports 80 and 443"
+  description = "Allows incoming HTTP/HTTPS traffic for Caddy SSL proxy on ports 80 and 443 (only when Cloudflare Tunnel is disabled)"
 
   allow {
     protocol = "tcp"

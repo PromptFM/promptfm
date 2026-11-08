@@ -49,6 +49,83 @@ export interface GcpLogEntry {
   [key: string]: unknown;
 }
 
+// Generates a valid W3C distributed trace context with 32-hex traceId and 16-hex spanId.
+const SENSITIVE_KEY_REGEX =
+  /^(?:password|secret|token|authorization|cookie|apikey|api_key|access_token|refresh_token|private_key|client_secret|clientsecret|connectionstring|secretkey)$/i;
+
+const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+
+// IPv4: match strictly 4 octets separated by dots, each 0-255 (avoids SemVer matching like 0.1.0)
+const IPV4_REGEX = /\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/g;
+
+// IPv6: standard 8 groups of 4 hex, or compressed
+const IPV6_REGEX = /\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b|\b(?:[0-9a-fA-F]{1,4}:){1,7}:|::(?:[0-9a-fA-F]{1,4}:){0,7}[0-9a-fA-F]{1,4}\b/g;
+
+// Bearer tokens
+const BEARER_REGEX = /Bearer\s+[a-zA-Z0-9_\-\.]{15,}/gi;
+
+// Vendor API tokens
+const GITHUB_TOKEN_REGEX = /\b(?:ghp|gho|ghu|ghs|ghr)_[a-zA-Z0-9]{36}\b|\bgithub_pat_[a-zA-Z0-9_]{50,}\b/g;
+const GOOGLE_KEY_REGEX = /\bAIzaSy[a-zA-Z0-9_-]{25,}\b/g;
+const OPENAI_KEY_REGEX = /\bsk-(?:proj-)?[a-zA-Z0-9_-]{20,}\b/g;
+const SUPABASE_KEY_REGEX = /\bsbp_[a-zA-Z0-9]{30,}\b/g;
+const VERCEL_TOKEN_REGEX = /\bvercel_[a-zA-Z0-9]{24,}\b/g;
+const URL_QUERY_SECRET_REGEX = /([?&](?:token|key|secret|password|auth|apiKey|api_key|user)=)([^&#]*)/gi;
+
+/**
+ * Redacts sensitive tokens, credentials, emails, and IP addresses from string text.
+ */
+export function redactString(str: string): string {
+  return str
+    .replace(BEARER_REGEX, 'Bearer [REDACTED_TOKEN]')
+    .replace(GITHUB_TOKEN_REGEX, '[REDACTED_GITHUB_TOKEN]')
+    .replace(GOOGLE_KEY_REGEX, '[REDACTED_GOOGLE_KEY]')
+    .replace(OPENAI_KEY_REGEX, '[REDACTED_API_KEY]')
+    .replace(SUPABASE_KEY_REGEX, '[REDACTED_SUPABASE_KEY]')
+    .replace(VERCEL_TOKEN_REGEX, '[REDACTED_VERCEL_TOKEN]')
+    .replace(EMAIL_REGEX, '[REDACTED_EMAIL]')
+    .replace(IPV4_REGEX, '[REDACTED_IP]')
+    .replace(IPV6_REGEX, '[REDACTED_IP]');
+}
+
+/**
+ * Deeply sanitizes objects, arrays, and primitives to exclude PII, GDPR data,
+ * credentials, passwords, and sensitive tokens. Prevents cyclic reference crashes.
+ */
+export function redactSensitiveData(value: unknown, seen = new WeakSet()): unknown {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    return redactString(value);
+  }
+
+  if (typeof value !== 'object') {
+    return value;
+  }
+
+  if (seen.has(value as object)) {
+    return '[CIRCULAR]';
+  }
+  seen.add(value as object);
+
+  if (Array.isArray(value)) {
+    return value.map((item) => redactSensitiveData(item, seen));
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(value)) {
+    if (SENSITIVE_KEY_REGEX.test(key)) {
+      result[key] = '[REDACTED_SECRET]';
+    } else {
+      result[key] = redactSensitiveData(val, seen);
+    }
+  }
+
+  return result;
+}
+
 /**
  * Generates a valid W3C distributed trace context with 32-hex traceId and 16-hex spanId.
  */
@@ -148,15 +225,30 @@ export function formatGcpLogEntry(params: {
     metadata = {},
   } = params;
 
+  const sanitizedMessage = typeof message === 'string' ? redactString(message) : message;
+  const sanitizedStackTrace = typeof stackTrace === 'string' ? redactString(stackTrace) : stackTrace;
+  const sanitizedMeta = (redactSensitiveData(metadata) as Record<string, unknown>) || {};
+
+  let sanitizedHttpRequest: HttpRequestLog | undefined = undefined;
+  if (httpRequest) {
+    sanitizedHttpRequest = {
+      ...httpRequest,
+      remoteIp: httpRequest.remoteIp ? '[REDACTED_IP]' : undefined,
+      requestUrl: httpRequest.requestUrl
+        ? redactString(httpRequest.requestUrl.replace(URL_QUERY_SECRET_REGEX, '$1[REDACTED]'))
+        : undefined,
+    };
+  }
+
   const entry: GcpLogEntry = {
     severity,
-    message,
+    message: sanitizedMessage,
     timestamp: new Date().toISOString(),
     serviceContext: {
       service,
       version,
     },
-    ...metadata,
+    ...sanitizedMeta,
   };
 
   if (traceId) {
@@ -169,12 +261,12 @@ export function formatGcpLogEntry(params: {
     entry.spanId = spanId;
   }
 
-  if (httpRequest) {
-    entry.httpRequest = httpRequest;
+  if (sanitizedHttpRequest) {
+    entry.httpRequest = sanitizedHttpRequest;
   }
 
-  if (stackTrace) {
-    entry.stackTrace = stackTrace;
+  if (sanitizedStackTrace) {
+    entry.stackTrace = sanitizedStackTrace;
   }
 
   return entry;

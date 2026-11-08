@@ -61,8 +61,16 @@ import {
   validateRemoteZone,
   applyRemoteZone,
   resolveHostingerToken,
+  validateZeroEgressCompliance,
   type HostingerDNSRecord,
 } from '../src/lib/infra/hostinger-dns';
+import {
+  createGitReleaseTag,
+  suggestNextVersion,
+  getLatestReleaseVersion,
+  type ReleaseLane,
+  type BumpType,
+} from '../src/lib/infra/release-tag';
 import { execSync } from 'child_process';
 import { readFileSync, writeFileSync, appendFileSync, existsSync } from 'fs';
 import { join, basename } from 'path';
@@ -150,6 +158,15 @@ Hostinger Domain & DNS Automation ($0 Egress):
                           Flags: --state <path>
   dns apply <domain>      Apply DNS state to Hostinger domain
                           Flags: --state <path> --force
+
+Git Release, Versioning & Rollback Tagging:
+  tag suggest [app|infra|sql] Inspect latest git tag and suggest next SemVer bump
+                          Flags: --bump <patch|minor|major> --version <overrideVersion>
+  tag <app|infra|sql>     Generate & push standardized release tag (promptfm/*, promptfm-infra/*, promptfm-sql/*)
+                          Flags: --version <version> --dry-run
+  tag <infra-rollback|sql-rollback> <targetRef>
+                          Generate & push rollback tag (promptfm-infra/rollback-*, promptfm-sql/rollback-*)
+                          Flags: --dry-run
 
 Moderation & Schedule:
   channels list           List radio broadcast channels, assigned DJs & guardrail policies
@@ -1890,21 +1907,31 @@ Moderation & Schedule:
       const targetDomain = args[2] || 'promptfm.live';
       const defaultStatePath = join(process.cwd(), 'infra/dns/promptfm.live.state.json');
 
-      if (action === 'status') {
+      if (action === 'status' || action === 'audit') {
+        const strict = parseArg('--strict') !== undefined || action === 'audit';
         const stateFile = parseArg('--state') || join(process.cwd(), `infra/dns/${targetDomain}.state.json`);
         console.log(`\n🌐 Inspecting DNS state for ${targetDomain}...`);
         if (existsSync(stateFile)) {
           const state = loadZoneState(stateFile);
+          const egressCheck = validateZeroEgressCompliance(state.zone);
           console.log(`• State File: ${stateFile}`);
           console.log(`• Last Updated: ${state.updatedAt}`);
           console.log(`• Version: ${state.version}`);
-          console.log(`• Total Records: ${state.zone.length}\n`);
+          console.log(`• Total Records: ${state.zone.length}`);
+          console.log(`• Zero-Egress Status: ${egressCheck.compliant ? '✅ Compliant (Edge CNAME)' : `⚠️ Non-Compliant: ${egressCheck.message}`}\n`);
           for (const r of state.zone) {
             console.log(`  ${r.type.padEnd(6)} ${r.name.padEnd(20)} (TTL: ${r.ttl})`);
             r.records.forEach((rec) => console.log(`         ➔ ${rec.content}`));
           }
+          if (strict && !egressCheck.compliant) {
+            console.error(`\n❌ DNS Zero-Egress Audit Failed: ${egressCheck.message}`);
+            process.exit(1);
+          }
         } else {
-          console.log(`⚠️  Local state file not found at ${stateFile}. Run "promptfm dns snapshot ${targetDomain}" to generate one.`);
+          console.error(`❌ Local state file not found at ${stateFile}. Run "promptfm dns snapshot ${targetDomain}" to generate one.`);
+          if (strict) {
+            process.exit(1);
+          }
         }
         return;
       }
@@ -2053,6 +2080,71 @@ Moderation & Schedule:
       }
 
       console.error(`Unknown dns subcommand: "${action}". Valid subcommands: status, snapshot, diff, migrate, validate, apply.`);
+      break;
+    }
+
+    case 'tag': {
+      const subAction = args[1];
+
+      if (subAction === 'suggest') {
+        const laneArg = (args[2] || 'app').toLowerCase() as ReleaseLane;
+        const validLanes: ReleaseLane[] = ['app', 'infra', 'sql'];
+        if (!validLanes.includes(laneArg)) {
+          console.error(`Invalid lane: "${args[2]}". Valid lanes: app, infra, sql.`);
+          process.exit(1);
+        }
+
+        const bump = (parseArg('--bump') || 'patch') as BumpType;
+        const overrideVersion = parseArg('--version') || parseArg('--override');
+
+        console.log(`🔍 Inspecting latest git release tag for lane [${laneArg}]...`);
+        const latest = getLatestReleaseVersion(laneArg);
+        const suggestion = suggestNextVersion({
+          lane: laneArg,
+          bump,
+          overrideVersion,
+        });
+
+        console.log(`📌 Current latest tag : ${latest.tag || 'none'} (version: ${latest.version})`);
+        if (suggestion.isOverride) {
+          console.log(`💡 Override version   : ${suggestion.suggestedVersion} (explicit override)`);
+        } else {
+          console.log(`💡 Suggested next ver : ${suggestion.suggestedVersion} (${bump} bump)`);
+        }
+        console.log(`🏷️  Target release tag : ${suggestion.suggestedTag}`);
+        console.log(`\n👉 To create and push this tag:`);
+        console.log(`   npm run promptfm -- tag ${laneArg === 'app' ? 'release' : laneArg} --version ${suggestion.suggestedVersion}`);
+        console.log(`👉 Or specify an explicit override version:`);
+        console.log(`   npm run promptfm -- tag ${laneArg === 'app' ? 'release' : laneArg} --version 1.0.0`);
+        break;
+      }
+
+      const validTypes = ['sql', 'infra', 'release', 'app', 'infra-rollback', 'sql-rollback'];
+      if (!validTypes.includes(subAction)) {
+        console.error('Usage: npm run promptfm -- tag <suggest|sql|infra|release|app|infra-rollback|sql-rollback> [targetRef] [--version <v>] [--dry-run]');
+        process.exit(1);
+      }
+
+      const dryRun = args.includes('--dry-run');
+      const targetRef = args.find((a, i) => i > 1 && !a.startsWith('--'));
+      const explicitVersion = parseArg('--version');
+
+      const tagType = subAction === 'app' ? 'release' : subAction;
+
+      console.log(`🏷️  Creating Git tag for ${tagType}${dryRun ? ' (dry-run)' : ''}...`);
+      const result = createGitReleaseTag(tagType as any, {
+        dryRun,
+        targetRef,
+        version: explicitVersion,
+      });
+
+      if (dryRun) {
+        console.log(`ℹ️  [Dry Run] Tag would be: ${result.tag}`);
+      } else if (result.executed) {
+        console.log(`✅ Successfully created and pushed tag: ${result.tag}`);
+      } else {
+        console.log(`⚠️  Tag ${result.tag} already exists or push failed non-fatally.`);
+      }
       break;
     }
 
