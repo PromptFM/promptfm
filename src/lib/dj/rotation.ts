@@ -100,6 +100,7 @@ export function recordAirplayAnnounced(channelSlug: string, trackId: string): vo
  * Resets the in-memory cache used to deduplicate now-playing community announcements.
  */
 export function resetAirplayDedupeCache(): void {
+  clearNowPlayingCache();
   recentAirplayAnnouncedByChannel.clear();
   pendingAirplayItems.clear();
   channelPendingAirplayItems.clear();
@@ -121,6 +122,7 @@ export function clearPendingAirplayItems(channelSlug?: string): void {
 }
 
 export function resetChannelAirplayItems(channelSlug?: string): void {
+  clearNowPlayingCache(channelSlug);
   if (channelSlug) {
     channelAirplayItems.delete(channelSlug);
     channelAirplayStartedAt.delete(channelSlug);
@@ -131,6 +133,31 @@ export function resetChannelAirplayItems(channelSlug?: string): void {
     channelAirplayItems.clear();
     channelAirplayStartedAt.clear();
     currentAirplayItem = null;
+  }
+}
+
+interface CachedNowPlaying {
+  result: {
+    item: AirplayItem;
+    startedAt: string;
+    elapsedSeconds: number;
+    activeDJ: DJProfile;
+    rank?: number | null;
+    totalApprovedTracks?: number | null;
+  };
+  cachedAt: number;
+}
+
+const channelNowPlayingCache = new Map<string, CachedNowPlaying>();
+
+/**
+ * Invalidate in-memory now-playing cache for a specific channel or across all channels.
+ */
+export function clearNowPlayingCache(channelSlug?: string): void {
+  if (channelSlug) {
+    channelNowPlayingCache.delete(channelSlug);
+  } else {
+    channelNowPlayingCache.clear();
   }
 }
 
@@ -249,6 +276,7 @@ export interface WeatherRegion {
  * Also persists updated count to station_state in Supabase.
  */
 export function updateCurrentAirplayUpvotes(trackId: string, count: number): void {
+  clearNowPlayingCache();
   if (currentAirplayItem && currentAirplayItem.id === trackId) {
     currentAirplayItem.upvotes_count = count;
   }
@@ -317,6 +345,24 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
   rank?: number | null;
   totalApprovedTracks?: number | null;
 }> {
+  // Check short-lived in-memory cache to prevent repeated Icecast/DB hits on concurrent requests (Issue #123)
+  const nowMs = Date.now();
+  const cached = channelNowPlayingCache.get(channelSlug);
+  if (cached && nowMs - cached.cachedAt < 2000) {
+    const elapsedDelta = Math.floor((nowMs - cached.cachedAt) / 1000);
+    const simulatedElapsed = Math.max(0, cached.result.elapsedSeconds + elapsedDelta);
+    const isMusic = !cached.result.item?.type || cached.result.item.type === 'music';
+    const trackDuration = cached.result.item?.duration_hint_seconds || (isMusic ? 210 : 30);
+    const watchdogTimeout = trackDuration + (isMusic ? 30 : 15);
+
+    if (simulatedElapsed < watchdogTimeout) {
+      return {
+        ...cached.result,
+        elapsedSeconds: simulatedElapsed,
+      };
+    }
+  }
+
   const activeDJ = getActiveDJ(channelSlug);
 
   let item = channelAirplayItems.get(channelSlug) || null;
@@ -576,7 +622,7 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
     }
   }
 
-  return {
+  const result = {
     item,
     startedAt: new Date(startedAtMs || currentAirplayStartedAt).toISOString(),
     elapsedSeconds,
@@ -584,28 +630,53 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
     rank,
     totalApprovedTracks,
   };
+
+  channelNowPlayingCache.set(channelSlug, {
+    result,
+    cachedAt: Date.now(),
+  });
+
+  return result;
 }
 
 /**
  * Returns upcoming items queued or scheduled to play next.
+ * Optionally accepts pre-resolved currentNowPlaying to prevent duplicate calls to getNowPlaying (Issue #123).
  */
-export async function getUpNext(channelSlug = 'main', limit = 5): Promise<AirplayItem[]> {
+export async function getUpNext(
+  channelSlug = 'main',
+  limit = 5,
+  currentNowPlayingItem?: AirplayItem | { item: AirplayItem; elapsedSeconds?: number } | null
+): Promise<AirplayItem[]> {
   const supabase = createAdminClient();
   const upNext: AirplayItem[] = [];
   const existingIds = new Set<string>();
   const now = new Date();
 
   // Retrieve currently active airplay item to ensure it is never duplicated in "Up Next"
-  const currentNowPlaying = await getNowPlaying(channelSlug);
-  const currentTrackId = currentNowPlaying.item.id;
-  const currentQueueId = currentNowPlaying.item.queue_id;
+  let currentTrackId: string | undefined;
+  let currentQueueId: string | undefined;
+  let currentElapsed = 0;
+  let currentHint = 210;
+
+  if (currentNowPlayingItem) {
+    const item = 'item' in currentNowPlayingItem ? currentNowPlayingItem.item : currentNowPlayingItem;
+    currentTrackId = item.id;
+    currentQueueId = item.queue_id;
+    currentElapsed = ('elapsedSeconds' in currentNowPlayingItem ? currentNowPlayingItem.elapsedSeconds : 0) || 0;
+    currentHint = item.duration_hint_seconds || 210;
+  } else {
+    const currentNowPlaying = await getNowPlaying(channelSlug);
+    currentTrackId = currentNowPlaying.item.id;
+    currentQueueId = currentNowPlaying.item.queue_id;
+    currentElapsed = currentNowPlaying.elapsedSeconds || 0;
+    currentHint = currentNowPlaying.item.duration_hint_seconds || 210;
+  }
 
   if (currentTrackId && currentTrackId !== 'demo-fallback') {
     existingIds.add(currentTrackId);
   }
 
-  const currentElapsed = currentNowPlaying.elapsedSeconds || 0;
-  const currentHint = currentNowPlaying.item.duration_hint_seconds || 210;
   let runningOffsetSeconds = Math.max(30, currentHint - currentElapsed);
 
   // 0. Check if a track is already staged / pre-buffered to air next
@@ -1101,6 +1172,7 @@ export async function markTrackStarted(
   }
 
   const startedAt = Date.now();
+  clearNowPlayingCache(channelSlug);
   channelAirplayItems.set(channelSlug, itemToStart);
   channelAirplayStartedAt.set(channelSlug, startedAt);
   if (channelSlug === 'main') {
@@ -1200,6 +1272,7 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
       pendingAirplayItem = null;
 
       const startedAt = Date.now();
+      clearNowPlayingCache(channelSlug);
       channelAirplayItems.set(channelSlug, item);
       channelAirplayStartedAt.set(channelSlug, startedAt);
       if (channelSlug === 'main') {

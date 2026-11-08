@@ -531,7 +531,9 @@ PromptFM is architected to operate **permanently within the $0/month free-tier b
 
 1. **Ignored Build Step (`scripts/vercel-budget-gate.sh`)**:
    Configured in `vercel.json` via `"ignoreCommand": "bash scripts/vercel-budget-gate.sh"`.
-   - **Production deployments** (on `main` or release tags) always proceed (exit code 1).
+   - **Production deployments are gated to release tags** (`promptfm/<version>` or `v*.*.*`). Routine merges to `main` are cancelled (exit code 0) to protect Vercel Fluid Active CPU budget.
+   - **Manual override**: Production deployments can be forced on `main` via `ENABLE_MAIN_PRODUCTION_DEPLOYS=true` or by tagging commit messages with `[deploy-prod]` or `[release]`.
+   - **Documentation releases** (`gh-pages/<version>`) deploy strictly to GitHub Pages, bypassing Vercel entirely.
    - **Automated bot branches** (`dependabot/*`, `renovate/*`) are automatically cancelled (exit code 0).
    - **Forked pull requests** require explicit maintainer authorization before building previews.
    - **Non-application changes** (pure documentation, markdown, infra, or CI workflows) skip preview builds.

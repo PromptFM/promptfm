@@ -8,6 +8,33 @@
 
 const { execSync } = require('child_process');
 
+const PROMPTFM_TAG_REGEX = /^promptfm\/[a-zA-Z0-9._-]+$/;
+const SEMVER_TAG_REGEX = /^v\d+(\.\d+)*(-[a-zA-Z0-9._-]+)?$/;
+const DOCS_TAG_REGEX = /^gh-pages\/[a-zA-Z0-9._-]+$/;
+
+function isReleaseTag(ref) {
+  if (!ref) return false;
+  return PROMPTFM_TAG_REGEX.test(ref) || SEMVER_TAG_REGEX.test(ref);
+}
+
+function isDocReleaseTag(ref) {
+  if (!ref) return false;
+  return DOCS_TAG_REGEX.test(ref);
+}
+
+function getHeadTags() {
+  try {
+    const currentSha = process.env.VERCEL_GIT_COMMIT_SHA || 'HEAD';
+    const output = execSync(`git tag --points-at ${currentSha}`, {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'ignore'],
+    });
+    return output.trim().split('\n').map((t) => t.trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 function getChangedFiles() {
   try {
     const prevSha = process.env.VERCEL_GIT_PREVIOUS_SHA;
@@ -43,10 +70,38 @@ function runGate() {
 
   console.log(`[PromptFM Budget Gate] Evaluating deployment: env=${vercelEnv}, branch=${gitBranch}, isFork=${isFork}`);
 
-  // 1. Production deployments always proceed
+  // 1. Production deployments: Gate to tagged releases only (promptfm/<version> or v<version>)
   if (vercelEnv === 'production') {
-    console.log('[PromptFM Budget Gate] ✅ Proceeding: Production deployment.');
-    process.exit(1);
+    const isDocTag = isDocReleaseTag(gitBranch);
+    if (isDocTag) {
+      console.log('[PromptFM Budget Gate] 🛑 Skipped: GitHub Pages doc release tags do not deploy to Vercel (docs deploy to GitHub Pages only).');
+      process.exit(0);
+    }
+
+    const hasDeployProdTag = /\[(deploy-prod|force-deploy|release)\]/i.test(commitMessage);
+    const enableMainProductionDeploys = process.env.ENABLE_MAIN_PRODUCTION_DEPLOYS === 'true' || process.env.ENABLE_MAIN_PRODUCTION_DEPLOYS === '1';
+
+    if (enableMainProductionDeploys) {
+      console.log('[PromptFM Budget Gate] ✅ Proceeding: Production deployment permitted via ENABLE_MAIN_PRODUCTION_DEPLOYS override.');
+      process.exit(1);
+    }
+
+    if (hasDeployProdTag) {
+      console.log('[PromptFM Budget Gate] ✅ Proceeding: Production deployment explicitly requested via commit tag.');
+      process.exit(1);
+    }
+
+    const headTags = getHeadTags();
+    const hasReleaseTag = isReleaseTag(gitBranch) || headTags.some(isReleaseTag);
+
+    if (hasReleaseTag) {
+      console.log(`[PromptFM Budget Gate] ✅ Proceeding: Tagged production release permitted (${gitBranch || headTags.join(', ')}).`);
+      process.exit(1);
+    }
+
+    // Default for production: Skip routine main merges to prevent burning Fluid Active CPU
+    console.log('[PromptFM Budget Gate] 🛑 Skipped: Production auto-deploy from main disabled under $0 budget policy. Production deploys require a release tag (promptfm/<version> or v<version>).');
+    process.exit(0);
   }
 
   // 2. Explicit skip overrides

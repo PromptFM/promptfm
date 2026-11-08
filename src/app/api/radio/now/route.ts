@@ -80,10 +80,12 @@ export async function GET(req: NextRequest) {
         });
     });
 
+    const status = await nowPlayingPromise;
+
     let upNextTimeout: ReturnType<typeof setTimeout> | undefined;
     const upNextPromise = new Promise<import('@/lib/dj/rotation').AirplayItem[]>((resolve) => {
       upNextTimeout = setTimeout(() => resolve([]), 2500);
-      getUpNext(channelSlug, 3)
+      getUpNext(channelSlug, 3, status)
         .then((res) => {
           if (upNextTimeout) clearTimeout(upNextTimeout);
           resolve(res);
@@ -94,8 +96,7 @@ export async function GET(req: NextRequest) {
         });
     });
 
-    const [status, upNext, scheduledRequests] = await Promise.all([
-      nowPlayingPromise,
+    const [upNext, scheduledRequests] = await Promise.all([
       upNextPromise,
       getScheduledRequests(5).catch(() => []),
     ]);

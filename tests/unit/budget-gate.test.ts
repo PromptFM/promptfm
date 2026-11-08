@@ -5,24 +5,122 @@ import { describe, it, expect } from 'vitest';
 import {
   shouldBuildVercelDeployment,
   isNonApplicationFile,
+  isReleaseTag,
+  isDocReleaseTag,
   getInfraBudgetPolicy,
   evaluateCIJobsForPR,
   type VercelBuildParams,
 } from '@/lib/infra/budget-gate';
 
 describe('Vercel Budget Gate ($0 Infra Policy)', () => {
-  describe('shouldBuildVercelDeployment', () => {
-    it('always permits production deployments regardless of tags or branches', () => {
+  describe('shouldBuildVercelDeployment (Production Tag-Based Gating)', () => {
+    it('skips production deployments on routine main merges without a release tag to save Active CPU', () => {
       const decision = shouldBuildVercelDeployment({
         vercelEnv: 'production',
         gitBranch: 'main',
-        commitMessage: 'feat: new stream controller [skip preview]',
+        commitMessage: 'feat: new stream controller (#120)',
+      });
+
+      expect(decision.shouldBuild).toBe(false);
+      expect(decision.exitCode).toBe(0);
+      expect(decision.reason).toContain('Production auto-deploy from main disabled');
+    });
+
+    it('permits production deployments when triggered by promptfm/<version> release tags', () => {
+      const tags = ['promptfm/v1.0.0', 'promptfm/0.1.0', 'promptfm/1.2.3', 'promptfm/v2.0.0-rc1'];
+
+      for (const tag of tags) {
+        const decision = shouldBuildVercelDeployment({
+          vercelEnv: 'production',
+          gitBranch: tag,
+          gitTag: tag,
+          commitMessage: `Release ${tag}`,
+        });
+
+        expect(decision.shouldBuild).toBe(true);
+        expect(decision.exitCode).toBe(1);
+        expect(decision.reason).toContain('Tagged production release permitted');
+      }
+    });
+
+    it('permits production deployments when triggered by standard semver v* tags', () => {
+      const tags = ['v1.0.0', 'v0.1.0', 'v2.1.0'];
+
+      for (const tag of tags) {
+        const decision = shouldBuildVercelDeployment({
+          vercelEnv: 'production',
+          gitTag: tag,
+        });
+
+        expect(decision.shouldBuild).toBe(true);
+        expect(decision.exitCode).toBe(1);
+        expect(decision.reason).toContain('Tagged production release permitted');
+      }
+    });
+
+    it('skips vercel production deployments for gh-pages/<version> tags (docs deploy to GitHub Pages only)', () => {
+      const decision = shouldBuildVercelDeployment({
+        vercelEnv: 'production',
+        gitTag: 'gh-pages/v1.0.0',
+        commitMessage: 'docs: release gh-pages/v1.0.0',
+      });
+
+      expect(decision.shouldBuild).toBe(false);
+      expect(decision.exitCode).toBe(0);
+      expect(decision.reason).toContain('GitHub Pages doc release tags do not deploy to Vercel');
+    });
+
+    it('permits production deployment on main when enableMainProductionDeploys flag is explicitly true', () => {
+      const decision = shouldBuildVercelDeployment({
+        vercelEnv: 'production',
+        gitBranch: 'main',
+        enableMainProductionDeploys: true,
       });
 
       expect(decision.shouldBuild).toBe(true);
       expect(decision.exitCode).toBe(1);
-      expect(decision.reason).toContain('Production deployments always proceed');
+      expect(decision.reason).toContain('Manual override');
     });
+
+    it('permits production deployment on main when commit message has [deploy-prod] or [release]', () => {
+      const messages = [
+        'hotfix: emergency patch [deploy-prod]',
+        'chore: publish update [release]',
+      ];
+
+      for (const msg of messages) {
+        const decision = shouldBuildVercelDeployment({
+          vercelEnv: 'production',
+          gitBranch: 'main',
+          commitMessage: msg,
+        });
+
+        expect(decision.shouldBuild).toBe(true);
+        expect(decision.exitCode).toBe(1);
+      }
+    });
+  });
+
+  describe('isReleaseTag & isDocReleaseTag helpers', () => {
+    it('correctly classifies PromptFM release tags and docs tags', () => {
+      expect(isReleaseTag('promptfm/v1.0.0')).toBe(true);
+      expect(isReleaseTag('promptfm/0.1.0')).toBe(true);
+      expect(isReleaseTag('v1.0.0')).toBe(true);
+      expect(isReleaseTag('v0.2.1-beta')).toBe(true);
+
+      expect(isReleaseTag('main')).toBe(false);
+      expect(isReleaseTag('feature/new-ui')).toBe(false);
+      expect(isReleaseTag('gh-pages/v1.0.0')).toBe(false);
+      expect(isReleaseTag('')).toBe(false);
+
+      expect(isDocReleaseTag('gh-pages/v1.0.0')).toBe(true);
+      expect(isDocReleaseTag('gh-pages/0.1.0')).toBe(true);
+      expect(isDocReleaseTag('promptfm/v1.0.0')).toBe(false);
+      expect(isDocReleaseTag('main')).toBe(false);
+    });
+  });
+
+  describe('shouldBuildVercelDeployment (Preview Gating)', () => {
 
     it('skips preview builds when commit message contains [skip preview] or equivalent', () => {
       const cases = [

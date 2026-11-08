@@ -5,6 +5,8 @@
 export interface VercelBuildParams {
   vercelEnv: 'production' | 'preview' | 'development' | string;
   gitBranch?: string;
+  gitTag?: string;
+  gitCommitRef?: string;
   commitMessage?: string;
   pullRequestId?: string;
   isFork?: boolean;
@@ -12,6 +14,7 @@ export interface VercelBuildParams {
   changedFiles?: string[];
   enableAutoPreviews?: boolean;
   forcePreview?: boolean;
+  enableMainProductionDeploys?: boolean;
 }
 
 export interface BudgetGateDecision {
@@ -56,6 +59,27 @@ const NON_APP_FILE_PATTERNS = [
 
 const SKIP_PREVIEW_REGEX = /\[(skip preview|skip vercel|no-preview|skip ci)\]/i;
 const FORCE_PREVIEW_REGEX = /\[(preview|deploy-preview|run-preview)\]/i;
+const DEPLOY_PROD_REGEX = /\[(deploy-prod|force-deploy|release)\]/i;
+
+const PROMPTFM_TAG_REGEX = /^promptfm\/[a-zA-Z0-9._-]+$/;
+const SEMVER_TAG_REGEX = /^v\d+(\.\d+)*(-[a-zA-Z0-9._-]+)?$/;
+const DOCS_TAG_REGEX = /^gh-pages\/[a-zA-Z0-9._-]+$/;
+
+/**
+ * Returns true if the git ref is a production application release tag (e.g. promptfm/v1.0.0, promptfm/0.1.0, v1.0.0).
+ */
+export function isReleaseTag(ref?: string): boolean {
+  if (!ref) return false;
+  return PROMPTFM_TAG_REGEX.test(ref) || SEMVER_TAG_REGEX.test(ref);
+}
+
+/**
+ * Returns true if the git ref is a documentation GitHub Pages tag (e.g. gh-pages/v1.0.0).
+ */
+export function isDocReleaseTag(ref?: string): boolean {
+  if (!ref) return false;
+  return DOCS_TAG_REGEX.test(ref);
+}
 
 /**
  * Returns true if the file does not impact the production web runtime.
@@ -68,12 +92,49 @@ export function isNonApplicationFile(filePath: string): boolean {
  * Evaluates whether a Vercel deployment build should proceed or be cancelled/skipped.
  */
 export function shouldBuildVercelDeployment(params: VercelBuildParams): BudgetGateDecision {
-  // 1. Production deployments always proceed
+  // 1. Tag-Based Production Deployment Gating (Issue #123)
   if (params.vercelEnv === 'production') {
+    const ref = params.gitTag || params.gitCommitRef || params.gitBranch || '';
+    const commitMsg = params.commitMessage || '';
+    const hasDeployProdTag = DEPLOY_PROD_REGEX.test(commitMsg);
+
+    if (isDocReleaseTag(ref)) {
+      return {
+        shouldBuild: false,
+        exitCode: 0,
+        reason: 'GitHub Pages doc release tags do not deploy to Vercel (docs deploy to GitHub Pages only)',
+      };
+    }
+
+    if (params.enableMainProductionDeploys === true) {
+      return {
+        shouldBuild: true,
+        exitCode: 1,
+        reason: 'Production deployment permitted: Manual override (enableMainProductionDeploys=true)',
+      };
+    }
+
+    if (hasDeployProdTag) {
+      return {
+        shouldBuild: true,
+        exitCode: 1,
+        reason: 'Production deployment permitted: Explicit [deploy-prod] commit tag override',
+      };
+    }
+
+    if (isReleaseTag(ref)) {
+      return {
+        shouldBuild: true,
+        exitCode: 1,
+        reason: `Production deployment permitted: Tagged production release permitted (${ref})`,
+      };
+    }
+
+    // Default for production on main or untagged commits: STOP AUTO-DEPLOY TO SAVE ACTIVE CPU
     return {
-      shouldBuild: true,
-      exitCode: 1,
-      reason: 'Production deployments always proceed',
+      shouldBuild: false,
+      exitCode: 0,
+      reason: 'Production auto-deploy from main disabled under $0 budget policy. Production deploys require a release tag (promptfm/<version> or v<version>).',
     };
   }
 
