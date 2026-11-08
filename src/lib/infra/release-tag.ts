@@ -55,6 +55,50 @@ export function formatRollbackTag(targetRef: string): string {
 }
 
 /**
+ * Formats a standardized infrastructure rollback tag:
+ * - promptfm-infra/rollback-<sha> if given a commit sha
+ * - promptfm-infra/rollback-<version> if given a release tag or semantic version
+ */
+export function formatInfraRollbackTag(targetRef: string): string {
+  const trimmed = targetRef.trim();
+  if (!trimmed) {
+    throw new Error('Rollback reference cannot be empty');
+  }
+
+  const isCommitSha = /^[0-9a-f]{7,40}$/i.test(trimmed);
+  if (isCommitSha) {
+    return `promptfm-infra/rollback-${trimmed.slice(0, 7)}`;
+  }
+
+  let version = trimmed.replace(/^promptfm-infra\//i, '');
+  version = version.replace(/^v/i, '');
+
+  return `promptfm-infra/rollback-${version}`;
+}
+
+/**
+ * Formats a standardized SQL migration rollback tag:
+ * - promptfm-sql/rollback-<sha> if given a commit sha
+ * - promptfm-sql/rollback-<version> if given a migration version or release tag
+ */
+export function formatSqlRollbackTag(targetRef: string): string {
+  const trimmed = targetRef.trim();
+  if (!trimmed) {
+    throw new Error('Rollback reference cannot be empty');
+  }
+
+  const isCommitSha = /^[0-9a-f]{7,40}$/i.test(trimmed);
+  if (isCommitSha) {
+    return `promptfm-sql/rollback-${trimmed.slice(0, 7)}`;
+  }
+
+  let version = trimmed.replace(/^promptfm-sql\//i, '');
+  version = version.replace(/^v/i, '');
+
+  return `promptfm-sql/rollback-${version}`;
+}
+
+/**
  * Formats a standardized SQL migration tag: promptfm-sql/<version>-<short_hash>
  */
 export function formatSqlTag(version: string, commitSha: string): string {
@@ -150,12 +194,13 @@ export function resolveGitHubToken(options?: ResolveGitHubTokenOptions): string 
 export interface CreateGitReleaseTagOptions {
   version?: string;
   sha?: string;
+  targetRef?: string;
   dryRun?: boolean;
   execFn?: (cmd: string) => string;
 }
 
 export function createGitReleaseTag(
-  type: 'sql' | 'infra' | 'release',
+  type: 'sql' | 'infra' | 'release' | 'infra-rollback' | 'sql-rollback',
   options?: CreateGitReleaseTagOptions
 ): { tag: string; executed: boolean } {
   const exec = options?.execFn || ((cmd: string) => execSync(cmd, { encoding: 'utf8' }).trim());
@@ -187,6 +232,12 @@ export function createGitReleaseTag(
   } else if (type === 'infra') {
     tag = formatInfraTag(version, sha);
     description = `Infrastructure Provisioning: ${tag}`;
+  } else if (type === 'infra-rollback') {
+    tag = formatInfraRollbackTag(options?.targetRef || sha);
+    description = `Infrastructure Rollback: ${tag}`;
+  } else if (type === 'sql-rollback') {
+    tag = formatSqlRollbackTag(options?.targetRef || version);
+    description = `SQL Schema Rollback: ${tag}`;
   } else {
     tag = formatReleaseTag(version, sha);
     description = `Release: ${tag}`;

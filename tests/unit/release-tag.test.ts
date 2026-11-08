@@ -4,6 +4,8 @@ import {
   formatRollbackTag,
   formatSqlTag,
   formatInfraTag,
+  formatInfraRollbackTag,
+  formatSqlRollbackTag,
   createGitReleaseTag,
   extractGhTokenFromRemote,
   resolveGitHubToken,
@@ -61,6 +63,42 @@ describe('Release and Rollback Tag Formatter', () => {
     it('throws error if target ref is empty', () => {
       expect(() => formatRollbackTag('')).toThrow('Rollback reference cannot be empty');
       expect(() => formatRollbackTag('   ')).toThrow('Rollback reference cannot be empty');
+    });
+  });
+
+  describe('formatInfraRollbackTag', () => {
+    it('creates promptfm-infra/rollback-<sha> when target is a commit sha', () => {
+      const tag = formatInfraRollbackTag('be7386564e16dcaaab5f423293c060a1aedded24');
+      expect(tag).toBe('promptfm-infra/rollback-be73865');
+    });
+
+    it('creates promptfm-infra/rollback-<version> when target is a release tag or version', () => {
+      const tag = formatInfraRollbackTag('promptfm-infra/0.2.0-be73865');
+      expect(tag).toBe('promptfm-infra/rollback-0.2.0-be73865');
+      expect(formatInfraRollbackTag('v0.2.0')).toBe('promptfm-infra/rollback-0.2.0');
+    });
+
+    it('throws error if target ref is empty', () => {
+      expect(() => formatInfraRollbackTag('')).toThrow('Rollback reference cannot be empty');
+      expect(() => formatInfraRollbackTag('   ')).toThrow('Rollback reference cannot be empty');
+    });
+  });
+
+  describe('formatSqlRollbackTag', () => {
+    it('creates promptfm-sql/rollback-<sha> when target is a commit sha', () => {
+      const tag = formatSqlRollbackTag('be7386564e16dcaaab5f423293c060a1aedded24');
+      expect(tag).toBe('promptfm-sql/rollback-be73865');
+    });
+
+    it('creates promptfm-sql/rollback-<version> when target is a release tag or version', () => {
+      const tag = formatSqlRollbackTag('promptfm-sql/0.2.0-be73865');
+      expect(tag).toBe('promptfm-sql/rollback-0.2.0-be73865');
+      expect(formatSqlRollbackTag('20261108_table')).toBe('promptfm-sql/rollback-20261108_table');
+    });
+
+    it('throws error if target ref is empty', () => {
+      expect(() => formatSqlRollbackTag('')).toThrow('Rollback reference cannot be empty');
+      expect(() => formatSqlRollbackTag('   ')).toThrow('Rollback reference cannot be empty');
     });
   });
 
@@ -217,6 +255,28 @@ describe('Release and Rollback Tag Formatter', () => {
       expect(res.tag).toBe('promptfm-infra/0.2.0-1234567');
       expect(res.executed).toBe(false);
       expect(executedCmds.length).toBe(0);
+    });
+
+    it('generates infra-rollback and sql-rollback tags', () => {
+      const executedCmds: string[] = [];
+      const mockExec = (cmd: string) => {
+        executedCmds.push(cmd);
+        return '';
+      };
+
+      const infraRes = createGitReleaseTag('infra-rollback', {
+        targetRef: 'be7386564e16dcaaab5f423293c060a1aedded24',
+        dryRun: true,
+        execFn: mockExec,
+      });
+      expect(infraRes.tag).toBe('promptfm-infra/rollback-be73865');
+
+      const sqlRes = createGitReleaseTag('sql-rollback', {
+        targetRef: '20261108_initial',
+        dryRun: true,
+        execFn: mockExec,
+      });
+      expect(sqlRes.tag).toBe('promptfm-sql/rollback-20261108_initial');
     });
 
     it('handles git push errors non-fatally and returns executed=false', () => {

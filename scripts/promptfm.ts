@@ -2074,13 +2074,15 @@ Moderation & Schedule:
 
     case 'tag': {
       const tagType = args[1];
-      if (tagType !== 'sql' && tagType !== 'infra' && tagType !== 'release') {
-        console.error('Usage: npm run promptfm -- tag <sql|infra|release> [--dry-run]');
+      const validTypes = ['sql', 'infra', 'release', 'infra-rollback', 'sql-rollback'];
+      if (!validTypes.includes(tagType)) {
+        console.error('Usage: npm run promptfm -- tag <sql|infra|release|infra-rollback|sql-rollback> [targetRef] [--dry-run]');
         process.exit(1);
       }
       const dryRun = args.includes('--dry-run');
+      const targetRef = args.find((a, i) => i > 1 && !a.startsWith('--'));
       console.log(`🏷️  Creating Git tag for ${tagType}${dryRun ? ' (dry-run)' : ''}...`);
-      const result = createGitReleaseTag(tagType, { dryRun });
+      const result = createGitReleaseTag(tagType as any, { dryRun, targetRef });
       if (dryRun) {
         console.log(`ℹ️  [Dry Run] Tag would be: ${result.tag}`);
       } else if (result.executed) {

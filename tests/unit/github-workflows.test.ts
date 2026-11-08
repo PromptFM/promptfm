@@ -80,6 +80,29 @@ describe('GitHub Actions Workflows Suite', () => {
     });
   });
 
+  describe('Rollback Infrastructure Workflow (rollback-infra.yml)', () => {
+    it('exists, listens to promptfm-infra/rollback-* tags and workflow_dispatch, and runs terraform plan/apply', () => {
+      const content = readWorkflow('rollback-infra.yml');
+      expect(content).toContain('name: ⏪ Rollback Infrastructure (Terraform)');
+      expect(content).toContain('promptfm-infra/rollback-*');
+      expect(content).toContain('workflow_dispatch:');
+      expect(content).toContain('terraform -chdir=infra/terraform plan');
+      expect(content).toContain('terraform -chdir=infra/terraform apply -auto-approve');
+      expect(content).toContain('npm run promptfm -- tag infra-rollback');
+    });
+  });
+
+  describe('Rollback SQL Migrations Workflow (rollback-sql.yml)', () => {
+    it('exists, listens to promptfm-sql/rollback-* tags and workflow_dispatch, and tags rollback release', () => {
+      const content = readWorkflow('rollback-sql.yml');
+      expect(content).toContain('name: ⏪ Rollback SQL Schema Migrations');
+      expect(content).toContain('promptfm-sql/rollback-*');
+      expect(content).toContain('workflow_dispatch:');
+      expect(content).toContain('target_version:');
+      expect(content).toContain('npm run promptfm -- tag sql-rollback');
+    });
+  });
+
   describe('Release GH-Pages Workflow (pages.yml)', () => {
     it('exists and deploys documentation to GitHub Pages', () => {
       const content = readWorkflow('pages.yml');
