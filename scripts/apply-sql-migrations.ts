@@ -5,6 +5,7 @@
 
 import * as path from 'path';
 import { loadLocalEnvFiles } from '../src/lib/infra/prepare-infra';
+import { resolveGcpSecret } from '../src/lib/infra/gcp-secrets';
 import {
   discoverMigrations,
   determinePendingMigrations,
@@ -12,7 +13,7 @@ import {
 } from '../src/lib/sql/sql-migrator';
 
 export async function runSQLMigrationCLI(args: string[] = process.argv.slice(2)): Promise<number> {
-  // Load secrets pulled from Vercel into environment
+  // Load secrets pulled from local files into environment
   loadLocalEnvFiles();
 
   const isDryRun = args.includes('--dry-run') || process.env.DRY_RUN === 'true';
@@ -26,13 +27,13 @@ export async function runSQLMigrationCLI(args: string[] = process.argv.slice(2))
   const migrations = discoverMigrations(migrationsDir);
   console.log(`🔍 Total Migrations Discovered: ${migrations.length}`);
 
-  const dbUrl =
+  let dbUrl =
     process.env.DATABASE_URL ||
     process.env.SUPABASE_DB_URL ||
     process.env.POSTGRES_URL;
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  let supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  let serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (isDryRun) {
     console.log(`\nMode: 🔍 DRY RUN (no modifications will be made to database)`);
@@ -45,13 +46,42 @@ export async function runSQLMigrationCLI(args: string[] = process.argv.slice(2))
     return 0;
   }
 
+  // If credentials are not in environment or local files, attempt resolution from Google Cloud Secret Manager
+  if (!dbUrl) {
+    try {
+      const gcpDbUrl = await resolveGcpSecret('promptfm-database-url', {
+        fallbackEnvVar: 'DATABASE_URL',
+      });
+      if (gcpDbUrl) {
+        dbUrl = gcpDbUrl;
+        console.log(`🔐 Resolved database credentials from Google Cloud Secret Manager (promptfm-database-url).`);
+      }
+    } catch {
+      // Continue to validation
+    }
+  }
+
+  if (!serviceKey) {
+    try {
+      const gcpServiceKey = await resolveGcpSecret('promptfm-supabase-service-role-key', {
+        fallbackEnvVar: 'SUPABASE_SERVICE_ROLE_KEY',
+      });
+      if (gcpServiceKey) {
+        serviceKey = gcpServiceKey;
+      }
+    } catch {
+      // Continue to validation
+    }
+  }
+
   if (!dbUrl && (!supabaseUrl || !serviceKey)) {
-    console.log(`\n⚠️  Database credentials not found in environment or local files.`);
+    console.log(`\n⚠️  Database credentials not found in environment, local files, or Google Cloud Secret Manager.`);
     console.log(`   Expected one of:`);
     console.log(`   - DATABASE_URL / SUPABASE_DB_URL (direct PostgreSQL connection)`);
+    console.log(`   - Google Cloud Secret Manager: 'promptfm-database-url'`);
     console.log(`   - NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (Vercel secrets)`);
-    console.log(`\n💡 To pull production credentials from Vercel:`);
-    console.log(`   npx vercel env pull .env.production.local --environment=production --yes\n`);
+    console.log(`\n💡 To authenticate with Google Cloud Secret Manager locally:`);
+    console.log(`   gcloud auth application-default login\n`);
     return 1;
   }
 

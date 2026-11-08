@@ -39,7 +39,24 @@ jobs:
       - name: Run SQL Schema Linter Pre-Flight Check
         run: npm run lint:sql
 
-      - name: Pull Secrets from Vercel (Single Source of Truth)
+      - name: Configure GCP Service Account Credentials (Secret Manager $0 Tier)
+        run: |
+          mkdir -p ~/.config/gcloud
+          if [ -n "${{ secrets.GCP_SA_KEY }}" ]; then
+            if echo "${{ secrets.GCP_SA_KEY }}" | grep -q '^{'; then
+              echo "${{ secrets.GCP_SA_KEY }}" > /tmp/gcp-sa-key.json
+            else
+              echo "${{ secrets.GCP_SA_KEY }}" | base64 -d > /tmp/gcp-sa-key.json
+            fi
+            gcloud auth activate-service-account --key-file=/tmp/gcp-sa-key.json
+            gcloud config set project promptfm-radio-1793623670
+            echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-sa-key.json" >> $GITHUB_ENV
+            echo "✓ GCP credentials configured successfully for Secret Manager resolution."
+          else
+            echo "ℹ️ GCP_SA_KEY not present; will check environment for DATABASE_URL."
+          fi
+
+      - name: Pull Client Env from Vercel (Optional Runtime Flags)
         run: |
           if [ -n "$VERCEL_TOKEN" ]; then
             npx vercel env pull .env.production.local --environment=production --yes

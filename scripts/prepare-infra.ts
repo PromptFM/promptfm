@@ -12,6 +12,7 @@ import {
   generateAnsibleSecrets,
   loadLocalEnvFiles,
 } from '../src/lib/infra/prepare-infra';
+import { resolveGcpSecret } from '../src/lib/infra/gcp-secrets';
 
 async function main() {
   // Load any secrets pulled by Vercel CLI into local env
@@ -54,15 +55,27 @@ async function main() {
   if (gcpKeyPath && existsSync(gcpKeyPath)) {
     console.log(`   ✓ Programmatic GCP Key ready at: ${gcpKeyPath}`);
   } else {
-    console.log(`   ⚠️  GCP service account key not found locally. It can be pulled from Vercel secrets (GCP_SA_KEY).`);
+    console.log(`   ℹ️  GCP service account key file not found locally. Using ambient gcloud login or CI GCP_SA_KEY.`);
   }
 
   // 3. Resolve Hostinger API Token
   console.log(`\n3️⃣  Resolving Hostinger API Token...`);
   let hostingerToken = resolveHostingerTokenForInfra();
 
+  if (!hostingerToken) {
+    try {
+      const gcpToken = await resolveGcpSecret('promptfm-hostinger-api-token');
+      if (gcpToken) {
+        hostingerToken = gcpToken;
+        console.log(`   ✓ Resolved Hostinger API Token from Google Cloud Secret Manager (promptfm-hostinger-api-token).`);
+      }
+    } catch {
+      // Continue to next fallback
+    }
+  }
+
   if (!hostingerToken && process.stdout.isTTY) {
-    console.log(`   ℹ️  No HOSTINGER_API_TOKEN found in environment or local credentials.`);
+    console.log(`   ℹ️  No HOSTINGER_API_TOKEN found in environment or Secret Manager.`);
     console.log(`   🚀 Launching Hostinger OAuth verification...`);
     try {
       execSync('npx @hostinger/mcp hostinger-dns-mcp', { stdio: 'inherit', timeout: 60000 });

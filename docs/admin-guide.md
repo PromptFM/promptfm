@@ -878,75 +878,190 @@ When a pull request includes SQL migrations, the automated PR guidance bot adds:
 ```
 
 #### 4. REST / Secret Sync
-Pull production Supabase secrets from Vercel:
+Pull local client flags from Vercel:
 ```bash
-npx vercel env pull .env.production.local --environment=production --yes
-```
-
----
-
-## 18. Secret Management & Secure Handoff Runbook
-
-PromptFM maintains a strict zero-leakage security posture. Production credentials, API tokens, and private keys must never appear in Git history, pull requests, issues, or code review comments.
-
-### A. The 3 Golden Rules of Secret Sharing
-
-1. **NEVER post secrets in GitHub**:
-   - Do not paste API tokens, database connection strings, or service account keys into pull request descriptions, issues, commits, or comments.
-   - Gitleaks CI scanning (`.github/workflows/ci.yml`) will fail and block PR merge if raw secrets are detected.
-2. **Use Ephemeral Encrypted Links for Handoff**:
-   - If a new feature or infrastructure component requires a new production secret (e.g. Resend API Key, Supabase Service Role Key, Gemini API Key):
-   - Generate an encrypted, self-destructing link using **[Password Pusher](https://pwpush.com)** (configured for 1 view or 24-hour expiration) or **[OneTimeSecret](https://onetimesecret.com)**.
-   - Send the secret link directly to **`dev@promptfm.live`** or via private maintainer DM to Board Admin (**@atrifan**).
-3. **Explicitly Document Secret Requirements in PRs**:
-   - Under the **Environment Variables & Secrets Required** section in the PR template, list the *names* of the environment variables (e.g., `RESEND_API_KEY`) and state the handoff method used:
-     ```markdown
-     ### Environment Variables & Secrets Required
-     - `RESEND_API_KEY`: Sent via Password Pusher link to dev@promptfm.live
-     ```
-   - If no new secrets are needed, write:
-     ```markdown
-     ### Environment Variables & Secrets Required
-     None
-     ```
-
----
-
-### B. Admin Runbook: Injecting Secrets into Vercel & Cloud
-
-Once a secret is received from a contributor:
-
-#### 1. Method A: GitHub Actions Workflow (`update-secrets.yml`)
-1. Go to **Actions ➔ 🔐 Update Secrets in Vercel**.
-2. Click **Run workflow**:
-   - **Secret Key Name**: Enter key (e.g. `RESEND_API_KEY`).
-   - **Secret Value**: Paste secret value (automatically masked in logs).
-   - **Target Environments**: Select `production,preview,development`.
-3. Click **Run workflow**. The workflow syncs the secret to Vercel via API.
-
-#### 2. Method B: Vercel CLI (Local Admin Terminal)
-```bash
-# Add secret to production
-npx vercel env add RESEND_API_KEY production
-
-# Add secret to preview environments
-npx vercel env add RESEND_API_KEY preview
-
-# Pull updated secrets into local development sandbox
 npx vercel env pull .env.local --environment=development --yes
 ```
+*(Note: Database and infrastructure credentials are automatically resolved from Google Cloud Secret Manager via ambient `gcloud` login or `GCP_SA_KEY` CI credential).*
 
 ---
 
-### C. Automated PR Checks for Secrets & UI Changes
+## 18. Multi-Cloud Secret Architecture & $0 Operations Runbook
 
-The automated PR Guidance Bot detects and responds to changed files with dedicated guidance cards:
-- **Missing Secret Notes**: If `.env.example`, `*.tfvars`, or `secrets-sync.ts` is changed without secret handoff notes in the PR description, the bot posts:
-  > `### ⚠️ PR Review Check: Environment & Secret Handoff Required`
-- **Secrets Update Card**: Directs admins to the `update-secrets.yml` workflow:
-  > `> **Secrets Update Required:** If new production secrets or credentials are required, have an admin run the Update Secrets workflow: https://github.com/PromptFM/promptfm/actions/workflows/update-secrets.yml`
-- **UI Changes Card**: When frontend files (`src/app/**`, `src/components/**`, `public/**`) are modified, the bot posts:
-  > `> **UI Preview Required:** Visual or component changes detected. To spin up a live preview URL on Vercel, have a core team member comment /pr-link on this PR or ask an admin to run the Create Preview Link workflow for sha <sha>.`
+PromptFM maintains a strict multi-cloud separation of concerns to achieve zero secret sprawl, zero accidental disk persistence, and a permanent $0.00 infrastructure bill.
+
+---
+
+### A. Multi-Cloud Separation of Concerns: What Lives Where
+
+| Tier / Location | What Lives Here | Storage / Authority | Cost Model |
+|---|---|---|---|
+| **Google Cloud Secret Manager** | Database credentials (`promptfm-database-url`), Supabase service role key (`promptfm-supabase-service-role-key`), Hostinger DNS token (`promptfm-hostinger-api-token`), OAuth secrets | Primary Vault for Backend & Infra | **$0.00 Always-Free** (up to 6 active secret versions, 10k requests/mo) |
+| **Vercel Environment** | UI feature flags (`FLAGS_SECRET`), public analytics IDs, client endpoints (`NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_STREAM_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) | Client UI & Frontend Runtime | **$0.00 Hobby Plan** (no backend/infra secrets permitted) |
+| **GitHub Actions Secrets** | Deployment roots only: `GCP_SA_KEY`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `GITHUB_TOKEN` | CI/CD Runner Orchestration | **$0.00 Free Actions Runners** |
+| **Local Machine** | **0 secrets stored on disk**. Ambient Application Default Credentials (ADC) via `gcloud` | Developer Sandbox | **$0.00** |
+
+---
+
+### B. Google Cloud Secret Manager: The 3 Golden Rules to Keep It at $0.00
+
+The GCP Secret Manager free tier covers up to **6 active secret versions** and **10,000 API access operations per month**. Follow these three rules to never incur a bill:
+
+```
+┌────────────────────────┐      ┌────────────────────────┐      ┌────────────────────────┐
+│ 1. Destroy on Rotate   │      │ 2. Cache in Memory     │      │ 3. Automatic Policy    │
+├────────────────────────┤      ├────────────────────────┤      ├────────────────────────┤
+│ Old versions must be   │      │ Cache fetched secrets  │      │ Use automatic single-  │
+│ destroyed, not just    │      │ with TTL in memory;    │      │ region replication to  │
+│ disabled, since state  │      │ never query API on     │      │ prevent multi-region   │
+│ disabled counts toward │      │ every HTTP request or  │      │ quota multiplication   │
+│ the 6-version limit.   │      │ function invocation.   │      │ across data centers.   │
+└────────────────────────┘      └────────────────────────┘      └────────────────────────┘
+```
+
+1. **Destroy old versions on rotation**:
+   - Disabled versions still count toward the active storage limit.
+   - When rotating a secret, immediately destroy version `N-1` using `gcloud secrets versions destroy <version> --secret=<name> --quiet` or the automated [Rotate Secret workflow](https://github.com/PromptFM/promptfm/actions/workflows/rotate-secrets.yml).
+   - Only destroyed versions are exempt from billing.
+2. **Cache secrets in memory with TTL**:
+   - Do not invoke Secret Manager on every single HTTP request or function invocation.
+   - Scripts and daemons fetch secrets once at startup and cache them in memory with a TTL (e.g. 1 hour via `DEFAULT_CACHE_TTL_MS` in `src/lib/infra/gcp-secrets.ts`), keeping monthly API access calls under a few hundred operations (well below the 10,000 monthly free limit).
+3. **Use single-region / automatic replication**:
+   - Multi-region or custom replication replicates secret versions across multiple geographic regions, multiplying the active version count against the 6-version quota.
+   - All PromptFM secrets are created with `--replication-policy=automatic` (`auto {}` in Terraform).
+
+---
+
+### C. "Write Once, Run Everywhere": Ambient ADC vs CI Credentials
+
+```
+  ┌──────────────────────────────────────────────────────────────┐
+  │ Local Developer Terminal                                     │
+  │   gcloud auth application-default login                      │
+  │   └── ambient ADC credential cached in memory                │
+  │       ├── npm run db:migrate        ──> reads GCP Secret     │
+  │       ├── npm run prepare-infra     ──> reads Hostinger      │
+  │       └── 0 secrets stored in .env                           │
+  └──────────────────────────────────────────────────────────────┘
+                                 │
+                                 ▼
+  ┌──────────────────────────────────────────────────────────────┐
+  │ GitHub Actions CI/CD                                         │
+  │   secrets.GCP_SA_KEY (single root key in repo secrets)       │
+  │   └── gcloud auth activate-service-account                   │
+  │       ├── apply-terraform.yml                                │
+  │       ├── apply-sql-schema.yml                               │
+  │       └── rotate-secrets.yml                                 │
+  └──────────────────────────────────────────────────────────────┘
+```
+
+- **Local Machine**:
+  - Run `gcloud auth application-default login` once.
+  - No database connection strings or tokens are written to `.env` files.
+  - CLI scripts (`npm run db:migrate`, `npm run prepare-infra`) resolve credentials in memory directly via `resolveGcpSecret()`.
+- **GitHub Actions (CI)**:
+  - Runners use the single root secret `GCP_SA_KEY`.
+  - Service account key is activated into ephemeral runner memory and destroyed when the runner terminates.
+
+---
+
+### D. Active Secret Inventory (GCP Secret Manager)
+
+All PromptFM secrets in project `promptfm-radio-1793623670` fit strictly within the 6-version limit:
+
+| Secret Name | Purpose | Replication | Current Active Versions | Free Tier Headroom |
+|---|---|---|---|---|
+| `promptfm-database-url` | Supabase / PostgreSQL direct pooled connection | Automatic | 1 | Included in 6 max |
+| `promptfm-supabase-service-role-key` | Backend Supabase admin / schema migrations | Automatic | 1 | Included in 6 max |
+| `promptfm-hostinger-api-token` | DNS record sync for `promptfm.live` | Automatic | 1 | Included in 6 max |
+| `promptfm-google-oauth-client-id` | Google OAuth Web Client ID | Automatic | 0-1 | Included in 6 max |
+| `promptfm-google-oauth-client-secret` | Google OAuth Client Secret | Automatic | 0-1 | Included in 6 max |
+| **Total Project Usage** | | | **3-5 / 6 active versions** | **✅ 100% $0.00** |
+
+---
+
+### E. Provider-by-Provider Multi-Cloud $0.00 Best Practices
+
+To maintain a permanent $0.00 cloud invoice across all four providers:
+
+#### 1. Google Cloud Platform (GCP)
+- **Compute**: Keep VM instance strictly on `e2-micro` (1 shared core, 1 GB memory) in `us-central1`.
+- **Boot Disk**: Use 30 GB standard persistent disk (`pd-standard`). Never select `pd-ssd` or `pd-balanced`.
+- **Cloud Storage (GCS)**: Terraform state bucket `promptfm-tfstate-promptfm-radio-1793623670` in `us-central1` standard storage (Always-Free includes up to 5 GB storage and 5,000 Class A operations).
+- **Network Egress**: Always-Free includes 1 GB egress/month to internet. Audio streaming is proxied via Cloudflare Tunnel, which routes outbound traffic over Google's internal Cloudflare peering at 0 cost.
+- **Cloud Logging**: Free allocation includes 50 GB ingestion/month.
+
+#### 2. Vercel
+- **Hobby Tier**: $0.00/month.
+- **Compute Guard**: Production deploys trigger only on release tags (`promptfm/*`); preview builds trigger on-demand via `/pr-link` or maintainer dispatch.
+- **Serverless & Edge**: Stay within 100 GB-hours edge/serverless compute execution.
+- **Secrets & Flags**: Store UI flags (`FLAGS_SECRET`, `NEXT_PUBLIC_*`) only. Never store backend infrastructure secrets in Vercel.
+
+#### 3. Supabase
+- **Free Plan**: Up to 2 active database projects at $0.00/month.
+- **Database Storage**: Keep database size &le; 500 MB.
+- **Connection Pooling**: Always connect via the Supabase pooler (`aws-0-*.pooler.supabase.com:6543`) with `sslmode=require` to prevent database connection exhaustion.
+- **Egress**: Stay &le; 5 GB monthly egress.
+
+#### 4. Hostinger
+- **DNS Management**: DNS records for `promptfm.live` are automated via Hostinger DNS API with zero added API charges.
+
+---
+
+### F. Secret Rotation Runbook
+
+When an API token, password, or database credential needs rotation:
+
+#### Method A: GitHub Actions Workflow (`rotate-secrets.yml`) — Recommended
+1. Go to **Actions ➔ 🔐 Rotate Secret (GCP Secret Manager $0 Always-Free Tier)**.
+2. Click **Run workflow**:
+   - **Target Secret**: Select secret (e.g. `promptfm-database-url`).
+   - **New Secret Value**: Paste new secret (masked in logs).
+   - **Destroy Previous Versions**: Checked (`true`) — guarantees version N-1 is destroyed to preserve the 6-version free quota.
+3. Click **Run workflow**. The workflow adds the new version, destroys the prior version, and logs a full audit of all active project secrets in `$GITHUB_STEP_SUMMARY`.
+
+#### Method B: Local Admin Terminal (`gcloud` CLI)
+```bash
+# 1. Add new secret version
+printf "%s" "new_secret_value" | gcloud secrets versions add promptfm-database-url \
+  --data-file=- \
+  --project=promptfm-radio-1793623670
+
+# 2. Enforce $0 rule: Destroy previous version immediately
+PREV_VERSION=$(gcloud secrets versions list promptfm-database-url \
+  --project=promptfm-radio-1793623670 \
+  --filter="state:ENABLED" \
+  --format="value(name)" | sort -V | tail -n 2 | head -n 1)
+
+if [ -n "$PREV_VERSION" ]; then
+  gcloud secrets versions destroy "$PREV_VERSION" \
+    --secret=promptfm-database-url \
+    --project=promptfm-radio-1793623670 \
+    --quiet
+fi
+
+# 3. Verify active version count <= 6 across project
+gcloud secrets versions list promptfm-database-url --project=promptfm-radio-1793623670
+```
+
+---
+
+### G. Contributor Secret Handoff Runbook
+
+If a contributor or external developer needs to deliver a secret to maintainers:
+1. **Never post secrets in GitHub**: Do not paste credentials in PR descriptions, issues, commits, or comments.
+2. **Ephemeral Encrypted Links**: Generate a 1-view or 24-hour self-destructing link via **[Password Pusher](https://pwpush.com)** or **[OneTimeSecret](https://onetimesecret.com)**.
+3. **Send directly to maintainer**: Email **`dev@promptfm.live`** or message Board Admin (**@atrifan**).
+4. **Note in PR template**: Under *Environment Variables & Secrets Required*, list only variable names (e.g. `RESEND_API_KEY: sent via Password Pusher`).
+
+---
+
+### H. Automated PR Checks for Secrets & Infrastructure
+
+The automated PR Guidance Bot detects modified files and publishes information cards:
+- **Infrastructure & Secrets Card**: Emitted when `infra/**`, `group_vars/**`, or secret utilities change. Directs admins to the [Rotate Secret workflow](https://github.com/PromptFM/promptfm/actions/workflows/rotate-secrets.yml) for GCP Secret Manager credentials, and the [Update Secrets workflow](https://github.com/PromptFM/promptfm/actions/workflows/update-secrets.yml) for Vercel flags.
+- **SQL Migration Card**: Emitted when `supabase/migrations/*.sql` changes. Directs admins to the [Apply SQL Schema workflow](https://github.com/PromptFM/promptfm/actions/workflows/apply-sql-schema.yml).
+- **UI Preview Card**: Emitted when `src/app/**` or frontend components change. Informs maintainers on how to request an on-demand preview link (`/pr-link`).
 
 
 

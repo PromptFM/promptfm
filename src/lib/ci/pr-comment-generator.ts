@@ -180,7 +180,7 @@ Please review the failing checks in GitHub Actions.`;
 
     if (hasSecrets) {
       lines.push(
-        `> - **Secrets Update Required:** Changes to sensitive credentials or secrets detected in Ansible/Terraform. To hand off production credentials safely, generate an encrypted self-destructing link via [Password Pusher](https://pwpush.com) or [OneTimeSecret](https://onetimesecret.com) and tag **@atrifan** or email **dev@promptfm.live** (or have an admin run the [Update Secrets workflow](https://github.com/PromptFM/promptfm/actions/workflows/update-secrets.yml)).`
+        `> - **Secrets Update Required:** Changes to sensitive credentials or secrets detected in Ansible/Terraform. Multi-cloud secret policy: Infrastructure and database secrets belong in **Google Cloud Secret Manager ($0 Always-Free Tier)** rotated via the [Rotate Secret workflow](https://github.com/PromptFM/promptfm/actions/workflows/rotate-secrets.yml). Feature flags and public client config belong in **Vercel** updated via the [Update Secrets workflow](https://github.com/PromptFM/promptfm/actions/workflows/update-secrets.yml). To hand off production credentials safely, generate an encrypted self-destructing link via [Password Pusher](https://pwpush.com) or [OneTimeSecret](https://onetimesecret.com) and tag **@atrifan** or email **dev@promptfm.live**.`
       );
     }
   }

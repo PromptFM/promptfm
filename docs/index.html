@@ -402,16 +402,18 @@ npm run test:mutate</pre>
       <h2 class="section-title">❤️ <span>Multi-Rail Funding</span> &amp; Zero-Cost Transparency</h2>
       <div class="grid">
         <div class="card">
-          <h3>Transparent $0.00 Cloud Cost Stack</h3>
+          <h3>Transparent $0.00 Multi-Cloud Architecture</h3>
           <table>
             <thead>
-              <tr><th>Provider</th><th>Resource</th><th>Monthly Cost</th></tr>
+              <tr><th>Provider</th><th>Resource &amp; Quota Guard</th><th>Monthly Cost</th></tr>
             </thead>
             <tbody>
-              <tr><td><strong>Google Cloud</strong></td><td>e2-micro VM + 50GB Logging + 5GB GCS</td><td>$0.00 (Always-Free)</td></tr>
-              <tr><td><strong>Vercel</strong></td><td>Next.js Serverless Edge + Web Analytics</td><td>$0.00 (Hobby)</td></tr>
-              <tr><td><strong>Cloudflare</strong></td><td>Zero-Egress Tunnel + CDN Caching</td><td>$0.00 (Free Tier)</td></tr>
-              <tr><td><strong>Google AI Studio</strong></td><td>Gemini 3.5 Flash &amp; 2.5 Flash TTS</td><td>$0.00 (15 RPM Free)</td></tr>
+              <tr><td><strong>Google Cloud</strong></td><td>e2-micro VM + 30GB PD + 5GB GCS + Secret Manager (&le;6 active versions)</td><td>$0.00 (Always-Free)</td></tr>
+              <tr><td><strong>Supabase</strong></td><td>PostgreSQL Database (&le;500MB DB, &le;5GB egress, pooled connection)</td><td>$0.00 (Free Tier)</td></tr>
+              <tr><td><strong>Vercel</strong></td><td>Next.js Edge &amp; Flags (Production release-tag guarded)</td><td>$0.00 (Hobby)</td></tr>
+              <tr><td><strong>Cloudflare</strong></td><td>Zero-Egress Tunnel + CDN Caching + DDoS Protection</td><td>$0.00 (Free Tier)</td></tr>
+              <tr><td><strong>Hostinger</strong></td><td>DNS API Automation (promptfm.live zone management)</td><td>$0.00 (Domain Bundle)</td></tr>
+              <tr><td><strong>Google AI Studio</strong></td><td>Gemini 3.5 Flash &amp; 2.5 Flash Voice TTS</td><td>$0.00 (15 RPM Free)</td></tr>
             </tbody>
           </table>
         </div>
@@ -451,6 +453,17 @@ npm run promptfm -- tag infra-rollback &lt;targetRef&gt;
 # SQL Migration Rollback (Supabase)
 npm run promptfm -- tag sql-rollback &lt;version&gt;</pre>
         </div>
+        <div class="card">
+          <h3>🔐 GCP Secret Manager $0 Operations &amp; Rotation</h3>
+          <p>Strict multi-cloud separation of concerns keeps secrets off disks and invoices at $0.00:</p>
+          <ul>
+            <li><strong>Rule 1 (Destroy on rotate):</strong> Old versions are destroyed immediately upon rotation so active versions stay &le; 6.</li>
+            <li><strong>Rule 2 (Cache in memory):</strong> In-memory TTL caching prevents repeated API hits (staying &lt; 10,000 req/mo).</li>
+            <li><strong>Rule 3 (Automatic replication):</strong> Single-region automatic policy prevents multi-region quota multiplication.</li>
+            <li><strong>Write Once, Run Everywhere:</strong> Ambient ADC (<code>gcloud auth application-default login</code>) for local CLI; <code>GCP_SA_KEY</code> for CI runners.</li>
+          </ul>
+          <a href="https://github.com/PromptFM/promptfm/blob/main/docs/admin-guide.md#18-multi-cloud-secret-architecture--0-operations-runbook" class="link" target="_blank" rel="noopener">Read Multi-Cloud Secret Runbook &rarr;</a>
+        </div>
       </div>
     </section>
 
@@ -465,10 +478,11 @@ npm run promptfm -- tag sql-rollback &lt;version&gt;</pre>
              <strong>retest.yml:</strong> Chat-Ops bot listening for <code>/retest</code> comments on PRs.</p>
         </div>
         <div class="card">
-          <h3>Deployment &amp; Rollback Pipelines</h3>
+          <h3>Deployment &amp; Secret Management</h3>
           <p><strong>apply-terraform.yml:</strong> Applies Terraform infra upon <code>promptfm-infra/*</code> tags or manual dispatch.<br>
-             <strong>apply-sql-schema.yml:</strong> Applies Supabase database migrations upon <code>promptfm-sql/*</code> tags or manual dispatch.<br>
-             <strong>rollback-infra.yml &amp; rollback-sql.yml:</strong> Executes safe rollbacks to specific commit SHAs or migration versions.</p>
+             <strong>apply-sql-schema.yml:</strong> Applies Supabase database migrations upon <code>promptfm-sql/*</code> tags or manual dispatch using GCP Secret Manager credentials.<br>
+             <strong>rotate-secrets.yml:</strong> Automated rotation for GCP Secret Manager credentials with immediate version N-1 destruction ($0 quota guard).<br>
+             <strong>rollback-infra.yml &amp; rollback-sql.yml:</strong> Safe rollbacks to specific commit SHAs or migration versions.</p>
         </div>
       </div>
     </section>

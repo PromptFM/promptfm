@@ -186,6 +186,8 @@ describe('PR Comment Guidance Generator', () => {
       });
 
       expect(comment).toContain('Secrets Update Required');
+      expect(comment).toContain('Google Cloud Secret Manager ($0 Always-Free Tier)');
+      expect(comment).toContain('https://github.com/PromptFM/promptfm/actions/workflows/rotate-secrets.yml');
       expect(comment).toContain('https://github.com/PromptFM/promptfm/actions/workflows/update-secrets.yml');
       expect(comment).toContain('@atrifan');
       expect(comment).toContain('Password Pusher');
