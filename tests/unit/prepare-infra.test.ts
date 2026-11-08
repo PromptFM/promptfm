@@ -62,6 +62,50 @@ describe('Infrastructure Preparation & Credential Orchestrator', () => {
       });
       expect(resolved).toBe('');
     });
+
+    it('ignores Vercel [SENSITIVE] redaction string and does NOT create corrupt key file', () => {
+      const targetPath = path.join(tmpDir, 'sensitive-key.json');
+      const resolved = resolveGcpServiceAccountKey({
+        b64EnvVar: '[SENSITIVE]',
+        keyFilePath: targetPath,
+      });
+
+      expect(resolved).toBe('');
+      expect(fs.existsSync(targetPath)).toBe(false);
+    });
+
+    it('handles raw unencoded JSON service account key string', () => {
+      const sampleKeyObj = { type: 'service_account', project_id: 'promptfm-radio-1793623670' };
+      const rawJson = JSON.stringify(sampleKeyObj);
+      const targetPath = path.join(tmpDir, 'raw-json-key.json');
+
+      const resolved = resolveGcpServiceAccountKey({
+        b64EnvVar: rawJson,
+        keyFilePath: targetPath,
+      });
+
+      expect(resolved).toBe(targetPath);
+      expect(fs.existsSync(targetPath)).toBe(true);
+      const parsed = JSON.parse(fs.readFileSync(targetPath, 'utf8'));
+      expect(parsed.project_id).toBe('promptfm-radio-1793623670');
+    });
+
+    it('detects and replaces a corrupted non-JSON key file on disk', () => {
+      const targetPath = path.join(tmpDir, 'corrupt-key.json');
+      fs.writeFileSync(targetPath, 'HCR!2\u0015invalid-not-json');
+
+      const sampleKeyObj = { type: 'service_account', project_id: 'promptfm-radio-1793623670' };
+      const b64 = Buffer.from(JSON.stringify(sampleKeyObj)).toString('base64');
+
+      const resolved = resolveGcpServiceAccountKey({
+        b64EnvVar: b64,
+        keyFilePath: targetPath,
+      });
+
+      expect(resolved).toBe(targetPath);
+      const parsed = JSON.parse(fs.readFileSync(targetPath, 'utf8'));
+      expect(parsed.project_id).toBe('promptfm-radio-1793623670');
+    });
   });
 
   describe('resolveHostingerTokenForInfra()', () => {
@@ -90,6 +134,13 @@ describe('Infrastructure Preparation & Credential Orchestrator', () => {
       const token = resolveHostingerTokenForInfra({
         envToken: '',
         credsFilePath: credsPath,
+      });
+      expect(token).toBe('');
+    });
+
+    it('rejects [SENSITIVE] Vercel placeholder as hostinger token', () => {
+      const token = resolveHostingerTokenForInfra({
+        envToken: '[SENSITIVE]',
       });
       expect(token).toBe('');
     });
@@ -151,6 +202,24 @@ describe('Infrastructure Preparation & Credential Orchestrator', () => {
 
       expect(process.env.HOSTINGER_API_TOKEN).toBe('token_from_vercel_env_pull');
       expect(process.env.GCP_PROJECT_ID).toBe('promptfm-radio-1793623670');
+    });
+
+    it('skips [SENSITIVE] redaction strings so they never pollute process.env', () => {
+      const envInfraPath = path.join(tmpDir, '.env.infra.local');
+      fs.writeFileSync(
+        envInfraPath,
+        `GCP_SA_KEY="[SENSITIVE]"\nREDACTED_VAR=[SENSITIVE_DATA]\nVALID_VAR="valid_value"\n`
+      );
+
+      delete process.env.GCP_SA_KEY;
+      delete process.env.REDACTED_VAR;
+      delete process.env.VALID_VAR;
+
+      loadLocalEnvFiles(tmpDir);
+
+      expect(process.env.GCP_SA_KEY).toBeUndefined();
+      expect(process.env.REDACTED_VAR).toBeUndefined();
+      expect(process.env.VALID_VAR).toBe('valid_value');
     });
   });
 });

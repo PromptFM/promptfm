@@ -21,23 +21,50 @@ export function resolveGcpServiceAccountKey(options?: GcpServiceAccountOptions):
   );
   const keyPath = options?.keyFilePath || defaultPath;
 
+  // If key file exists, verify that it is valid JSON before trusting it
   if (fs.existsSync(keyPath)) {
-    return keyPath;
+    try {
+      const content = fs.readFileSync(keyPath, 'utf8').trim();
+      if (content.startsWith('{')) {
+        const parsed = JSON.parse(content);
+        if (parsed && typeof parsed === 'object') {
+          return keyPath;
+        }
+      }
+    } catch {
+      // Corrupt key file on disk - will attempt to regenerate below
+    }
   }
 
-  const b64 = options?.b64EnvVar || process.env.GCP_SA_KEY || '';
-  if (b64) {
-    try {
-      const decoded = Buffer.from(b64, 'base64').toString('utf8');
-      const dir = path.dirname(keyPath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
+  const rawOrB64 = (options?.b64EnvVar || process.env.GCP_SA_KEY || '').trim();
+  if (!rawOrB64 || rawOrB64 === '[SENSITIVE]' || rawOrB64.startsWith('[SENSITIVE')) {
+    return '';
+  }
+
+  try {
+    let keyJson = '';
+    if (rawOrB64.startsWith('{')) {
+      keyJson = rawOrB64;
+    } else {
+      const decoded = Buffer.from(rawOrB64, 'base64').toString('utf8').trim();
+      if (decoded.startsWith('{')) {
+        keyJson = decoded;
       }
-      fs.writeFileSync(keyPath, decoded, { mode: 0o600 });
-      return keyPath;
-    } catch {
-      return '';
     }
+
+    if (keyJson) {
+      const parsed = JSON.parse(keyJson);
+      if (parsed && typeof parsed === 'object') {
+        const dir = path.dirname(keyPath);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+        fs.writeFileSync(keyPath, JSON.stringify(parsed, null, 2), { mode: 0o600 });
+        return keyPath;
+      }
+    }
+  } catch {
+    return '';
   }
 
   return '';
@@ -53,15 +80,17 @@ export interface HostingerTokenOptions {
  * then falling back to local MCP OAuth credentials.
  */
 export function resolveHostingerTokenForInfra(options?: HostingerTokenOptions): string {
+  const isSensitive = (val?: string) => !val || val === '[SENSITIVE]' || val.startsWith('[SENSITIVE');
+
   if (options?.envToken !== undefined && options.envToken !== '') {
-    return options.envToken.trim();
+    return isSensitive(options.envToken.trim()) ? '' : options.envToken.trim();
   }
 
   if (options?.envToken === undefined) {
-    if (process.env.HOSTINGER_API_TOKEN && process.env.HOSTINGER_API_TOKEN.trim() !== '') {
+    if (process.env.HOSTINGER_API_TOKEN && !isSensitive(process.env.HOSTINGER_API_TOKEN.trim())) {
       return process.env.HOSTINGER_API_TOKEN.trim();
     }
-    if (process.env.HOSTINGER_TOKEN && process.env.HOSTINGER_TOKEN.trim() !== '') {
+    if (process.env.HOSTINGER_TOKEN && !isSensitive(process.env.HOSTINGER_TOKEN.trim())) {
       return process.env.HOSTINGER_TOKEN.trim();
     }
   }
@@ -189,6 +218,10 @@ export function loadLocalEnvFiles(baseDir: string = process.cwd()): void {
               (value.startsWith("'") && value.endsWith("'"))
             ) {
               value = value.slice(1, -1);
+            }
+            // Skip Vercel redaction placeholders so they never overwrite real secrets
+            if (value === '[SENSITIVE]' || value.startsWith('[SENSITIVE')) {
+              continue;
             }
             if (!process.env[key]) {
               process.env[key] = value;
