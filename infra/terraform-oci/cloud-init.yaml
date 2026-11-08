@@ -12,3 +12,11 @@ runcmd:
   - netfilter-persistent save
   - systemctl enable --now docker
   - usermod -aG docker ubuntu
+%{ if swap_gb > 0 ~}
+  # The micro shape has 1 GB of RAM.
+  - fallocate -l ${swap_gb}G /swapfile
+  - chmod 600 /swapfile
+  - mkswap /swapfile
+  - swapon /swapfile
+  - echo '/swapfile none swap sw 0 0' >> /etc/fstab
+%{ endif ~}

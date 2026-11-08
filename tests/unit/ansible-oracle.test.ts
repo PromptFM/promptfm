@@ -63,10 +63,35 @@ describe("Ansible streamer compose template (Oracle support)", () => {
     }
   });
 
-  it("documents the Oracle host in the inventory as a comment only", () => {
-    expect(inventory).toMatch(
-      /^#\s*promptfm-streamer-oci ansible_host=<.*caddy_bind_address=0\.0\.0\.0/m,
-    );
-    expect(inventory).not.toMatch(/^promptfm-streamer-oci/m);
+  it("keeps the Oracle host out of the GCP [streamer] group so the GCP playbook never targets it", () => {
+    const gcpGroup = inventory.split("[streamer_oci]")[0];
+    expect(gcpGroup).not.toMatch(/^promptfm-streamer-oci/m);
+    expect(inventory).toMatch(/\[streamer_oci\]\npromptfm-streamer-oci ansible_host=/);
+  });
+
+  describe('standby mode before cutover', () => {
+    const read = (rel: string) => fs.readFileSync(path.join(rootDir, rel), 'utf8');
+
+    it('the standby script loops the fallback and never calls the PromptFM API', () => {
+      const liq = read('deploy/streamer/radio-standby.liq');
+      expect(liq).toContain('/etc/liquidsoap/fallback.mp3');
+      expect(liq).not.toMatch(/promptfm\.live\/api/);
+      expect(liq).not.toContain('http.get');
+      expect(liq).not.toContain('http.post');
+    });
+
+    it('lets the compose template choose the Liquidsoap script, defaulting to the live one', () => {
+      const compose = read('infra/ansible/roles/streamer/templates/docker-compose.yml.j2');
+      expect(compose).toContain("liquidsoap_script | default('radio.liq')");
+    });
+
+    it('keeps the Oracle host in its own group, in standby, with Caddy on all interfaces', () => {
+      const inv = read('infra/ansible/inventory.ini');
+      const block = inv.split('[streamer_oci:vars]')[1]?.split('[streamer:vars]')[0] ?? '';
+      expect(inv).toContain('[streamer_oci]');
+      expect(block).toContain('caddy_bind_address=0.0.0.0');
+      expect(block).toContain('liquidsoap_script=radio-standby.liq');
+      expect(read('infra/ansible/playbook-oci.yml')).toContain('hosts: streamer_oci');
+    });
   });
 });

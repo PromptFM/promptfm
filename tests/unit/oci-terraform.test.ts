@@ -30,9 +30,24 @@ describe('Oracle Cloud streamer module (infra/terraform-oci)', () => {
     const variables = read('infra/terraform-oci/variables.tf');
     const main = read('infra/terraform-oci/main.tf');
 
-    it('only allows the Ampere A1 Flex shape', () => {
-      expect(main).toContain('shape               = "VM.Standard.A1.Flex"');
-      expect(main).not.toMatch(/VM\.Standard\.E[0-9]/);
+    it('only allows the two Always Free shapes: Ampere A1 Flex and the AMD E2.1 Micro', () => {
+      const shapes = new Set([...main.matchAll(/VM\.Standard\.[A-Za-z0-9.]+/g)].map((m) => m[0]));
+      expect([...shapes].sort()).toEqual(['VM.Standard.A1.Flex', 'VM.Standard.E2.1.Micro']);
+      expect(variables).toContain('contains(["A1", "micro"], var.shape)');
+    });
+
+    it('pins the micro shape to the one availability domain where Oracle allows it', () => {
+      expect(variables).toMatch(/micro_availability_domain_index"[\s\S]*?default\s*=\s*1/);
+      expect(main).toContain('local.is_micro ? var.micro_availability_domain_index');
+    });
+
+    it('adds swap on the 1 GB micro shape', () => {
+      expect(main).toContain('swap_gb = local.is_micro ? 2 : 0');
+      expect(read('infra/terraform-oci/cloud-init.yaml')).toContain('fallocate -l ${swap_gb}G /swapfile');
+    });
+
+    it('refuses to replace a live streamer when switching shapes', () => {
+      expect(main).toContain('prevent_destroy = true');
     });
 
     it('caps OCPUs at 2, memory at 12 GB and boot volume at 200 GB (1,500 OCPU-hours / 9,000 GB-hours a month)', () => {
@@ -43,7 +58,8 @@ describe('Oracle Cloud streamer module (infra/terraform-oci)', () => {
 
     it('tries other availability domains when Oracle has no free Arm capacity', () => {
       expect(variables).toContain('variable "availability_domain_index"');
-      expect(main).toContain('availability_domains[var.availability_domain_index]');
+      expect(main).toContain('availability_domains[local.ad_index]');
+      expect(main).toContain('local.is_micro ? var.micro_availability_domain_index : var.availability_domain_index');
     });
 
     it('refuses to plan outside the home region', () => {
@@ -64,6 +80,7 @@ describe('Oracle Cloud streamer module (infra/terraform-oci)', () => {
       expect(main).toContain('"zero compute-core quotas in tenancy"');
       expect(main).toContain('standard-a1-core-regional-count to 2 in tenancy');
       expect(main).toContain('standard-a1-memory-regional-count to 12 in tenancy');
+      expect(main).toContain('standard-e2-micro-core-count to 2 in tenancy');
       expect(main).toContain('"zero block-storage quotas in tenancy"');
       expect(main).toContain('total-storage-gb to 200 in tenancy');
     });
@@ -131,6 +148,7 @@ describe('Oracle Cloud streamer module (infra/terraform-oci)', () => {
       expect(script).toContain('Out of host capacity');
       expect(script.indexOf('refresh_token\nterraform init')).toBeGreaterThan(-1);
       expect(script).toContain('availability_domain_index=$ad');
+      expect(script).toContain('-var shape=micro');
     });
 
     it('gets weekly provider updates', () => {

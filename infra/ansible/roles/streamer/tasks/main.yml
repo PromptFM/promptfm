@@ -26,18 +26,26 @@
     group: "{{ ansible_user }}"
     mode: '0755'
 
-- name: Deploy Icecast 2 configuration
-  template:
-    src: icecast.xml.j2
+- name: Deploy Icecast 2 configuration (deploy/streamer is the single source of truth)
+  copy:
+    src: "{{ playbook_dir }}/../../deploy/streamer/icecast.xml"
     dest: "{{ app_dir }}/icecast.xml"
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: '0644'
 
 - name: Deploy Liquidsoap radio script
-  template:
-    src: radio.liq.j2
+  copy:
+    src: "{{ playbook_dir }}/../../deploy/streamer/radio.liq"
     dest: "{{ app_dir }}/radio.liq"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+
+- name: Deploy Liquidsoap standby script (does not call the PromptFM API)
+  copy:
+    src: "{{ playbook_dir }}/../../deploy/streamer/radio-standby.liq"
+    dest: "{{ app_dir }}/radio-standby.liq"
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: '0644'

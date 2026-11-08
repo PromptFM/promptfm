@@ -26,8 +26,9 @@ services:
       - icecast
     volumes:
       - ./radio.liq:/etc/liquidsoap/radio.liq:ro
+      - ./radio-standby.liq:/etc/liquidsoap/radio-standby.liq:ro
       - ./fallback.mp3:/etc/liquidsoap/fallback.mp3:ro
-    command: ["liquidsoap", "/etc/liquidsoap/radio.liq"]
+    command: ["liquidsoap", "/etc/liquidsoap/{{ liquidsoap_script | default('radio.liq') }}"]
 
 {% if cloudflare_tunnel_token_effective %}
   # 3. Cloudflare Tunnel (only rendered when a tunnel token is set; every listener byte still leaves the VM)

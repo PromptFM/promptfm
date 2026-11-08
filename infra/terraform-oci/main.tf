@@ -10,6 +10,12 @@ locals {
   home_region = [for r in data.oci_identity_region_subscriptions.all.region_subscriptions : r.region_name if r.is_home_region][0]
 }
 
+locals {
+  is_micro   = var.shape == "micro"
+  shape_name = local.is_micro ? "VM.Standard.E2.1.Micro" : "VM.Standard.A1.Flex"
+  ad_index   = local.is_micro ? var.micro_availability_domain_index : var.availability_domain_index
+}
+
 data "oci_identity_availability_domains" "ads" {
   compartment_id = local.compartment_id
 }
@@ -18,7 +24,7 @@ data "oci_core_images" "ubuntu_arm" {
   compartment_id           = local.compartment_id
   operating_system         = "Canonical Ubuntu"
   operating_system_version = "24.04"
-  shape                    = "VM.Standard.A1.Flex"
+  shape                    = local.shape_name
   sort_by                  = "TIMECREATED"
   sort_order               = "DESC"
 }
@@ -100,13 +106,17 @@ resource "oci_core_subnet" "public" {
 
 resource "oci_core_instance" "streamer" {
   compartment_id      = local.compartment_id
-  availability_domain = data.oci_identity_availability_domains.ads.availability_domains[var.availability_domain_index].name
+  availability_domain = data.oci_identity_availability_domains.ads.availability_domains[local.ad_index].name
   display_name        = var.instance_name
-  shape               = "VM.Standard.A1.Flex"
+  shape               = local.shape_name
 
-  shape_config {
-    ocpus         = var.ocpus
-    memory_in_gbs = var.memory_gb
+  # The micro shape has a fixed size and takes no shape_config.
+  dynamic "shape_config" {
+    for_each = local.is_micro ? [] : [1]
+    content {
+      ocpus         = var.ocpus
+      memory_in_gbs = var.memory_gb
+    }
   }
 
   source_details {
@@ -123,10 +133,14 @@ resource "oci_core_instance" "streamer" {
 
   metadata = {
     ssh_authorized_keys = file(pathexpand(var.ssh_pub_key_path))
-    user_data           = base64encode(file("${path.module}/cloud-init.yaml"))
+    user_data           = base64encode(templatefile("${path.module}/cloud-init.yaml", { swap_gb = local.is_micro ? 2 : 0 }))
   }
 
   lifecycle {
+    # Switching between micro and A1 replaces the VM. Fail loudly instead of silently replacing a live streamer:
+    # remove this line on purpose when you mean to migrate.
+    prevent_destroy = true
+
     precondition {
       condition     = nonsensitive(local.oci.region) == local.home_region
       error_message = "Always Free A1 only exists in the home region (${local.home_region}). The credentials secret is set to ${nonsensitive(local.oci.region)}."
@@ -219,6 +233,7 @@ resource "oci_limits_quota" "free_only" {
     "zero compute-core quotas in tenancy",
     "set compute-core quota standard-a1-core-count to 2 in tenancy",
     "set compute-core quota standard-a1-core-regional-count to 2 in tenancy",
+    "set compute-core quota standard-e2-micro-core-count to 2 in tenancy",
     "zero compute-memory quotas in tenancy",
     "set compute-memory quota standard-a1-memory-count to 12 in tenancy",
     "set compute-memory quota standard-a1-memory-regional-count to 12 in tenancy",

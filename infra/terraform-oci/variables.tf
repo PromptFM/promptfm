@@ -104,3 +104,25 @@ variable "availability_domain_index" {
     error_message = "Ashburn has up to 3 availability domains (0-2)."
   }
 }
+
+variable "shape" {
+  description = "A1 (Ampere Arm, 2 OCPU / 12 GB, the target) or micro (AMD VM.Standard.E2.1.Micro, 1 GB, audio only). Both are Always Free."
+  type        = string
+  default     = "A1"
+
+  validation {
+    condition     = contains(["A1", "micro"], var.shape)
+    error_message = "shape must be A1 or micro, the two Always Free compute shapes."
+  }
+}
+
+variable "micro_availability_domain_index" {
+  description = "Availability domain for the micro shape. Oracle's Always Free micro limit exists in one domain only (AD-2 here, index 1); the others allow 0."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.micro_availability_domain_index >= 0 && var.micro_availability_domain_index <= 2
+    error_message = "Ashburn has up to 3 availability domains (0-2)."
+  }
+}
