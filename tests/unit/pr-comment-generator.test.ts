@@ -53,6 +53,26 @@ describe('PR Comment Guidance Generator', () => {
       expect(changes.hasSecrets).toBe(false);
     });
 
+    it('does not trigger SQL schema warning when only SQL engine/scripts/tools change', () => {
+      const changes = detectInfraChanges([
+        'src/lib/sql/sql-linter.ts',
+        'src/lib/sql/sql-migrator.ts',
+        'scripts/apply-sql-migrations.ts',
+        'scripts/lint-sql.ts',
+      ]);
+      expect(changes.hasSql).toBe(false);
+    });
+
+    it('does not trigger secrets warning for documentation examples (.env.example)', () => {
+      const changes = detectInfraChanges(['.env.example', '.env.local.example', 'README.md']);
+      expect(changes.hasSecrets).toBe(false);
+    });
+
+    it('does not trigger Terraform warning when only TypeScript scripts or docs change', () => {
+      const changes = detectInfraChanges(['scripts/prepare-infra.ts', 'infra/README.md']);
+      expect(changes.hasTerraform).toBe(false);
+    });
+
     it('detects secret configuration changes when secret files are touched', () => {
       const changes = detectInfraChanges(['infra/terraform/secrets.auto.tfvars', 'src/lib/infra/secrets-sync.ts']);
       expect(changes.hasSecrets).toBe(true);
@@ -94,7 +114,7 @@ describe('PR Comment Guidance Generator', () => {
       });
 
       expect(comment).toContain('make an admin run the Make preview link workflow on the following sha');
-      expect(comment).toContain('After merge have an admin run the Update terraform workflow');
+      expect(comment).toContain('Terraform Infrastructure Update');
       expect(comment).toContain('https://github.com/PromptFM/promptfm/actions/workflows/apply-terraform.yml');
       expect(comment).not.toContain('Update ansible workflow');
     });
@@ -119,7 +139,7 @@ describe('PR Comment Guidance Generator', () => {
         checksPassed: true,
       });
 
-      expect(comment).toContain('After merge have an admin run the Update terraform workflow');
+      expect(comment).toContain('Terraform Infrastructure Update');
       expect(comment).toContain('After merge have an admin run the Update ansible workflow');
     });
 
@@ -137,8 +157,8 @@ describe('PR Comment Guidance Generator', () => {
       // There should only be one [!IMPORTANT] tag, not stacked unseparated duplicates
       const importantMatches = comment.match(/\[!IMPORTANT\]/g);
       expect(importantMatches?.length).toBe(1);
-      expect(comment).toContain('Update terraform workflow');
-      expect(comment).toContain('Update SQL Schema workflow');
+      expect(comment).toContain('Terraform Infrastructure Update');
+      expect(comment).toContain('SQL Schema Migrations');
       expect(comment).toContain('Update Secrets workflow');
     });
 
@@ -161,10 +181,10 @@ describe('PR Comment Guidance Generator', () => {
         checksPassed: true,
       });
 
-      expect(comment).toContain('SQL Schema Update Required');
-      expect(comment).toContain('After merge have an admin run the Update SQL Schema workflow');
+      expect(comment).toContain('SQL Schema Migrations');
+      expect(comment).toContain('automatically apply');
       expect(comment).toContain('https://github.com/PromptFM/promptfm/actions/workflows/apply-sql-schema.yml');
-      expect(comment).not.toContain('Update terraform workflow');
+      expect(comment).not.toContain('Terraform Infrastructure Update');
     });
 
     it('informs that checks must pass when checksPassed is false', () => {

@@ -12,12 +12,9 @@ on:
     branches: [main]
     paths:
       - 'supabase/**'
-      - 'scripts/apply-sql-migrations.ts'
-      - 'src/lib/sql/**'
-      - '.github/workflows/apply-sql-schema.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: sql-schema-migration
@@ -59,4 +56,10 @@ jobs:
         run: npm run db:migrate
         env:
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+
+      - name: Tag and Record SQL Migration Release
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: npm run promptfm -- tag sql
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

@@ -12,7 +12,7 @@ on:
       - 'promptfm-infra/*'
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 concurrency:
@@ -83,4 +83,9 @@ jobs:
 
       - name: Apply Terraform Infrastructure
         run: terraform -chdir=infra/terraform apply -auto-approve
+
+      - name: Tag and Record Infrastructure Release
+        run: npm run promptfm -- tag infra
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

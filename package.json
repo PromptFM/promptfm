@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "lint:sql": "jiti scripts/lint-sql.ts",
+    "lint:dns": "jiti scripts/promptfm.ts dns status promptfm.live --strict",
     "typecheck": "tsc --noEmit",
     "promptfm": "jiti scripts/promptfm.ts",
     "db:migrate": "jiti scripts/apply-sql-migrations.ts",

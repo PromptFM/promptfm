@@ -73,4 +73,32 @@ describe('PromptFM Hostinger DNS & Domain Migration CLI', () => {
     expect(streamDiff?.action).toBe('create');
     expect(oldStreamDiff?.action).toBe('delete');
   });
+
+  it('audits DNS zone zero-egress compliance and alerts on direct VM IP', () => {
+    const leakZone: hostingerDns.HostingerDNSRecord[] = [
+      {
+        name: 'stream',
+        type: 'A',
+        ttl: 300,
+        records: [{ content: '34.123.80.137' }],
+      },
+    ];
+
+    const leakCheck = hostingerDns.validateZeroEgressCompliance(leakZone);
+    expect(leakCheck.compliant).toBe(false);
+    expect(leakCheck.risk).toBe('direct_vm_egress');
+    expect(leakCheck.message).toContain('points to an A record instead of an edge CNAME');
+
+    const validCheck = hostingerDns.validateZeroEgressCompliance(sampleZone);
+    expect(validCheck.compliant).toBe(true);
+    expect(validCheck.risk).toBe('none');
+  });
+
+  it('exposes lint:dns script in package.json targeting strict DNS status check', () => {
+    const pkg = JSON.parse(
+      require('fs').readFileSync(require('path').resolve(__dirname, '../../package.json'), 'utf8')
+    );
+    expect(pkg.scripts['lint:dns']).toBeDefined();
+    expect(pkg.scripts['lint:dns']).toContain('dns status promptfm.live --strict');
+  });
 });

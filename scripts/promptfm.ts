@@ -64,6 +64,7 @@ import {
   validateZeroEgressCompliance,
   type HostingerDNSRecord,
 } from '../src/lib/infra/hostinger-dns';
+import { createGitReleaseTag } from '../src/lib/infra/release-tag';
 import { execSync } from 'child_process';
 import { readFileSync, writeFileSync, appendFileSync, existsSync } from 'fs';
 import { join, basename } from 'path';
@@ -151,6 +152,10 @@ Hostinger Domain & DNS Automation ($0 Egress):
                           Flags: --state <path>
   dns apply <domain>      Apply DNS state to Hostinger domain
                           Flags: --state <path> --force
+
+Git Release & Ops Tagging:
+  tag <sql|infra|release> Generate & push tag (promptfm-sql/*, promptfm-infra/*, promptfm/*)
+                          Flags: --dry-run
 
 Moderation & Schedule:
   channels list           List radio broadcast channels, assigned DJs & guardrail policies
@@ -1891,7 +1896,8 @@ Moderation & Schedule:
       const targetDomain = args[2] || 'promptfm.live';
       const defaultStatePath = join(process.cwd(), 'infra/dns/promptfm.live.state.json');
 
-      if (action === 'status') {
+      if (action === 'status' || action === 'audit') {
+        const strict = parseArg('--strict') !== undefined || action === 'audit';
         const stateFile = parseArg('--state') || join(process.cwd(), `infra/dns/${targetDomain}.state.json`);
         console.log(`\n🌐 Inspecting DNS state for ${targetDomain}...`);
         if (existsSync(stateFile)) {
@@ -1906,8 +1912,15 @@ Moderation & Schedule:
             console.log(`  ${r.type.padEnd(6)} ${r.name.padEnd(20)} (TTL: ${r.ttl})`);
             r.records.forEach((rec) => console.log(`         ➔ ${rec.content}`));
           }
+          if (strict && !egressCheck.compliant) {
+            console.error(`\n❌ DNS Zero-Egress Audit Failed: ${egressCheck.message}`);
+            process.exit(1);
+          }
         } else {
-          console.log(`⚠️  Local state file not found at ${stateFile}. Run "promptfm dns snapshot ${targetDomain}" to generate one.`);
+          console.error(`❌ Local state file not found at ${stateFile}. Run "promptfm dns snapshot ${targetDomain}" to generate one.`);
+          if (strict) {
+            process.exit(1);
+          }
         }
         return;
       }
@@ -2056,6 +2069,25 @@ Moderation & Schedule:
       }
 
       console.error(`Unknown dns subcommand: "${action}". Valid subcommands: status, snapshot, diff, migrate, validate, apply.`);
+      break;
+    }
+
+    case 'tag': {
+      const tagType = args[1];
+      if (tagType !== 'sql' && tagType !== 'infra' && tagType !== 'release') {
+        console.error('Usage: npm run promptfm -- tag <sql|infra|release> [--dry-run]');
+        process.exit(1);
+      }
+      const dryRun = args.includes('--dry-run');
+      console.log(`🏷️  Creating Git tag for ${tagType}${dryRun ? ' (dry-run)' : ''}...`);
+      const result = createGitReleaseTag(tagType, { dryRun });
+      if (dryRun) {
+        console.log(`ℹ️  [Dry Run] Tag would be: ${result.tag}`);
+      } else if (result.executed) {
+        console.log(`✅ Successfully created and pushed tag: ${result.tag}`);
+      } else {
+        console.log(`⚠️  Tag ${result.tag} already exists or push failed non-fatally.`);
+      }
       break;
     }
 

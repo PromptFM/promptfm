@@ -33,34 +33,34 @@ export function detectInfraChanges(changedFiles: string[]): InfraChangesResult {
   let hasUi = false;
 
   for (const file of changedFiles) {
+    if (file.endsWith('.md') || file === '.gitignore' || file.startsWith('docs/')) {
+      continue;
+    }
+
     if (
-      /^infra\/terraform\//i.test(file) ||
       /\.tf$/i.test(file) ||
-      /^scripts\/prepare-infra\.ts$/i.test(file)
+      (/^infra\/terraform\//i.test(file) && !file.endsWith('.ts') && !file.endsWith('.json'))
     ) {
       hasTerraform = true;
     }
     if (
-      /^infra\/ansible\//i.test(file) ||
-      /^infra\/roles\//i.test(file) ||
-      /playbook\.ya?ml$/i.test(file)
+      (/^infra\/ansible\//i.test(file) || /^infra\/roles\//i.test(file) || /playbook\.ya?ml$/i.test(file)) &&
+      !file.includes('group_vars')
     ) {
       hasAnsible = true;
     }
+    // Only actual SQL schema migration files in supabase/migrations/*.sql or root migrations
     if (
-      /^supabase\//i.test(file) ||
-      /\.sql$/i.test(file) ||
-      /scripts\/apply-sql-migrations\.ts/i.test(file) ||
-      /src\/lib\/sql\//i.test(file)
+      /^supabase\/migrations\/.*\.sql$/i.test(file) ||
+      (/\.sql$/i.test(file) && !file.startsWith('src/lib/sql/') && !file.startsWith('scripts/'))
     ) {
       hasSql = true;
     }
+    // Actual production secrets or credential definitions
     if (
       /infra\/ansible\/group_vars/i.test(file) ||
-      /infra\/terraform\/.*\.tfvars/i.test(file) ||
-      /secrets-sync\.ts/i.test(file) ||
-      /\.env\.example$/i.test(file) ||
-      /\.env\.local\.example$/i.test(file)
+      /secrets\.auto\.tfvars$/i.test(file) ||
+      /secrets-sync\.ts$/i.test(file)
     ) {
       hasSecrets = true;
     }
@@ -149,7 +149,7 @@ Please review the failing checks in GitHub Actions.`;
 
     if (hasTerraform) {
       lines.push(
-        `> - **Terraform Update Required:** After merge have an admin run the Update terraform workflow: https://github.com/PromptFM/promptfm/actions/workflows/apply-terraform.yml`
+        `> - **Terraform Infrastructure Update:** Changes detected in \`infra/terraform/\`. After merge have an admin run the Update terraform workflow (or push \`promptfm-infra/<version>\` tag): https://github.com/PromptFM/promptfm/actions/workflows/apply-terraform.yml`
       );
     }
 
@@ -161,7 +161,7 @@ Please review the failing checks in GitHub Actions.`;
 
     if (hasSql) {
       lines.push(
-        `> - **SQL Schema Update Required:** After merge have an admin run the Update SQL Schema workflow: https://github.com/PromptFM/promptfm/actions/workflows/apply-sql-schema.yml`
+        `> - **SQL Schema Migrations:** New migration detected in \`supabase/migrations/\`. Will **automatically apply** upon merge to \`main\` (recording \`promptfm-sql/<version>\` tag). Manual / dry-run trigger: https://github.com/PromptFM/promptfm/actions/workflows/apply-sql-schema.yml`
       );
     }
 

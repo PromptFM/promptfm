@@ -1,6 +1,9 @@
 // src/lib/infra/release-tag.ts
 // Formatters and token resolvers for PromptFM release, rollback, and git tags.
 
+import { execSync } from 'child_process';
+import fs from 'fs';
+
 /**
  * Formats a standardized release tag in the format promptfm/<version>-<short_hash>
  */
@@ -49,6 +52,46 @@ export function formatRollbackTag(targetRef: string): string {
   version = version.replace(/^v/i, '');
 
   return `promptfm/rollback-${version}`;
+}
+
+/**
+ * Formats a standardized SQL migration tag: promptfm-sql/<version>-<short_hash>
+ */
+export function formatSqlTag(version: string, commitSha: string): string {
+  const trimmedVersion = version.trim();
+  if (!trimmedVersion) {
+    throw new Error('Version cannot be empty');
+  }
+
+  const trimmedSha = commitSha.trim();
+  if (!trimmedSha) {
+    throw new Error('Commit SHA cannot be empty');
+  }
+
+  const cleanVersion = trimmedVersion.replace(/^v/i, '');
+  const shortSha = trimmedSha.slice(0, 7);
+
+  return `promptfm-sql/${cleanVersion}-${shortSha}`;
+}
+
+/**
+ * Formats a standardized infrastructure tag: promptfm-infra/<version>-<short_hash>
+ */
+export function formatInfraTag(version: string, commitSha: string): string {
+  const trimmedVersion = version.trim();
+  if (!trimmedVersion) {
+    throw new Error('Version cannot be empty');
+  }
+
+  const trimmedSha = commitSha.trim();
+  if (!trimmedSha) {
+    throw new Error('Commit SHA cannot be empty');
+  }
+
+  const cleanVersion = trimmedVersion.replace(/^v/i, '');
+  const shortSha = trimmedSha.slice(0, 7);
+
+  return `promptfm-infra/${cleanVersion}-${shortSha}`;
 }
 
 /**
@@ -103,3 +146,61 @@ export function resolveGitHubToken(options?: ResolveGitHubTokenOptions): string 
 
   return null;
 }
+
+export interface CreateGitReleaseTagOptions {
+  version?: string;
+  sha?: string;
+  dryRun?: boolean;
+  execFn?: (cmd: string) => string;
+}
+
+export function createGitReleaseTag(
+  type: 'sql' | 'infra' | 'release',
+  options?: CreateGitReleaseTagOptions
+): { tag: string; executed: boolean } {
+  const exec = options?.execFn || ((cmd: string) => execSync(cmd, { encoding: 'utf8' }).trim());
+
+  let version: string = options?.version || '';
+  if (!version) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+      version = pkg.version || '0.2.0';
+    } catch {
+      version = '0.2.0';
+    }
+  }
+
+  let sha: string = options?.sha || '';
+  if (!sha) {
+    try {
+      sha = exec('git rev-parse HEAD');
+    } catch {
+      sha = '0000000';
+    }
+  }
+
+  let tag: string;
+  let description: string;
+  if (type === 'sql') {
+    tag = formatSqlTag(version, sha);
+    description = `SQL Schema Migration: ${tag}`;
+  } else if (type === 'infra') {
+    tag = formatInfraTag(version, sha);
+    description = `Infrastructure Provisioning: ${tag}`;
+  } else {
+    tag = formatReleaseTag(version, sha);
+    description = `Release: ${tag}`;
+  }
+
+  if (options?.dryRun) {
+    return { tag, executed: false };
+  }
+
+  try {
+    exec(`git config user.name "github-actions[bot]" && git config user.email "github-actions[bot]@users.noreply.github.com" && git tag -a "${tag}" -m "${description}" && git push origin "${tag}"`);
+    return { tag, executed: true };
+  } catch {
+    return { tag, executed: false };
+  }
+}
+

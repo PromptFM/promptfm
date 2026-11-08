@@ -118,6 +118,27 @@ describe('GitHub Actions Workflows Suite', () => {
     });
   });
 
+  describe('DNS Zero-Egress Audit in CI Workflow (ci.yml)', () => {
+    it('audits DNS zones and alerts on direct VM IP leaks or missing edge proxies', () => {
+      const content = readWorkflow('ci.yml');
+      expect(content).toContain('dns status promptfm.live --strict');
+    });
+  });
+
+  describe('Automated Release Tagging in Ops Workflows', () => {
+    it('records promptfm-sql tag upon successful SQL migration in apply-sql-schema.yml', () => {
+      const content = readWorkflow('apply-sql-schema.yml');
+      expect(content).toContain('contents: write');
+      expect(content).toContain('promptfm -- tag sql');
+    });
+
+    it('records promptfm-infra tag upon successful Terraform apply in apply-terraform.yml', () => {
+      const content = readWorkflow('apply-terraform.yml');
+      expect(content).toContain('contents: write');
+      expect(content).toContain('promptfm -- tag infra');
+    });
+  });
+
   describe('Workflow syntax validation across all workflows', () => {
     it('does not reference secrets.* directly inside if conditions', () => {
       const workflowFiles = fs

@@ -128,6 +128,10 @@ jobs:
         if: needs.detect-changes.outputs.has_sql == 'true' || github.event_name == 'push'
         run: npm run lint:sql
 
+      - name: Run Zero-Egress DNS Architecture Audit
+        if: needs.detect-changes.outputs.has_infra == 'true' || github.event_name == 'push'
+        run: npm run promptfm -- dns status promptfm.live --strict
+
   unit-and-integration-tests:
     name: unit-and-integration-tests
     runs-on: ubuntu-latest

@@ -10,7 +10,7 @@ describe('PR Comment CLI & Output Generation', () => {
     });
 
     expect(result.commentMarkdown).toContain('make an admin run the Make preview link workflow on the following sha: `c0ffee1234567890`');
-    expect(result.commentMarkdown).toContain('After merge have an admin run the Update terraform workflow');
+    expect(result.commentMarkdown).toContain('Terraform Infrastructure Update');
     expect(result.hasInfraChanges).toBe(true);
     expect(result.hasSql).toBe(false);
 
@@ -21,7 +21,8 @@ describe('PR Comment CLI & Output Generation', () => {
     });
     expect(sqlResult.hasSql).toBe(true);
     expect(sqlResult.hasInfraChanges).toBe(true);
-    expect(sqlResult.commentMarkdown).toContain('Update SQL Schema workflow');
+    expect(sqlResult.commentMarkdown).toContain('SQL Schema Migrations');
+    expect(sqlResult.commentMarkdown).toContain('automatically apply');
 
     const secretsResult = generatePRCommentOutput({
       commitSha: 'c0ffee1234567890',
