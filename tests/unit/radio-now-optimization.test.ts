@@ -6,6 +6,124 @@ import * as rotation from '@/lib/dj/rotation';
 import { NextRequest } from 'next/server';
 import { GET } from '@/app/api/radio/now/route';
 
+vi.mock('@/lib/radio/icecast-sync', () => ({
+  fetchIcecastStatus: vi.fn().mockResolvedValue(null),
+}));
+
+vi.mock('@/lib/supabase/server', () => {
+  return {
+    createAdminClient: () => ({
+      from: (table: string) => {
+        if (table === 'channels') {
+          return {
+            select: () => ({
+              eq: (_col: string, val: string) => ({
+                maybeSingle: async () => ({
+                  data: { id: `channel-${val}`, slug: val },
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+
+        if (table === 'station_state') {
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({
+                  data: {
+                    channel_slug: 'main',
+                    airplay_item: {
+                      id: 'track-mock-now',
+                      title: 'Synthetic Dawn',
+                      artist: 'DJ Neon',
+                      audio_url: 'https://example.com/synth.mp3',
+                      type: 'music',
+                      duration_hint_seconds: 180,
+                    },
+                    started_at: new Date().toISOString(),
+                  },
+                  error: null,
+                }),
+              }),
+            }),
+            upsert: vi.fn().mockResolvedValue({ error: null }),
+          };
+        }
+
+        if (table === 'channel_queue' || table === 'station_queue') {
+          return {
+            select: () => ({
+              eq: () => ({
+                is: () => ({
+                  order: () => ({
+                    limit: () => Promise.resolve({ data: [] }),
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+
+        if (table === 'tracks') {
+          return {
+            select: (_cols?: string, opts?: { count?: string; head?: boolean }) => {
+              if (opts?.count === 'exact') {
+                return {
+                  eq: () => ({
+                    gt: () => Promise.resolve({ count: 1 }),
+                    then: (resolve: any) => resolve({ count: 5 }),
+                  }),
+                };
+              }
+              return {
+                eq: () => ({
+                  order: () => ({
+                    limit: () => ({
+                      maybeSingle: async () => ({
+                        data: {
+                          id: 'track-mock-now',
+                          title: 'Synthetic Dawn',
+                          artist_name: 'DJ Neon',
+                          audio_url: 'https://example.com/synth.mp3',
+                          tool_used: 'Suno',
+                          upvotes_count: 10,
+                        },
+                      }),
+                      then: (resolve: any) =>
+                        resolve({
+                          data: [
+                            {
+                              id: 'track-mock-2',
+                              title: 'Hold That Line',
+                              artist_name: 'Letra',
+                              audio_url: 'https://example.com/letra.mp3',
+                              tool_used: 'Udio',
+                              upvotes_count: 8,
+                            },
+                          ],
+                        }),
+                    }),
+                  }),
+                }),
+              };
+            },
+          };
+        }
+
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({ data: null, error: null }),
+            }),
+          }),
+        };
+      },
+    }),
+  };
+});
+
 describe('Radio Now Playing & Up Next Optimization (Issue #123)', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
