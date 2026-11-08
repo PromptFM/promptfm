@@ -133,8 +133,11 @@ describe('GitHub Actions Workflows Suite', () => {
 
     it('does not combine push paths and tags in the same push event block', () => {
       const terraformWorkflow = readWorkflow('apply-terraform.yml');
-      // paths and tags cannot co-exist under the same push trigger
-      expect(terraformWorkflow).not.toMatch(/push:\s*(\n\s*[^:\n]+:\s*)+paths:[\s\S]*tags:/);
+      // paths and tags cannot co-exist under the same push trigger in GitHub Actions
+      const pushBlock = terraformWorkflow.split('push:')[1]?.split(/^[a-z]/m)[0] || '';
+      const hasPaths = pushBlock.includes('paths:');
+      const hasTags = pushBlock.includes('tags:');
+      expect(hasPaths && hasTags).toBe(false);
     });
   });
 });

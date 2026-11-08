@@ -92,9 +92,10 @@ describe('Zero-Egress Stream Architecture & Edge Protection (Issue #127)', () =>
 
       // The firewall rule must be gated by cloudflare_tunnel_enabled
       expect(tfContent).toMatch(/count\s*=\s*var\.cloudflare_tunnel_enabled\s*\?\s*0\s*:\s*1/);
-      expect(tfContent).not.toMatch(
-        /resource "google_compute_firewall" "allow_web" \{\s*name\s*=\s*"allow-http-https"\s*network\s*=\s*"default"\s*description\s*=\s*"[^"]*"\s*allow\s*\{[\s\S]*\}\s*source_ranges\s*=\s*\["0\.0\.0\.0\/0"\]/
-      );
+      const allowWebBlock =
+        tfContent.split('resource "google_compute_firewall" "allow_web"')[1]?.split('}')[0] || '';
+      expect(allowWebBlock).toContain('count');
+      expect(allowWebBlock).toContain('var.cloudflare_tunnel_enabled');
     });
   });
 
