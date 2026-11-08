@@ -191,31 +191,34 @@ export default function ChannelsGrid({ className = '' }: ChannelsGridProps) {
                 key={channel.slug}
                 className="rounded-3xl p-6 sm:p-8 border border-emerald-500/40 bg-gradient-to-b from-emerald-950/30 via-zinc-900/90 to-zinc-950 shadow-[0_0_32px_rgba(16,185,129,0.18)] transition-all text-left relative overflow-hidden flex flex-col justify-between gap-6"
               >
-                {/* Active Pulsing Indicator Badge */}
-                {isActive && (
-                  <div
-                    aria-label={isCurrentChannelPlaying ? 'Live broadcast on air' : 'Main stage selected'}
-                    className="absolute top-4 right-4 sm:top-6 sm:right-6 flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                  >
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                    <span>{isPlayerPlaying ? 'ON AIR' : 'SELECTED'}</span>
-                  </div>
-                )}
-
                 {/* Station Info */}
-                <div className="space-y-4 pr-16 sm:pr-24">
-                  <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 rounded-2xl bg-zinc-800/80 border border-zinc-700/60 flex items-center justify-center flex-shrink-0 shadow-inner">
-                      {getStationIcon(channel.icon)}
+                <div className="space-y-4">
+                  {/* Station Header Row with status badge positioned cleanly to avoid mobile overlap */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="w-12 h-12 rounded-2xl bg-zinc-800/80 border border-zinc-700/60 flex items-center justify-center flex-shrink-0 shadow-inner">
+                        {getStationIcon(channel.icon)}
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="font-extrabold text-white text-lg sm:text-xl leading-tight">
+                          {channel.name}
+                        </h3>
+                        <p className="text-xs font-semibold text-emerald-400/90 mt-0.5">
+                          {channel.badge}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-extrabold text-white text-lg sm:text-xl leading-tight">
-                        {channel.name}
-                      </h3>
-                      <p className="text-xs font-semibold text-emerald-400/90 mt-0.5">
-                        {channel.badge}
-                      </p>
-                    </div>
+
+                    {/* Active Pulsing Indicator Badge */}
+                    {isActive && (
+                      <div
+                        aria-label={isCurrentChannelPlaying ? 'Live broadcast on air' : 'Main stage selected'}
+                        className="self-start sm:self-center flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex-shrink-0 shadow-sm"
+                      >
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                        <span>{isCurrentChannelPlaying ? 'ON AIR' : 'SELECTED'}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Vibe / Genre */}
