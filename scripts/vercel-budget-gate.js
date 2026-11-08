@@ -8,9 +8,9 @@
 
 const { execSync } = require('child_process');
 
-const PROMPTFM_TAG_REGEX = /^promptfm\/[a-zA-Z0-9._-]+$/;
-const SEMVER_TAG_REGEX = /^v\d+(\.\d+)*(-[a-zA-Z0-9._-]+)?$/;
-const DOCS_TAG_REGEX = /^gh-pages\/[a-zA-Z0-9._-]+$/;
+const PROMPTFM_TAG_REGEX = /^(?:refs\/tags\/)?promptfm\/[a-zA-Z0-9._-]+$/;
+const SEMVER_TAG_REGEX = /^(?:refs\/tags\/)?v\d+(\.\d+)*(-[a-zA-Z0-9._-]+)?$/;
+const DOCS_TAG_REGEX = /^(?:refs\/tags\/)?gh-pages\/[a-zA-Z0-9._-]+$/;
 
 function isReleaseTag(ref) {
   if (!ref) return false;
@@ -25,11 +25,24 @@ function isDocReleaseTag(ref) {
 function getHeadTags() {
   try {
     const currentSha = process.env.VERCEL_GIT_COMMIT_SHA || 'HEAD';
-    const output = execSync(`git tag --points-at ${currentSha}`, {
+    let output = execSync(`git tag --points-at ${currentSha}`, {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'ignore'],
-    });
-    return output.trim().split('\n').map((t) => t.trim()).filter(Boolean);
+    }).trim();
+
+    if (!output) {
+      try {
+        execSync('git fetch --tags --depth=1', { stdio: ['pipe', 'pipe', 'ignore'], timeout: 3000 });
+        output = execSync(`git tag --points-at ${currentSha}`, {
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'ignore'],
+        }).trim();
+      } catch {
+        // Ignore fetch errors in offline or sandboxed environments
+      }
+    }
+
+    return output.split('\n').map((t) => t.trim()).filter(Boolean);
   } catch {
     return [];
   }

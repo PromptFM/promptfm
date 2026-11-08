@@ -61,9 +61,9 @@ const SKIP_PREVIEW_REGEX = /\[(skip preview|skip vercel|no-preview|skip ci)\]/i;
 const FORCE_PREVIEW_REGEX = /\[(preview|deploy-preview|run-preview)\]/i;
 const DEPLOY_PROD_REGEX = /\[(deploy-prod|force-deploy|release)\]/i;
 
-const PROMPTFM_TAG_REGEX = /^promptfm\/[a-zA-Z0-9._-]+$/;
-const SEMVER_TAG_REGEX = /^v\d+(\.\d+)*(-[a-zA-Z0-9._-]+)?$/;
-const DOCS_TAG_REGEX = /^gh-pages\/[a-zA-Z0-9._-]+$/;
+const PROMPTFM_TAG_REGEX = /^(?:refs\/tags\/)?promptfm\/[a-zA-Z0-9._-]+$/;
+const SEMVER_TAG_REGEX = /^(?:refs\/tags\/)?v\d+(\.\d+)*(-[a-zA-Z0-9._-]+)?$/;
+const DOCS_TAG_REGEX = /^(?:refs\/tags\/)?gh-pages\/[a-zA-Z0-9._-]+$/;
 
 /**
  * Returns true if the git ref is a production application release tag (e.g. promptfm/v1.0.0, promptfm/0.1.0, v1.0.0).

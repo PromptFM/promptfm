@@ -27,7 +27,7 @@ describe('Vercel Budget Gate ($0 Infra Policy)', () => {
     });
 
     it('permits production deployments when triggered by promptfm/<version> release tags', () => {
-      const tags = ['promptfm/v1.0.0', 'promptfm/0.1.0', 'promptfm/1.2.3', 'promptfm/v2.0.0-rc1'];
+      const tags = ['promptfm/v1.0.0', 'promptfm/0.1.0', 'promptfm/1.2.3', 'promptfm/v2.0.0-rc1', 'refs/tags/promptfm/v1.0.0'];
 
       for (const tag of tags) {
         const decision = shouldBuildVercelDeployment({
