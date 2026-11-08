@@ -11,6 +11,7 @@ Listeners can directly control the radio stream, inspect the airplay queue, vote
 | Command | Platform | Description | Example |
 | :--- | :--- | :--- | :--- |
 | `/song <title or vibe>` (or `/s`) | Web, Discord & Telegram | Requests and auto-enqueues an approved AI music track into the live radio stream next | `/song cyberpunk neon synthwave` |
+| `/request <id or query>` (or `/req`) | Web, Discord, Telegram & CLI | Tracks the real-time lifecycle status, queue position, and ETA of your song request | `/request 186f9b8c` or `/req Neon Horizon` |
 | `/vibe <prompt>` | Web, Discord & Telegram | Semantic vector search for tracks matching a musical mood | `/vibe rainy midnight lofi` |
 | `/queue`, `/next`, `/q`, `/n` | Web, Discord & Telegram | Displays upcoming airplay tracks and scheduled listener batch requests with ETA & status (never blank) | `/q` |
 | `/nowplaying` or `/np` | Web, Discord & Telegram | Displays the active on-air song, artist, AI tool, host DJ, and interactive upvote button | `/nowplaying` |
@@ -32,7 +33,30 @@ Listeners can directly control the radio stream, inspect the airplay queue, vote
 * **Queue Position & Provisional ETAs:** The bot immediately confirms your song with your live queue position (e.g. `Position: Up next (#1 in queue)` or `Position: #2 in queue`) and a provisional ETA (e.g. `~17:10 UTC (est. in ~3m, provisional)`).
 * **Track Updated Status:** Run `/queue` or `/next` at any time to view updated provisional play times and see exactly where your song is in line!
 
-### 2. Hourly Clock Wheel Milestones (:00 to :59)
+### 2. Request Lifecycle & Live Tracking (Issue #98)
+PromptFM provides end-to-end transparent lifecycle tracking so you can trust your requested songs:
+
+```
+  ┌──────────────┐     ┌──────────────┐     ┌───────────────┐     ┌────────────────┐     ┌──────────────┐
+  │  1. ACCEPTED │ ──> │  2. QUEUED   │ ──> │ 3. AIRING SOON│ ──> │   4. PLAYING   │ ──> │   5. PLAYED  │
+  │ (Processing) │     │ (In Rotation)│     │  (Next in ~2m)│     │ (On Air Right  │     │(Archived with│
+  └──────────────┘     └──────────────┘     └───────────────┘     │    Now!)       │     │  timestamp)  │
+                                                                  └────────────────┘     └──────────────┘
+```
+
+* **`accepted` (✅ Accepted & Processing):** Your request is validated by broadcast guardrails and scheduled into the system.
+* **`queued` (📋 In Broadcast Queue):** The track is placed in the live queue (`channel_queue`), with position (e.g. `#2 NEXT`) and estimated wait minutes.
+* **`airing_soon` (⏳ Airing Soon / Up Next):** Your song has reached position #1 in the queue and will begin playing the moment the current track concludes!
+* **`playing` (▶ Now Playing Your Request!):** Your track is live on air across web stream, Discord, and Telegram. Web cards display the `🎧 Requested by @user` attribution badge and `▶ NOW PLAYING YOUR REQUEST` banner.
+* **`played` (✅ Played on Air):** Track finished broadcasting and transitions to played status with an immutable airtime timestamp.
+* **`rejected` (🚫 Declined):** If a prompt violates content policies or licensing rules, it transitions to rejected with an explicit explanation.
+
+To check the exact real-time state of your submission, run:
+* **Discord / Telegram:** `/request <requestId or song title>` or `/req <prompt>`
+* **Terminal CLI:** `npm run promptfm request <id or title>`
+* **Web MCP Console:** `/request <id or title>`
+
+### 3. Hourly Clock Wheel Milestones (:00 to :59)
 Every hour on PromptFM follows a structured 4-part radio clock wheel:
 
 ```

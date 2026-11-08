@@ -162,6 +162,9 @@ export function parseMcpCommandString(input: string): ParsedCommand {
     case 'next':
     case 'n':
       return { command: 'queue', rawArgs };
+    case 'req':
+    case 'request':
+      return { command: 'request', rawArgs };
     case 'v':
     case 'vote':
       return { command: 'vote', rawArgs };
@@ -221,11 +224,12 @@ export async function executeWebMcpCommand(
         return {
           success: true,
           command: 'help',
-          message: 'PromptFM Web MCP Interactive Commands: /song, /queue, /nowplaying, /search, /vote, /djs, /schedule, /top, /report, /help',
+          message: 'PromptFM Web MCP Interactive Commands: /song, /queue, /request, /nowplaying, /search, /vote, /djs, /schedule, /top, /report, /help',
           data: {
             commands: [
               { command: '/song <vibe>', desc: 'Queue an AI track into the live station rotation' },
               { command: '/queue', desc: 'Inspect upcoming 5 tracks and requests' },
+              { command: '/request <id_or_title>', desc: 'Track live lifecycle status and queue position of your song request' },
               { command: '/nowplaying', desc: 'Live track metadata, active AI DJ, and audio URLs' },
               { command: '/search <vibe>', desc: 'pgvector semantic search matching natural language description' },
               { command: '/vote <track_id>', desc: 'Cast an upvote for any track on weekly charts' },
@@ -294,6 +298,28 @@ export async function executeWebMcpCommand(
           command: 'queue',
           toolName: 'promptfm_get_up_next',
           message: `Station Up Next: ${data.upcoming_count || data.up_next?.length || 0} track(s) in queue for ${channel}.`,
+          data,
+        };
+      }
+
+      case 'request': {
+        if (!rawArgs) {
+          return {
+            success: false,
+            command: 'request',
+            message: 'Please provide a request ID, song title, or vibe prompt. Example: /request 186f9b8c or /request Neon Horizon',
+          };
+        }
+        const data = await callMcpTool(
+          'promptfm_get_request_status',
+          { query: rawArgs, channel },
+          callOpts
+        );
+        return {
+          success: true,
+          command: 'request',
+          toolName: 'promptfm_get_request_status',
+          message: data.message || `Request status: ${data.display_status || data.status}`,
           data,
         };
       }
@@ -443,6 +469,20 @@ export async function webMcpQueueSong(
       prompt,
       channel: options.channel || 'main',
       requested_by: options.requester || 'Web Listener',
+    },
+    { adminKey: options.adminKey }
+  );
+}
+
+export async function webMcpGetRequestStatus(
+  query: string,
+  options: { channel?: string; adminKey?: string } = {}
+) {
+  return callMcpTool(
+    'promptfm_get_request_status',
+    {
+      query,
+      channel: options.channel || 'main',
     },
     { adminKey: options.adminKey }
   );

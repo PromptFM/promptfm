@@ -14,6 +14,7 @@ import { castVoteForTrack } from '@/lib/chat/bridge';
 import { submitContentReport } from '@/lib/safety/reports';
 import { getBotHelpText } from '@/lib/community/commands';
 import { verifyDiscordSignature } from '@/lib/community/discord-verify';
+import { getRequestLifecycle, formatRequestLifecycleMessage } from '@/lib/song/lifecycle';
 
 export const dynamic = 'force-dynamic';
 
@@ -238,6 +239,35 @@ export async function POST(req: NextRequest) {
         }
 
         return NextResponse.json({ success: true, upcoming: stationQueue.upcoming, queue: stationQueue });
+      }
+
+      // /request or /req command: /request <id_or_title> or /req <query>
+      if (
+        text === '/request' ||
+        text === '/req' ||
+        text.startsWith('/request ') ||
+        text.startsWith('/req ') ||
+        text.startsWith('/request@') ||
+        text.startsWith('/req@')
+      ) {
+        const query = text.replace(/^\/(request|req)(@[a-zA-Z0-9_]+)?\s*/, '').trim();
+        const lifecycle = await getRequestLifecycle(query);
+        const replyText = formatRequestLifecycleMessage(lifecycle, 'telegram');
+
+        if (botToken && chatId) {
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              reply_to_message_id: body.message.message_id,
+              text: replyText,
+              parse_mode: 'Markdown',
+            }),
+          });
+        }
+
+        return NextResponse.json({ success: true, request_lifecycle: lifecycle, reply_text: replyText });
       }
 
       // Direct /vote <trackId> command
@@ -491,6 +521,17 @@ export async function POST(req: NextRequest) {
             },
           });
         }
+      }
+
+      // /request or /req slash command
+      if (commandName === 'request' || commandName === 'req') {
+        const query = (options.find((o: { name: string }) => o.name === 'query' || o.name === 'id')?.value as string) || '';
+        const lifecycle = await getRequestLifecycle(query);
+        const content = formatRequestLifecycleMessage(lifecycle, 'discord');
+        return NextResponse.json({
+          type: 4,
+          data: { content },
+        });
       }
 
       // Scheduling commands: dedicate, weather, zodiac, song (including /d, /w, /z, /s shorthands)

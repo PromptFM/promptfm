@@ -6,7 +6,22 @@
 
 import { createAdminClient } from '../supabase/server';
 import { calculateQueueETA, type QueueETAInfo } from './pathway';
-import { formatAirTime } from '../dj/queue';
+
+/**
+ * Formats an ISO string or time string into display format "HH:MM UTC".
+ */
+export function formatAirTime(airTime?: string | null): string {
+  if (!airTime) return 'TBD';
+  if (airTime.includes('T')) {
+    const date = new Date(airTime);
+    if (!isNaN(date.getTime())) {
+      const hours = String(date.getUTCHours()).padStart(2, '0');
+      const mins = String(date.getUTCMinutes()).padStart(2, '0');
+      return `${hours}:${mins} UTC`;
+    }
+  }
+  return airTime;
+}
 
 export type RequestLifecycleStatus =
   | 'accepted'
@@ -48,6 +63,7 @@ export interface RequestLifecycleInfo {
   airedAt?: string;
   createdAt: string;
   isNowPlaying?: boolean;
+  channel?: string;
 }
 
 /**
@@ -142,9 +158,22 @@ export function getRequestLifecycleBadge(
  * Formats lifecycle info into friendly listener messages for Discord, Telegram, CLI, or Web.
  */
 export function formatRequestLifecycleMessage(
-  info: RequestLifecycleInfo,
+  info: RequestLifecycleInfo | null | undefined,
   format: 'discord' | 'telegram' | 'cli' | 'plain' = 'discord'
 ): string {
+  if (!info) {
+    if (format === 'discord') {
+      return '❌ **Request Not Found**\nNo active or queued song request matching your query was found. Use `/queue` to view current rotation or `/song <vibe>` to request a track.';
+    }
+    if (format === 'telegram') {
+      return '❌ *Request Not Found*\nNo active or queued song request matching your query was found. Use /queue to view current rotation or /song <vibe> to request a track.';
+    }
+    if (format === 'cli') {
+      return '❌ Request Not Found: No active or queued song request matching your query was found. Run "promptfm queue" or "promptfm song <vibe>".';
+    }
+    return 'Request Not Found: No active or queued song request matching your query was found.';
+  }
+
   const trackTitle = info.track?.title || info.prompt;
   const artistName = info.track?.artist;
   const user = info.platformUserName;
@@ -450,6 +479,7 @@ export async function getRequestLifecycle(
     airedAt: requestRow.aired_at || undefined,
     createdAt: requestRow.created_at,
     isNowPlaying: status === 'playing',
+    channel: channelSlug,
   };
 }
 

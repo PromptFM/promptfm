@@ -28,6 +28,7 @@ import {
 } from '@/lib/radio/channels';
 import { findTracksByVibe, indexTrackEmbedding } from '@/lib/dj/rag';
 import { queueSong, getSongQueueStatus } from '@/lib/song/pathway';
+import { getRequestLifecycle, formatRequestLifecycleMessage } from '@/lib/song/lifecycle';
 import { postTweetToX } from '@/lib/social/x-client';
 import { editTrackMetadata, deleteTrack } from '@/lib/dj/track-management';
 import {
@@ -165,6 +166,25 @@ const PUBLIC_MCP_TOOLS = [
           description: 'Number of upcoming items to return (default: 5)',
         },
       },
+    },
+  },
+  {
+    name: 'promptfm_get_request_status',
+    description:
+      'Tracks the live lifecycle status, queue position, ETA, and attribution for a listener song request on PromptFM (accepted, in queue, airing soon, on air now, played, or rejected).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Request ID (UUID), song title, or search prompt to track.',
+        },
+        channel: {
+          type: 'string',
+          description: 'Broadcast channel slug (default: "main")',
+        },
+      },
+      required: ['query'],
     },
   },
   {
@@ -915,6 +935,37 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
         })),
         formatted_discord: formatQueueForDiscord(stationQueue),
         formatted_telegram: formatQueueForTelegram(stationQueue),
+      };
+    }
+
+    case 'promptfm_get_request_status': {
+      const query = (args.query as string) || (args.request_id as string) || '';
+      const channel = (args.channel as string) || 'main';
+      const result = await getRequestLifecycle(query, channel);
+      if (!result) {
+        return {
+          found: false,
+          query,
+          message: `No active or queued song request matching "${query}" was found on PromptFM.`,
+        };
+      }
+      return {
+        found: true,
+        request_id: result.requestId,
+        status: result.status,
+        display_status: result.displayStatus,
+        badge_label: result.badgeLabel,
+        platform: result.platform,
+        platform_user_name: result.platformUserName,
+        type: result.type,
+        prompt: result.prompt,
+        batch_id: result.batchId,
+        position: result.position,
+        items_ahead: result.itemsAhead,
+        eta: result.eta,
+        track: result.track,
+        channel: result.channel || channel,
+        message: formatRequestLifecycleMessage(result, 'plain'),
       };
     }
 

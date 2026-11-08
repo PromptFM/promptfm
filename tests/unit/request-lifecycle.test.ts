@@ -200,6 +200,7 @@ import {
   formatRequestLifecycleMessage,
   getRequestLifecycle,
   syncAirplayRequestTransition,
+  formatAirTime,
   type RequestLifecycleStatus,
   type RequestLifecycleInfo,
 } from '@/lib/song/lifecycle';
@@ -438,6 +439,14 @@ describe('PromptFM Request Lifecycle Engine (Issue #98)', () => {
       position: 2,
       itemsAhead: 1,
     };
+
+    it('handles null or undefined request info gracefully for all formats', () => {
+      expect(formatRequestLifecycleMessage(null, 'discord')).toContain('Request Not Found');
+      expect(formatRequestLifecycleMessage(null, 'discord')).toContain('/queue');
+      expect(formatRequestLifecycleMessage(undefined, 'telegram')).toContain('Request Not Found');
+      expect(formatRequestLifecycleMessage(null, 'cli')).toContain('Request Not Found');
+      expect(formatRequestLifecycleMessage(null, 'plain')).toContain('Request Not Found');
+    });
 
     it('formats accepted request for Discord', () => {
       const msg = formatRequestLifecycleMessage({ ...baseInfo, status: 'accepted' }, 'discord');
@@ -1243,6 +1252,84 @@ describe('PromptFM Request Lifecycle Engine (Issue #98)', () => {
       const syncResult = await syncAirplayRequestTransition('', null, 'main');
       expect(syncResult.activeRequest).toBeNull();
       expect(syncResult.completedRequestIds).toEqual([]);
+    });
+
+    it('transitions requests with status accepted, queued, or pending when matched by target', async () => {
+      mockCommunityRequests.push(
+        {
+          id: 'req-accepted-target',
+          platform: 'discord',
+          platform_user_name: 'listener_acc',
+          type: 'song',
+          content: 'Cyber Wave',
+          target: 'track-accepted',
+          status: 'accepted',
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: 'req-queued-target',
+          platform: 'telegram',
+          platform_user_name: 'listener_que',
+          type: 'song',
+          content: 'Synth Rain',
+          target: 'track-queued',
+          status: 'queued',
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: 'req-pending-target',
+          platform: 'web',
+          platform_user_name: 'listener_pen',
+          type: 'song',
+          content: 'Future Beats',
+          target: 'track-pending',
+          status: 'pending',
+          created_at: new Date().toISOString(),
+        }
+      );
+
+      const resAcc = await syncAirplayRequestTransition('track-accepted', null, 'main');
+      expect(resAcc.activeRequest?.requestId).toBe('req-accepted-target');
+
+      const resQue = await syncAirplayRequestTransition('track-queued', null, 'main');
+      expect(resQue.activeRequest?.requestId).toBe('req-queued-target');
+
+      const resPen = await syncAirplayRequestTransition('track-pending', null, 'main');
+      expect(resPen.activeRequest?.requestId).toBe('req-pending-target');
+    });
+
+    it('transitions requests with status accepted, queued, or pending when matched by title', async () => {
+      mockCommunityRequests.push({
+        id: 'req-accepted-title',
+        platform: 'discord',
+        platform_user_name: 'listener_title',
+        type: 'song',
+        content: 'Special Neon Anthem',
+        target: null,
+        status: 'accepted',
+        created_at: new Date().toISOString(),
+      });
+
+      const resTitle = await syncAirplayRequestTransition('other-id', 'Special Neon Anthem', 'main');
+      expect(resTitle.activeRequest?.requestId).toBe('req-accepted-title');
+    });
+  });
+
+  describe('formatAirTime', () => {
+    it('returns TBD when airTime is null, undefined, or empty string', () => {
+      expect(formatAirTime(null)).toBe('TBD');
+      expect(formatAirTime(undefined)).toBe('TBD');
+      expect(formatAirTime('')).toBe('TBD');
+    });
+
+    it('formats ISO timestamps into HH:MM UTC format with zero-padding', () => {
+      expect(formatAirTime('2026-11-07T05:08:00.000Z')).toBe('05:08 UTC');
+      expect(formatAirTime('2026-11-07T14:30:00.000Z')).toBe('14:30 UTC');
+    });
+
+    it('returns original string when not containing T or when date is invalid', () => {
+      expect(formatAirTime('18:45 UTC')).toBe('18:45 UTC');
+      expect(formatAirTime('invalidTdate')).toBe('invalidTdate');
     });
   });
 });
