@@ -64,7 +64,13 @@ import {
   validateZeroEgressCompliance,
   type HostingerDNSRecord,
 } from '../src/lib/infra/hostinger-dns';
-import { createGitReleaseTag } from '../src/lib/infra/release-tag';
+import {
+  createGitReleaseTag,
+  suggestNextVersion,
+  getLatestReleaseVersion,
+  type ReleaseLane,
+  type BumpType,
+} from '../src/lib/infra/release-tag';
 import { execSync } from 'child_process';
 import { readFileSync, writeFileSync, appendFileSync, existsSync } from 'fs';
 import { join, basename } from 'path';
@@ -153,8 +159,13 @@ Hostinger Domain & DNS Automation ($0 Egress):
   dns apply <domain>      Apply DNS state to Hostinger domain
                           Flags: --state <path> --force
 
-Git Release & Ops Tagging:
-  tag <sql|infra|release> Generate & push tag (promptfm-sql/*, promptfm-infra/*, promptfm/*)
+Git Release, Versioning & Rollback Tagging:
+  tag suggest [app|infra|sql] Inspect latest git tag and suggest next SemVer bump
+                          Flags: --bump <patch|minor|major> --version <overrideVersion>
+  tag <app|infra|sql>     Generate & push standardized release tag (promptfm/*, promptfm-infra/*, promptfm-sql/*)
+                          Flags: --version <version> --dry-run
+  tag <infra-rollback|sql-rollback> <targetRef>
+                          Generate & push rollback tag (promptfm-infra/rollback-*, promptfm-sql/rollback-*)
                           Flags: --dry-run
 
 Moderation & Schedule:
@@ -2073,16 +2084,60 @@ Moderation & Schedule:
     }
 
     case 'tag': {
-      const tagType = args[1];
-      const validTypes = ['sql', 'infra', 'release', 'infra-rollback', 'sql-rollback'];
-      if (!validTypes.includes(tagType)) {
-        console.error('Usage: npm run promptfm -- tag <sql|infra|release|infra-rollback|sql-rollback> [targetRef] [--dry-run]');
+      const subAction = args[1];
+
+      if (subAction === 'suggest') {
+        const laneArg = (args[2] || 'app').toLowerCase() as ReleaseLane;
+        const validLanes: ReleaseLane[] = ['app', 'infra', 'sql'];
+        if (!validLanes.includes(laneArg)) {
+          console.error(`Invalid lane: "${args[2]}". Valid lanes: app, infra, sql.`);
+          process.exit(1);
+        }
+
+        const bump = (parseArg('--bump') || 'patch') as BumpType;
+        const overrideVersion = parseArg('--version') || parseArg('--override');
+
+        console.log(`🔍 Inspecting latest git release tag for lane [${laneArg}]...`);
+        const latest = getLatestReleaseVersion(laneArg);
+        const suggestion = suggestNextVersion({
+          lane: laneArg,
+          bump,
+          overrideVersion,
+        });
+
+        console.log(`📌 Current latest tag : ${latest.tag || 'none'} (version: ${latest.version})`);
+        if (suggestion.isOverride) {
+          console.log(`💡 Override version   : ${suggestion.suggestedVersion} (explicit override)`);
+        } else {
+          console.log(`💡 Suggested next ver : ${suggestion.suggestedVersion} (${bump} bump)`);
+        }
+        console.log(`🏷️  Target release tag : ${suggestion.suggestedTag}`);
+        console.log(`\n👉 To create and push this tag:`);
+        console.log(`   npm run promptfm -- tag ${laneArg === 'app' ? 'release' : laneArg} --version ${suggestion.suggestedVersion}`);
+        console.log(`👉 Or specify an explicit override version:`);
+        console.log(`   npm run promptfm -- tag ${laneArg === 'app' ? 'release' : laneArg} --version 1.0.0`);
+        break;
+      }
+
+      const validTypes = ['sql', 'infra', 'release', 'app', 'infra-rollback', 'sql-rollback'];
+      if (!validTypes.includes(subAction)) {
+        console.error('Usage: npm run promptfm -- tag <suggest|sql|infra|release|app|infra-rollback|sql-rollback> [targetRef] [--version <v>] [--dry-run]');
         process.exit(1);
       }
+
       const dryRun = args.includes('--dry-run');
       const targetRef = args.find((a, i) => i > 1 && !a.startsWith('--'));
+      const explicitVersion = parseArg('--version');
+
+      const tagType = subAction === 'app' ? 'release' : subAction;
+
       console.log(`🏷️  Creating Git tag for ${tagType}${dryRun ? ' (dry-run)' : ''}...`);
-      const result = createGitReleaseTag(tagType as any, { dryRun, targetRef });
+      const result = createGitReleaseTag(tagType as any, {
+        dryRun,
+        targetRef,
+        version: explicitVersion,
+      });
+
       if (dryRun) {
         console.log(`ℹ️  [Dry Run] Tag would be: ${result.tag}`);
       } else if (result.executed) {

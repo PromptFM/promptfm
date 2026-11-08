@@ -255,3 +255,170 @@ export function createGitReleaseTag(
   }
 }
 
+export interface SemVerParts {
+  major: number;
+  minor: number;
+  patch: number;
+}
+
+export type ReleaseLane = 'app' | 'infra' | 'sql';
+export type BumpType = 'patch' | 'minor' | 'major';
+
+/**
+ * Parses semantic version string (e.g. 0.1.0, v1.2.3, 0.2.0-abc1234) into major, minor, patch.
+ */
+export function parseSemVer(versionStr: string): SemVerParts | null {
+  if (!versionStr || typeof versionStr !== 'string') {
+    return null;
+  }
+  const clean = versionStr.trim().replace(/^v/i, '');
+  const match = clean.match(/^(\d+)\.(\d+)\.(\d+)/);
+  if (!match || !match[1] || !match[2] || !match[3]) {
+    return null;
+  }
+  return {
+    major: parseInt(match[1], 10),
+    minor: parseInt(match[2], 10),
+    patch: parseInt(match[3], 10),
+  };
+}
+
+/**
+ * Increments semantic version based on bump type (patch, minor, major).
+ */
+export function bumpSemVer(version: string, bump: BumpType): string {
+  const parts = parseSemVer(version);
+  if (!parts) {
+    throw new Error(`Invalid semantic version: "${version}"`);
+  }
+
+  if (bump === 'major') {
+    return `${parts.major + 1}.0.0`;
+  }
+  if (bump === 'minor') {
+    return `${parts.major}.${parts.minor + 1}.0`;
+  }
+  return `${parts.major}.${parts.minor}.${parts.patch + 1}`;
+}
+
+/**
+ * Inspects existing Git tags for a release lane and finds the highest SemVer tag.
+ */
+export function getLatestReleaseVersion(
+  lane: ReleaseLane,
+  execFn?: (cmd: string) => string
+): { tag: string | null; version: string } {
+  const exec = execFn || ((cmd: string) => execSync(cmd, { encoding: 'utf8' }).trim());
+  const prefix = lane === 'infra' ? 'promptfm-infra' : lane === 'sql' ? 'promptfm-sql' : 'promptfm';
+
+  let defaultVersion = '0.1.0';
+  if (lane === 'app') {
+    try {
+      const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+      defaultVersion = pkg.version || '0.2.0';
+    } catch {
+      defaultVersion = '0.2.0';
+    }
+  }
+
+  try {
+    const rawTags = exec(`git tag -l "${prefix}/*"`).trim();
+    if (!rawTags) {
+      return { tag: null, version: defaultVersion };
+    }
+
+    const tagLines = rawTags.split('\n').map((t) => t.trim()).filter(Boolean);
+    const parsedTags: Array<{ tag: string; semver: SemVerParts; versionStr: string }> = [];
+
+    for (const tag of tagLines) {
+      const afterPrefix = tag.replace(new RegExp(`^${prefix}/`, 'i'), '');
+      const semver = parseSemVer(afterPrefix);
+      if (semver) {
+        parsedTags.push({
+          tag,
+          semver,
+          versionStr: `${semver.major}.${semver.minor}.${semver.patch}`,
+        });
+      }
+    }
+
+    if (parsedTags.length === 0) {
+      return { tag: null, version: defaultVersion };
+    }
+
+    parsedTags.sort((a, b) => {
+      if (b.semver.major !== a.semver.major) return b.semver.major - a.semver.major;
+      if (b.semver.minor !== a.semver.minor) return b.semver.minor - a.semver.minor;
+      return b.semver.patch - a.semver.patch;
+    });
+
+    const highest = parsedTags[0];
+    if (!highest) {
+      return { tag: null, version: defaultVersion };
+    }
+
+    return {
+      tag: highest.tag,
+      version: highest.versionStr,
+    };
+  } catch {
+    return { tag: null, version: defaultVersion };
+  }
+}
+
+export interface SuggestNextVersionOptions {
+  lane: ReleaseLane;
+  bump?: BumpType;
+  overrideVersion?: string;
+  execFn?: (cmd: string) => string;
+  sha?: string;
+}
+
+/**
+ * Suggests the next release version and tag for a lane, or applies an explicit override version.
+ */
+export function suggestNextVersion(options: SuggestNextVersionOptions): {
+  lane: ReleaseLane;
+  currentVersion: string;
+  suggestedVersion: string;
+  suggestedTag: string;
+  isOverride: boolean;
+} {
+  const { lane, bump = 'patch', overrideVersion, execFn, sha = '0000000' } = options;
+
+  let isOverride = false;
+  let suggestedVersion = '';
+
+  const latest = getLatestReleaseVersion(lane, execFn);
+  const currentVersion = latest.version;
+
+  if (overrideVersion) {
+    const parsed = parseSemVer(overrideVersion);
+    if (!parsed) {
+      throw new Error(`Invalid semantic version override: "${overrideVersion}"`);
+    }
+    suggestedVersion = `${parsed.major}.${parsed.minor}.${parsed.patch}`;
+    isOverride = true;
+  } else {
+    suggestedVersion = bumpSemVer(currentVersion, bump);
+  }
+
+  let suggestedTag: string;
+  if (lane === 'infra') {
+    suggestedTag = formatInfraTag(suggestedVersion, sha);
+  } else if (lane === 'sql') {
+    suggestedTag = formatSqlTag(suggestedVersion, sha);
+  } else {
+    suggestedTag = formatReleaseTag(suggestedVersion, sha);
+  }
+
+  return {
+    lane,
+    currentVersion,
+    suggestedVersion,
+    suggestedTag,
+    isOverride,
+  };
+}
+
+

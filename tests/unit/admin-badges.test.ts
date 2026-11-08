@@ -24,7 +24,7 @@ describe('Admin Quick Navigation Badges in README.md', () => {
   it('contains clickable badge for DASHBOARDS_VERCEL linking to Vercel Analytics / Dashboard', () => {
     const content = fs.readFileSync(readmePath, 'utf8');
     // Must contain badge for DASHBOARDS_VERCEL
-    expect(content).toMatch(/\[!\[.*DASHBOARDS_VERCEL.*\]\(.*\)\]\((https:\/\/vercel\.com\/alex-trifans-projects\/promptfm[^)]+)\)/i);
+    expect(content).toMatch(/\[!\[.*DASHBOARDS_VERCEL.*\]\(.*\)\]\((https:\/\/vercel\.com\/alextrifan\/promptfm[^)]+)\)/i);
   });
 
   it('contains clickable badge for TRACES_GCP linking to GCP Cloud Trace', () => {
@@ -36,7 +36,20 @@ describe('Admin Quick Navigation Badges in README.md', () => {
   it('contains clickable badge for LOGS_VERCEL linking to Vercel Runtime Logs', () => {
     const content = fs.readFileSync(readmePath, 'utf8');
     // Must contain badge for LOGS_VERCEL
-    expect(content).toMatch(/\[!\[.*LOGS_VERCEL.*\]\(.*\)\]\((https:\/\/vercel\.com\/alex-trifans-projects\/promptfm\/logs[^)]*)\)/i);
+    expect(content).toMatch(/\[!\[.*LOGS_VERCEL.*\]\(.*\)\]\((https:\/\/vercel\.com\/alextrifan\/promptfm\/logs[^)]*)\)/i);
+  });
+
+  it('contains clickable badge for FLAGS_VERCEL linking to Vercel Feature Flags Console', () => {
+    const content = fs.readFileSync(readmePath, 'utf8');
+    // Must contain badge for FLAGS_VERCEL
+    expect(content).toMatch(/\[!\[.*FLAGS_VERCEL.*\]\(.*\)\]\((https:\/\/vercel\.com\/alextrifan\/promptfm\/flags[^)]*)\)/i);
+  });
+
+  it('contains Vercel Feature Flags entry in Operational Dashboards table and Admin Docs', () => {
+    const content = fs.readFileSync(readmePath, 'utf8');
+    expect(content).toContain('https://vercel.com/alextrifan/promptfm/flags');
+    expect(content).toMatch(/Vercel.*Flags/i);
+    expect(content).toMatch(/kill-switch|kill switch|feature flag/i);
   });
 });
 

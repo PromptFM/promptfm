@@ -3,99 +3,558 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PromptFM Docs & Architecture Portal | Community-Driven AI Radio</title>
-  <meta name="description" content="Technical documentation, stream architecture, and MCP developer guides for PromptFM, the autonomous 24/7 AI-generated music radio network.">
+  <title>PromptFM Docs & Architecture Portal | 24/7 AI Radio & Operations</title>
+  <meta name="description" content="Technical documentation, CLI reference, MCP integration, live telemetry dashboards, runbooks, and contributing guides for PromptFM autonomous AI radio.">
   <link rel="icon" href="https://promptfm.live/icon.png">
   <style>
     :root {
       --bg: #09090b;
-      --card-bg: #18181b;
+      --card-bg: #141416;
+      --card-hover: #1c1c20;
       --border: #27272a;
       --text: #f4f4f5;
       --muted: #a1a1aa;
-      --accent: #34d399;
-      --accent-dim: rgba(52, 211, 153, 0.15);
+      --accent: #10b981;
+      --accent-dim: rgba(16, 185, 129, 0.15);
+      --accent-hover: #34d399;
+      --code-bg: #030712;
+      --tag-bg: #1f2937;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
-    body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding: 2rem 1rem; }
-    .container { max-width: 900px; margin: 0 auto; }
-    header { text-align: center; margin-bottom: 3rem; }
-    .badge { display: inline-block; background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent); padding: 0.35rem 0.85rem; border-radius: 9999px; font-size: 0.85rem; font-weight: 600; margin-bottom: 1rem; }
-    h1 { font-size: 2.5rem; font-weight: 800; margin-bottom: 0.75rem; letter-spacing: -0.025em; }
+    body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 4rem; }
+    
+    /* Sticky Top Navigation Bar */
+    .top-nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(9, 9, 11, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 800;
+      font-size: 1.25rem;
+      color: #fff;
+      text-decoration: none;
+    }
+    .logo span { color: var(--accent); }
+    .nav-links {
+      display: flex;
+      gap: 0.85rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: color 0.15s ease;
+    }
+    .nav-links a:hover { color: var(--accent); }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1.25rem; }
+
+    /* Header & Hero */
+    header { text-align: center; margin: 2rem 0 2.5rem 0; }
+    .badge {
+      display: inline-block;
+      background: var(--accent-dim);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      padding: 0.35rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      margin-bottom: 1rem;
+    }
+    h1 { font-size: 2.75rem; font-weight: 900; margin-bottom: 0.75rem; letter-spacing: -0.03em; }
     h1 span { color: var(--accent); }
-    p.lead { color: var(--muted); font-size: 1.15rem; max-width: 650px; margin: 0 auto 1.5rem auto; }
-    .links-bar { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: 2rem; }
-    .btn { display: inline-flex; align-items: center; gap: 0.5rem; background: var(--card-bg); border: 1px solid var(--border); color: var(--text); padding: 0.65rem 1.25rem; border-radius: 0.5rem; text-decoration: none; font-weight: 600; font-size: 0.95rem; transition: all 0.2s ease; }
+    p.lead { color: var(--muted); font-size: 1.15rem; max-width: 750px; margin: 0 auto 1.5rem auto; }
+    
+    .quick-actions {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 2rem;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.65rem 1.25rem;
+      border-radius: 0.5rem;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: all 0.2s ease;
+    }
     .btn:hover { border-color: var(--accent); color: var(--accent); }
     .btn-primary { background: #059669; border-color: #059669; color: #fff; }
-    .btn-primary:hover { background: #10b981; border-color: #10b981; color: #fff; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-top: 2rem; }
-    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 0.75rem; padding: 1.5rem; transition: transform 0.2s ease, border-color 0.2s ease; }
-    .card:hover { transform: translateY(-2px); border-color: var(--accent); }
-    .card h3 { font-size: 1.25rem; margin-bottom: 0.5rem; color: #fff; }
-    .card p { color: var(--muted); font-size: 0.95rem; margin-bottom: 1rem; }
-    .card a { color: var(--accent); font-weight: 600; text-decoration: none; font-size: 0.9rem; }
-    .card a:hover { text-decoration: underline; }
-    footer { text-align: center; margin-top: 4rem; color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--border); padding-top: 2rem; }
+    .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: #000; }
+
+    /* Real-Time Status Pill Bar */
+    .status-bar {
+      display: flex;
+      justify-content: center;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+      margin-bottom: 2.5rem;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 0.85rem 1.25rem;
+    }
+    .status-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--muted); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; display: inline-block; box-shadow: 0 0 8px #10b981; }
+    .status-item strong { color: #fff; }
+
+    /* Search & Filter Bar */
+    .search-wrapper { margin-bottom: 2.5rem; position: relative; }
+    .search-input {
+      width: 100%;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 0.9rem 1.25rem;
+      color: #fff;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+    .search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); }
+
+    /* Main Sections */
+    .section-title {
+      font-size: 1.5rem;
+      font-weight: 800;
+      margin: 2.5rem 0 1rem 0;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+    .section-title span { color: var(--accent); }
+    
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.25rem; }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 1.35rem;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+    .card:hover { transform: translateY(-2px); border-color: var(--accent); background: var(--card-hover); }
+    .card h3 { font-size: 1.15rem; margin-bottom: 0.4rem; color: #fff; display: flex; align-items: center; gap: 0.5rem; }
+    .card p { color: var(--muted); font-size: 0.9rem; margin-bottom: 0.85rem; }
+    .card a.link { color: var(--accent); font-weight: 600; text-decoration: none; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.35rem; }
+    .card a.link:hover { text-decoration: underline; }
+
+    /* Code Block styling */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      padding: 0.75rem 1rem;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.85rem;
+      overflow-x: auto;
+      margin: 0.5rem 0 0.85rem 0;
+      color: #34d399;
+    }
+    code { font-family: monospace; background: var(--tag-bg); padding: 0.15rem 0.35rem; border-radius: 0.25rem; font-size: 0.85rem; }
+    table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.85rem; }
+    th, td { text-align: left; padding: 0.6rem 0.75rem; border: 1px solid var(--border); }
+    th { background: #1f2937; color: #fff; }
+    td { color: var(--muted); }
+    td strong { color: #fff; }
+
+    footer {
+      text-align: center;
+      margin-top: 4rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--border);
+      padding-top: 2rem;
+    }
   </style>
 </head>
 <body>
+
+  <!-- Top Sticky Navigation Bar -->
+  <nav class="top-nav">
+    <a href="#" class="logo">📻 PromptFM <span>Portal</span></a>
+    <div class="nav-links">
+      <a href="#prompts">Prompts</a>
+      <a href="#cli">CLI</a>
+      <a href="#mcp">MCP</a>
+      <a href="#dashboards">Dashboards</a>
+      <a href="#contributing">TDD & Contributing</a>
+      <a href="#roadmap">Roadmap</a>
+      <a href="#funding">Funding</a>
+      <a href="#runbooks">Runbooks</a>
+      <a href="#workflows">Workflows</a>
+      <a href="#issues">Issues</a>
+      <a href="#contacts">Contacts</a>
+      <a href="#socials">Socials</a>
+    </div>
+  </nav>
+
   <div class="container">
     <header>
-      <div class="badge">PROMPTFM COMMUNITY ARCHITECTURE</div>
+      <div class="badge">PROMPTFM ARCHITECTURE, DEV &amp; OPS PORTAL</div>
       <h1>PromptFM <span>Documentation</span></h1>
-      <p class="lead">Autonomous, community-driven 24/7 AI-generated music radio network powered by Next.js, Liquidsoap, Icecast, and Google Gemini Neural Audio.</p>
-      
-      <div class="links-bar">
-        <a href="https://promptfm.live" class="btn btn-primary">🎧 Tune In Live (promptfm.live)</a>
-        <a href="https://github.com/PromptFM/promptfm" class="btn">⭐ GitHub Repository</a>
-        <a href="https://promptfm.live/#contribute" class="btn">💻 Contribute</a>
+      <p class="lead">Autonomous 24/7 AI Music Radio network engineered for strict $0.00 cloud costs, rigorous Test-Driven Development (TDD), zero-egress Cloudflare audio delivery, and multi-lane SemVer automation.</p>
+
+      <div class="quick-actions">
+        <a href="https://promptfm.live" class="btn btn-primary" target="_blank" rel="noopener">🎧 Tune In Live (promptfm.live)</a>
+        <a href="https://vercel.com/alextrifan/promptfm/flags" class="btn" target="_blank" rel="noopener">🚩 Vercel Flags Console</a>
+        <a href="https://console.cloud.google.com/monitoring/dashboards/builder/ce33f584-e48f-407a-b2e7-1d1fa9e990ff?project=promptfm-radio-1793623670" class="btn" target="_blank" rel="noopener">📊 GCP Telemetry Dashboard</a>
+        <a href="https://github.com/PromptFM/promptfm" class="btn" target="_blank" rel="noopener">⭐ GitHub Repo</a>
+      </div>
+
+      <!-- Real-Time Status Pill Bar -->
+      <div class="status-bar">
+        <div class="status-item"><span class="dot"></span> Stream: <strong>stream.promptfm.live:443</strong></div>
+        <div class="status-item"><span class="dot"></span> System API: <strong>/api/status (Live)</strong></div>
+        <div class="status-item"><span class="dot"></span> Vercel Edge: <strong>Production Active</strong></div>
+        <div class="status-item"><span class="dot"></span> GCP Streamer: <strong>e2-micro ($0.00 Always Free)</strong></div>
       </div>
     </header>
 
-    <div class="grid">
-      <div class="card">
-        <h3>☁️ GCP Streamer Architecture</h3>
-        <p>Complete deployment blueprint for 100% free-tier Icecast + Liquidsoap streaming on Google Cloud Platform.</p>
-        <a href="https://github.com/PromptFM/promptfm/blob/main/docs/gcp-always-free-streamer.md" target="_blank" rel="noopener">Read Streamer Guide &rarr;</a>
-      </div>
-
-      <div class="card">
-        <h3>🤖 MCP Agent Integration</h3>
-        <p>Manage stations, queue tracks, inject live voice drops, and administer channels using Model Context Protocol (MCP).</p>
-        <a href="https://github.com/PromptFM/promptfm/blob/main/docs/mcp-integration-guide.md" target="_blank" rel="noopener">Read MCP Specs &rarr;</a>
-      </div>
-
-      <div class="card">
-        <h3>📻 Listener & Voting Guide</h3>
-        <p>How the democratic airplay system works: web voting, Discord/Telegram requests, and real-time station charts.</p>
-        <a href="https://github.com/PromptFM/promptfm/blob/main/docs/listener-guide.md" target="_blank" rel="noopener">Read Listener Guide &rarr;</a>
-      </div>
-
-      <div class="card">
-        <h3>🧬 Strict TDD & Mutation Testing</h3>
-        <p>PromptFM mandates strict Test-Driven Development (Red &rarr; Green &rarr; Refactor) with Stryker Mutation Testing (&ge;80% score).</p>
-        <a href="https://github.com/PromptFM/promptfm/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">Read Contributor Guidelines &rarr;</a>
-      </div>
-
-      <div class="card">
-        <h3>🎙️ Audio Ads & Sponsor Drops</h3>
-        <p>Specifications for dynamic AI host-read endorsements, produced commercials (-14 LUFS), and clock-wheel rotation.</p>
-        <a href="https://promptfm.live/#contribute" target="_blank" rel="noopener">Learn About Ad Formats &rarr;</a>
-      </div>
-
-      <div class="card">
-        <h3>❤️ Funding & Community Support</h3>
-        <p>Support server compute and open development via GitHub Sponsors (0% platform fee) or 1-click tips.</p>
-        <a href="https://github.com/sponsors/atrifan" target="_blank" rel="noopener">Sponsor on GitHub &rarr;</a>
-      </div>
+    <!-- Search & Filter Bar -->
+    <div class="search-wrapper">
+      <input type="text" id="portal-search" class="search-input" placeholder="🔍 Search prompts, CLI commands, MCP setup, dashboards, runbooks, or workflows...">
     </div>
+
+    <!-- 1. AI Prompts & Monologues -->
+    <section id="prompts" class="portal-section">
+      <h2 class="section-title">🎙️ <span>AI Prompts</span> &amp; Monologue Engine</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>DJ Personality Prompts</h3>
+          <p>PromptFM utilizes Google Gemini 3.5 Flash neural models to craft context-aware radio host monologues. Distinct persona archetypes (Neon Knight Synthwave, Velvet Midnight Chillout, Luna Retro, and Blitz Energy) generate seamless track introductions, dedications, and vibe contextualization.</p>
+          <pre>npm run promptfm -- dj "Introduce Neon Drift by Suno AI" --dj neon</pre>
+          <a href="https://github.com/PromptFM/promptfm/blob/main/src/lib/dj/engine.ts" class="link" target="_blank" rel="noopener">Inspect Engine Prompt Code &rarr;</a>
+        </div>
+        <div class="card">
+          <h3>Weather &amp; News Bulletin Drops</h3>
+          <p>Automated interstitial speech drops synthesize real-time city temperatures from Open-Meteo and live technology headlines. Spoken audio is generated via Gemini 2.5 Flash TTS with natural pacing, station callouts, and background music ducking.</p>
+          <pre>npm run promptfm -- weather "Tokyo" --dj velvet
+npm run promptfm -- news "Artificial Intelligence" --live</pre>
+          <a href="https://github.com/PromptFM/promptfm/blob/main/docs/admin-guide.md" class="link" target="_blank" rel="noopener">View Station Admin Guide &rarr;</a>
+        </div>
+        <div class="card">
+          <h3>After Dark (18+) &amp; Safety Guardrails</h3>
+          <p>Channel guardrails automatically enforce age disclaimers and legal compliance for explicit lyrics. Prompts filter against unauthorized advertising, hate speech, and harassment while supporting uncensored adult electronic and hip-hop broadcasts.</p>
+          <pre>npm run promptfm -- channels create afterdark "After Dark 18+" --18plus</pre>
+          <a href="https://github.com/PromptFM/promptfm/blob/main/src/lib/safety/channel-guardrails.ts" class="link" target="_blank" rel="noopener">Review Safety Guardrails &rarr;</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. CLI Command Reference -->
+    <section id="cli" class="portal-section">
+      <h2 class="section-title">💻 <span>CLI Command</span> Reference (<code>npm run promptfm</code>)</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Airplay, Rotation &amp; Queue Control</h3>
+          <p>Inspect what is currently broadcasting, test rotation clock algorithms, cast votes, and bump tracks to the live airplay queue:</p>
+          <pre>npm run promptfm -- now
+npm run promptfm -- next
+npm run promptfm -- vote &lt;trackId&gt;
+npm run promptfm -- queue next &lt;trackId&gt;
+npm run promptfm -- vibe "late night coding synthwave"</pre>
+        </div>
+        <div class="card">
+          <h3>Domain &amp; Zero-Egress DNS Audit</h3>
+          <p>Audit DNS zones, migrate Hostinger records, and verify that all streaming traffic is safely routed through Cloudflare to avoid GCP egress bills:</p>
+          <pre>npm run promptfm -- dns status promptfm.live
+npm run promptfm -- dns diff stream.promptfm.live
+npm run promptfm -- dns validate promptfm.live</pre>
+        </div>
+        <div class="card">
+          <h3>SemVer Tagging, Suggestions &amp; Rollback</h3>
+          <p>Generate standardized Git release tags for code, infrastructure, and database migrations, or trigger instant rollbacks:</p>
+          <pre># Inspect latest tag &amp; suggest next bump
+npm run promptfm -- tag suggest [app|infra|sql] --bump patch
+# Create &amp; push tag with optional version override
+npm run promptfm -- tag infra --version 1.0.0
+# Rollback infrastructure or database
+npm run promptfm -- tag infra-rollback &lt;targetRef&gt;
+npm run promptfm -- tag sql-rollback &lt;version&gt;</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Model Context Protocol (MCP) -->
+    <section id="mcp" class="portal-section">
+      <h2 class="section-title">🤖 <span>Setting Up MCP</span> (Model Context Protocol)</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>AI Agent Radio Studio Operations</h3>
+          <p>Control the station programmatically using Anthropic Claude Desktop, Cursor, or Google Antigravity IDE. MCP tools provide real-time access to playlist queues, voice drop synthesis, track metadata editing, and telemetry health checks.</p>
+          <a href="https://github.com/PromptFM/promptfm/blob/main/docs/mcp-integration-guide.md" class="link" target="_blank" rel="noopener">Read Full MCP Specs (mcp-integration-guide.md) &rarr;</a>
+        </div>
+        <div class="card">
+          <h3>Claude Desktop &amp; Cursor Configuration</h3>
+          <p>Add PromptFM MCP server to your local <code>claude_desktop_config.json</code>:</p>
+          <pre>{
+  "mcpServers": {
+    "promptfm": {
+      "command": "node",
+      "args": ["/path/to/promptfm/scripts/mcp-server.js"]
+    }
+  }
+}</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Dashboards & Realtime Telemetry -->
+    <section id="dashboards" class="portal-section">
+      <h2 class="section-title">📊 <span>Dashboards</span> &amp; Realtime Telemetry</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Google Cloud Platform (GCP)</h3>
+          <p>Live monitoring for Gemini 3.5 Flash quotas, Gemini 2.5 Flash TTS synthesis latency, Cloud Storage requests, and distributed traces:</p>
+          <p><a href="https://console.cloud.google.com/monitoring/dashboards/builder/ce33f584-e48f-407a-b2e7-1d1fa9e990ff?project=promptfm-radio-1793623670" class="link" target="_blank" rel="noopener">📈 GCP Cloud Monitoring (promptfm-radio-1793623670) &rarr;</a></p>
+          <p><a href="https://console.cloud.google.com/logs/query?project=promptfm-radio-1793623670" class="link" target="_blank" rel="noopener">🪵 GCP Cloud Logging (50GB/mo Free) &rarr;</a></p>
+          <p><a href="https://console.cloud.google.com/traces/overview?project=promptfm-radio-1793623670" class="link" target="_blank" rel="noopener">🔍 GCP Cloud Trace (Distributed W3C Tracing) &rarr;</a></p>
+        </div>
+        <div class="card">
+          <h3>Vercel &amp; Realtime Status Checks</h3>
+          <p>Monitor edge execution logs, web analytics, and instant feature toggles:</p>
+          <p><a href="https://vercel.com/alextrifan/promptfm/flags" class="link" target="_blank" rel="noopener">🚩 Vercel Feature Flags &amp; Kill-Switches Console &rarr;</a></p>
+          <p><a href="https://vercel.com/alextrifan/promptfm/analytics" class="link" target="_blank" rel="noopener">📊 Vercel Realtime Analytics &rarr;</a></p>
+          <p><a href="https://vercel.com/alextrifan/promptfm/logs" class="link" target="_blank" rel="noopener">⚡ Vercel Function Runtime Logs &rarr;</a></p>
+          <p><a href="https://promptfm.live/api/status" class="link" target="_blank" rel="noopener">🩺 Live Status Endpoint: /api/status &rarr;</a></p>
+          <p><a href="http://stream.promptfm.live:8000/admin/" class="link" target="_blank" rel="noopener">📻 Icecast 2 Stream Mount Admin &rarr;</a></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. Contributing Guidelines & TDD -->
+    <section id="contributing" class="portal-section">
+      <h2 class="section-title">🧬 <span>Contributing Guidelines</span> &amp; TDD</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Strict Red &rarr; Green &rarr; Refactor</h3>
+          <p>PromptFM strictly enforces Test-Driven Development (TDD) for every code change. Unverified PRs without unit/integration tests are blocked by CI gates.</p>
+          <pre># 1. Run unit test suite
+npm test
+# 2. Typecheck TypeScript
+npm run typecheck
+# 3. Stryker Mutation Testing (>=80% Score)
+npm run test:mutate</pre>
+          <a href="https://github.com/PromptFM/promptfm/blob/main/CONTRIBUTING.md" class="link" target="_blank" rel="noopener">Read Contributing Guidelines (CONTRIBUTING.md) &rarr;</a>
+        </div>
+        <div class="card">
+          <h3>Zero-Cost Philosophy</h3>
+          <p>Every architectural component must operate strictly within Always-Free tiers ($0.00/mo). No third-party SaaS subscriptions (Datadog, Sentry, AWS NAT) are permitted.</p>
+          <a href="https://github.com/PromptFM/promptfm/blob/main/docs/gcp-always-free-streamer.md" class="link" target="_blank" rel="noopener">Review $0 GCP Architecture Blueprint &rarr;</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. Roadmap Status -->
+    <section id="roadmap" class="portal-section">
+      <h2 class="section-title">🗺️ <span>Roadmap Status</span> &amp; Active Milestones</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Completed Milestones</h3>
+          <p>✅ <strong>24/7 Always-Free GCP Streamer:</strong> Compute Engine e2-micro with Liquidsoap &amp; Icecast 2.<br>
+             ✅ <strong>Zero-Egress Audio Stream:</strong> Cloudflare Tunnel edge proxying with HTTPS on <code>stream.promptfm.live</code>.<br>
+             ✅ <strong>Multi-Lane SemVer &amp; Rollback:</strong> Independent Git release tags for code, infra, and SQL migrations.</p>
+          <a href="https://github.com/PromptFM/promptfm/blob/main/ROADMAP.md" class="link" target="_blank" rel="noopener">Read Engineering Roadmap (ROADMAP.md) &rarr;</a>
+        </div>
+        <div class="card">
+          <h3>Active Backlog &amp; In-Progress</h3>
+          <p>⏳ <strong>Autonomous 24/7 Clock Daemon:</strong> Background rotation worker with deterministic queue ETAs.<br>
+             ⏳ <strong>Mobile Player Ergonomics:</strong> Slide-up drawer for &lt;375px small screen devices.<br>
+             ⏳ <strong>Discord Slash Commands:</strong> Interactive song requests, dedications, and airplay embeds.</p>
+          <a href="https://github.com/orgs/PromptFM/projects/1" class="link" target="_blank" rel="noopener">Visit Public GitHub Project Board #1 &rarr;</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7. Multi-Rail Funding -->
+    <section id="funding" class="portal-section">
+      <h2 class="section-title">❤️ <span>Multi-Rail Funding</span> &amp; Zero-Cost Transparency</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Transparent $0.00 Cloud Cost Stack</h3>
+          <table>
+            <thead>
+              <tr><th>Provider</th><th>Resource</th><th>Monthly Cost</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>Google Cloud</strong></td><td>e2-micro VM + 50GB Logging + 5GB GCS</td><td>$0.00 (Always-Free)</td></tr>
+              <tr><td><strong>Vercel</strong></td><td>Next.js Serverless Edge + Web Analytics</td><td>$0.00 (Hobby)</td></tr>
+              <tr><td><strong>Cloudflare</strong></td><td>Zero-Egress Tunnel + CDN Caching</td><td>$0.00 (Free Tier)</td></tr>
+              <tr><td><strong>Google AI Studio</strong></td><td>Gemini 3.5 Flash &amp; 2.5 Flash TTS</td><td>$0.00 (15 RPM Free)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h3>Supported Contribution Rails</h3>
+          <p>100% of community patronage goes toward future radio licensing, creator grants, and domain fees:</p>
+          <p><a href="https://github.com/sponsors/atrifan" class="link" target="_blank" rel="noopener">💖 GitHub Sponsors (@atrifan - 0% Fee) &rarr;</a></p>
+          <p><a href="https://donate.stripe.com/6oUaEYdUpa9zgEA2H3cQU00" class="link" target="_blank" rel="noopener">💳 Stripe Direct Donation (Apple/Google Pay) &rarr;</a></p>
+          <p><a href="https://ko-fi.com/promptfm" class="link" target="_blank" rel="noopener">☕ Ko-fi Tips (ko-fi.com/promptfm) &rarr;</a></p>
+          <p><a href="https://paypal.me/promptfm" class="link" target="_blank" rel="noopener">🅿️ PayPal.Me (paypal.me/promptfm) &rarr;</a></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8. Operational Runbooks -->
+    <section id="runbooks" class="portal-section">
+      <h2 class="section-title">📖 <span>Runbooks</span> &amp; Disaster Recovery</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Disaster Recovery &amp; Streamer Reboot</h3>
+          <p>If the Icecast or Liquidsoap audio stream experiences connectivity dropouts, execute standard systemd recovery or tunnel restart:</p>
+          <pre># SSH into Always-Free GCP streamer VM
+ssh streamer@stream.promptfm.live
+# Restart Icecast 2 &amp; Liquidsoap broadcast containers
+sudo systemctl restart docker-compose@promptfm
+# Verify stream health
+curl -I https://stream.promptfm.live/stream.mp3</pre>
+          <a href="https://github.com/PromptFM/promptfm/blob/main/docs/admin-guide.md" class="link" target="_blank" rel="noopener">Open Station Admin Guide (admin-guide.md) &rarr;</a>
+        </div>
+        <div class="card">
+          <h3>Automated Multi-Lane Rollback Runbook</h3>
+          <p>PromptFM supports independent rollbacks for code, infrastructure, and database migrations without redeploying other systems:</p>
+          <pre># Application Rollback (Vercel)
+npm run promptfm -- tag release --version rollback-&lt;sha&gt;
+# Infrastructure Rollback (Terraform/Ansible)
+npm run promptfm -- tag infra-rollback &lt;targetRef&gt;
+# SQL Migration Rollback (Supabase)
+npm run promptfm -- tag sql-rollback &lt;version&gt;</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 9. GitHub Actions Workflows -->
+    <section id="workflows" class="portal-section">
+      <h2 class="section-title">⚡ <span>GitHub Actions</span> CI/CD Workflows</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Quality Gates &amp; Validation</h3>
+          <p><strong>ci.yml:</strong> Runs Vitest unit &amp; integration tests, TypeScript compiler (typecheck), ESLint, Terraform format &amp; state check, Ansible syntax &amp; dry-run, and Stryker mutation verification.<br>
+             <strong>preview-deploy.yml:</strong> Zero-cost budget gate protecting Vercel CPU quotas.<br>
+             <strong>retest.yml:</strong> Chat-Ops bot listening for <code>/retest</code> comments on PRs.</p>
+        </div>
+        <div class="card">
+          <h3>Deployment &amp; Rollback Pipelines</h3>
+          <p><strong>apply-terraform.yml:</strong> Applies Terraform infra upon <code>promptfm-infra/*</code> tags or manual dispatch.<br>
+             <strong>apply-sql-schema.yml:</strong> Applies Supabase database migrations upon <code>promptfm-sql/*</code> tags or manual dispatch.<br>
+             <strong>rollback-infra.yml &amp; rollback-sql.yml:</strong> Executes safe rollbacks to specific commit SHAs or migration versions.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 10. Filing Bugs & Issues -->
+    <section id="issues" class="portal-section">
+      <h2 class="section-title">🐛 <span>Filing Bugs</span> &amp; Security Disclosure</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Issue Tracking &amp; Feature Requests</h3>
+          <p>Found a playback bug or want to suggest a new radio channel or AI host persona? Submit an issue using our structured templates:</p>
+          <p><a href="https://github.com/PromptFM/promptfm/issues/new?template=bug_report.md" class="link" target="_blank" rel="noopener">🪲 Submit Bug Report &rarr;</a></p>
+          <p><a href="https://github.com/PromptFM/promptfm/issues/new?template=feature_request.md" class="link" target="_blank" rel="noopener">💡 Request Feature or Station &rarr;</a></p>
+        </div>
+        <div class="card">
+          <h3>Responsible Vulnerability Disclosure</h3>
+          <p>Security vulnerabilities should never be reported publicly on GitHub issues. Please report security concerns confidentially:</p>
+          <p><strong>Email:</strong> <a href="mailto:security@promptfm.live" style="color: var(--accent);">security@promptfm.live</a></p>
+          <a href="https://github.com/PromptFM/promptfm/blob/main/SECURITY.md" class="link" target="_blank" rel="noopener">Review Security Policy (SECURITY.md) &rarr;</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- 11. Relevant Contacts -->
+    <section id="contacts" class="portal-section">
+      <h2 class="section-title">📬 <span>Relevant Contacts</span> &amp; Maintainers</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Core Maintainers</h3>
+          <p><strong>Project Lead &amp; Architect:</strong> Alex Trifan (<a href="https://github.com/atrifan" style="color: var(--accent);" target="_blank" rel="noopener">@atrifan</a>)<br>
+             <strong>Engineering:</strong> <a href="mailto:dev@promptfm.live" style="color: var(--accent);">dev@promptfm.live</a><br>
+             <strong>Station &amp; Content Operations:</strong> <a href="mailto:admin@promptfm.live" style="color: var(--accent);">admin@promptfm.live</a></p>
+        </div>
+        <div class="card">
+          <h3>Station Manager Studio</h3>
+          <p>Authorized station managers can manage the on-air queue, approve creator submissions, curate theme channels, and trigger manual voice drops directly from the web admin console:</p>
+          <a href="https://promptfm.live/admin" class="btn btn-primary" target="_blank" rel="noopener">🎛️ Launch Station Manager Studio &rarr;</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- 12. Social Networks & Community -->
+    <section id="socials" class="portal-section">
+      <h2 class="section-title">🌐 <span>Social Networks</span> &amp; Community Bridges</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Join the Community</h3>
+          <p><strong>X (Twitter):</strong> <a href="https://x.com/promptfm_live" style="color: var(--accent);" target="_blank" rel="noopener">@promptfm_live</a> — automated airplay announcements &amp; listener charts.<br>
+             <strong>Discord Server:</strong> Real-time song requests, community track drops, and 24/7 radio bridge.<br>
+             <strong>Telegram Channel:</strong> Instant airplay notifications and live dedications.<br>
+             <strong>GitHub Organization:</strong> <a href="https://github.com/PromptFM" style="color: var(--accent);" target="_blank" rel="noopener">github.com/PromptFM</a></p>
+        </div>
+      </div>
+    </section>
 
     <footer>
       <p>&copy; 2026 PromptFM Community. Source-Available under PromptFM Community License 1.0.</p>
-      <p style="margin-top: 0.5rem;">Live Broadcast at <a href="https://promptfm.live" style="color: var(--accent);">promptfm.live</a></p>
+      <p style="margin-top: 0.5rem;">Live Broadcast 24/7 at <a href="https://promptfm.live" style="color: var(--accent);">promptfm.live</a> | Built with Next.js, Liquidsoap, Icecast &amp; Google Gemini Neural Audio</p>
     </footer>
   </div>
+
+  <script>
+    // Realtime Client-Side Search and Filter
+    const searchInput = document.getElementById('portal-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        const cards = document.querySelectorAll('.card');
+        const sections = document.querySelectorAll('.portal-section');
+
+        cards.forEach((card) => {
+          const text = card.textContent.toLowerCase();
+          if (!query || text.includes(query)) {
+            card.style.display = 'block';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+
+        sections.forEach((section) => {
+          const visibleCards = section.querySelectorAll('.card[style="display: block;"], .card:not([style*="display: none"])');
+          if (!query || visibleCards.length > 0) {
+            section.style.display = 'block';
+          } else {
+            section.style.display = 'none';
+          }
+        });
+      });
+    }
+  </script>
 </body>
 </html>
-

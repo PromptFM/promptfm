@@ -9,6 +9,10 @@ import {
   createGitReleaseTag,
   extractGhTokenFromRemote,
   resolveGitHubToken,
+  parseSemVer,
+  bumpSemVer,
+  getLatestReleaseVersion,
+  suggestNextVersion,
 } from '@/lib/infra/release-tag';
 
 describe('Release and Rollback Tag Formatter', () => {
@@ -293,6 +297,129 @@ describe('Release and Rollback Tag Formatter', () => {
 
       expect(res.tag).toBe('promptfm/0.2.0-1234567');
       expect(res.executed).toBe(false);
+    });
+  });
+
+  describe('SemVer Tag Suggestion & Versioning Engine', () => {
+    describe('parseSemVer', () => {
+      it('parses basic semantic version strings', () => {
+        expect(parseSemVer('0.1.0')).toEqual({ major: 0, minor: 1, patch: 0 });
+        expect(parseSemVer('v1.2.3')).toEqual({ major: 1, minor: 2, patch: 3 });
+        expect(parseSemVer('2.0.1-alpha.1')).toEqual({ major: 2, minor: 0, patch: 1 });
+      });
+
+      it('returns null for non-semver strings', () => {
+        expect(parseSemVer('not-a-version')).toBeNull();
+        expect(parseSemVer('')).toBeNull();
+      });
+    });
+
+    describe('bumpSemVer', () => {
+      it('bumps patch, minor, and major correctly', () => {
+        expect(bumpSemVer('0.1.0', 'patch')).toBe('0.1.1');
+        expect(bumpSemVer('0.1.0', 'minor')).toBe('0.2.0');
+        expect(bumpSemVer('0.1.0', 'major')).toBe('1.0.0');
+        expect(bumpSemVer('v1.2.3', 'patch')).toBe('1.2.4');
+      });
+
+      it('throws error for invalid version string', () => {
+        expect(() => bumpSemVer('invalid', 'patch')).toThrow('Invalid semantic version');
+      });
+    });
+
+    describe('getLatestReleaseVersion', () => {
+      it('finds the highest SemVer tag for the specified lane', () => {
+        const mockExec = (cmd: string) => {
+          if (cmd.includes('promptfm-infra/*')) {
+            return `promptfm-infra/0.1.0-abc1234\npromptfm-infra/0.1.1-def5678\npromptfm-infra/0.1.0\npromptfm-infra/0.0.9`;
+          }
+          return '';
+        };
+
+        const result = getLatestReleaseVersion('infra', mockExec);
+        expect(result.version).toBe('0.1.1');
+        expect(result.tag).toBe('promptfm-infra/0.1.1-def5678');
+      });
+
+      it('falls back to default initial version if no tags exist', () => {
+        const mockExec = () => '';
+        const infraResult = getLatestReleaseVersion('infra', mockExec);
+        expect(infraResult.version).toBe('0.1.0');
+        expect(infraResult.tag).toBeNull();
+
+        const sqlResult = getLatestReleaseVersion('sql', mockExec);
+        expect(sqlResult.version).toBe('0.1.0');
+        expect(sqlResult.tag).toBeNull();
+      });
+    });
+
+    describe('suggestNextVersion', () => {
+      it('suggests next patch version by default based on latest tag', () => {
+        const mockExec = (cmd: string) => {
+          if (cmd.includes('promptfm-infra/*')) {
+            return `promptfm-infra/0.1.0-4a8b1c2`;
+          }
+          return '';
+        };
+
+        const suggestion = suggestNextVersion({
+          lane: 'infra',
+          execFn: mockExec,
+          sha: 'abcdef123456',
+        });
+
+        expect(suggestion.lane).toBe('infra');
+        expect(suggestion.currentVersion).toBe('0.1.0');
+        expect(suggestion.suggestedVersion).toBe('0.1.1');
+        expect(suggestion.suggestedTag).toBe('promptfm-infra/0.1.1-abcdef1');
+        expect(suggestion.isOverride).toBe(false);
+      });
+
+      it('suggests minor and major versions when requested', () => {
+        const mockExec = () => 'promptfm/0.2.0-1234567';
+
+        const minorSuggestion = suggestNextVersion({
+          lane: 'app',
+          bump: 'minor',
+          execFn: mockExec,
+          sha: '9876543210ab',
+        });
+        expect(minorSuggestion.suggestedVersion).toBe('0.3.0');
+        expect(minorSuggestion.suggestedTag).toBe('promptfm/0.3.0-9876543');
+
+        const majorSuggestion = suggestNextVersion({
+          lane: 'app',
+          bump: 'major',
+          execFn: mockExec,
+          sha: '9876543210ab',
+        });
+        expect(majorSuggestion.suggestedVersion).toBe('1.0.0');
+        expect(majorSuggestion.suggestedTag).toBe('promptfm/1.0.0-9876543');
+      });
+
+      it('allows user to specify an explicit version override (e.g. 1.0.0 over suggested 0.1.1)', () => {
+        const mockExec = () => 'promptfm-infra/0.1.0-4a8b1c2';
+
+        const override = suggestNextVersion({
+          lane: 'infra',
+          overrideVersion: '1.0.0',
+          execFn: mockExec,
+          sha: '112233445566',
+        });
+
+        expect(override.suggestedVersion).toBe('1.0.0');
+        expect(override.suggestedTag).toBe('promptfm-infra/1.0.0-1122334');
+        expect(override.isOverride).toBe(true);
+      });
+
+      it('throws error if user override version is not valid semver', () => {
+        expect(() =>
+          suggestNextVersion({
+            lane: 'infra',
+            overrideVersion: 'invalid-version',
+          })
+        ).toThrow('Invalid semantic version');
+      });
     });
   });
 });

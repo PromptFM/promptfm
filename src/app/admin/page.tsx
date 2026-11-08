@@ -964,7 +964,7 @@ export default function AdminDashboard() {
             </span>
           </div>
           <a
-            href="https://vercel.com/alex-trifans-projects/promptfm/analytics"
+            href="https://vercel.com/alextrifan/promptfm/analytics"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center justify-between p-2.5 bg-zinc-950/60 hover:bg-zinc-850/80 border border-zinc-800/80 rounded-xl transition-colors group"

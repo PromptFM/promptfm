@@ -316,7 +316,7 @@ The stream server, API quotas, and live audience telemetry are monitored through
 | Service | Console URL | Purpose | Cost |
 | :--- | :--- | :--- | :--- |
 | **Google Cloud Monitoring** | [PromptFM 0-Cost Telemetry](https://console.cloud.google.com/monitoring/dashboards/builder/ce33f584-e48f-407a-b2e7-1d1fa9e990ff?project=promptfm-radio-1793623670) | Gemini 3.5 & 2.5 Flash TTS requests, latencies, GCS operations | **$0.00** |
-| **Vercel Web Analytics** | [Vercel Realtime Analytics](https://vercel.com/alex-trifans-projects/promptfm/analytics) | Real-time web visitors, iPhone PWA users, top referrers, Web Vitals | **$0.00** |
+| **Vercel Web Analytics** | [Vercel Realtime Analytics](https://vercel.com/alextrifan/promptfm/analytics) | Real-time web visitors, iPhone PWA users, top referrers, Web Vitals | **$0.00** |
 | **Station Manager Studio** | [promptfm.live/admin](https://promptfm.live/admin) | Queue curation, batch requests, and telemetry quick-bar | **$0.00** |
 | **Icecast 2 Admin** | [stream.promptfm.live:8000/admin](http://stream.promptfm.live:8000/admin/) | Mountpoint listener sockets, bandwidth telemetry | **$0.00** |
 
