@@ -30,8 +30,24 @@ export interface SitemapEntry {
 
 /**
  * Returns the robots.txt configuration rules.
+ * On preview deployments or staging, disallows all robots to protect Vercel Active CPU.
  */
-export function generateRobotsConfig(): RobotsConfig {
+export function generateRobotsConfig(
+  isProduction = process.env.VERCEL_ENV !== 'preview'
+): RobotsConfig {
+  if (!isProduction) {
+    return {
+      rules: [
+        {
+          userAgent: '*',
+          disallow: ['/'],
+        },
+      ],
+      sitemap: `${SITE_URL}/sitemap.xml`,
+      host: SITE_URL,
+    };
+  }
+
   return {
     rules: [
       {

@@ -35,11 +35,27 @@ export default function LiveListenersBadge({ initialCount = null }: LiveListener
     }
 
     fetchStats();
-    const interval = setInterval(fetchStats, 15000);
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      fetchStats();
+    }, 15000);
+
+    const handleVisibility = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        fetchStats();
+      }
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibility);
+    }
 
     return () => {
       mounted = false;
       clearInterval(interval);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibility);
+      }
     };
   }, []);
 
