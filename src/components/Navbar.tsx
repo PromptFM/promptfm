@@ -24,11 +24,13 @@ import {
 } from 'lucide-react';
 import AuthButton from '@/components/AuthButton';
 import { getCommunityLinks } from '@/lib/community/links';
+import { isOutside, isDismissKey } from '@/lib/ui/dropdown';
 
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [communityOpen, setCommunityOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const links = getCommunityLinks();
 
   const closeMenu = () => {
@@ -39,13 +41,16 @@ export default function Navbar() {
   // Close dropdown on outside click or Escape key
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (isOutside(dropdownRef.current, e.target)) {
         setCommunityOpen(false);
       }
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (isDismissKey(e.key)) {
+        if (dropdownRef.current?.contains(document.activeElement)) {
+          triggerRef.current?.focus();
+        }
         setCommunityOpen(false);
         setMobileMenuOpen(false);
       }
@@ -126,12 +131,21 @@ export default function Navbar() {
           </Link>
 
           {/* Community & More Popover Dropdown */}
-          <div className="relative" ref={dropdownRef}>
+          <div
+            className="relative"
+            ref={dropdownRef}
+            onBlur={(e) => {
+              if (isOutside(dropdownRef.current, e.relatedTarget)) {
+                setCommunityOpen(false);
+              }
+            }}
+          >
             <button
+              ref={triggerRef}
               type="button"
               onClick={() => setCommunityOpen((prev) => !prev)}
-              aria-haspopup="true"
               aria-expanded={communityOpen}
+              aria-controls="community-dropdown-panel"
               className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-colors ${
                 communityOpen
                   ? 'text-white bg-zinc-900'
@@ -148,8 +162,8 @@ export default function Navbar() {
 
             {/* Dropdown Menu */}
             {communityOpen && (
-              <div className="absolute top-full right-0 mt-2 w-72 rounded-2xl bg-zinc-950/98 border border-zinc-800 shadow-2xl backdrop-blur-xl p-2.5 space-y-1 z-50 animate-in fade-in zoom-in-95 duration-150">
-                <div className="px-2.5 py-1 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">
+              <div id="community-dropdown-panel" className="absolute top-full right-0 mt-2 w-72 rounded-2xl bg-zinc-950 border border-zinc-800 shadow-2xl backdrop-blur-xl p-2.5 space-y-1 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="px-2.5 py-1 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
                   Station & Platform
                 </div>
 
@@ -161,7 +175,7 @@ export default function Navbar() {
                   <Sparkles className="w-4 h-4 text-emerald-400" />
                   <div>
                     <span className="font-semibold block">About PromptFM</span>
-                    <span className="text-[11px] text-zinc-500">AI DJs & Station Architecture</span>
+                    <span className="text-[11px] text-zinc-400">AI DJs & Station Architecture</span>
                   </div>
                 </Link>
 
@@ -173,7 +187,7 @@ export default function Navbar() {
                   <Code2 className="w-4 h-4 text-emerald-400" />
                   <div>
                     <span className="font-semibold block">Contribute & Code</span>
-                    <span className="text-[11px] text-zinc-500">Open-Source $0 Cloud Stack</span>
+                    <span className="text-[11px] text-zinc-400">Open-Source $0 Cloud Stack</span>
                   </div>
                 </Link>
 
@@ -185,13 +199,13 @@ export default function Navbar() {
                   <Shield className="w-4 h-4 text-emerald-400" />
                   <div>
                     <span className="font-semibold block">Station Studio</span>
-                    <span className="text-[11px] text-zinc-500">DJ Curation & Moderation</span>
+                    <span className="text-[11px] text-zinc-400">DJ Curation & Moderation</span>
                   </div>
                 </Link>
 
                 {/* Sub-section: Chat & Socials */}
                 <div className="pt-2 mt-1 border-t border-zinc-900">
-                  <div className="px-2.5 py-1 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">
+                  <div className="px-2.5 py-1 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
                     Community Bridges
                   </div>
                   <div className="grid grid-cols-2 gap-1.5 pt-1">
@@ -221,7 +235,7 @@ export default function Navbar() {
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 p-2 rounded-lg bg-zinc-900/60 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800/80 transition-colors text-xs font-medium"
                     >
-                      <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                      <svg aria-hidden="true" className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
                         <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
                       </svg>
                       <span>GitHub</span>
@@ -233,7 +247,7 @@ export default function Navbar() {
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 p-2 rounded-lg bg-zinc-900/60 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800/80 transition-colors text-xs font-medium"
                     >
-                      <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
+                      <svg aria-hidden="true" className="w-3 h-3 fill-current" viewBox="0 0 24 24">
                         <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
                       </svg>
                       <span>X</span>
@@ -287,10 +301,10 @@ export default function Navbar() {
 
       {/* Mobile-First Drawer (< 768px) */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-b border-zinc-800 bg-zinc-950/98 backdrop-blur-2xl px-4 py-5 space-y-5 animate-in fade-in slide-in-from-top-2 duration-200 max-h-[calc(100vh-4rem)] overflow-y-auto">
+        <div className="md:hidden border-b border-zinc-800 bg-zinc-950 backdrop-blur-2xl px-4 py-5 space-y-5 animate-in fade-in slide-in-from-top-2 duration-200 max-h-[calc(100vh-4rem)] overflow-y-auto">
           {/* Section 1: Radio & Programming */}
           <div className="space-y-1.5">
-            <div className="px-3 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">
+            <div className="px-3 text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
               On Air & Music
             </div>
             <div className="bg-zinc-900/60 rounded-2xl p-1.5 border border-zinc-800/80 space-y-0.5">
@@ -323,7 +337,7 @@ export default function Navbar() {
 
           {/* Section 2: Participate & Station Info */}
           <div className="space-y-1.5">
-            <div className="px-3 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">
+            <div className="px-3 text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
               Community & Station
             </div>
             <div className="bg-zinc-900/60 rounded-2xl p-1.5 border border-zinc-800/80 space-y-0.5">
@@ -380,7 +394,7 @@ export default function Navbar() {
 
           {/* Section 4: Community Chat Channels */}
           <div className="pt-2 border-t border-zinc-900 space-y-2">
-            <div className="px-3 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">
+            <div className="px-3 text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
               Official Community Channels
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
@@ -408,7 +422,7 @@ export default function Navbar() {
                 rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 transition-colors"
               >
-                <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                <svg aria-hidden="true" className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
                   <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
                 </svg>
                 <span>GitHub</span>
@@ -419,7 +433,7 @@ export default function Navbar() {
                 rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 transition-colors"
               >
-                <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                <svg aria-hidden="true" className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
                   <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
                 </svg>
                 <span>X (Twitter)</span>
