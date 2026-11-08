@@ -61,6 +61,7 @@ import {
   validateRemoteZone,
   applyRemoteZone,
   resolveHostingerToken,
+  validateZeroEgressCompliance,
   type HostingerDNSRecord,
 } from '../src/lib/infra/hostinger-dns';
 import { execSync } from 'child_process';
@@ -1895,10 +1896,12 @@ Moderation & Schedule:
         console.log(`\n🌐 Inspecting DNS state for ${targetDomain}...`);
         if (existsSync(stateFile)) {
           const state = loadZoneState(stateFile);
+          const egressCheck = validateZeroEgressCompliance(state.zone);
           console.log(`• State File: ${stateFile}`);
           console.log(`• Last Updated: ${state.updatedAt}`);
           console.log(`• Version: ${state.version}`);
-          console.log(`• Total Records: ${state.zone.length}\n`);
+          console.log(`• Total Records: ${state.zone.length}`);
+          console.log(`• Zero-Egress Status: ${egressCheck.compliant ? '✅ Compliant (Edge CNAME)' : `⚠️ Non-Compliant: ${egressCheck.message}`}\n`);
           for (const r of state.zone) {
             console.log(`  ${r.type.padEnd(6)} ${r.name.padEnd(20)} (TTL: ${r.ttl})`);
             r.records.forEach((rec) => console.log(`         ➔ ${rec.content}`));

@@ -91,9 +91,9 @@ stream.promptfm.live {
 ```
 
 ### Terraform Firewall Rules (`infra/terraform/main.tf`)
-Terraform opens both port 80 (ACME HTTP-01 challenge) and port 443 (HTTPS audio streaming) to `0.0.0.0/0`:
-- `allow-http-https`: Ports `["80", "443"]`
-- `allow-icecast-stream`: Port `["8000"]` (direct listener / internal test fallback)
+To protect against GCP VM network egress charges, direct public access from `0.0.0.0/0` is strictly restricted:
+- `allow-icecast`: Port `8000` is disabled from public ingress; Icecast binds to `127.0.0.1:8000`.
+- `allow-http-https`: Gated by `var.cloudflare_tunnel_enabled ? 0 : 1`. When Cloudflare Tunnel is enabled (default), direct `0.0.0.0/0` ingress on ports 80/443 is disabled since `cloudflared` initiates outbound connections to Cloudflare Edge. Public listeners connect through `stream.promptfm.live` (CNAME to edge tunnel) with $0 egress fees.
 
 ---
 
@@ -101,15 +101,15 @@ Terraform opens both port 80 (ACME HTTP-01 challenge) and port 443 (HTTPS audio 
 
 PromptFM uses two dedicated hostnames:
 1. **`promptfm.live`**: Hosted on Vercel (Next.js web application, Admin Studio, community charts, and API endpoints).
-2. **`stream.promptfm.live`**: A DNS `A` record pointing directly to the Google Cloud streamer VM's external IP address.
+2. **`stream.promptfm.live`**: A DNS `CNAME` record pointing to the Cloudflare Tunnel / Edge CDN (`promptfm-stream.cfargotunnel.com.`) to ensure **$0 GCP VM bandwidth egress**. Direct public ingress to ports 80, 443, and 8000 on the VM is closed from `0.0.0.0/0`.
 
 ### Adding the DNS Record (Hostinger / Cloudflare)
-1. In your DNS Provider management console for `promptfm.live`, add an `A` record:
-   - **Type**: `A`
+1. In your Hostinger DNS management console (or via declarative state `infra/dns/promptfm.live.state.json`), ensure `stream` is configured as a `CNAME`:
+   - **Type**: `CNAME`
    - **Name / Host**: `stream` (or `stream.promptfm.live`)
-   - **Points to (Value)**: `<GCP_VM_EXTERNAL_IP>` (e.g. `34.123.80.137` from `terraform output instance_external_ip`)
+   - **Points to (Value)**: `promptfm-stream.cfargotunnel.com.` (or your Cloudflare Tunnel hostname)
    - **TTL**: 300 (or Auto)
-2. Once DNS propagates, Caddy automatically provisions the TLS certificate within seconds of receiving its first request!
+2. The `cloudflared` daemon on the streamer VM connects outbound to Cloudflare Edge, proxying audio traffic with unlimited free CDN egress bandwidth without hitting GCP egress quotas!
 
 ---
 
