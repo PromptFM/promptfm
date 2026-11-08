@@ -658,5 +658,69 @@ To prevent duplicate execution under live listener load:
 - **Single Now-Playing Calculation**: `/api/radio/now` resolves `getNowPlaying()` once and passes it directly to `getUpNext(channelSlug, 3, status)`, stopping duplicate Icecast probes and Supabase rank queries.
 - **Client-Side Telemetry Multiplexer (`src/lib/radio/telemetry-client.ts`)**: Coalesces concurrent in-flight requests and caches telemetry for 8 seconds. Dispatches `promptfm:radio-telemetry` CustomEvents so `AudioPlayer`, `UpNextSection`, and `LiveListenersBadge` share a single network stream rather than maintaining separate polling loops.
 
+#### 5. Vercel Deploy Hook & Webhook Infrastructure
+
+To connect GitHub Actions release tag events with Vercel without requiring full personal access tokens in CI, PromptFM uses a dedicated **Vercel Deploy Hook**:
+
+- **Purpose**: Enables `.github/workflows/release.yml` to trigger an authenticated production build on `main` when a valid release tag (`promptfm/*` or `v*.*.*`) is pushed.
+- **Configuration Details**:
+  - **Project**: `alex-trifans-projects/promptfm` (`prj_n4NJ1yquHGMywU4WBacPbHoLKphL`)
+  - **Hook Name**: `promptfm-release`
+  - **Target Branch**: `main`
+  - **Deploy Hook ID**: `Jyx6wAqnF9`
+  - **Secret Location**: Stored as GitHub Actions repository secret `VERCEL_DEPLOY_HOOK`
+  - **Webhook URL**: `https://api.vercel.com/v1/integrations/deploy/prj_n4NJ1yquHGMywU4WBacPbHoLKphL/Jyx6wAqnF9`
+
+##### Managing Deploy Hooks via Vercel CLI
+```bash
+# 1. List configured deploy hooks
+vercel deploy-hooks ls
+
+# 2. Create a new deploy hook targeting main
+vercel deploy-hooks create promptfm-release --ref main
+
+# 3. Manually trigger a deployment via curl
+curl -X POST "$VERCEL_DEPLOY_HOOK"
+
+# 4. Remove a deploy hook by ID
+vercel deploy-hooks rm Jyx6wAqnF9
+```
+
+##### Managing Deploy Hooks via Vercel Web Dashboard
+1. Open [vercel.com/alex-trifans-projects/promptfm/settings/git](https://vercel.com/alex-trifans-projects/promptfm/settings/git).
+2. Scroll to the **Deploy Hooks** section.
+3. View, edit, or copy the hook URL.
+
+##### Rotating the Deploy Hook Secret
+If the hook URL is ever rotated:
+```bash
+# Update the GitHub Actions secret directly via gh CLI:
+echo "<NEW_DEPLOY_HOOK_URL>" | gh secret set VERCEL_DEPLOY_HOOK
+```
+
+#### 6. Vercel Ignore Hook (`ignoreCommand` Pre-Build Budget Gate)
+
+Configured in `vercel.json` via `"ignoreCommand": "bash scripts/vercel-budget-gate.sh"`.
+
+- **How It Works**:
+  1. Vercel spins up a lightweight sandboxed runner before installing npm packages or invoking `next build`.
+  2. The gate evaluates the git environment (`VERCEL_ENV`, `VERCEL_GIT_COMMIT_REF`, commit message, and tags pointing at HEAD via `git tag --points-at`).
+  3. **Exit Code 0 (CANCEL/SKIP)**: Build is aborted immediately in 2–3s. Consumes **0 Fluid Active CPU minutes**.
+     - Applied to: routine merges to `main`, preview PRs from unapproved forks, and non-application doc updates.
+  4. **Exit Code 1 (PROCEED)**: Build continues through dependency install and Next.js compilation.
+     - Applied to: tags matching `promptfm/*` or `v*.*.*`, explicit `[deploy-prod]` commit markers, or maintainer approved previews `[preview]`.
+
+##### Verifying Ignore Hook Decisions Locally
+```bash
+# Simulate a routine merge to main (should exit 0 / skip):
+VERCEL_ENV=production VERCEL_GIT_COMMIT_REF=main node scripts/vercel-budget-gate.js
+# Output: [PromptFM Budget Gate] 🛑 Skipped: Production auto-deploy from main disabled... (exit 0)
+
+# Simulate a release tag (should exit 1 / proceed):
+VERCEL_ENV=production VERCEL_GIT_COMMIT_REF=promptfm/v1.0.0 node scripts/vercel-budget-gate.js
+# Output: [PromptFM Budget Gate] ✅ Proceeding: Tagged production release permitted... (exit 1)
+```
+
+
 
 
