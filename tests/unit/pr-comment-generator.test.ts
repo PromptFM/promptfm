@@ -114,9 +114,9 @@ describe('PR Comment Guidance Generator', () => {
       });
 
       expect(comment).toContain('make an admin run the Make preview link workflow on the following sha');
-      expect(comment).toContain('Terraform Infrastructure Update');
+      expect(comment).toContain('Terraform Infrastructure');
       expect(comment).toContain('https://github.com/PromptFM/promptfm/actions/workflows/apply-terraform.yml');
-      expect(comment).not.toContain('Update ansible workflow');
+      expect(comment).not.toContain('Ansible Configuration');
     });
 
     it('includes card for Ansible changes when infra/ansible files are touched', () => {
@@ -127,9 +127,8 @@ describe('PR Comment Guidance Generator', () => {
       });
 
       expect(comment).toContain('make an admin run the Make preview link workflow on the following sha');
-      expect(comment).toContain('After merge have an admin run the Update ansible workflow');
-      expect(comment).toContain('https://github.com/PromptFM/promptfm/actions/workflows/apply-terraform.yml');
-      expect(comment).not.toContain('Update terraform workflow');
+      expect(comment).toContain('Ansible Configuration');
+      expect(comment).not.toContain('Terraform Infrastructure');
     });
 
     it('includes cards for both Terraform and Ansible when both are touched', () => {
@@ -139,8 +138,8 @@ describe('PR Comment Guidance Generator', () => {
         checksPassed: true,
       });
 
-      expect(comment).toContain('Terraform Infrastructure Update');
-      expect(comment).toContain('After merge have an admin run the Update ansible workflow');
+      expect(comment).toContain('Terraform Infrastructure');
+      expect(comment).toContain('Ansible Configuration');
     });
 
     it('does not nest consecutive [!IMPORTANT] alerts inside a single blockquote', () => {
@@ -157,8 +156,8 @@ describe('PR Comment Guidance Generator', () => {
       // There should only be one [!IMPORTANT] tag, not stacked unseparated duplicates
       const importantMatches = comment.match(/\[!IMPORTANT\]/g);
       expect(importantMatches?.length).toBe(1);
-      expect(comment).toContain('Terraform Infrastructure Update');
-      expect(comment).toContain('SQL Schema Migrations');
+      expect(comment).toContain('Terraform Infrastructure');
+      expect(comment).toContain('SQL Schema Migrations Detected');
       expect(comment).toContain('Update Secrets workflow');
     });
 
@@ -181,10 +180,10 @@ describe('PR Comment Guidance Generator', () => {
         checksPassed: true,
       });
 
-      expect(comment).toContain('SQL Schema Migrations');
-      expect(comment).toContain('automatically apply');
+      expect(comment).toContain('SQL Schema Migrations Detected');
+      expect(comment).toContain('Nothing is applied automatically on merge to `main`');
       expect(comment).toContain('https://github.com/PromptFM/promptfm/actions/workflows/apply-sql-schema.yml');
-      expect(comment).not.toContain('Terraform Infrastructure Update');
+      expect(comment).not.toContain('Terraform Infrastructure');
     });
 
     it('informs that checks must pass when checksPassed is false', () => {

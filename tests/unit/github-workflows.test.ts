@@ -79,12 +79,12 @@ describe('GitHub Actions Workflows Suite', () => {
   });
 
   describe('Apply SQL Schema Workflow (apply-sql-schema.yml)', () => {
-    it('exists, triggers on main push and workflow_dispatch, pulls secrets from Vercel, and executes db:migrate', () => {
+    it('exists, triggers on manual workflow_dispatch or promptfm-sql/* tags (not auto on main), pulls secrets from Vercel, and executes db:migrate', () => {
       const content = readWorkflow('apply-sql-schema.yml');
       expect(content).toContain('name: 🐘 Apply SQL Schema Migrations');
       expect(content).toContain('workflow_dispatch:');
-      expect(content).toContain('branches: [main]');
-      expect(content).toContain('supabase/**');
+      expect(content).toContain('promptfm-sql/*');
+      expect(content).not.toContain('branches: [main]');
       expect(content).toContain('npm run lint:sql');
       expect(content).toContain('npx vercel env pull .env.production.local --environment=production --yes');
       expect(content).toContain('npm run db:migrate');
@@ -118,10 +118,25 @@ describe('GitHub Actions Workflows Suite', () => {
     });
   });
 
-  describe('DNS Zero-Egress Audit in CI Workflow (ci.yml)', () => {
+  describe('Infrastructure Checks in CI Workflow (ci.yml)', () => {
     it('audits DNS zones and alerts on direct VM IP leaks or missing edge proxies', () => {
       const content = readWorkflow('ci.yml');
       expect(content).toContain('dns status promptfm.live --strict');
+    });
+
+    it('validates and checks Terraform live state vs configuration when infra changes', () => {
+      const content = readWorkflow('ci.yml');
+      expect(content).toContain('terraform-lint-validate:');
+      expect(content).toContain('terraform fmt -check');
+      expect(content).toContain('terraform -chdir=infra/terraform validate');
+      expect(content).toContain('terraform -chdir=infra/terraform plan');
+    });
+
+    it('performs Ansible playbook syntax linting and dry-run task check', () => {
+      const content = readWorkflow('ci.yml');
+      expect(content).toContain('ansible-lint-dryrun:');
+      expect(content).toContain('--syntax-check');
+      expect(content).toContain('--list-tasks');
     });
   });
 

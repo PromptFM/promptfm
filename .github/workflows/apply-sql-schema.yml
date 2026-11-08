@@ -9,9 +9,8 @@ on:
         default: false
         required: false
   push:
-    branches: [main]
-    paths:
-      - 'supabase/**'
+    tags:
+      - 'promptfm-sql/*'
 
 permissions:
   contents: write

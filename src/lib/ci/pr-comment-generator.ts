@@ -149,19 +149,19 @@ Please review the failing checks in GitHub Actions.`;
 
     if (hasTerraform) {
       lines.push(
-        `> - **Terraform Infrastructure Update:** Changes detected in \`infra/terraform/\`. After merge have an admin run the Update terraform workflow (or push \`promptfm-infra/<version>\` tag): https://github.com/PromptFM/promptfm/actions/workflows/apply-terraform.yml`
+        `> - **Terraform Infrastructure:** Changes detected in \`infra/terraform/\`. CI automatically lints formatting and checks live state vs configuration. After merge, an admin must trigger the [Apply Terraform workflow](https://github.com/PromptFM/promptfm/actions/workflows/apply-terraform.yml) or push tag \`promptfm-infra/<version>\` to apply.`
       );
     }
 
     if (hasAnsible) {
       lines.push(
-        `> - **Ansible Update Required:** After merge have an admin run the Update ansible workflow: https://github.com/PromptFM/promptfm/actions/workflows/apply-terraform.yml`
+        `> - **Ansible Configuration:** Changes detected in \`infra/ansible/\`. CI automatically runs syntax linting and dry-run verification. After merge, an admin must trigger the deployment.`
       );
     }
 
     if (hasSql) {
       lines.push(
-        `> - **SQL Schema Migrations:** New migration detected in \`supabase/migrations/\`. Will **automatically apply** upon merge to \`main\` (recording \`promptfm-sql/<version>\` tag). Manual / dry-run trigger: https://github.com/PromptFM/promptfm/actions/workflows/apply-sql-schema.yml`
+        `> - **SQL Schema Migrations Detected:** New migration found in \`supabase/migrations/\`. (Nothing is applied automatically on merge to \`main\`). After merge, an admin must trigger the [Apply SQL Schema workflow](https://github.com/PromptFM/promptfm/actions/workflows/apply-sql-schema.yml) or push tag \`promptfm-sql/<version>\` to apply to production.`
       );
     }
 
