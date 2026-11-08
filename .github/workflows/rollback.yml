@@ -1,0 +1,127 @@
+name: ⏪ Rollback PromptFM
+
+on:
+  workflow_dispatch:
+    inputs:
+      rollback_ref:
+        description: 'Git SHA or Tag to rollback to (e.g. be73865, promptfm/0.1.0-be73865, or v0.1.0)'
+        required: true
+
+permissions:
+  contents: write
+  deployments: write
+
+jobs:
+  rollback:
+    name: rollback
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Resolve GitHub Token & Compute Rollback Tag
+        id: meta
+        env:
+          ROLLBACK_REF: ${{ inputs.rollback_ref }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node -e '
+            const fs = require("fs");
+            const { execSync } = require("child_process");
+            const { formatRollbackTag, resolveGitHubToken } = require("./src/lib/infra/release-tag");
+            
+            const targetRef = process.env.ROLLBACK_REF;
+            const rollbackTag = formatRollbackTag(targetRef);
+            console.log(`Computed Rollback Tag: ${rollbackTag}`);
+            
+            // Extract remote url
+            let remoteUrl = "";
+            try {
+              remoteUrl = execSync("git remote get-url origin", { encoding: "utf8" }).trim();
+            } catch {}
+            
+            const token = resolveGitHubToken({
+              envToken: process.env.GH_PAT || process.env.GITHUB_TOKEN,
+              remoteUrl,
+            });
+            
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `rollback_tag=${rollbackTag}\n`);
+            if (token) {
+              console.log("Resolved GitHub authentication token.");
+              fs.appendFileSync(process.env.GITHUB_OUTPUT, `has_token=true\n`);
+            } else {
+              console.log("No token extracted; falling back to runner credentials.");
+              fs.appendFileSync(process.env.GITHUB_OUTPUT, `has_token=false\n`);
+            }
+          '
+
+      - name: Checkout Rollback Target Ref
+        run: |
+          echo "Checking out rollback target: ${{ inputs.rollback_ref }}"
+          git checkout "${{ inputs.rollback_ref }}"
+
+      - name: Create and Push Rollback Tag
+        id: push_tag
+        env:
+          ROLLBACK_TAG: ${{ steps.meta.outputs.rollback_tag }}
+        run: |
+          echo "Creating tag: $ROLLBACK_TAG"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$ROLLBACK_TAG" -m "Rollback deployment to ${{ inputs.rollback_ref }}"
+          git push origin "$ROLLBACK_TAG"
+
+      - name: Deploy Rollback Target to Vercel (Production)
+        id: vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        run: |
+          if [ -n "$VERCEL_TOKEN" ]; then
+            echo "Deploying rolled back commit to Vercel Production..."
+            PROD_URL=$(npx vercel --prod --yes --token="$VERCEL_TOKEN")
+            echo "Vercel Production URL: $PROD_URL"
+            echo "prod_url=$PROD_URL" >> $GITHUB_OUTPUT
+          elif [ -n "$VERCEL_DEPLOY_HOOK" ]; then
+            echo "Triggering Vercel Production Deploy Hook for rollback..."
+            curl -s -X POST "$VERCEL_DEPLOY_HOOK"
+            echo "prod_url=https://promptfm.live" >> $GITHUB_OUTPUT
+          else
+            echo "Vercel will auto-deploy the rollback tag via Git integration."
+            echo "prod_url=https://promptfm.live" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Post Step Summary
+        run: |
+          echo "### ⏪ Rollback Deployment Executed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target Ref:** \`${{ inputs.rollback_ref }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Rollback Tag:** \`${{ steps.meta.outputs.rollback_tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Production Status:** Deployed to Vercel Production" >> $GITHUB_STEP_SUMMARY
+
+      - name: Create GitHub Release for Rollback
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.rollback_tag }}
+          name: "Rollback ${{ steps.meta.outputs.rollback_tag }}"
+          generate_release_notes: true
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+

@@ -1,0 +1,88 @@
+import { describe, it, expect } from 'vitest';
+import * as fs from 'fs';
+import * as path from 'path';
+
+describe('GitHub Actions Workflows Suite', () => {
+  const workflowsDir = path.resolve(__dirname, '../../.github/workflows');
+
+  const readWorkflow = (filename: string): string => {
+    const filePath = path.join(workflowsDir, filename);
+    expect(fs.existsSync(filePath), `Workflow file ${filename} should exist`).toBe(true);
+    return fs.readFileSync(filePath, 'utf-8');
+  };
+
+  describe('Release PromptFM Workflow (release-promptfm.yml)', () => {
+    it('exists and includes workflow_dispatch and promptfm/* tag trigger', () => {
+      const content = readWorkflow('release-promptfm.yml');
+      expect(content).toContain('name: 🚀 Release PromptFM');
+      expect(content).toContain('workflow_dispatch:');
+      expect(content).toContain('promptfm/*');
+      expect(content).toContain('formatReleaseTag');
+      expect(content).toContain('npx vercel --prod');
+    });
+  });
+
+  describe('Apply Terraform Changes Workflow (apply-terraform.yml)', () => {
+    it('exists and executes prepare-infra before terraform apply', () => {
+      const content = readWorkflow('apply-terraform.yml');
+      expect(content).toContain('name: 🏗️ Apply Terraform Changes');
+      expect(content).toContain('workflow_dispatch:');
+      expect(content).toContain('npm run prepare-infra');
+      expect(content).toContain('terraform -chdir=infra/terraform init');
+      expect(content).toContain('terraform -chdir=infra/terraform apply -auto-approve');
+    });
+  });
+
+  describe('Create Preview Link Workflow (create-preview-link.yml)', () => {
+    it('exists and accepts commit_sha input to generate preview url', () => {
+      const content = readWorkflow('create-preview-link.yml');
+      expect(content).toContain('name: 🔍 Create Preview Link in Vercel');
+      expect(content).toContain('workflow_dispatch:');
+      expect(content).toContain('commit_sha:');
+      expect(content).toContain('npx vercel deploy');
+      expect(content).toContain('listPullRequestsAssociatedWithCommit');
+    });
+  });
+
+  describe('Update Secrets Workflow (update-secrets.yml)', () => {
+    it('exists, requires secret_key/secret_value and references SecretShare guide', () => {
+      const content = readWorkflow('update-secrets.yml');
+      expect(content).toContain('name: 🔐 Update Secrets in Vercel');
+      expect(content).toContain('secret_key:');
+      expect(content).toContain('secret_value:');
+      expect(content).toContain('secretshare');
+      expect(content).toContain('docs/admin-guide.md');
+      expect(content).toContain('npx vercel env add');
+    });
+  });
+
+  describe('Rollback Workflow (rollback.yml)', () => {
+    it('exists and creates promptfm/rollback-* tag from commit sha or tag', () => {
+      const content = readWorkflow('rollback.yml');
+      expect(content).toContain('name: ⏪ Rollback PromptFM');
+      expect(content).toContain('rollback_ref:');
+      expect(content).toContain('formatRollbackTag');
+      expect(content).toContain('resolveGitHubToken');
+      expect(content).toContain('npx vercel --prod');
+    });
+  });
+
+  describe('Release GH-Pages Workflow (pages.yml)', () => {
+    it('exists and deploys documentation to GitHub Pages', () => {
+      const content = readWorkflow('pages.yml');
+      expect(content).toContain('Release GitHub Pages');
+      expect(content).toContain('actions/deploy-pages');
+      expect(content).toContain('docs');
+    });
+  });
+
+  describe('PR Guidance Bot in CI Workflow (ci.yml)', () => {
+    it('contains pr-guidance-comment job with exact matching job name', () => {
+      const content = readWorkflow('ci.yml');
+      expect(content).toContain('pr-guidance-comment:');
+      expect(content).toContain('name: pr-guidance-comment');
+      expect(content).toContain('scripts/pr-guidance.ts');
+    });
+  });
+});
+

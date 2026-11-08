@@ -1,4 +1,4 @@
-name: Deploy GitHub Pages Documentation
+name: 📚 Release GitHub Pages (Documentation)
 
 on:
   push:

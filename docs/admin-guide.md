@@ -604,5 +604,103 @@ Query the $0 budget status programmatically from any MCP-enabled client:
 - Inspect `Cache-Control` response headers on `/api/radio/now` and `/api/radio/schedule` using `curl -I https://promptfm.live/api/radio/now`.
 - Verify preview crawler blocking on preview deployments via `curl https://<preview-domain>/robots.txt`.
 
+---
+
+## 15. GitHub Actions Workflows & Deployment Architecture
+
+PromptFM leverages automated GitHub Actions workflows to govern releases, Vercel deployments, Terraform cloud infrastructure, and secret management under the strict $0 Always-Free Tier policy.
+
+### A. Workflows Directory & Triggers
+
+| Workflow | File | Trigger | Purpose |
+| :--- | :--- | :--- | :--- |
+| **🚀 Release PromptFM** | `.github/workflows/release-promptfm.yml` | `workflow_dispatch` or push tag `promptfm/*` | Cuts release tag `promptfm/<version>-<short_hash>`, verifies quality gate, deploys to Vercel Production, and creates GitHub Release. |
+| **🏗️ Apply Terraform Changes** | `.github/workflows/apply-terraform.yml` | `workflow_dispatch` or push to `main` (`infra/terraform/**`, `infra/ansible/**`) | Runs `npm run prepare-infra`, initializes free GCS state backend, and applies Terraform infrastructure changes. |
+| **🔍 Create Preview Link in Vercel** | `.github/workflows/create-preview-link.yml` | `workflow_dispatch` (`commit_sha`) | On-demand Vercel preview deployment for a specific commit SHA without auto-triggering on PR approval. |
+| **🔐 Update Secrets in Vercel** | `.github/workflows/update-secrets.yml` | `workflow_dispatch` (`secret_key`, `secret_value`, `environments`) | Securely writes environment variables to Vercel with SecretShare runbook integration. |
+| **⏪ Rollback PromptFM** | `.github/workflows/rollback.yml` | `workflow_dispatch` (`rollback_ref`) | Rolls back production to a specified commit SHA or Tag, generating `promptfm/rollback-<sha>` or `promptfm/rollback-<version>`. |
+| **📚 Release GitHub Pages** | `.github/workflows/pages.yml` | `workflow_dispatch` or push to `main` (`docs/**`) | Deploys documentation and architectural guides to GitHub Pages. |
+| **💬 PR Quality Gate & Bot** | `.github/workflows/ci.yml` (`pr-guidance-comment`) | `pull_request` (when quality checks pass) | Comments instructions: *"make an admin run the Make preview link workflow on the following sha: `<sha>`"* and posts action cards for Terraform/Ansible updates. |
+
+---
+
+### B. Free Terraform State Architecture: Why NOT in Git?
+
+> [!CAUTION]
+> **Do NOT store Terraform state (`terraform.tfstate`) in Git repositories.**
+> 1. **Secret Leakage**: Terraform state files store sensitive resources (passwords, private keys, API tokens) in unencrypted plain text.
+> 2. **Race Conditions & Corruption**: Git lacks distributed write-locking. Concurrent updates will corrupt the state file and cause divergent cloud reality.
+
+#### Recommended Free Remote State Backend: Google Cloud Storage (GCS)
+The PromptFM repository is pre-configured with a remote GCS backend in [`infra/terraform/versions.tf`](file:///Users/trifan/.gemini/antigravity/worktrees/promptfm/github_workflows_vercel_deploy/infra/terraform/versions.tf):
+```hcl
+terraform {
+  backend "gcs" {
+    bucket = "promptfm-tfstate-promptfm-radio-1793623670"
+    prefix = "terraform/state"
+  }
+}
+```
+- **Why GCS is 100% Free**: Google Cloud provides **5 GB of Standard storage per month** in `us-central1`, `us-west1`, and `us-east1` completely free under the GCP Always-Free Tier. A Terraform state file is ~50 KB, consuming less than 0.001% of the free quota.
+- **Distributed State Locking**: GCS automatically supports atomic state locking via Google Cloud generation numbers, preventing concurrent modification without any additional cost.
+
+---
+
+### C. Required Repository Secrets & Vercel Configuration
+
+To enable these workflows, configure the following secrets in GitHub (**Settings ➔ Secrets and variables ➔ Actions**):
+
+| Secret Name | Required By | Description / Source |
+| :--- | :--- | :--- |
+| `VERCEL_TOKEN` | Release, Preview, Rollback, Secrets | Personal or Team Access Token from [vercel.com/account/tokens](https://vercel.com/account/tokens). |
+| `VERCEL_ORG_ID` | Vercel CLI Operations | Organization / Account ID from Project Settings ➔ General. |
+| `VERCEL_PROJECT_ID` | Vercel CLI Operations | Project ID from Project Settings ➔ General. |
+| `GCP_SA_KEY` | Terraform & Infra Prep | Base64-encoded Service Account JSON key with Compute Admin & Storage Object Admin permissions. |
+| `HOSTINGER_API_TOKEN` | Terraform DNS Sync | API token from Hostinger Console (for managing `@` and subdomain DNS records). |
+| `GH_PAT` | Tagging & PR Bot | GitHub Personal Access Token (or repo token from `git remote -v`) with `repo` and `workflow` scopes. |
+
+#### Vercel Project Settings to Verify:
+1. **Ignored Build Step**:
+   - Set **Command** to: `bash scripts/vercel-budget-gate.sh`
+   - This ensures automatic PR preview builds are skipped unless explicitly tagged with `[preview]`, saving Active CPU hours.
+2. **Deploy Hook (Optional)**:
+   - Create a deploy hook under **Settings ➔ Git ➔ Deploy Hooks** and save it as `VERCEL_DEPLOY_HOOK` in GitHub repository secrets if hook-based triggers are preferred.
+
+---
+
+## 11. GitHub Community Standards & Content Reports Configuration
+
+GitHub tracks community health metrics at [`https://github.com/PromptFM/promptfm/community`](https://github.com/PromptFM/promptfm/community). PromptFM maintains a 100% compliant community profile adhering to all recommended standards:
+
+### A. Community Governance Files
+1. **Code of Conduct:** [`CODE_OF_CONDUCT.md`](../CODE_OF_CONDUCT.md) — Contributor Covenant v2.1 with enforcement by Board Admin (**@atrifan** / `conduct@promptfm.live`).
+2. **Security Policy:** [`SECURITY.md`](../SECURITY.md) — Responsible disclosure policy, private security advisory link, SLA response matrix, and safe harbor.
+3. **Accessibility Commitment:** [`ACCESSIBILITY.md`](../ACCESSIBILITY.md) — WCAG 2.1 AA conformance, keyboard shortcuts (`Space`, `M`, `1-5`), and screen reader `aria-live` specifications.
+4. **Contribution Guide:** [`CONTRIBUTING.md`](../CONTRIBUTING.md) — TDD requirements, local zero-cost simulation, and PR lifecycle.
+5. **Issue & PR Templates:** [`.github/ISSUE_TEMPLATE/`](../.github/ISSUE_TEMPLATE/) and [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md).
+
+### B. Enabling "Repository Admins Accept Content Reports"
+
+GitHub allows repository maintainers to receive content reports from community members on issues, PRs, comments, and discussions. This feature is enabled via the GitHub Web UI (as GitHub provides no programmatic REST API for this setting):
+
+1. Navigate to the repository settings:
+   `https://github.com/PromptFM/promptfm/settings`
+2. In the left navigation menu under the **Access** header, click **Moderation options**, then select **Reported content**.
+3. Under **Reported content**:
+   - Set **Who can report content** to **Prior contributors and collaborators** or **All users** (recommended for public community projects).
+4. Click **Save**.
+5. Once saved, visiting the **Community Standards** checklist will show a green checkmark for **Repository admins accept content reports**, and the community profile API (`/repos/PromptFM/promptfm/community/profile`) will return `"content_reports_enabled": true`.
+
+### C. Triaging Content Reports in GitHub
+When a user flags a comment or issue:
+- Station administrators receive an in-app and email notification.
+- Navigate to **Settings ➔ Moderation options ➔ Reported content** to view pending reports.
+- Available actions:
+  - **Dismiss report**: Mark as reviewed if no violation occurred.
+  - **Hide comment**: Hide the offending content with reason (Abuse, Off-topic, Spam).
+  - **Block user**: Apply temporary or permanent interaction limits in accordance with [`CODE_OF_CONDUCT.md`](../CODE_OF_CONDUCT.md).
+
+
+
 
 

@@ -2,6 +2,11 @@
 
 This document tracks upcoming features, architectural milestones, and infrastructure enhancements for PromptFM. Items are checked off as they are developed and verified through our Test-Driven Development (TDD) workflow.
 
+> [!TIP]
+> 🗺️ **Live Community Project & Roadmap Board**: Track all active issues, milestones, and release pipelines on our shared public GitHub Project:
+> - **Public Project Board**: [PromptFM Public Roadmap & Community Board](https://github.com/orgs/PromptFM/projects/1)
+> - **Release Milestones**: [GitHub Milestones](https://github.com/PromptFM/promptfm/milestones)
+
 ---
 
 ## 🎯 Active Milestones & Backlog

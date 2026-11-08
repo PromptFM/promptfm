@@ -7,6 +7,9 @@
 [![Tests](https://img.shields.io/badge/Tests-489%20Passing-brightgreen?style=for-the-badge&logo=vitest)](https://github.com/PromptFM/promptfm)
 [![Mutation Score](https://img.shields.io/badge/Stryker%20Mutation-Core%20Domain-blueviolet?style=for-the-badge)](https://github.com/PromptFM/promptfm)
 [![GCP Free Tier](https://img.shields.io/badge/GCP%20Always--Free-$0.00%2Fmo-4285F4?style=for-the-badge&logo=googlecloud)](https://console.cloud.google.com/?project=promptfm-radio-1793623670)
+[![LOGS](https://img.shields.io/badge/LOGS-Cloud%20Logging-E37400?style=for-the-badge&logo=googlecloud&logoColor=white)](https://console.cloud.google.com/logs/query?project=promptfm-radio-1793623670)
+[![DASHBOARDS_GCP](https://img.shields.io/badge/DASHBOARDS_GCP-Cloud%20Monitoring-4285F4?style=for-the-badge&logo=googlecloud&logoColor=white)](https://console.cloud.google.com/monitoring/dashboards/builder/ce33f584-e48f-407a-b2e7-1d1fa9e990ff?project=promptfm-radio-1793623670)
+[![DASHBOARDS_VERCEL](https://img.shields.io/badge/DASHBOARDS_VERCEL-Vercel%20Analytics-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/alex-trifans-projects/promptfm/analytics)
 [![License](https://img.shields.io/badge/License-Community%20Source--Available-purple?style=for-the-badge)](LICENSE)
 
 **PromptFM** is an autonomous 24/7 AI-generated music radio platform and community chart. Featuring **5 live theme stations** (including After Dark 18+ Explicit with statutory legal age verification), continuous uninterrupted **100% pure music rotation**, real-time listener voting, and direct MP3/M4A creator uploads with automatic ID3 metadata and album art extraction.
@@ -340,6 +343,9 @@ PromptFM exposes a streamable **Model Context Protocol (MCP)** server at [`https
 PromptFM welcomes open community development, bug fixes, and feature proposals!
 
 - **Contributing Guide:** See [`CONTRIBUTING.md`](CONTRIBUTING.md) for full instructions on local setup, running tests, mutation testing, and submitting pull requests.
+- **Code of Conduct:** Read our [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) for community standards, respectful collaboration, and enforcement guidelines.
+- **Security Policy:** See [`SECURITY.md`](SECURITY.md) for vulnerability disclosure, safe harbor terms, and reporting guidelines.
+- **Accessibility Statement:** Review [`ACCESSIBILITY.md`](ACCESSIBILITY.md) for WCAG 2.1 AA conformance, keyboard navigation shortcuts, and screen reader compatibility.
 - **Licensing:** Governed by the [`PromptFM Community Source-Available License (Version 1.0)`](LICENSE). You may inspect, fork, test, and contribute pull requests. You may **not** copy, extract, resell, or host competing radio/streaming clones.
 - **Review Board:** All pull requests require review and approval from the Board (**@atrifan**).
 - **GitHub Organization:** Community development is hosted under the `promptfm` organization.
