@@ -53,4 +53,39 @@ describe('PromptFM Documentation & Architecture Portal (docs/index.html)', () =>
     expect(html).toContain('promptfm-sql');
     expect(html).toMatch(/rollback/i);
   });
+
+  describe('Oracle monitor links', () => {
+    const rootDir = path.resolve(__dirname, '../..');
+    const metrics = 'https://cloud.oracle.com/monitoring/metrics-explorer?region=us-ashburn-1';
+
+    it('docs portal has a clickable Oracle monitor banner, a header button and a dashboards card', () => {
+      const html = fs.readFileSync(portalPath, 'utf8');
+      expect(html).toMatch(new RegExp(`<a class="oracle-banner" href="${metrics.replace(/[?.]/g, '\\$&')}"[^>]*rel="noopener"`));
+      expect(html).toContain('Oracle Monitor</a>');
+      expect(html).toContain('Oracle Cloud (Always Free)');
+      expect(html).toContain('https://cloud.oracle.com/quotas');
+      expect(html).toContain('https://cloud.oracle.com/account-management/cost-analysis');
+    });
+
+    it('keeps keyboard focus visible on the banner', () => {
+      const html = fs.readFileSync(portalPath, 'utf8');
+      expect(html).toContain('.oracle-banner:focus-visible');
+    });
+
+    it('README links the Oracle badges and documents the $0 guardrails', () => {
+      const readme = fs.readFileSync(path.join(rootDir, 'README.md'), 'utf8');
+      expect(readme).toContain('[![Oracle Always Free](./public/badges/oracle-always-free.svg)]');
+      expect(readme).toContain('[![DASHBOARDS_ORACLE](./public/badges/dashboards-oracle.svg)](' + metrics + ')');
+      expect(readme).toContain('### $0 guardrails on Oracle');
+      expect(readme).toContain('promptfm-always-free-only');
+    });
+
+    it('ships the Oracle badge images', () => {
+      for (const name of ['oracle-always-free', 'oracle-quota-cap', 'dashboards-oracle']) {
+        const svg = fs.readFileSync(path.join(rootDir, 'public/badges', `${name}.svg`), 'utf8');
+        expect(svg.startsWith('<svg')).toBe(true);
+        expect(svg).toContain('aria-label=');
+      }
+    });
+  });
 });

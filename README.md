@@ -7,10 +7,13 @@
 [![Tests](./public/badges/tests.svg)](https://github.com/PromptFM/promptfm)
 [![Mutation Score](./public/badges/mutation.svg)](https://github.com/PromptFM/promptfm)
 [![GCP Free Tier](./public/badges/gcp-always-free.svg)](https://console.cloud.google.com/?project=promptfm-radio-1793623670)
+[![Oracle Always Free](./public/badges/oracle-always-free.svg)](https://cloud.oracle.com/compute/instances?region=us-ashburn-1)
+[![Oracle Quota](./public/badges/oracle-quota-cap.svg)](https://cloud.oracle.com/quotas)
 [![LOGS](./public/badges/logs-cloud-logging.svg)](https://console.cloud.google.com/logs/query?project=promptfm-radio-1793623670)
 [![LOGS_VERCEL](./public/badges/logs-vercel.svg)](https://vercel.com/alextrifan/promptfm/logs)
 [![FLAGS_VERCEL](./public/badges/flags-vercel.svg)](https://vercel.com/alextrifan/promptfm/flags)
 [![DASHBOARDS_GCP](./public/badges/dashboards-gcp.svg)](https://console.cloud.google.com/monitoring/dashboards/builder/ce33f584-e48f-407a-b2e7-1d1fa9e990ff?project=promptfm-radio-1793623670)
+[![DASHBOARDS_ORACLE](./public/badges/dashboards-oracle.svg)](https://cloud.oracle.com/monitoring/metrics-explorer?region=us-ashburn-1)
 [![DASHBOARDS_VERCEL](./public/badges/dashboards-vercel.svg)](https://vercel.com/alextrifan/promptfm/analytics)
 [![SPEED_INSIGHTS_VERCEL](./public/badges/speed-insights-vercel.svg)](https://vercel.com/alextrifan/promptfm/speed-insights)
 [![TRACES_GCP](./public/badges/traces-gcp.svg)](https://console.cloud.google.com/traces/overview?project=promptfm-radio-1793623670)
@@ -19,6 +22,9 @@
 **PromptFM** is an autonomous 24/7 AI-generated music radio platform and community chart. Featuring **5 live theme stations** (including After Dark 18+ Explicit with statutory legal age verification), continuous uninterrupted **100% pure music rotation**, real-time listener voting, and direct MP3/M4A creator uploads with automatic ID3 metadata and album art extraction.
 
 ---
+
+> ### ☁️ [Oracle Cloud monitor: streamer CPU, outbound traffic and cost &rarr;](https://cloud.oracle.com/monitoring/metrics-explorer?region=us-ashburn-1)
+> The 24/7 audio stream is moving to Oracle Cloud Always Free (about 10 TB/month outbound free). Spend is capped at **$0** by a quota policy, with a $1 budget email and a 300 GB/day outbound alarm. [Cost Analysis](https://cloud.oracle.com/account-management/cost-analysis) · [Alarms](https://cloud.oracle.com/monitoring/alarms?region=us-ashburn-1) · [Quota policy](https://cloud.oracle.com/quotas) · [How it works](docs/oracle-always-free-streamer.md)
 
 ## 📊 Live Monitoring & Operational Dashboards
 
@@ -39,6 +45,18 @@ PromptFM is engineered to operate strictly within 100% zero-cost cloud tiers. Us
 | **Oracle Cloud Instances** | [Compute instances](https://cloud.oracle.com/compute/instances?region=us-ashburn-1) | New Always Free streamer VM (Ampere A1): state, shape, public IP | **$0.00 (Always Free)** |
 | **Oracle Metrics Explorer** | [Metrics Explorer](https://cloud.oracle.com/monitoring/metrics-explorer?region=us-ashburn-1) | Streamer CPU and memory (`oci_computeagent`) and outbound bytes (`oci_vcn` `VnicToNetworkBytes`) | **$0.00 (Always Free)** |
 | **Oracle Cost Analysis** | [Cost Analysis](https://cloud.oracle.com/account-management/cost-analysis) | Confirms the Oracle bill stays at $0 | **$0.00 (Always Free)** |
+
+### $0 guardrails on Oracle
+
+| Layer | What it does | Stops spending? |
+| :--- | :--- | :--- |
+| **Quota policy** `promptfm-always-free-only` | Oracle refuses any compute except the free Arm allowance (2 OCPU / 12 GB) and any block storage past 200 GB, from the console or Terraform | **Yes** |
+| **Terraform validations** | VM size locked to the free allowance, only the Arm A1 shape, plan fails outside the home region | Yes, before the API call |
+| **$1 budget** | Emails when actual spend reaches $1 | No, alert only |
+| **Outbound alarm** | Emails when the streamer sends more than 300 GB in a day (the free allowance is 10 TB/month). Created together with the VM | No, alert only |
+| **Network** | Only ports 22, 80 and 443 are open | n/a |
+
+Confirm the Oracle notification email once, or the two alerts won't arrive. Details: [docs/oracle-always-free-streamer.md](docs/oracle-always-free-streamer.md).
 
 ### 🚩 Vercel Feature Flags & Real-Time Kill-Switches
 Station administrators can manage production feature flags, rollout canary channels, toggle experimental Gemini AI DJ prompts, or trigger emergency kill-switches instantly without deploying code or redeploying edge containers:

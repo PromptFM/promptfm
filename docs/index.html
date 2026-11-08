@@ -108,6 +108,30 @@
     .btn-primary { background: #059669; border-color: #059669; color: #fff; }
     .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: #000; }
 
+    /* Oracle monitor banner */
+    .oracle-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+      max-width: 60rem;
+      margin: 0 auto 2.5rem;
+      padding: 1rem 1.25rem;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-left: 4px solid #C74634;
+      border-radius: 0.75rem;
+      color: var(--text);
+      text-decoration: none;
+      text-align: left;
+    }
+    .oracle-banner:hover { border-color: #C74634; background: var(--card-hover); }
+    .oracle-banner:focus-visible { outline: 3px solid #f59e0b; outline-offset: 3px; }
+    .oracle-banner-title { font-weight: 700; color: #fff; }
+    .oracle-banner-text { flex: 1 1 18rem; font-size: 0.9rem; color: var(--muted); }
+    .oracle-banner-cta { font-weight: 600; color: #fff; white-space: nowrap; }
+
     /* Real-Time Status Pill Bar */
     .status-bar {
       display: flex;
@@ -226,6 +250,7 @@
         <a href="https://promptfm.live" class="btn btn-primary" target="_blank" rel="noopener">🎧 Tune In Live (promptfm.live)</a>
         <a href="https://vercel.com/alextrifan/promptfm/flags" class="btn" target="_blank" rel="noopener">🚩 Vercel Flags Console</a>
         <a href="https://console.cloud.google.com/monitoring/dashboards/builder/ce33f584-e48f-407a-b2e7-1d1fa9e990ff?project=promptfm-radio-1793623670" class="btn" target="_blank" rel="noopener">📊 GCP Telemetry Dashboard</a>
+        <a href="https://cloud.oracle.com/monitoring/metrics-explorer?region=us-ashburn-1" class="btn" target="_blank" rel="noopener">☁️ Oracle Monitor</a>
         <a href="https://github.com/PromptFM/promptfm" class="btn" target="_blank" rel="noopener">⭐ GitHub Repo</a>
       </div>
 
@@ -236,7 +261,15 @@
         <div class="status-item"><span class="dot"></span> Vercel Edge: <strong>Production Active</strong></div>
         <div class="status-item"><span class="dot"></span> Speed Insights: <strong><a href="https://vercel.com/alextrifan/promptfm/speed-insights" target="_blank" style="color:var(--accent); text-decoration:none;">Vercel RUM &amp; Web Vitals &rarr;</a></strong></div>
         <div class="status-item"><span class="dot"></span> GCP Streamer: <strong>e2-micro ($0.00 Always Free)</strong></div>
+        <div class="status-item"><span class="dot"></span> Oracle Streamer: <strong>Ampere A1 ($0.00 Always Free, quota-capped)</strong></div>
       </div>
+
+      <!-- Oracle monitor banner -->
+      <a class="oracle-banner" href="https://cloud.oracle.com/monitoring/metrics-explorer?region=us-ashburn-1" target="_blank" rel="noopener">
+        <span class="oracle-banner-title">☁️ Oracle Cloud monitor</span>
+        <span class="oracle-banner-text">Streamer CPU, outbound traffic and cost. Spend is capped at $0 by a quota policy, with a $1 budget email and a 300 GB/day outbound alarm.</span>
+        <span class="oracle-banner-cta">Open the monitor &rarr;</span>
+      </a>
     </header>
 
     <!-- Search & Filter Bar -->
@@ -338,6 +371,17 @@ npm run promptfm -- tag sql-rollback &lt;version&gt;</pre>
           <p><a href="https://console.cloud.google.com/monitoring/dashboards/builder/ce33f584-e48f-407a-b2e7-1d1fa9e990ff?project=promptfm-radio-1793623670" class="link" target="_blank" rel="noopener">📈 GCP Cloud Monitoring (promptfm-radio-1793623670) &rarr;</a></p>
           <p><a href="https://console.cloud.google.com/logs/query?project=promptfm-radio-1793623670" class="link" target="_blank" rel="noopener">🪵 GCP Cloud Logging (50GB/mo Free) &rarr;</a></p>
           <p><a href="https://console.cloud.google.com/traces/overview?project=promptfm-radio-1793623670" class="link" target="_blank" rel="noopener">🔍 GCP Cloud Trace (Distributed W3C Tracing) &rarr;</a></p>
+        </div>
+        <div class="card">
+          <h3>Oracle Cloud (Always Free)</h3>
+          <p>Streamer VM metrics and outbound traffic against the 10 TB/month free allowance. A quota policy blocks anything billable, with a $1 budget email and a 300 GB/day outbound alarm:</p>
+          <p><a href="https://cloud.oracle.com/monitoring/metrics-explorer?region=us-ashburn-1" class="link" target="_blank" rel="noopener">📉 Oracle Metrics Explorer (CPU, outbound bytes) &rarr;</a></p>
+          <p><a href="https://cloud.oracle.com/compute/instances?region=us-ashburn-1" class="link" target="_blank" rel="noopener">☁️ Oracle Compute Instances &rarr;</a></p>
+          <p><a href="https://cloud.oracle.com/monitoring/alarms?region=us-ashburn-1" class="link" target="_blank" rel="noopener">🚨 Oracle Alarms &rarr;</a></p>
+          <p><a href="https://cloud.oracle.com/account-management/cost-analysis" class="link" target="_blank" rel="noopener">💲 Oracle Cost Analysis &rarr;</a></p>
+          <p><a href="https://cloud.oracle.com/account-management/budgets" class="link" target="_blank" rel="noopener">🧾 Oracle Budgets &rarr;</a></p>
+          <p><a href="https://cloud.oracle.com/quotas" class="link" target="_blank" rel="noopener">🛑 Oracle Quota Policy ($0 hard cap) &rarr;</a></p>
+          <p><a href="https://github.com/PromptFM/promptfm/blob/main/docs/oracle-always-free-streamer.md" class="link" target="_blank" rel="noopener">📘 How the $0 policy works &rarr;</a></p>
         </div>
         <div class="card">
           <h3>Vercel &amp; Realtime Status Checks</h3>
