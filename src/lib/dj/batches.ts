@@ -12,6 +12,7 @@ import { evaluateContentSafety } from '../safety/guardrails';
 import { findTracksByVibe } from './rag';
 import { queueSong } from '../song/pathway';
 import { isFeatureEnabled } from '../flags/feature-flags';
+import { isEmailRequest } from '../email/inbound';
 
 export type RequestType = 'song' | 'dedication' | 'weather' | 'news' | 'zodiac';
 
@@ -527,15 +528,26 @@ export async function synthesizeBatchAnnouncement(
 ): Promise<{ audioUrl: string; script: string; count: number }> {
   const supabase = createAdminClient();
 
-  const { data: requests, error } = await supabase
+  let query = supabase
     .from('community_requests')
     .select('*')
     .eq('batch_id', batchId)
-    .in('status', ['scheduled', 'pending'])
+    .in('status', ['scheduled', 'pending']);
+
+  if (typeof (query as any).not === 'function') {
+    query = (query as any).not('content', 'ilike', '[Inbound%');
+  }
+
+  const { data: rawRequests, error } = await query
     .order('created_at', { ascending: true })
     .limit(10);
 
-  if (error || !requests || requests.length === 0) {
+  if (error || !rawRequests || rawRequests.length === 0) {
+    return { audioUrl: '', script: '', count: 0 };
+  }
+
+  const requests = rawRequests.filter((r) => !isEmailRequest(r));
+  if (requests.length === 0) {
     return { audioUrl: '', script: '', count: 0 };
   }
 
