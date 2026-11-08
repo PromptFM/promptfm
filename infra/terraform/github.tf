@@ -119,3 +119,70 @@ resource "github_issue_label" "promptfm_labels" {
   description = each.value.description
 }
 
+# ── Branch Protection & Ruleset Infrastructure ─────────────────────────────────
+
+resource "github_repository_ruleset" "main_branch_gate" {
+  name        = "Main Branch Production Gate"
+  repository  = var.github_repository
+  target      = "branch"
+  enforcement = "active"
+
+  conditions {
+    ref_name {
+      include = ["~DEFAULT_BRANCH"]
+      exclude = []
+    }
+  }
+
+  bypass_actors {
+    actor_id    = 20507550 # @PromptFM/core team
+    actor_type  = "Team"
+    bypass_mode = "pull_request"
+  }
+
+  bypass_actors {
+    actor_id    = 5 # Repository Admin Role
+    actor_type  = "RepositoryRole"
+    bypass_mode = "pull_request"
+  }
+
+  rules {
+    deletion         = true
+    non_fast_forward = true
+
+    pull_request {
+      required_approving_review_count   = 1
+      dismiss_stale_reviews_on_push     = true
+      require_code_owner_review         = true
+      require_last_push_approval        = false
+      required_review_thread_resolution = true
+    }
+
+    required_status_checks {
+      strict_required_status_checks_policy = true
+
+      required_check {
+        context = "lint-and-typecheck"
+      }
+      required_check {
+        context = "unit-and-integration-tests"
+      }
+      required_check {
+        context = "mutation-testing"
+      }
+      required_check {
+        context = "terraform-lint-validate"
+      }
+      required_check {
+        context = "secret-leak-detection"
+      }
+      required_check {
+        context = "codeql-security-scan"
+      }
+    }
+
+    required_linear_history = true
+  }
+}
+
+
