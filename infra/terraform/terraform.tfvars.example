@@ -11,3 +11,8 @@ disk_size_gb      = 30              # Max 30 GB standard disk for Always Free
 ssh_user          = "ubuntu"
 ssh_pub_key_path  = "~/.ssh/google_compute_engine.pub"
 
+# Domain & Hostinger DNS Automation
+domain_name         = "promptfm.live"
+# Hostinger API Token from hPanel -> Account -> API Tokens
+# hostinger_api_token = "your-hostinger-api-token"
+

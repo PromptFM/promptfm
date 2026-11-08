@@ -116,4 +116,11 @@ variable "cloudflare_tunnel_enabled" {
   default     = true
 }
 
+variable "hostinger_api_token" {
+  description = "Hostinger API token for automated DNS zone synchronization and domain migration"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 

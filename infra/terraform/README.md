@@ -62,4 +62,30 @@ terraform output
 * `monitoring_dashboard_url`: Direct console URL to view telemetry and API quotas.
 * `vercel_analytics_url`: Direct console URL to view real-time web audience telemetry.
 
+---
+
+## 4. Hostinger DNS & Domain Migration Automation
+
+Terraform integrates declarative Hostinger DNS management with local state tracking in `infra/dns/${domain}.state.json`.
+
+### Hostinger Auth Key Configuration:
+1. In Hostinger hPanel, go to **Account > API Tokens** and generate an API token with DNS permissions.
+2. Provide the token via environment variable or `terraform.tfvars`:
+   ```bash
+   export TF_VAR_hostinger_api_token="your-hostinger-api-token"
+   # or in terraform.tfvars:
+   # hostinger_api_token = "your-hostinger-api-token"
+   ```
+3. When `hostinger_api_token` is provided, Terraform triggers `null_resource.hostinger_dns_sync` whenever the declarative DNS state changes.
+4. You can also run the DNS CLI or Ansible playbook directly:
+   ```bash
+   # Status & diff preview
+   HOSTINGER_API_TOKEN="your-token" npm run promptfm -- dns status promptfm.live
+   HOSTINGER_API_TOKEN="your-token" npm run promptfm -- dns diff newdomain.com --from promptfm.live
+
+   # Apply to Hostinger API
+   HOSTINGER_API_TOKEN="your-token" npm run promptfm -- dns apply promptfm.live
+   ```
+
+
 

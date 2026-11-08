@@ -20,3 +20,22 @@ output "dns_record_count" {
   description = "Total number of DNS records tracked in local state"
   value       = local.dns_state != null ? length(local.dns_state.zone) : 0
 }
+
+# Automated DNS synchronization trigger when hostinger_api_token is configured
+resource "null_resource" "hostinger_dns_sync" {
+  count = var.hostinger_api_token != "" ? 1 : 0
+
+  triggers = {
+    domain       = var.domain_name
+    state_sha256 = fileexists(local.dns_state_file) ? filesha256(local.dns_state_file) : "none"
+  }
+
+  provisioner "local-exec" {
+    command     = "npm run promptfm -- dns apply ${var.domain_name}"
+    working_dir = "${path.module}/../.."
+    environment = {
+      HOSTINGER_API_TOKEN = var.hostinger_api_token
+    }
+  }
+}
+
