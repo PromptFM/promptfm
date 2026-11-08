@@ -341,6 +341,19 @@ describe('Release and Rollback Tag Formatter', () => {
         expect(result.tag).toBe('promptfm-infra/0.1.1-def5678');
       });
 
+      it('detects standalone v*.*.* tags for app lane', () => {
+        const mockExec = (cmd: string) => {
+          if (cmd.includes('promptfm/*') && cmd.includes('v*.*.*')) {
+            return `v0.1.9\nv0.2.0`;
+          }
+          return '';
+        };
+
+        const result = getLatestReleaseVersion('app', mockExec);
+        expect(result.version).toBe('0.2.0');
+        expect(result.tag).toBe('v0.2.0');
+      });
+
       it('falls back to default initial version if no tags exist', () => {
         const mockExec = () => '';
         const infraResult = getLatestReleaseVersion('infra', mockExec);

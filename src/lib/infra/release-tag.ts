@@ -322,7 +322,11 @@ export function getLatestReleaseVersion(
   }
 
   try {
-    const rawTags = exec(`git tag -l "${prefix}/*"`).trim();
+    const searchPattern =
+      lane === 'app'
+        ? `git tag -l "promptfm/*" "v*.*.*"`
+        : `git tag -l "${prefix}/*"`;
+    const rawTags = exec(searchPattern).trim();
     if (!rawTags) {
       return { tag: null, version: defaultVersion };
     }
@@ -331,7 +335,10 @@ export function getLatestReleaseVersion(
     const parsedTags: Array<{ tag: string; semver: SemVerParts; versionStr: string }> = [];
 
     for (const tag of tagLines) {
-      const afterPrefix = tag.replace(new RegExp(`^${prefix}/`, 'i'), '');
+      let afterPrefix = tag;
+      if (tag.startsWith(`${prefix}/`)) {
+        afterPrefix = tag.slice(`${prefix}/`.length);
+      }
       const semver = parseSemVer(afterPrefix);
       if (semver) {
         parsedTags.push({
