@@ -733,7 +733,7 @@ PromptFM leverages automated GitHub Actions workflows to govern releases, Vercel
 
 | Workflow | File | Trigger | Purpose |
 | :--- | :--- | :--- | :--- |
-| **🚀 Release PromptFM** | `.github/workflows/release-promptfm.yml` | `workflow_dispatch` or push tag `promptfm/*` | Cuts release tag `promptfm/<version>-<short_hash>`, verifies quality gate, deploys to Vercel Production, and creates GitHub Release. |
+| **🚀 Release PromptFM** | `.github/workflows/release.yml` | `workflow_dispatch` or push tag `promptfm/*` / `v*.*.*` | Verifies quality gate, tags and cuts release, deploys to Vercel Production, stamps single Active GitHub Deployment with release tag, and creates GitHub Release. |
 | **🏗️ Apply Terraform Changes** | `.github/workflows/apply-terraform.yml` | `workflow_dispatch` or push tag `promptfm-infra/*` | Runs `npm run prepare-infra`, initializes free GCS state backend, applies Terraform, conditionally runs Ansible via zero-cost IAP tunneling ($0.00), and synchronizes Hostinger DNS. |
 | **🔍 Create Preview Link in Vercel** | `.github/workflows/create-preview-link.yml` | `workflow_dispatch` (`commit_sha`) | On-demand Vercel preview deployment for a specific commit SHA without auto-triggering on PR approval. |
 | **🔐 Update Secrets in Vercel** | `.github/workflows/update-secrets.yml` | `workflow_dispatch` (`secret_key`, `secret_value`, `environments`) | Securely writes environment variables to Vercel with SecretShare runbook integration. |
