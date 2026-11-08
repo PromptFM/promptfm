@@ -3,13 +3,14 @@ name: 🚀 Automatic Release & Vercel Production Gate
 on:
   push:
     tags:
+      - 'promptfm/*'
       - 'v*.*.*'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Semantic Version Tag (e.g. v1.0.0)'
+        description: 'Semantic Version Tag (e.g. promptfm/v1.0.0 or v1.0.0)'
         required: true
-        default: 'v0.1.0'
+        default: 'promptfm/v0.1.0'
 
 permissions:
   contents: write
@@ -21,6 +22,9 @@ jobs:
   release:
     name: 📦 Package, Release & Stamp Vercel Deployment
     runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://promptfm.live
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
@@ -57,7 +61,7 @@ jobs:
         uses: chrnorm/deployment-action@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          environment: 'Production'
+          environment: 'production'
           description: 'PromptFM Live 24/7 Radio Station Production Deployment'
           ref: ${{ steps.meta.outputs.commit_sha }}
 

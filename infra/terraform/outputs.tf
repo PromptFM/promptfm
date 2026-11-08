@@ -23,14 +23,19 @@ output "external_ip" {
   value       = google_compute_instance.streamer.network_interface[0].access_config[0].nat_ip
 }
 
-output "icecast_stream_url" {
-  description = "Direct Icecast 2 audio stream URL"
-  value       = "http://${google_compute_instance.streamer.network_interface[0].access_config[0].nat_ip}:8000/stream.mp3"
+output "stream_url" {
+  description = "Public audio stream URL routed through edge/HTTPS (zero GCP egress bandwidth)"
+  value       = "https://stream.${var.domain_name}/stream.mp3"
+}
+
+output "internal_icecast_url" {
+  description = "Internal Icecast mount URL (port 8000 accessible only via localhost/SSH tunnel to prevent public egress)"
+  value       = "http://127.0.0.1:8000/stream.mp3"
 }
 
 output "icecast_admin_url" {
-  description = "Icecast administration dashboard URL"
-  value       = "http://${google_compute_instance.streamer.network_interface[0].access_config[0].nat_ip}:8000/admin/"
+  description = "Icecast administration dashboard URL (accessible via SSH tunnel or localhost)"
+  value       = "http://127.0.0.1:8000/admin/"
 }
 
 output "gcs_state_bucket" {

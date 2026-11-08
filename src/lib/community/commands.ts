@@ -85,6 +85,12 @@ export const LISTENER_COMMANDS: ListenerCommandDef[] = [
     example: '/queue',
   },
   {
+    command: '/request <id or query>',
+    desc: 'Track the lifecycle status and queue position of your song request',
+    category: 'Airplay',
+    example: '/request 186f9b8c',
+  },
+  {
     command: '/nowplaying',
     desc: 'See live track metadata, host AI DJ, and tap to upvote',
     category: 'Info',
@@ -135,6 +141,7 @@ export function getBotHelpText(format: 'markdown_v1' | 'telegram' | 'discord' = 
 **Live Airplay & Queue Commands (Canonical & Shorthands):**
 • \`/nowplaying\` or \`/np\` — View the live song, artist, AI tool, host DJ, and upvote score.
 • \`/queue\` (\`/q\`) or \`/next\` (\`/n\`) — View upcoming songs in rotation and pending listener requests.
+• \`/request <id or query>\` (\`/req\`) — Track the live lifecycle status and queue position of your song request.
 • \`/song <vibe or title>\` or \`/s <vibe>\` — Request an AI track into the live airplay queue! (e.g. \`/s synthwave\`)
 • \`/vote <track_id>\` — Cast an upvote for any track to boost its weekly chart ranking.
 
@@ -162,6 +169,7 @@ Tune in live: https://promptfm.live`;
 *Live Airplay & Queue Commands (Canonical & Shorthands):*
 • /nowplaying or /np — View current live track, host DJ, and upvote directly with buttons.
 • /queue (/q) or /next (/n) — View upcoming songs in rotation and pending listener requests.
+• /request <id or query> (/req) — Track the live lifecycle status and queue position of your song request.
 • /song <vibe or title> or /s <prompt> — Queue an approved AI track into live broadcast next!
 • /vote <trackId> — Cast an upvote for any track to boost its chart standing.
 

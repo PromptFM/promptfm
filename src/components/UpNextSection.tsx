@@ -5,7 +5,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import Image from 'next/image';
-import { ListMusic, ThumbsUp, Radio, Sparkles, Disc3 } from 'lucide-react';
+import { ListMusic, ThumbsUp, Radio, Sparkles, Disc3, Headphones } from 'lucide-react';
 import { DEFAULT_CHANNEL_SLUG, getChannelBySlug } from '@/lib/radio/channels';
 import {
   buildQueueDisplayItems,
@@ -13,6 +13,12 @@ import {
   QueueDisplayItem,
 } from '@/lib/radio/progress';
 import type { AirplayItem } from '@/lib/dj/rotation';
+import {
+  fetchRadioTelemetry,
+  subscribeRadioTelemetry,
+  getLatestRadioTelemetry,
+  RadioTelemetryPayload,
+} from '@/lib/radio/telemetry-client';
 
 export type UpNextItem = QueueDisplayItem;
 
@@ -25,35 +31,50 @@ export default function UpNextSection() {
   const [loading, setLoading] = useState<boolean>(true);
   const lastFetchedRef = useRef<number>(Date.now());
 
+  const applyTelemetry = useCallback((data: RadioTelemetryPayload) => {
+    if (data.now_playing) {
+      setNowPlaying(data.now_playing as AirplayItem);
+    }
+    if (Array.isArray(data.up_next)) {
+      setUpNextList(data.up_next as AirplayItem[]);
+    }
+    if (typeof data.elapsed_seconds === 'number') {
+      setElapsedSeconds(data.elapsed_seconds);
+      lastFetchedRef.current = Date.now();
+    }
+    if (typeof data.duration_seconds === 'number') {
+      setDurationSeconds(data.duration_seconds);
+    }
+    setLoading(false);
+  }, []);
+
   const fetchUpNext = useCallback(async (slug: string) => {
     try {
-      const res = await fetch(`/api/radio/now?channel=${encodeURIComponent(slug)}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.now_playing) {
-          setNowPlaying(data.now_playing);
-        }
-        if (Array.isArray(data.up_next)) {
-          setUpNextList(data.up_next);
-        }
-        if (typeof data.elapsed_seconds === 'number') {
-          setElapsedSeconds(data.elapsed_seconds);
-          lastFetchedRef.current = Date.now();
-        }
-        if (typeof data.duration_seconds === 'number') {
-          setDurationSeconds(data.duration_seconds);
-        }
-      }
+      const data = await fetchRadioTelemetry(slug);
+      applyTelemetry(data);
     } catch {
       // Retain existing items on network hiccups
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [applyTelemetry]);
 
-  // Poll for latest radio status
+  // Sync with shared radio telemetry broadcasts and channel changes
   useEffect(() => {
-    fetchUpNext(channelSlug);
+    // Check if telemetry cache already has fresh data
+    const cached = getLatestRadioTelemetry(channelSlug);
+    if (cached) {
+      applyTelemetry(cached);
+    } else {
+      fetchUpNext(channelSlug);
+    }
+
+    // Subscribe to shared radio telemetry broadcasts to eliminate duplicate polling (Issue #123)
+    const unsubscribe = subscribeRadioTelemetry((data) => {
+      if (!data.channel || data.channel === channelSlug) {
+        applyTelemetry(data);
+      }
+    });
 
     const handleChannelChange = (e: Event) => {
       const custom = e as CustomEvent<{ slug: string }>;
@@ -64,10 +85,12 @@ export default function UpNextSection() {
     };
 
     window.addEventListener('promptfm:channel-changed', handleChannelChange);
+
+    // Standalone fallback polling (every 15s) in case AudioPlayer is not active
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
       fetchUpNext(channelSlug);
-    }, 10000);
+    }, 15000);
 
     const handleVisibility = () => {
       if (typeof document !== 'undefined' && !document.hidden) {
@@ -80,13 +103,14 @@ export default function UpNextSection() {
     }
 
     return () => {
+      unsubscribe();
       window.removeEventListener('promptfm:channel-changed', handleChannelChange);
       clearInterval(interval);
       if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', handleVisibility);
       }
     };
-  }, [channelSlug, fetchUpNext]);
+  }, [channelSlug, fetchUpNext, applyTelemetry]);
 
   // Second-by-second progress ticker for active track
   useEffect(() => {
@@ -210,6 +234,16 @@ export default function UpNextSection() {
                       {item.category && (
                         <span className="text-[10px] bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded truncate max-w-[90px]">
                           {item.category}
+                        </span>
+                      )}
+                      {item.requested_by && (
+                        <span
+                          data-testid="requested-by-badge"
+                          className="text-[10px] bg-purple-950/70 border border-purple-500/30 text-purple-300 px-1.5 py-0.5 rounded truncate max-w-[140px] flex items-center gap-1 font-medium"
+                          title={`Requested by ${item.requested_by}`}
+                        >
+                          <Headphones className="w-2.5 h-2.5 flex-shrink-0 text-purple-400" aria-hidden="true" />
+                          <span className="truncate">@{item.requested_by.replace(/^@/, '')}</span>
                         </span>
                       )}
                       {typeof item.upvotes_count === 'number' && (
@@ -362,6 +396,16 @@ export default function UpNextSection() {
                         {item.category && (
                           <span className="text-[10px] bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded truncate max-w-[90px]">
                             {item.category}
+                          </span>
+                        )}
+                        {item.requested_by && (
+                          <span
+                            data-testid="requested-by-badge"
+                            className="text-[10px] bg-purple-950/70 border border-purple-500/30 text-purple-300 px-1.5 py-0.5 rounded truncate max-w-[140px] flex items-center gap-1 font-medium"
+                            title={`Requested by ${item.requested_by}`}
+                          >
+                            <Headphones className="w-2.5 h-2.5 flex-shrink-0 text-purple-400" aria-hidden="true" />
+                            <span className="truncate">@{item.requested_by.replace(/^@/, '')}</span>
                           </span>
                         )}
                         {typeof item.upvotes_count === 'number' && (

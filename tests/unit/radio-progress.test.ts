@@ -241,6 +241,50 @@ describe('Radio Playback Progress & Queue Card Labeling', () => {
       expect(cards[0]?.progressPercent).toBe(0);
       expect(cards[0]?.formattedTime).toBe('0:00 / 3:00');
     });
+
+    it('attaches listener request metadata and labels on-air requested tracks with NOW PLAYING YOUR REQUEST', () => {
+      const requestedOnAir = {
+        id: 'req-on-air-1',
+        title: 'Cyber Anthem',
+        artist: 'Glitch Mob',
+        requested_by: '@alice',
+        isRequested: true,
+      };
+      const cards = buildQueueDisplayItems(requestedOnAir, []);
+      expect(cards[0]?.badgeLabel).toBe('▶ NOW PLAYING YOUR REQUEST');
+      expect(cards[0]?.requested_by).toBe('@alice');
+      expect(cards[0]?.isRequested).toBe(true);
+      expect(cards[0]?.lifecycleStatus).toBe('playing');
+    });
+
+    it('attaches listener request metadata and labels upcoming requested tracks with AIRING SOON and QUEUED REQUEST', () => {
+      const regularOnAir = { id: 'reg-1', title: 'Regular Song', artist: 'Artist 1' };
+      const upcomingRequests = [
+        { id: 'up-1', title: 'Song Alpha', artist: 'Artist A', requested_by: '@bob', isRequested: true },
+        { id: 'up-2', title: 'Song Beta', artist: 'Artist B', requested_by: '@charlie' },
+        { id: 'up-3', title: 'Song Gamma', artist: 'Artist C' },
+      ];
+      const cards = buildQueueDisplayItems(regularOnAir, upcomingRequests);
+      // Index 0: on air (regular)
+      expect(cards[0]?.badgeLabel).toBe('▶ NOW PLAYING');
+      expect(cards[0]?.isRequested).toBe(false);
+
+      // Index 1: upcoming index 0 (requested) -> AIRING SOON
+      expect(cards[1]?.badgeLabel).toBe('⏳ AIRING SOON');
+      expect(cards[1]?.requested_by).toBe('@bob');
+      expect(cards[1]?.isRequested).toBe(true);
+      expect(cards[1]?.lifecycleStatus).toBe('airing_soon');
+
+      // Index 2: upcoming index 1 (requested by charlie) -> QUEUED REQUEST
+      expect(cards[2]?.badgeLabel).toBe('📋 QUEUED REQUEST');
+      expect(cards[2]?.requested_by).toBe('@charlie');
+      expect(cards[2]?.isRequested).toBe(true);
+      expect(cards[2]?.lifecycleStatus).toBe('queued');
+
+      // Index 3: upcoming index 2 (not requested) -> #3 NEXT
+      expect(cards[3]?.badgeLabel).toBe('#3 NEXT');
+      expect(cards[3]?.isRequested).toBe(false);
+    });
   });
 
   describe('Issue #84: Queue State Summary & Empty Upcoming Track Differentiation', () => {

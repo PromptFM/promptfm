@@ -1,6 +1,12 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Issue #84: Up Next Widgets & Accessibility (E2E)', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('promptfm_cookie_consent', 'accepted');
+    });
+  });
+
   test('UpNextSection handles "only now playing exists" without broken 3-column empty space', async ({ page }) => {
     // Intercept /api/radio/now to guarantee the exact issue #84 state:
     // Station has an active track on air, but ZERO queued upcoming tracks.

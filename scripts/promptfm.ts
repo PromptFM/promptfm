@@ -17,6 +17,7 @@ import { autoGenerateChannelGuardrails } from '../src/lib/safety/channel-guardra
 import { getAllChannels, setChannelActiveOverride, isChannelActive } from '../src/lib/radio/channels';
 import { findTracksByVibe, indexTrackEmbedding } from '../src/lib/dj/rag';
 import { queueSong, getSongQueueStatus } from '../src/lib/song/pathway';
+import { getRequestLifecycle, formatRequestLifecycleMessage } from '../src/lib/song/lifecycle';
 import { editTrackMetadata, deleteTrack } from '../src/lib/dj/track-management';
 import {
   registerTelegramWebhook,
@@ -48,6 +49,20 @@ import {
   shouldBuildVercelDeployment,
   evaluateCIJobsForPR,
 } from '../src/lib/infra/budget-gate';
+import {
+  diffZone,
+  migrateZoneConfig,
+  validateRecord,
+  createZoneState,
+  saveZoneState,
+  loadZoneState,
+  formatMigrationSummary,
+  fetchRemoteZone,
+  validateRemoteZone,
+  applyRemoteZone,
+  resolveHostingerToken,
+  type HostingerDNSRecord,
+} from '../src/lib/infra/hostinger-dns';
 import { execSync } from 'child_process';
 import { readFileSync, writeFileSync, appendFileSync, existsSync } from 'fs';
 import { join, basename } from 'path';
@@ -82,6 +97,7 @@ Airplay Queue ("Up Next"):
   queue next <trackId>    Bump a track to the very top of the live queue
   queue remove <queueId>  Remove an item from the upcoming queue
   queue <prompt>          Find & queue a track matching a text vibe using semantic RAG
+  request <id|query>      Track live request lifecycle status, ETA, and queue position (alias: req)
 
 AI Voice & Broadcast:
   djs                     View full AI DJ roster, voices, and who is currently LIVE
@@ -123,6 +139,17 @@ $0 Infra Budget & Preview Protection Gate:
                           Flags: --env [preview|production] --branch <name> --message <text> --fork [true|false]
   budget ci               Evaluate which CI jobs will run for given PR actor and changed files
                           Flags: --actor <user> --files <f1,f2>
+
+Hostinger Domain & DNS Automation ($0 Egress):
+  dns status [domain]     View current DNS records and state for domain
+  dns snapshot [domain]   Export live Hostinger DNS records into local state file
+  dns diff <domain>       Calculate diff between live/target domain and local state
+                          Flags: --state <path> --from <sourceDomain>
+  dns migrate <src> <dst> Generate and preview full migration plan between domains
+  dns validate <domain>   Validate DNS zone syntax against Hostinger API
+                          Flags: --state <path>
+  dns apply <domain>      Apply DNS state to Hostinger domain
+                          Flags: --state <path> --force
 
 Moderation & Schedule:
   channels list           List radio broadcast channels, assigned DJs & guardrail policies
@@ -554,6 +581,19 @@ Moderation & Schedule:
       });
 
       console.log(result.confirmationMessage);
+      break;
+    }
+
+    case 'req':
+    case 'request': {
+      const query = args.filter((a) => a !== '--channel' && a !== parseArg('--channel')).slice(1).join(' ').trim();
+      if (!query) {
+        console.error('Provide request ID or song title: npm run promptfm request <id|title>');
+        return;
+      }
+      const channel = parseArg('--channel') || 'main';
+      const info = await getRequestLifecycle(query, channel);
+      console.log(formatRequestLifecycleMessage(info, 'cli'));
       break;
     }
 
@@ -1842,6 +1882,177 @@ Moderation & Schedule:
       }
 
       console.error(`Unknown budget subcommand: "${sub}". Valid subcommands: policy, gate, ci.`);
+      break;
+    }
+
+    case 'dns': {
+      const action = args[1] || 'status';
+      const targetDomain = args[2] || 'promptfm.live';
+      const defaultStatePath = join(process.cwd(), 'infra/dns/promptfm.live.state.json');
+
+      if (action === 'status') {
+        const stateFile = parseArg('--state') || join(process.cwd(), `infra/dns/${targetDomain}.state.json`);
+        console.log(`\n🌐 Inspecting DNS state for ${targetDomain}...`);
+        if (existsSync(stateFile)) {
+          const state = loadZoneState(stateFile);
+          console.log(`• State File: ${stateFile}`);
+          console.log(`• Last Updated: ${state.updatedAt}`);
+          console.log(`• Version: ${state.version}`);
+          console.log(`• Total Records: ${state.zone.length}\n`);
+          for (const r of state.zone) {
+            console.log(`  ${r.type.padEnd(6)} ${r.name.padEnd(20)} (TTL: ${r.ttl})`);
+            r.records.forEach((rec) => console.log(`         ➔ ${rec.content}`));
+          }
+        } else {
+          console.log(`⚠️  Local state file not found at ${stateFile}. Run "promptfm dns snapshot ${targetDomain}" to generate one.`);
+        }
+        return;
+      }
+
+      if (action === 'snapshot') {
+        const token = resolveHostingerToken();
+        const stateFile = parseArg('--state') || join(process.cwd(), `infra/dns/${targetDomain}.state.json`);
+        console.log(`\n📸 Exporting DNS state snapshot for ${targetDomain}...`);
+        if (!token) {
+          console.log(`ℹ️  No HOSTINGER_API_TOKEN found in environment or local credentials. Using existing local state or template.`);
+          if (existsSync(defaultStatePath)) {
+            const current = loadZoneState(defaultStatePath);
+            const state = createZoneState(targetDomain, current.zone);
+            saveZoneState(stateFile, state);
+            console.log(`✅ Snapshot saved to ${stateFile} (${state.zone.length} records)`);
+          } else {
+            console.error(`❌ Cannot snapshot: no HOSTINGER_API_TOKEN and no default state at ${defaultStatePath}`);
+          }
+          return;
+        }
+
+        try {
+          const remoteRecords = await fetchRemoteZone(targetDomain, token);
+          const state = createZoneState(targetDomain, remoteRecords);
+          saveZoneState(stateFile, state);
+          console.log(`✅ Snapshot saved to ${stateFile} (${remoteRecords.length} records from Hostinger API)`);
+        } catch (err: any) {
+          console.error(`❌ Failed to fetch from Hostinger: ${err.message}`);
+        }
+        return;
+      }
+
+      if (action === 'diff' || action === 'plan') {
+        const fromDomain = parseArg('--from') || 'promptfm.live';
+        const stateFile = parseArg('--state') || join(process.cwd(), `infra/dns/${fromDomain}.state.json`);
+        console.log(`\n🔍 Calculating DNS plan for [${targetDomain}] (source: ${fromDomain})...`);
+
+        let sourceZone: HostingerDNSRecord[] = [];
+        if (existsSync(stateFile)) {
+          sourceZone = loadZoneState(stateFile).zone;
+        } else {
+          console.error(`❌ State file not found: ${stateFile}`);
+          return;
+        }
+
+        const migrated = migrateZoneConfig(sourceZone, fromDomain, targetDomain);
+        const diffs = diffZone(sourceZone, migrated);
+        const summary = formatMigrationSummary({
+          sourceDomain: fromDomain,
+          targetDomain,
+          plannedRecords: migrated,
+          diffs,
+        });
+        console.log(summary);
+        return;
+      }
+
+      if (action === 'migrate') {
+        const sourceDomain = args[2];
+        const destDomain = args[3];
+        if (!sourceDomain || !destDomain) {
+          console.error('Usage: npm run promptfm -- dns migrate <sourceDomain> <targetDomain>');
+          return;
+        }
+
+        const sourceStateFile = parseArg('--state') || join(process.cwd(), `infra/dns/${sourceDomain}.state.json`);
+        console.log(`\n🚀 Planning migration: [${sourceDomain}] ➔ [${destDomain}]...`);
+        if (!existsSync(sourceStateFile)) {
+          console.error(`❌ Source state file not found at ${sourceStateFile}`);
+          return;
+        }
+
+        const sourceState = loadZoneState(sourceStateFile);
+        const migratedRecords = migrateZoneConfig(sourceState.zone, sourceDomain, destDomain);
+
+        const invalid = migratedRecords.map((r) => ({ r, v: validateRecord(r) })).filter((x) => !x.v.valid);
+        if (invalid.length > 0) {
+          console.error(`❌ Validation failed on ${invalid.length} migrated records:`);
+          invalid.forEach((x) => console.error(`  - ${x.r.name} (${x.r.type}): ${x.v.error}`));
+          return;
+        }
+
+        const diffs = diffZone(sourceState.zone, migratedRecords);
+        const summary = formatMigrationSummary({
+          sourceDomain,
+          targetDomain: destDomain,
+          plannedRecords: migratedRecords,
+          diffs,
+        });
+        console.log(summary);
+
+        const targetStateFile = join(process.cwd(), `infra/dns/${destDomain}.state.json`);
+        const targetState = createZoneState(destDomain, migratedRecords);
+        saveZoneState(targetStateFile, targetState);
+        console.log(`\n💾 Saved migrated target state to: ${targetStateFile}`);
+        console.log(`💡 To apply to Hostinger: npm run promptfm -- dns apply ${destDomain} --state ${targetStateFile}`);
+        return;
+      }
+
+      if (action === 'validate') {
+        const stateFile = parseArg('--state') || join(process.cwd(), `infra/dns/${targetDomain}.state.json`);
+        if (!existsSync(stateFile)) {
+          console.error(`❌ State file not found: ${stateFile}`);
+          return;
+        }
+        const state = loadZoneState(stateFile);
+        console.log(`\n🔎 Validating ${state.zone.length} records for ${targetDomain}...`);
+        let hasErrors = false;
+        for (const r of state.zone) {
+          const res = validateRecord(r);
+          if (!res.valid) {
+            console.error(`❌ Invalid record ${r.name} (${r.type}): ${res.error}`);
+            hasErrors = true;
+          }
+        }
+        if (!hasErrors) {
+          console.log(`✅ All ${state.zone.length} records valid according to Hostinger DNS specification.`);
+        }
+        return;
+      }
+
+      if (action === 'apply') {
+        const token = resolveHostingerToken();
+        const stateFile = parseArg('--state') || join(process.cwd(), `infra/dns/${targetDomain}.state.json`);
+        if (!existsSync(stateFile)) {
+          console.error(`❌ State file not found: ${stateFile}`);
+          return;
+        }
+        const state = loadZoneState(stateFile);
+
+        if (!token) {
+          console.log(`⚠️  HOSTINGER_API_TOKEN not found in environment or local credentials.`);
+          console.log(`State is saved locally and validated at ${stateFile}.`);
+          console.log(`Set HOSTINGER_API_TOKEN to execute remote Hostinger API deployment.`);
+          return;
+        }
+
+        console.log(`\n🚀 Applying DNS zone to Hostinger for ${targetDomain}...`);
+        try {
+          await applyRemoteZone(targetDomain, state.zone, token);
+          console.log(`✅ Successfully applied ${state.zone.length} DNS records to Hostinger domain ${targetDomain}!`);
+        } catch (err: any) {
+          console.error(`❌ Failed to apply to Hostinger: ${err.message}`);
+        }
+        return;
+      }
+
+      console.error(`Unknown dns subcommand: "${action}". Valid subcommands: status, snapshot, diff, migrate, validate, apply.`);
       break;
     }
 

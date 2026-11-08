@@ -6,6 +6,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   calculateQueueETA,
   formatQueueConfirmation,
+  normalizeRequestPlatform,
+  executeInsert,
   queueSong,
   getSongQueueStatus,
   type UnifiedSongRequestInput,
@@ -19,6 +21,7 @@ let mockNowPlaying: any = null;
 let mockRagShouldThrow = false;
 let mockNowPlayingShouldThrow = false;
 let mockCommunityRequestsShouldError = false;
+let mockStationState: any = null;
 
 // Mock dependencies
 vi.mock('@/lib/supabase/server', () => ({
@@ -44,84 +47,121 @@ vi.mock('@/lib/supabase/server', () => ({
               }),
             };
           },
-          select: (_fields?: string) => ({
-            eq: (col: string, val: any) => ({
-              is: (nullCol: string, nullVal: any) => ({
-                order: (_orderCol: string, { ascending }: { ascending: boolean }) => ({
-                  limit: async (limitCount: number) => {
-                    let filtered = mockChannelQueue
-                      .filter((item) => item[col] === val && item[nullCol] === nullVal)
-                      .map((item) => ({
-                        ...item,
-                        track: mockTracks.find((t) => t.id === item.track_id) || null,
-                      }));
-                    if (!ascending) {
-                      filtered = [...filtered].reverse();
-                    }
-                    return { data: filtered.slice(0, limitCount), error: null };
+          select: (fields?: string) => {
+            if (fields === '') throw new Error('Empty select fields on channel_queue');
+            return {
+              eq: (col: string, val: any) => {
+                if (col === '') throw new Error('Empty column in channel_queue eq');
+                return {
+                  is: (nullCol: string, nullVal: any) => {
+                    if (nullCol === '') throw new Error('Empty column in channel_queue is');
+                    return {
+                      order: (orderCol: string, { ascending }: { ascending: boolean }) => {
+                        if (orderCol === '') throw new Error('Empty orderCol in channel_queue');
+                        return {
+                          limit: async (limitCount: number) => {
+                            let filtered = mockChannelQueue
+                              .filter((item) => item[col] === val && item[nullCol] === nullVal)
+                              .map((item) => ({
+                                ...item,
+                                track: mockTracks.find((t) => t.id === item.track_id) || null,
+                              }));
+                            if (!ascending) {
+                              filtered = [...filtered].reverse();
+                            }
+                            return { data: filtered.slice(0, limitCount), error: null };
+                          },
+                        };
+                      },
+                    };
                   },
-                }),
-              }),
-              eq: (col2: string, val2: any) => ({
-                maybeSingle: async () => {
-                  const item = mockChannelQueue.find(
-                    (i) => i[col] === val && i[col2] === val2 && i.played_at === null
-                  );
-                  return { data: item || null, error: null };
-                },
-              }),
-            }),
-          }),
+                  eq: (col2: string, val2: any) => ({
+                    maybeSingle: async () => {
+                      const item = mockChannelQueue.find(
+                        (i) => i[col] === val && i[col2] === val2 && i.played_at === null
+                      );
+                      return { data: item || null, error: null };
+                    },
+                  }),
+                };
+              },
+            };
+          },
         };
       }
 
       if (table === 'channels') {
         return {
-          select: () => ({
-            eq: (_col: string, slug: string) => ({
-              maybeSingle: async () => {
-                if (slug === 'non-existent') return { data: null, error: null };
+          select: (fields?: string) => {
+            if (fields === '') throw new Error('Empty select fields on channels');
+            return {
+              eq: (col: string, slug: string) => {
+                if (col === '') throw new Error('Empty column on channels eq');
                 return {
-                  data: { id: `channel-${slug}`, slug, name: `${slug} Channel` },
-                  error: null,
+                  maybeSingle: async () => {
+                    if (slug === 'non-existent') return { data: null, error: null };
+                    return {
+                      data: { id: `channel-${slug}`, slug, name: `${slug} Channel` },
+                      error: null,
+                    };
+                  },
                 };
               },
-            }),
-          }),
+            };
+          },
         };
       }
 
       if (table === 'tracks') {
         return {
-          select: () => ({
-            eq: (col: string, val: any) => ({
-              eq: (col2: string, val2: any) => ({
-                maybeSingle: async () => {
-                  const track = mockTracks.find((t) => t[col] === val && t[col2] === val2);
-                  return { data: track || null, error: null };
-                },
-              }),
-              ilike: (col2: string, pattern: string) => ({
-                limit: () => ({
+          select: (fields?: string) => {
+            if (fields === '') throw new Error('Empty select fields on tracks');
+            return {
+              eq: (col: string, val: any) => ({
+                eq: (col2: string, val2: any) => ({
                   maybeSingle: async () => {
-                    const cleanPattern = pattern.replace(/%/g, '').toLowerCase();
-                    const track = mockTracks.find(
-                      (t) => t[col] === val && t[col2]?.toLowerCase().includes(cleanPattern)
-                    );
+                    const track = mockTracks.find((t) => t[col] === val && t[col2] === val2);
                     return { data: track || null, error: null };
                   },
                 }),
-              }),
-              order: (_orderCol: string, { ascending }: { ascending: boolean }) => ({
-                limit: () => ({
-                  maybeSingle: async () => {
-                    const sorted = [...mockTracks].filter((t) => t[col] === val);
-                    if (!ascending) {
-                      sorted.sort((a, b) => (b.upvotes_count || 0) - (a.upvotes_count || 0));
-                    }
-                    return { data: sorted[0] || null, error: null };
-                  },
+                ilike: (col2: string, pattern: string) => ({
+                  limit: () => ({
+                    maybeSingle: async () => {
+                      const cleanPattern = pattern.replace(/%/g, '').toLowerCase();
+                      const track = mockTracks.find(
+                        (t) => t[col] === val && t[col2]?.toLowerCase().includes(cleanPattern)
+                      );
+                      return { data: track || null, error: null };
+                    },
+                  }),
                 }),
+                order: (orderCol: string, { ascending }: { ascending: boolean }) => {
+                  if (orderCol === '') throw new Error('Empty orderCol on tracks');
+                  return {
+                    limit: () => ({
+                      maybeSingle: async () => {
+                        const sorted = [...mockTracks].filter((t) => t[col] === val);
+                        if (!ascending) {
+                          sorted.sort((a, b) => (b.upvotes_count || 0) - (a.upvotes_count || 0));
+                        }
+                        return { data: sorted[0] || null, error: null };
+                      },
+                    }),
+                  };
+                },
+              }),
+            };
+          },
+        };
+      }
+
+      if (table === 'station_state') {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: mockStationState,
+                error: null,
               }),
             }),
           }),
@@ -206,6 +246,7 @@ describe('Unified Song Pathway (Issue #43)', () => {
     mockRagShouldThrow = false;
     mockNowPlayingShouldThrow = false;
     mockCommunityRequestsShouldError = false;
+    mockStationState = null;
     mockTracks = [
       {
         id: 'track-synth',
@@ -332,6 +373,21 @@ describe('Unified Song Pathway (Issue #43)', () => {
       expect(eta3.position).toBe(4);
       expect(eta3.itemsAhead).toBe(3);
     });
+
+    it('calculates dynamic ETA accounting for staged track duration', () => {
+      const fixedNow = new Date('2026-11-07T12:00:00Z').getTime();
+      // itemsAhead: 0, currentRemaining: 60s, avgDuration: 180s, nowMs, stagedTrackSeconds: 210s
+      const eta = calculateQueueETA(0, 60, 180, fixedNow, 210);
+
+      expect(eta.position).toBe(1);
+      // 60s current remaining + 210s staged track = 270s (~4.5 -> 5 min)
+      expect(eta.waitSeconds).toBe(270);
+      expect(eta.waitMinutes).toBe(5);
+      expect(eta.displayTime).toBe('12:04 UTC');
+      expect(eta.formattedETA).toContain('~5 mins');
+      expect(eta.isProvisional).toBe(true);
+      expect(eta.batchId).toBe('BATCH-12:04');
+    });
   });
 
   describe('2. formatQueueConfirmation', () => {
@@ -418,6 +474,134 @@ describe('Unified Song Pathway (Issue #43)', () => {
       });
       expect(msgNoArtist).toBe('📻 Track "Secret Jam" is playing LIVE right now on air!');
     });
+
+    it('formats an already_queued notice when track is staged as up next with and without artist', () => {
+      const msgStagedWithArtist = formatQueueConfirmation({
+        status: 'already_queued',
+        trackTitle: 'Cyber Skyline',
+        artistName: 'Synth Master',
+        position: 1,
+        waitMinutes: 3,
+        displayTime: '12:03 UTC',
+        isStaged: true,
+      });
+      expect(msgStagedWithArtist).toBe(
+        'ℹ️ Track "Cyber Skyline" by Synth Master is already staged as UP NEXT! Estimated: ~3 mins • ~12:03 UTC. Plays immediately after current track. Check live queue anytime with /queue.'
+      );
+
+      const msgStagedNoArtist = formatQueueConfirmation({
+        status: 'already_queued',
+        trackTitle: 'Cyber Skyline',
+        position: 1,
+        waitMinutes: 1,
+        displayTime: '12:01 UTC',
+        isStaged: true,
+      });
+      expect(msgStagedNoArtist).toBe(
+        'ℹ️ Track "Cyber Skyline" is already staged as UP NEXT! Estimated: ~1 min • ~12:01 UTC. Plays immediately after current track. Check live queue anytime with /queue.'
+      );
+    });
+
+    it('formats a queued confirmation for unmatched generic track requests', () => {
+      const msgUnmatched = formatQueueConfirmation({
+        status: 'queued',
+        trackTitle: 'retro 80s arcade vibe',
+        position: 2,
+        waitMinutes: 5,
+        displayTime: '12:05 UTC',
+        batchId: 'BATCH-12:05',
+        isUnmatched: true,
+      });
+      expect(msgUnmatched).toBe(
+        '🎵 Track request "retro 80s arcade vibe" added to airplay queue! Position: #2 in queue • Scheduled for BATCH-12:05 (~12:05 UTC (est. in ~5m, provisional)). Check live queue anytime with /queue.'
+      );
+    });
+
+    it('omits batch label when batchId is omitted or empty', () => {
+      const msgNoBatch = formatQueueConfirmation({
+        status: 'queued',
+        trackTitle: 'Direct Cut',
+        position: 1,
+        waitMinutes: 2,
+        displayTime: '12:02 UTC',
+      });
+      expect(msgNoBatch).not.toContain('• Scheduled for');
+      expect(msgNoBatch).toBe(
+        '🎵 Track "Direct Cut" queued for live airplay! Position: Up next (#1 in queue) (~12:02 UTC (est. in ~2m, provisional)). Check live queue anytime with /queue.'
+      );
+    });
+
+    it('formats standard already_queued when isStaged is explicitly false', () => {
+      const msg = formatQueueConfirmation({
+        status: 'already_queued',
+        trackTitle: 'Queued Beat',
+        position: 2,
+        waitMinutes: 4,
+        displayTime: '12:04 UTC',
+        isStaged: false,
+      });
+      expect(msg).toContain('already in the live queue! Position: #2');
+      expect(msg).not.toContain('UP NEXT');
+    });
+  });
+
+  describe('2b. normalizeRequestPlatform', () => {
+    it('normalizes cli, mcp, and web_admin to web platform', () => {
+      expect(normalizeRequestPlatform('cli')).toBe('web');
+      expect(normalizeRequestPlatform('mcp')).toBe('web');
+      expect(normalizeRequestPlatform('web_admin')).toBe('web');
+    });
+
+    it('preserves native discord, telegram, and web platforms', () => {
+      expect(normalizeRequestPlatform('discord')).toBe('discord');
+      expect(normalizeRequestPlatform('telegram')).toBe('telegram');
+      expect(normalizeRequestPlatform('web')).toBe('web');
+    });
+  });
+
+  describe('2c. executeInsert', () => {
+    it('executes builder with select().single() returning data and null error', async () => {
+      const builder = {
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: { id: 'row-1' }, error: null }),
+        }),
+      };
+      const res = await executeInsert(builder);
+      expect(res.data).toEqual({ id: 'row-1' });
+      expect(res.error).toBeNull();
+      expect(builder.select).toHaveBeenCalled();
+    });
+
+    it('executes builder with select().single() returning error and null data', async () => {
+      const builder = {
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: null, error: { message: 'unique constraint' } }),
+        }),
+      };
+      const res = await executeInsert(builder);
+      expect(res.data).toBeNull();
+      expect(res.error).toEqual({ message: 'unique constraint' });
+    });
+
+    it('executes direct promise builder without select method returning data', async () => {
+      const builder = Promise.resolve({ data: { id: 'row-direct' }, error: null });
+      const res = await executeInsert(builder);
+      expect(res.data).toEqual({ id: 'row-direct' });
+      expect(res.error).toBeNull();
+    });
+
+    it('executes direct promise builder without select method returning error', async () => {
+      const builder = Promise.resolve({ data: null, error: { message: 'network timeout' } });
+      const res = await executeInsert(builder);
+      expect(res.data).toBeNull();
+      expect(res.error).toEqual({ message: 'network timeout' });
+    });
+
+    it('handles undefined or null builder gracefully', async () => {
+      const res = await executeInsert(null);
+      expect(res.data).toBeNull();
+      expect(res.error).toBeNull();
+    });
   });
 
   describe('3. queueSong Core Pathway', () => {
@@ -443,6 +627,7 @@ describe('Unified Song Pathway (Issue #43)', () => {
       // Verify channel_queue insertion
       expect(mockChannelQueue).toHaveLength(1);
       expect(mockChannelQueue[0].track_id).toBe('track-synth');
+      expect(mockChannelQueue[0].prompt_used).toBe('cyberpunk synthwave driving fast');
       expect(mockChannelQueue[0].requested_by).toBe('@NeonFan#1234 (discord)');
 
       // Verify community_requests logging
@@ -450,7 +635,13 @@ describe('Unified Song Pathway (Issue #43)', () => {
       expect(mockCommunityRequests[0].type).toBe('song');
       expect(mockCommunityRequests[0].status).toBe('scheduled');
       expect(mockCommunityRequests[0].platform).toBe('discord');
+      expect(mockCommunityRequests[0].content).toBe('cyberpunk synthwave driving fast');
+      expect(mockCommunityRequests[0].target).toBe('track-synth');
+      expect(mockCommunityRequests[0].batch_id).toBe(result.eta.batchId);
       expect(mockCommunityRequests[0].platform_message_id).toBe('msg-999');
+
+      expect(result.queueItemId).toBe(mockChannelQueue[0].id);
+      expect(result.requestId).toBe(mockCommunityRequests[0].id);
     });
 
     it('formats requestedBy without prepending redundant @ if already present', async () => {
@@ -613,6 +804,116 @@ describe('Unified Song Pathway (Issue #43)', () => {
       expect(mockChannelQueue).toHaveLength(1);
     });
 
+    it('factors in staged track duration when computing ETA for new song request', async () => {
+      mockStationState = {
+        channel_slug: 'main',
+        airplay_item: {
+          id: 'track-live',
+          title: 'Live Track',
+          duration_hint_seconds: 180,
+        },
+        staged_item: {
+          id: 'track-staged',
+          title: 'Staged Ambient Synth',
+          duration_hint_seconds: 210,
+        },
+        started_at: new Date(Date.now() - 60 * 1000).toISOString(), // 120s remaining
+      };
+
+      const result = await queueSong({
+        source: 'discord',
+        requestedBy: 'TestUser',
+        prompt: 'cyberpunk',
+      });
+
+      expect(result.status).toBe('queued');
+      // 120s current + 210s staged = 330s (~6 mins)
+      expect(result.eta.waitMinutes).toBe(6);
+      expect(result.confirmationMessage).toContain('~6m');
+    });
+
+    it('deduplicates when listener requests a track currently staged in station_state', async () => {
+      mockStationState = {
+        channel_slug: 'main',
+        airplay_item: {
+          id: 'track-live',
+          title: 'Live Track',
+          duration_hint_seconds: 180,
+        },
+        staged_item: {
+          id: 'track-synth',
+          title: 'Neon Skyline',
+          artist: 'Synthwave AI',
+          duration_hint_seconds: 180,
+        },
+        started_at: new Date(Date.now() - 60 * 1000).toISOString(),
+      };
+
+      const result = await queueSong({
+        source: 'discord',
+        requestedBy: 'TestUser',
+        prompt: 'Neon Skyline',
+      });
+
+      expect(result.status).toBe('already_queued');
+      expect(mockChannelQueue).toHaveLength(0);
+      expect(result.confirmationMessage).toContain('already');
+      expect(result.confirmationMessage).toContain('Neon Skyline');
+    });
+
+    it('matches staged item by prompt matching staged title and falls back to staged artist', async () => {
+      mockTracks.push({
+        id: 'track-no-artist',
+        title: 'Cyber Drift',
+        artist_name: '',
+        status: 'approved',
+      });
+
+      mockStationState = {
+        channel_slug: 'main',
+        airplay_item: {
+          id: 'track-live',
+          title: 'Live Track',
+          duration_hint_seconds: 180,
+        },
+        staged_item: {
+          id: 'track-no-artist',
+          title: 'Cyber Drift',
+          artist: 'Staged Fallback Artist',
+          // Omit duration_hint_seconds to test 210 default fallback
+        },
+        started_at: new Date(Date.now() - 60 * 1000).toISOString(),
+      };
+
+      const result = await queueSong({
+        source: 'telegram',
+        requestedBy: 'TgUser',
+        prompt: 'Cyber Drift',
+      });
+
+      expect(result.status).toBe('already_queued');
+      expect(result.confirmationMessage).toContain('by Staged Fallback Artist');
+      expect(result.confirmationMessage).toContain('already staged as UP NEXT');
+    });
+
+    it('bypasses staged deduplication when request includes dedicationTarget', async () => {
+      mockStationState = {
+        channel_slug: 'main',
+        airplay_item: { id: 'track-live', title: 'Live' },
+        staged_item: { id: 'track-synth', title: 'Neon Skyline' },
+      };
+
+      const result = await queueSong({
+        source: 'discord',
+        requestedBy: 'Lover',
+        prompt: 'Neon Skyline',
+        dedicationTarget: 'Friend',
+      });
+
+      expect(result.status).toBe('queued');
+      expect(mockChannelQueue.length).toBe(1);
+    });
+
     it('rejects submissions violating broadcast guardrails and uses default message when refusalMessage is null', async () => {
       const input: UnifiedSongRequestInput = {
         source: 'mcp',
@@ -625,10 +926,91 @@ describe('Unified Song Pathway (Issue #43)', () => {
       expect(result.status).toBe('rejected');
       expect(result.isRejected).toBe(true);
       expect(result.rejectionReason).toContain('Violation of broadcast ethics');
+      expect(result.confirmationMessage).toContain('broadcast ethics (hate speech)');
       expect(result.confirmationMessage).toContain('PromptFM operates as a family-safe and inclusive 24/7 radio station');
       expect(mockChannelQueue).toHaveLength(0);
       expect(mockCommunityRequests).toHaveLength(1);
       expect(mockCommunityRequests[0].status).toBe('rejected');
+      expect(mockCommunityRequests[0].platform).toBe('web');
+      expect(mockCommunityRequests[0].platform_user_id).toBe('anon');
+      expect(mockCommunityRequests[0].platform_message_id).toBeNull();
+      expect(mockCommunityRequests[0].type).toBe('song');
+      expect(mockCommunityRequests[0].target).toBeNull();
+    });
+
+    it('rejects submissions with custom userId, messageId, and dedicationTarget and logs them to community_requests', async () => {
+      const input: UnifiedSongRequestInput = {
+        source: 'discord',
+        requestedBy: 'MaliciousUser',
+        userId: 'user-hate-123',
+        messageId: 'msg-hate-456',
+        dedicationTarget: 'Ex-Partner',
+        prompt: 'harassment text',
+      };
+
+      const result = await queueSong(input);
+
+      expect(result.status).toBe('rejected');
+      expect(mockCommunityRequests).toHaveLength(1);
+      expect(mockCommunityRequests[0].platform).toBe('discord');
+      expect(mockCommunityRequests[0].platform_user_id).toBe('user-hate-123');
+      expect(mockCommunityRequests[0].platform_message_id).toBe('msg-hate-456');
+      expect(mockCommunityRequests[0].target).toBe('Ex-Partner');
+      expect(mockCommunityRequests[0].type).toBe('song');
+      expect(mockCommunityRequests[0].status).toBe('rejected');
+    });
+
+    it('propagates custom non-main channelSlug to findTracksByVibe', async () => {
+      const { findTracksByVibe } = await import('@/lib/dj/rag');
+      const input: UnifiedSongRequestInput = {
+        source: 'web',
+        requestedBy: 'VibeLover',
+        channelSlug: 'cyberpunk',
+        prompt: 'cyberpunk driving fast',
+      };
+
+      const result = await queueSong(input);
+
+      expect(result.status).toBe('queued');
+      expect(findTracksByVibe).toHaveBeenCalledWith(
+        'cyberpunk driving fast',
+        expect.objectContaining({ channelSlug: 'cyberpunk' })
+      );
+    });
+
+    it('handles direct trackId lookup when track ID does not exist in library', async () => {
+      const input: UnifiedSongRequestInput = {
+        source: 'cli',
+        requestedBy: 'AdminUser',
+        trackId: 'track-does-not-exist',
+      };
+
+      const result = await queueSong(input);
+
+      expect(result.status).toBe('no_match');
+      expect(result.confirmationMessage).toContain('No approved tracks found matching "request"');
+    });
+
+    it('deduplicates when requested trackId already exists in pending channel_queue', async () => {
+      mockChannelQueue.push({
+        id: 'q-queued-earlier',
+        track_id: 'track-synth',
+        channel_id: 'channel-main',
+        created_at: new Date(Date.now() - 30 * 1000).toISOString(),
+        played_at: null,
+      });
+
+      const input: UnifiedSongRequestInput = {
+        source: 'discord',
+        requestedBy: 'RepeatUser',
+        trackId: 'track-synth',
+      };
+
+      const result = await queueSong(input);
+
+      expect(result.status).toBe('already_queued');
+      expect(result.position).toBe(1);
+      expect(result.confirmationMessage).toContain('already in the live queue');
     });
 
     it('rejects submissions violating broadcast guardrails and preserves custom refusalMessage if present', async () => {
@@ -665,6 +1047,8 @@ describe('Unified Song Pathway (Issue #43)', () => {
       expect(result.status).toBe('queued');
       expect(result.position).toBe(1);
       expect(result.track.id).toBe('track-synth');
+      expect(mockChannelQueue[0].prompt_used).toBe('Neon Skyline');
+      expect(mockCommunityRequests[0].content).toBe('Neon Skyline');
     });
 
     it('falls back to channel-main when channel query returns null', async () => {
@@ -863,6 +1247,14 @@ describe('Unified Song Pathway (Issue #43)', () => {
       const time0 = new Date(status.items[0]?.createdAt || '').getTime();
       const time1 = new Date(status.items[1]?.createdAt || '').getTime();
       expect(time0).toBeLessThan(time1);
+    });
+
+    it('returns empty items array when channel queue is empty', async () => {
+      mockChannelQueue = [];
+      const status = await getSongQueueStatus('main');
+      expect(status.totalQueued).toBe(0);
+      expect(status.items).toEqual([]);
+      expect(status.matchedItem).toBeUndefined();
     });
   });
 });

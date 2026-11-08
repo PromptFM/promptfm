@@ -5,6 +5,11 @@
 
 import React, { useEffect, useState } from 'react';
 import { getPublicChannels } from '@/lib/radio/channels';
+import {
+  fetchRadioTelemetry,
+  subscribeRadioTelemetry,
+  getLatestRadioTelemetry,
+} from '@/lib/radio/telemetry-client';
 
 export interface LiveListenersBadgeProps {
   initialCount?: number | null;
@@ -18,27 +23,46 @@ export default function LiveListenersBadge({ initialCount = null }: LiveListener
   useEffect(() => {
     let mounted = true;
 
+    const applyStats = (data: { listeners?: { network_total?: number }; listeners_count?: number }) => {
+      if (!mounted) return;
+      if (data.listeners?.network_total) {
+        setListenerCount(data.listeners.network_total);
+      } else if (data.listeners_count) {
+        setListenerCount(data.listeners_count);
+      }
+    };
+
+    // 1. Instantly use telemetry if already available in client cache
+    const latest = getLatestRadioTelemetry('main');
+    if (latest) {
+      applyStats(latest);
+    }
+
+    // 2. Subscribe to shared radio telemetry broadcasts (from AudioPlayer)
+    // Eliminates redundant background polling from LiveListenersBadge (Issue #123)
+    const unsubscribe = subscribeRadioTelemetry((data) => {
+      applyStats(data);
+    });
+
     async function fetchStats() {
       try {
-        const res = await fetch('/api/radio/now?channel=main');
-        if (res.ok) {
-          const data = await res.json();
-          if (mounted && data.listeners?.network_total) {
-            setListenerCount(data.listeners.network_total);
-          } else if (mounted && data.listeners_count) {
-            setListenerCount(data.listeners_count);
-          }
-        }
+        const data = await fetchRadioTelemetry('main');
+        applyStats(data);
       } catch {
         // Silently preserve previous value
       }
     }
 
-    fetchStats();
+    // If cache was empty, perform initial fetch
+    if (!latest) {
+      fetchStats();
+    }
+
+    // Fallback polling (relaxed from 15s to 30s) in case AudioPlayer is unmounted
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
       fetchStats();
-    }, 15000);
+    }, 30000);
 
     const handleVisibility = () => {
       if (typeof document !== 'undefined' && !document.hidden) {
@@ -52,6 +76,7 @@ export default function LiveListenersBadge({ initialCount = null }: LiveListener
 
     return () => {
       mounted = false;
+      unsubscribe();
       clearInterval(interval);
       if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', handleVisibility);

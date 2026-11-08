@@ -5,6 +5,32 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
+function safeFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const urlStr =
+    typeof input === 'string'
+      ? input
+      : input instanceof URL
+      ? input.href
+      : typeof (input as any).url === 'string'
+      ? (input as any).url
+      : '';
+
+  if (urlStr.includes('placeholder.supabase.co')) {
+    return Promise.resolve(
+      new Response(JSON.stringify({ error: 'Placeholder Supabase URL' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+  }
+
+  return fetch(input, {
+    ...init,
+    cache: 'no-store',
+    signal: init?.signal || AbortSignal.timeout(3000),
+  });
+}
+
 export async function createClient() {
   const cookieStore = await cookies();
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
@@ -27,8 +53,7 @@ export async function createClient() {
       },
     },
     global: {
-      fetch: (input: RequestInfo | URL, init?: RequestInit) =>
-        fetch(input, { ...init, cache: 'no-store' }),
+      fetch: safeFetch,
     },
   });
 }
@@ -50,8 +75,7 @@ export function createAdminClient() {
       autoRefreshToken: false,
     },
     global: {
-      fetch: (input: RequestInfo | URL, init?: RequestInit) =>
-        fetch(input, { ...init, cache: 'no-store' }),
+      fetch: safeFetch,
     },
   });
 }

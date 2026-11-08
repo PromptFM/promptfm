@@ -10,3 +10,8 @@ ca8c123a73b628a97df848699c4d6b48ebfe7de6:tests/unit/x-client.test.ts:generic-api
 ca8c123a73b628a97df848699c4d6b48ebfe7de6:tests/unit/x-client.test.ts:generic-api-key:83
 61a06fa3278e6f2f56e4cd4a2ae1003bb044f8fb:tests/integration/vercel-flags.test.ts:generic-api-key:10
 6b3313deaf85229e227e4abbcd6808c0fedfd6c5:docs/mcp-integration-guide.md:curl-auth-header:126
+53c7cd5dd5d866f7304066d2e519872e93437dd9:tests/unit/prepare-infra.test.ts:hashicorp-tf-password:128
+53c7cd5dd5d866f7304066d2e519872e93437dd9:tests/unit/prepare-infra.test.ts:hashicorp-tf-password:129
+888339f72a59b78e098cfb613408c2d919a50366:tests/unit/prepare-infra.test.ts:hashicorp-tf-password:128
+888339f72a59b78e098cfb613408c2d919a50366:tests/unit/prepare-infra.test.ts:hashicorp-tf-password:129
+

@@ -37,10 +37,14 @@ test-results/
 playwright-report/
 tests/e2e/screenshots/
 
-# Terraform
-.terraform/
+# Infrastructure Secrets & Local State
+*.tfvars
+!*.tfvars.example
 *.tfstate
 *.tfstate.*
-*.tfvars
-!terraform.tfvars.example
+.terraform/
+.terraform.lock.hcl
+*.key.json
+infra/ansible/group_vars/
+infra/ansible/.vault_pass
 

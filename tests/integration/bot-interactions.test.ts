@@ -83,6 +83,45 @@ describe('Discord & Telegram Interactive Bot Commands Integration', () => {
       expect(Array.isArray(json.upcoming)).toBe(true);
     });
 
+    it('handles Telegram /request and /req commands and returns request lifecycle', async () => {
+      const req = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: {
+            message_id: 103,
+            from: { id: 111, username: 'cyber_listener' },
+            chat: { id: 222 },
+            text: '/request neon',
+          },
+        }),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(json.reply_text).toBeDefined();
+
+      const reqShorthand = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: {
+            message_id: 104,
+            from: { id: 111, username: 'cyber_listener' },
+            chat: { id: 222 },
+            text: '/req 186f9b8c',
+          },
+        }),
+      });
+      const resShorthand = await POST(reqShorthand);
+      expect(resShorthand.status).toBe(200);
+      const jsonShorthand = await resShorthand.json();
+      expect(jsonShorthand.success).toBe(true);
+      expect(jsonShorthand.reply_text).toBeDefined();
+    });
+
     it('handles Telegram inline button click vote:<id> and registers upvote', async () => {
       const req = new NextRequest('http://localhost:3000/api/bot/webhook', {
         method: 'POST',
@@ -470,6 +509,50 @@ describe('Discord & Telegram Interactive Bot Commands Integration', () => {
       expect(json.data.content).toContain('/song');
       expect(json.data.content).toContain('/queue');
       expect(json.data.content).toContain(':45');
+    });
+
+    it('handles Discord /request and /req slash commands and returns request lifecycle', async () => {
+      const req = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 2,
+          data: {
+            name: 'request',
+            options: [{ name: 'query', value: 'cyberpunk' }],
+          },
+          member: {
+            user: { id: 'discord_listener_55', username: 'RadioExplorer' },
+          },
+        }),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.type).toBe(4);
+      expect(json.data.content).toBeDefined();
+
+      const shorthandReq = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 2,
+          data: {
+            name: 'req',
+            options: [{ name: 'id', value: '186f9b8c' }],
+          },
+          member: {
+            user: { id: 'discord_listener_55', username: 'RadioExplorer' },
+          },
+        }),
+      });
+
+      const shorthandRes = await POST(shorthandReq);
+      expect(shorthandRes.status).toBe(200);
+      const shorthandJson = await shorthandRes.json();
+      expect(shorthandJson.type).toBe(4);
+      expect(shorthandJson.data.content).toBeDefined();
     });
 
     it('handles all shorthand Discord slash commands: np, q, n, s, d, w, z, r, h', async () => {

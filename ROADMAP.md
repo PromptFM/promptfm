@@ -16,8 +16,8 @@ This document tracks upcoming features, architectural milestones, and infrastruc
 - [x] **Icecast 2 / Liquidsoap Continuous Broadcaster**: Configured Liquidsoap dynamic track fetcher that queries PromptFM's Next.js API, decodes finite MP3s, crossfades, and streams continuous 128 kbps MP3 to Icecast.
 - [x] **Dynamic Stream Feeder Endpoint (`/api/radio/next?format=uri`)**: Implemented raw URI output verified via Vitest integration tests (100% pass rate).
 - [x] **Terraform & Ansible Infrastructure Code**: Complete IaC suite with GCS Always Free remote state backend and 1-click Makefile state machine.
-- [ ] **SSL/HTTPS Termination for Audio Stream**: Expose stream over HTTPS (e.g. via Hostinger domain `stream.promptfm.live` or Cloudflare Tunnel) to avoid browser mixed-content blocks and GCP egress bandwidth fees.
-- [ ] **AudioPlayer Live Stream Sync**: Connect web frontend [`AudioPlayer.tsx`](src/components/AudioPlayer.tsx) to the live continuous mount with seamless fallback.
+- [x] **SSL/HTTPS Termination & Zero-Egress Protection (Issue #127)**: Terminated audio stream over HTTPS at `stream.promptfm.live`, blocked unencrypted port 8000 from public ingress on GCP firewall, and configured zero-cost edge proxying / Cloudflare Tunnel to protect GCP Always Free VM egress.
+- [x] **AudioPlayer Live Stream Sync**: Connected web frontend [`AudioPlayer.tsx`](src/components/AudioPlayer.tsx) to the live continuous mount (`https://stream.promptfm.live/stream.mp3`) with seamless fallback.
 
 ---
 
@@ -84,5 +84,13 @@ This document tracks upcoming features, architectural milestones, and infrastruc
 - [x] **Search Crawler Blocking on Preview Deployments**: Automated dynamic `robots.txt` generation in `generateRobotsConfig` to disallow all crawling on non-production deployments.
 - [x] **Slimmed GitHub Actions CI Pipeline**: Added change scope detection in `ci.yml`, Playwright browser caching (`~/.cache/ms-playwright`), Next.js `.next/cache` restoration, 20m Stryker timeout, and Dependabot bypass for heavy suites.
 - [x] **4-Way Operational Budget Controls**: Documented and verified budget commands across Terminal CLI (`npm run promptfm -- budget`), MCP Tools (`promptfm_admin_get_infra_budget`), and Admin documentation.
+
+---
+
+### 11. Declarative Hostinger DNS & Domain Migration Automation
+- [x] **Stateful DNS Snapshotting (`infra/dns/*.state.json`)**: Versioned state snapshotting of live Hostinger DNS records for instant reproducibility, drift detection, and disaster recovery.
+- [x] **Automated Cross-Domain Migration Engine**: Parameterized domain replacement engine supporting one-command migration of MX, DMARC, SPF, Vercel CNAME, and streaming endpoints.
+- [x] **Hostinger Ansible Playbook & CLI Tools**: Declarative diffing, syntax validation, state tracking, and remote Hostinger REST API synchronization (`npm run promptfm -- dns <status|snapshot|diff|migrate|validate|apply>`).
+- [x] **Zero-Egress Firewall Enforcement**: Ingress firewall lockdown blocking public port 8000 on GCP, eliminating direct listener traffic off the Always-Free VM.
 
 

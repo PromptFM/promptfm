@@ -1,13 +1,13 @@
 version: '3.8'
 
 services:
-  # 1. Icecast 2 Audio Distribution Server
+  # 1. Icecast 2 Audio Distribution Server (Bound strictly to localhost to prevent direct VM egress)
   icecast:
     image: infiniteproject/icecast:latest
     container_name: promptfm-icecast
     restart: unless-stopped
     ports:
-      - "{{ icecast_port | default(8000) }}:8000"
+      - "127.0.0.1:{{ icecast_port | default(8000) }}:8000"
     environment:
       - ICECAST_SOURCE_PASSWORD={{ icecast_source_password }}
       - ICECAST_ADMIN_PASSWORD={{ icecast_admin_password }}

@@ -2,10 +2,8 @@ name: 📚 Release GitHub Pages (Documentation)
 
 on:
   push:
-    branches: [main]
-    paths:
-      - 'docs/**'
-      - '.github/workflows/pages.yml'
+    tags:
+      - 'gh-pages/*'
   workflow_dispatch:
 
 permissions:

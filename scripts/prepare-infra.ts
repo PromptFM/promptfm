@@ -16,6 +16,7 @@ import {
 async function main() {
   // Load any secrets pulled by Vercel CLI into local env
   loadLocalEnvFiles();
+
   console.log(`\n======================================================================`);
   console.log(`🎙️  PromptFM Infrastructure Preparation & Credential Orchestrator`);
   console.log(`    Strictly adhering to GCP Always Free Tier ($0.00 / month)`);
@@ -32,7 +33,11 @@ async function main() {
       stdio: ['pipe', 'pipe', 'ignore'],
     }).trim();
     if (!currentAccount) {
-      console.log(`⚠️  No active gcloud account found. Initiating gcloud auth login...`);
+      console.log(`⚠️  No active gcloud account found.`);
+      if (process.stdout.isTTY) {
+        console.log(`   Initiating interactive gcloud auth login...`);
+        execSync('gcloud auth login', { stdio: 'inherit' });
+      }
     } else {
       console.log(`   ✓ Active GCP account: ${currentAccount}`);
     }
@@ -49,17 +54,28 @@ async function main() {
   if (gcpKeyPath && existsSync(gcpKeyPath)) {
     console.log(`   ✓ Programmatic GCP Key ready at: ${gcpKeyPath}`);
   } else {
-    console.log(`   ⚠️  GCP service account key not found locally. It can be pulled from secrets (GCP_SA_KEY).`);
+    console.log(`   ⚠️  GCP service account key not found locally. It can be pulled from Vercel secrets (GCP_SA_KEY).`);
   }
 
   // 3. Resolve Hostinger API Token
   console.log(`\n3️⃣  Resolving Hostinger API Token...`);
   let hostingerToken = resolveHostingerTokenForInfra();
 
-  if (!hostingerToken) {
+  if (!hostingerToken && process.stdout.isTTY) {
     console.log(`   ℹ️  No HOSTINGER_API_TOKEN found in environment or local credentials.`);
-  } else {
+    console.log(`   🚀 Launching Hostinger OAuth verification...`);
+    try {
+      execSync('npx @hostinger/mcp hostinger-dns-mcp', { stdio: 'inherit', timeout: 60000 });
+      hostingerToken = resolveHostingerTokenForInfra();
+    } catch {
+      console.warn(`   ⚠️  OAuth flow skipped or timed out.`);
+    }
+  }
+
+  if (hostingerToken) {
     console.log(`   ✓ Hostinger API Token resolved successfully (${hostingerToken.slice(0, 6)}...${hostingerToken.slice(-4)})`);
+  } else {
+    console.log(`   ⚠️  Hostinger API Token missing. Remote DNS sync will require HOSTINGER_API_TOKEN.`);
   }
 
   // 4. Generate Terraform Variables (infra/terraform/terraform.tfvars)
@@ -89,12 +105,16 @@ async function main() {
   console.log(`\n======================================================================`);
   console.log(`🎉 Infrastructure & Credentials Successfully Prepared!`);
   console.log(`======================================================================`);
+  console.log(`\nCommands to run:`);
+  console.log(`  1. Terraform:`);
+  console.log(`     cd infra/terraform && terraform init && terraform plan`);
+  console.log(`  2. Hostinger DNS status & migration:`);
+  console.log(`     npm run promptfm -- dns status ${domainName}`);
+  console.log(`  3. Ansible configuration:`);
+  console.log(`     ansible-playbook -i infra/ansible/inventory.ini infra/ansible/hostinger-playbook.yml\n`);
 }
 
-if (require.main === module) {
-  main().catch((err) => {
-    console.error('Fatal error preparing infrastructure:', err);
-    process.exit(1);
-  });
-}
-
+main().catch((err) => {
+  console.error('Fatal error preparing infrastructure:', err);
+  process.exit(1);
+});

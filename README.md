@@ -349,7 +349,7 @@ PromptFM welcomes open community development, bug fixes, and feature proposals!
 - **Licensing:** Governed by the [`PromptFM Community Source-Available License (Version 1.0)`](LICENSE). You may inspect, fork, test, and contribute pull requests. You may **not** copy, extract, resell, or host competing radio/streaming clones.
 - **Review Board:** All pull requests require review and approval from the Board (**@atrifan**).
 - **GitHub Organization:** Community development is hosted under the `promptfm` organization.
-- **Continuous Deployment:** Merging a verified PR to `main` automatically triggers Vercel production deployment to [promptfm.live](https://promptfm.live). Terraform and Ansible changes are executed manually by the Board Admin.
+- **Tag-Triggered Deployments:** To protect our $0 infrastructure budget and prevent burning Vercel Fluid Active CPU, routine merges to `main` run CI quality checks but do NOT auto-deploy to production. Production deployments are triggered exclusively via release tags (`promptfm/<version>` or `v*.*.*`) targeting the `production` environment on Vercel. Documentation updates deploy via `gh-pages/<version>` to GitHub Pages.
 - **Security & Secret Sharing:** Never post secrets or API keys in PRs or issues. For new environment variables, use ephemeral links ([Password Pusher](https://pwpush.com)) shared directly with @atrifan.
 
 ---
@@ -396,13 +396,17 @@ PromptFM maximizes observability without incurring third-party SaaS fees (no Dat
 
 ---
 
-## 🚀 Zero-Friction Release Automation & Vercel Production Gate
+## 🚀 Zero-Friction Release Automation & Tag-Based Deployment Gate
 
-To eliminate release bottlenecks and manual token hurdles:
-1. **Continuous Deployment on `main`:** Pull Requests merged into `main` automatically deploy to Vercel production preview/live with zero manual intervention.
-2. **Automated Release Tags:** Pushing a semantic version tag (e.g. `git tag v1.0.0 && git push origin v1.0.0`) triggers [`.github/workflows/release.yml`](.github/workflows/release.yml).
-3. **GitHub Deployment Status (Checkmark!):** The workflow packages the release, executes the quality gate (Vitest + Typecheck), triggers/verifies Vercel production deployment, and stamps the Git tag with an official green checkmark (`Environment: Production – Active`).
-4. **Automated Changelog:** GitHub Release notes are automatically generated from commit history with zero manual release drafting friction.
+To eliminate release bottlenecks and protect our free-tier compute budget:
+1. **Protected $0 Budget Policy:** Merges to `main` run CI verification (Vitest, Typecheck, Lint, Security) but do NOT auto-deploy to Vercel production. This preserves Vercel's included 4 hours/month Fluid Active CPU.
+2. **Pre-Build Ignore Hook (`scripts/vercel-budget-gate.js`):** Enforces Vercel's `ignoreCommand` to cancel untagged `main` builds in 2–3s with exit code `0` (0 active CPU seconds consumed).
+3. **Automated Production Release Tags:** Pushing a semantic release tag (e.g. `git tag promptfm/v1.0.0 && git push origin promptfm/v1.0.0` or `v1.0.0`) triggers [`.github/workflows/release.yml`](.github/workflows/release.yml).
+4. **Vercel Deploy Hook Integration:** Tag releases trigger Vercel's production deployment using the `promptfm-release` deploy hook (stored securely in GitHub Actions as `VERCEL_DEPLOY_HOOK`).
+5. **GitHub Deployment Status (Checkmark!):** The workflow packages the release, executes the quality gate (Vitest + Typecheck), triggers/verifies Vercel production deployment, and stamps the Git tag with an official green checkmark (`Environment: production – Active`).
+6. **Documentation Releases:** Pushing a `gh-pages/<version>` tag (e.g. `gh-pages/v1.0.0`) deploys the documentation portal to GitHub Pages via [`.github/workflows/pages.yml`](.github/workflows/pages.yml).
+7. **Automated Changelog:** GitHub Release notes are automatically generated from commit history with zero manual release drafting friction.
+8. **Operational Runbook:** See [Station Admin Guide — Section E](docs/admin-guide.md#e-tag-based-release-operations-runbook-issue-123) for deploy hook CLI management and emergency override procedures.
 
 
 

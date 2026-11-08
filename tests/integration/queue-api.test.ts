@@ -40,17 +40,46 @@ vi.mock('@/lib/supabase/server', () => ({
   createAdminClient: vi.fn(() => ({
     from: vi.fn((table: string) => {
       if (table === 'community_requests') {
-        return {
-          select: vi.fn().mockReturnValue({
-            in: vi.fn().mockReturnValue({
+        const builder: any = {
+          in: vi.fn().mockReturnThis(),
+          order: vi.fn().mockReturnThis(),
+          limit: vi.fn().mockImplementation(async () => ({
+            data: mockDbRequests,
+            error: null,
+          })),
+          ilike: vi.fn((col: string, pattern: string) => {
+            const raw = pattern.replace(/%/g, '').toLowerCase();
+            const found = mockDbRequests.filter((r: any) =>
+              String(r[col] || '').toLowerCase().includes(raw)
+            );
+            return {
               order: vi.fn().mockReturnValue({
                 limit: vi.fn().mockImplementation(async () => ({
-                  data: mockDbRequests,
+                  data: found,
                   error: null,
                 })),
               }),
-            }),
+            };
           }),
+          eq: vi.fn((col: string, val: string) => {
+            const found = mockDbRequests.find((r: any) => r[col] === val);
+            return {
+              maybeSingle: vi.fn().mockResolvedValue({ data: found || null, error: null }),
+              single: vi.fn().mockResolvedValue({ data: found || null, error: null }),
+            };
+          }),
+          or: vi.fn(() => ({
+            order: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: mockDbRequests[0] || null, error: null }),
+              }),
+            }),
+            maybeSingle: vi.fn().mockResolvedValue({ data: mockDbRequests[0] || null, error: null }),
+          })),
+          maybeSingle: vi.fn().mockResolvedValue({ data: mockDbRequests[0] || null, error: null }),
+        };
+        return {
+          select: vi.fn().mockReturnValue(builder),
         };
       }
       return {
@@ -247,6 +276,32 @@ describe('Multi-Interface /q and Queue Integration (Issue #86)', () => {
       expect(content.scheduled_requests).toHaveLength(2);
       expect(content.scheduled_requests[0].content).toBe('dark synthwave retro 80s');
       expect(content.formatted_discord).toContain('Scheduled Community Requests');
+    });
+
+    it('returns request lifecycle status via promptfm_get_request_status tool', async () => {
+      const req = new NextRequest('http://localhost:3000/api/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 2,
+          method: 'tools/call',
+          params: {
+            name: 'promptfm_get_request_status',
+            arguments: { query: 'dark synthwave', channel: 'main' },
+          },
+        }),
+      });
+
+      const res = await mcpPOST(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.result).toBeDefined();
+      const content = JSON.parse(json.result.content[0].text);
+      expect(content.found).toBe(true);
+      expect(content.request_id).toBe('req_discord_1');
+      expect(content.status).toBeDefined();
+      expect(content.message).toBeDefined();
     });
   });
 

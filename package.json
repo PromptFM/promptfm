@@ -9,6 +9,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "promptfm": "jiti scripts/promptfm.ts",
+    "prepare-terraform": "jiti scripts/prepare-infra.ts",
     "prepare-infra": "jiti scripts/prepare-infra.ts",
     "local:up": "docker compose -f docker-compose.local.yml up -d",
     "local:down": "docker compose -f docker-compose.local.yml down",

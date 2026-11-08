@@ -105,7 +105,7 @@ export function generateTerraformTfvars(options: TerraformVarsOptions): string {
     options.outputPath || path.join(process.cwd(), 'infra/terraform/terraform.tfvars');
 
   const content = `# PromptFM Terraform Variables Configuration
-# Generated automatically by npm run prepare-infra
+# Generated automatically by npm run prepare-infra (prepare-terraform)
 
 project_id          = "${projectId}"
 region              = "us-central1"
@@ -201,5 +201,4 @@ export function loadLocalEnvFiles(baseDir: string = process.cwd()): void {
     }
   }
 }
-
 
