@@ -28,12 +28,21 @@ describe('PR Comment Guidance Generator', () => {
       expect(changes.hasAnsible).toBe(true);
     });
 
-    it('returns false for all when only application files change', () => {
-      const changes = detectInfraChanges(['src/app/page.tsx', 'src/components/AudioPlayer.tsx']);
+    it('returns false for infra when documentation files change', () => {
+      const changes = detectInfraChanges(['README.md', 'docs/admin-guide.md']);
       expect(changes.hasTerraform).toBe(false);
       expect(changes.hasAnsible).toBe(false);
       expect(changes.hasSql).toBe(false);
       expect(changes.hasSecrets).toBe(false);
+      expect(changes.hasUi).toBe(false);
+    });
+
+    it('detects UI changes when src/app or src/components are modified', () => {
+      const changes = detectInfraChanges(['src/app/page.tsx', 'src/components/AudioPlayer.tsx']);
+      expect(changes.hasUi).toBe(true);
+      expect(changes.hasTerraform).toBe(false);
+      expect(changes.hasAnsible).toBe(false);
+      expect(changes.hasSql).toBe(false);
     });
 
     it('detects SQL schema changes when files in supabase/ or *.sql are modified', () => {
@@ -55,7 +64,7 @@ describe('PR Comment Guidance Generator', () => {
     it('generates preview link instruction with exact commit sha when checks pass', () => {
       const comment = generatePRGuidanceComment({
         commitSha: 'be7386564e16dcaaab5f423293c060a1aedded24',
-        changedFiles: ['src/app/page.tsx'],
+        changedFiles: ['README.md'],
         checksPassed: true,
       });
 
@@ -63,6 +72,18 @@ describe('PR Comment Guidance Generator', () => {
       expect(comment).toContain('be7386564e16dcaaab5f423293c060a1aedded24');
       expect(comment).not.toContain('Update terraform workflow');
       expect(comment).not.toContain('Update ansible workflow');
+    });
+
+    it('includes dedicated card for UI changes explaining how to ask for pr-link', () => {
+      const comment = generatePRGuidanceComment({
+        commitSha: 'a1b2c3d4e5f6',
+        changedFiles: ['src/components/AudioPlayer.tsx'],
+        checksPassed: true,
+      });
+
+      expect(comment).toContain('UI / Frontend Changes Detected');
+      expect(comment).toContain('/pr-link');
+      expect(comment).toContain('https://github.com/PromptFM/promptfm/actions/workflows/create-preview-link.yml');
     });
 
     it('includes card for Terraform changes when infra/terraform files are touched', () => {

@@ -882,6 +882,72 @@ Pull production Supabase secrets from Vercel:
 npx vercel env pull .env.production.local --environment=production --yes
 ```
 
+---
+
+## 18. Secret Management & Secure Handoff Runbook
+
+PromptFM maintains a strict zero-leakage security posture. Production credentials, API tokens, and private keys must never appear in Git history, pull requests, issues, or code review comments.
+
+### A. The 3 Golden Rules of Secret Sharing
+
+1. **NEVER post secrets in GitHub**:
+   - Do not paste API tokens, database connection strings, or service account keys into pull request descriptions, issues, commits, or comments.
+   - Gitleaks CI scanning (`.github/workflows/ci.yml`) will fail and block PR merge if raw secrets are detected.
+2. **Use Ephemeral Encrypted Links for Handoff**:
+   - If a new feature or infrastructure component requires a new production secret (e.g. Resend API Key, Supabase Service Role Key, Gemini API Key):
+   - Generate an encrypted, self-destructing link using **[Password Pusher](https://pwpush.com)** (configured for 1 view or 24-hour expiration) or **[OneTimeSecret](https://onetimesecret.com)**.
+   - Send the secret link directly to **`dev@promptfm.live`** or via private maintainer DM to Board Admin (**@atrifan**).
+3. **Explicitly Document Secret Requirements in PRs**:
+   - Under the **Environment Variables & Secrets Required** section in the PR template, list the *names* of the environment variables (e.g., `RESEND_API_KEY`) and state the handoff method used:
+     ```markdown
+     ### Environment Variables & Secrets Required
+     - `RESEND_API_KEY`: Sent via Password Pusher link to dev@promptfm.live
+     ```
+   - If no new secrets are needed, write:
+     ```markdown
+     ### Environment Variables & Secrets Required
+     None
+     ```
+
+---
+
+### B. Admin Runbook: Injecting Secrets into Vercel & Cloud
+
+Once a secret is received from a contributor:
+
+#### 1. Method A: GitHub Actions Workflow (`update-secrets.yml`)
+1. Go to **Actions ➔ 🔐 Update Secrets in Vercel**.
+2. Click **Run workflow**:
+   - **Secret Key Name**: Enter key (e.g. `RESEND_API_KEY`).
+   - **Secret Value**: Paste secret value (automatically masked in logs).
+   - **Target Environments**: Select `production,preview,development`.
+3. Click **Run workflow**. The workflow syncs the secret to Vercel via API.
+
+#### 2. Method B: Vercel CLI (Local Admin Terminal)
+```bash
+# Add secret to production
+npx vercel env add RESEND_API_KEY production
+
+# Add secret to preview environments
+npx vercel env add RESEND_API_KEY preview
+
+# Pull updated secrets into local development sandbox
+npx vercel env pull .env.local --environment=development --yes
+```
+
+---
+
+### C. Automated PR Checks for Secrets & UI Changes
+
+The automated PR Guidance Bot detects and responds to changed files with dedicated guidance cards:
+- **Missing Secret Notes**: If `.env.example`, `*.tfvars`, or `secrets-sync.ts` is changed without secret handoff notes in the PR description, the bot posts:
+  > `### ⚠️ PR Review Check: Environment & Secret Handoff Required`
+- **Secrets Update Card**: Directs admins to the `update-secrets.yml` workflow:
+  > `> **Secrets Update Required:** If new production secrets or credentials are required, have an admin run the Update Secrets workflow: https://github.com/PromptFM/promptfm/actions/workflows/update-secrets.yml`
+- **UI Changes Card**: When frontend files (`src/app/**`, `src/components/**`, `public/**`) are modified, the bot posts:
+  > `> **UI Preview Required:** Visual or component changes detected. To spin up a live preview URL on Vercel, have a core team member comment /pr-link on this PR or ask an admin to run the Create Preview Link workflow for sha <sha>.`
+
+
 
 
 

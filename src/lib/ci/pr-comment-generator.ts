@@ -19,16 +19,18 @@ export interface InfraChangesResult {
   hasAnsible: boolean;
   hasSql: boolean;
   hasSecrets: boolean;
+  hasUi: boolean;
 }
 
 /**
- * Detects whether changed files contain Terraform, Ansible, SQL schema, or secret modifications.
+ * Detects whether changed files contain Terraform, Ansible, SQL schema, secret, or UI modifications.
  */
 export function detectInfraChanges(changedFiles: string[]): InfraChangesResult {
   let hasTerraform = false;
   let hasAnsible = false;
   let hasSql = false;
   let hasSecrets = false;
+  let hasUi = false;
 
   for (const file of changedFiles) {
     if (
@@ -62,9 +64,17 @@ export function detectInfraChanges(changedFiles: string[]): InfraChangesResult {
     ) {
       hasSecrets = true;
     }
+    if (
+      /^src\/app\//i.test(file) ||
+      /^src\/components\//i.test(file) ||
+      /^public\//i.test(file) ||
+      /\.(css|scss|svg|png|jpg|webp)$/i.test(file)
+    ) {
+      hasUi = true;
+    }
   }
 
-  return { hasTerraform, hasAnsible, hasSql, hasSecrets };
+  return { hasTerraform, hasAnsible, hasSql, hasSecrets, hasUi };
 }
 
 /**
@@ -77,8 +87,11 @@ export function generatePRCommentOutput(params: PRCommentParams): {
   hasAnsible: boolean;
   hasSql: boolean;
   hasSecrets: boolean;
+  hasUi: boolean;
 } {
-  const { hasTerraform, hasAnsible, hasSql, hasSecrets } = detectInfraChanges(params.changedFiles);
+  const { hasTerraform, hasAnsible, hasSql, hasSecrets, hasUi } = detectInfraChanges(
+    params.changedFiles
+  );
   const commentMarkdown = generatePRGuidanceComment(params);
 
   return {
@@ -88,6 +101,7 @@ export function generatePRCommentOutput(params: PRCommentParams): {
     hasAnsible,
     hasSql,
     hasSecrets,
+    hasUi,
   };
 }
 export function generatePRGuidanceComment(params: PRCommentParams): string {
@@ -97,7 +111,9 @@ Quality and security checks must pass before preview links or infrastructure dep
 Please review the failing checks in GitHub Actions.`;
   }
 
-  const { hasTerraform, hasAnsible, hasSql, hasSecrets } = detectInfraChanges(params.changedFiles);
+  const { hasTerraform, hasAnsible, hasSql, hasSecrets, hasUi } = detectInfraChanges(
+    params.changedFiles
+  );
   const cleanSha = params.commitSha.trim();
 
   const lines: string[] = [
@@ -111,6 +127,17 @@ Please review the failing checks in GitHub Actions.`;
     ``,
     `*💡 Core team members can also trigger a preview deployment directly by commenting \`/pr-link\` on this PR.*`,
   ];
+
+  if (hasUi) {
+    lines.push(``);
+    lines.push(`---`);
+    lines.push(`### 🎨 UI / Frontend Changes Detected`);
+    lines.push(``);
+    lines.push(`> [!TIP]`);
+    lines.push(
+      `> **UI Preview Required:** Visual or component changes detected. To spin up a live preview URL on Vercel, have a core team member comment \`/pr-link\` on this PR or ask an admin to run the [Create Preview Link workflow](https://github.com/PromptFM/promptfm/actions/workflows/create-preview-link.yml) for sha \`${cleanSha}\`.`
+    );
+  }
 
   if (hasTerraform || hasAnsible || hasSql || hasSecrets) {
     lines.push(``);
