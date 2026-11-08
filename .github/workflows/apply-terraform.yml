@@ -36,6 +36,15 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      - name: Pull Secrets from Vercel (Single Source of Truth)
+        if: ${{ secrets.VERCEL_TOKEN != '' }}
+        run: |
+          npx vercel env pull .env.infra.local --environment=production --yes
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
       - name: Prepare Infrastructure & Credentials (0-Cost Always-Free Tier)
         run: npm run prepare-infra
         env:
@@ -51,13 +60,16 @@ jobs:
 
       - name: Configure GCP Service Account Credentials
         run: |
-          if [ -n "${{ secrets.GCP_SA_KEY }}" ]; then
+          if [ -f "$HOME/.config/gcloud/promptfm-terraform-key.json" ]; then
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/.config/gcloud/promptfm-terraform-key.json" >> $GITHUB_ENV
+            echo "GCP credentials configured successfully from restored key file."
+          elif [ -n "${{ secrets.GCP_SA_KEY }}" ]; then
             echo "${{ secrets.GCP_SA_KEY }}" | base64 -d > /tmp/gcp-sa-key.json
             echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-sa-key.json" >> $GITHUB_ENV
             echo "GOOGLE_CREDENTIALS=$(echo '${{ secrets.GCP_SA_KEY }}' | base64 -d | tr -d '\n')" >> $GITHUB_ENV
-            echo "GCP credentials configured successfully."
+            echo "GCP credentials configured successfully from GitHub secrets."
           else
-            echo "⚠️ GCP_SA_KEY not provided in secrets; falling back to local credentials/default auth."
+            echo "ℹ️ Using application default credentials or ambient auth."
           fi
 
       - name: Initialize Terraform (Free GCS Backend)

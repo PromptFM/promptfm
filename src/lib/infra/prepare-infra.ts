@@ -166,3 +166,40 @@ hostinger_api_token: "${hostingerToken}"
   return outputPath;
 }
 
+/**
+ * Loads environment variables from local environment files (.env.infra.local, .env.local, .env).
+ * This enables seamless credential resolution when secrets are pulled from Vercel via CLI.
+ */
+export function loadLocalEnvFiles(baseDir: string = process.cwd()): void {
+  const envFiles = ['.env.infra.local', '.env.local', '.env'];
+  for (const filename of envFiles) {
+    const fullPath = path.join(baseDir, filename);
+    if (fs.existsSync(fullPath)) {
+      try {
+        const fileContent = fs.readFileSync(fullPath, 'utf8');
+        for (const line of fileContent.split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#')) continue;
+          const eqIndex = trimmed.indexOf('=');
+          if (eqIndex > 0) {
+            const key = trimmed.slice(0, eqIndex).trim();
+            let value = trimmed.slice(eqIndex + 1).trim();
+            if (
+              (value.startsWith('"') && value.endsWith('"')) ||
+              (value.startsWith("'") && value.endsWith("'"))
+            ) {
+              value = value.slice(1, -1);
+            }
+            if (!process.env[key]) {
+              process.env[key] = value;
+            }
+          }
+        }
+      } catch {
+        // Continue to next file if unreadable
+      }
+    }
+  }
+}
+
+

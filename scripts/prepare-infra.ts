@@ -10,9 +10,12 @@ import {
   resolveHostingerTokenForInfra,
   generateTerraformTfvars,
   generateAnsibleSecrets,
+  loadLocalEnvFiles,
 } from '../src/lib/infra/prepare-infra';
 
 async function main() {
+  // Load any secrets pulled by Vercel CLI into local env
+  loadLocalEnvFiles();
   console.log(`\n======================================================================`);
   console.log(`🎙️  PromptFM Infrastructure Preparation & Credential Orchestrator`);
   console.log(`    Strictly adhering to GCP Always Free Tier ($0.00 / month)`);
