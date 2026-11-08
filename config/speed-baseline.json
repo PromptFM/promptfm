@@ -1,37 +1,60 @@
 {
-  "version": 1,
+  "version": 2,
   "maxRegressionTolerancePercent": 15,
-  "updatedAt": "2026-11-08T22:00:00.000Z",
+  "updatedAt": "2026-11-08T22:30:00.000Z",
+  "categories": {
+    "api_speed": "Serverless & Edge API Route Response Latencies",
+    "ui_speed": "Client Bundle Footprint, DOM Mount & Component Execution Times"
+  },
   "metrics": {
     "first_load_js_kb": {
+      "category": "ui_speed",
       "baseline": 118.4,
       "budget": 160.0,
       "unit": "kB",
-      "description": "Shared JS bundle loaded across all Next.js routes"
+      "description": "UI Speed: Shared JS bundle loaded across all Next.js routes"
+    },
+    "ui_player_mount_ms": {
+      "category": "ui_speed",
+      "baseline": 3.2,
+      "budget": 10.0,
+      "unit": "ms",
+      "description": "UI Speed: AudioPlayer widget state & progress bar initial calculation"
     },
     "station_rotation_ms": {
+      "category": "ui_speed",
       "baseline": 4.8,
       "budget": 12.0,
       "unit": "ms",
-      "description": "Main stage rotation and anti-repeat queue calculation latency"
-    },
-    "api_radio_now_ms": {
-      "baseline": 8.5,
-      "budget": 25.0,
-      "unit": "ms",
-      "description": "Live station now-playing status serialization latency"
+      "description": "UI Speed: Station queue calculation and anti-repeat rotation algorithm"
     },
     "audio_metadata_overhead_ms": {
+      "category": "ui_speed",
       "baseline": 14.2,
       "budget": 35.0,
       "unit": "ms",
-      "description": "ID3 metadata extraction and track resolution execution time"
+      "description": "UI Speed: Track metadata formatting & album cover resolution overhead"
+    },
+    "api_radio_now_ms": {
+      "category": "api_speed",
+      "baseline": 8.5,
+      "budget": 25.0,
+      "unit": "ms",
+      "description": "API Speed: /api/radio/now on-air status & listener count serialization"
     },
     "api_status_cold_start_ms": {
+      "category": "api_speed",
       "baseline": 12.0,
       "budget": 30.0,
       "unit": "ms",
-      "description": "Health check /api/status payload synthesis overhead"
+      "description": "API Speed: /api/status multi-service health synthesis latency"
+    },
+    "api_channels_listing_ms": {
+      "category": "api_speed",
+      "baseline": 3.8,
+      "budget": 15.0,
+      "unit": "ms",
+      "description": "API Speed: /api/radio/channels station inventory serialization"
     }
   }
 }

@@ -16,3 +16,4 @@ describe('Vercel Speed Insights Integration', () => {
     expect(content).toContain('<SpeedInsights />');
   });
 });
+

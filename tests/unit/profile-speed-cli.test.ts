@@ -23,3 +23,4 @@ describe('scripts/profile-speed.ts CLI Suite', () => {
     expect(output).toContain('first_load_js_kb');
   });
 });
+

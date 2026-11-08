@@ -53,8 +53,11 @@ describe('Speed Insights & Performance Profiler Suite', () => {
       expect(report.passed).toBe(true);
       expect(report.regressionsCount).toBe(0);
       expect(report.comparisons.length).toBe(4);
+      expect(report.uiMetrics.length).toBeGreaterThan(0);
+      expect(report.apiMetrics.length).toBeGreaterThan(0);
 
       const firstLoad = report.comparisons.find((c) => c.name === 'first_load_js_kb');
+      expect(firstLoad?.category).toBe('ui_speed');
       expect(firstLoad?.status).toBe('FASTER');
       expect(firstLoad?.deltaPercent).toBeCloseTo(-8.33, 1);
       expect(firstLoad?.passedBudget).toBe(true);
@@ -108,6 +111,8 @@ describe('Speed Insights & Performance Profiler Suite', () => {
       const markdown = generateStepSummaryMarkdown(report);
 
       expect(markdown).toContain('## ⚡ PromptFM Speed Insights & CI Performance Profiling');
+      expect(markdown).toContain('UI Speed & Client Performance Benchmarks');
+      expect(markdown).toContain('API Speed & Serverless Response SLAs');
       expect(markdown).toContain('first_load_js_kb');
       expect(markdown).toContain('🟢 FASTER');
       expect(markdown).toContain('All Performance Budgets Met');
