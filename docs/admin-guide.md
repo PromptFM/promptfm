@@ -882,6 +882,12 @@ PromptFM enforces strict branch governance on `main` through declarative GitHub 
   - **Does NOT** permit direct pushing to `main` outside of a pull request.
   - Non-core contributors **cannot** merge without an approval from `@PromptFM/core`.
 
+#### 4. Where to Change Rules & Milestone UI Drift Protection
+- **Ruleset IaC Definition**: Rules are defined in [`infra/terraform/github.tf`](file:///Users/trifan/.gemini/antigravity/worktrees/promptfm/vercel_speed_insights/infra/terraform/github.tf) (`github_repository_ruleset.main_branch_gate`).
+- **Emergency UI Console**: Admins can inspect or adjust enforcement at **Settings ➔ Rules ➔ Rulesets ➔ [Main Branch Production Gate](https://github.com/PromptFM/promptfm/rules/26815412)**.
+- **Specification**: Complete specification in [`.github/RULESET.md`](file:///Users/trifan/.gemini/antigravity/worktrees/promptfm/vercel_speed_insights/.github/RULESET.md).
+- **Milestone State Drift Protection**: All `github_repository_milestone` resources in `infra/terraform/github.tf` declare `lifecycle { ignore_changes = [state] }`. When you close a milestone from the GitHub UI, Terraform will **never** reopen it on subsequent applies.
+
 ---
 
 ## 17. PostgreSQL & Supabase Database Schema Management

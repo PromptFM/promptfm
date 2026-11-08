@@ -116,3 +116,31 @@ npm run promptfm -- tag infra --version 0.1.1
 # or locally:
 cd infra/terraform && terraform plan
 ```
+
+---
+
+## 📍 6. Where and How to Change Branch Rules
+
+| What to Change | File / Location | How to Apply |
+| :--- | :--- | :--- |
+| **Ruleset Configuration** (approvals, status checks, linear history) | [`infra/terraform/github.tf`](../infra/terraform/github.tf) (`github_repository_ruleset.main_branch_gate`) | Open PR ➔ Merge ➔ Run `apply-terraform.yml` (or `npm run promptfm -- tag infra`). |
+| **Emergency Ruleset Override** (disable gate during severe incident) | GitHub Web UI: **Settings ➔ Rules ➔ Rulesets ➔ [Main Branch Production Gate](https://github.com/PromptFM/promptfm/rules/26815412)** | Set enforcement to `Disabled` or `Evaluate` directly from browser (requires Repo Admin). |
+| **Required Reviewers & Domain Ownership** | [`.github/CODEOWNERS`](./CODEOWNERS) | Edit `@PromptFM/core` and `@atrifan` path mappings via PR. |
+| **Issue Labels & Taxonomy** | [`infra/terraform/github.tf`](../infra/terraform/github.tf) (`local.github_labels`) | Managed via Terraform IaC. |
+
+---
+
+## 🎯 7. Milestones & UI Drift Protection
+
+In [`infra/terraform/github.tf`](../infra/terraform/github.tf), milestones declare:
+
+```hcl
+lifecycle {
+  ignore_changes = [state]
+}
+```
+
+**Why this matters:**
+When you close a milestone from the GitHub Web UI or mobile app upon shipping a release, Terraform **ignores the `state` attribute**. Subsequent `terraform apply` runs will **never** reopen closed milestones or fight your UI workflow.
+
+

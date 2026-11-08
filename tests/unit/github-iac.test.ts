@@ -71,9 +71,10 @@ describe('GitHub Infrastructure as Code (IaC) Declarations', () => {
       expect(versions).toContain('integrations/github');
     });
 
-    it('declares github_repository_milestone resources in github.tf', () => {
+    it('declares github_repository_milestone resources in github.tf with ignore_changes on state to prevent UI drift', () => {
       const tf = fs.readFileSync(terraformGithubPath, 'utf8');
       expect(tf).toContain('resource "github_repository_milestone"');
+      expect(tf).toContain('ignore_changes = [state]');
       expect(tf).toContain('v0.2.0 - Zero-Cost Infrastructure & Stream Server');
       expect(tf).toContain('v0.3.0 - Autonomous Playback & Station Clock Wheel');
       expect(tf).toContain('v0.4.0 - Mobile Player Ergonomics & Multi-Channel UX');

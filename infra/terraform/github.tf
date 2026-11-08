@@ -14,6 +14,10 @@ resource "github_repository_milestone" "v0_2_0" {
   title       = "v0.2.0 - Zero-Cost Infrastructure & Stream Server"
   description = "GCP Always-Free VM, Icecast 2 streaming, Hostinger DNS, Terraform IaC, Vercel preview budget gating, and release automation."
   state       = "open"
+
+  lifecycle {
+    ignore_changes = [state]
+  }
 }
 
 resource "github_repository_milestone" "v0_3_0" {
@@ -22,6 +26,10 @@ resource "github_repository_milestone" "v0_3_0" {
   title       = "v0.3.0 - Autonomous Playback & Station Clock Wheel"
   description = "Continuous rotation engine, anti-repeat logic, DJ commentary transitions, station ID drops, and queue ETA synchronization."
   state       = "open"
+
+  lifecycle {
+    ignore_changes = [state]
+  }
 }
 
 resource "github_repository_milestone" "v0_4_0" {
@@ -30,6 +38,10 @@ resource "github_repository_milestone" "v0_4_0" {
   title       = "v0.4.0 - Mobile Player Ergonomics & Multi-Channel UX"
   description = "Sub-375px viewport layout, mobile slide-up controls drawer, public song list, playback progress, and light/dark theme switching."
   state       = "open"
+
+  lifecycle {
+    ignore_changes = [state]
+  }
 }
 
 resource "github_repository_milestone" "v0_5_0" {
@@ -38,6 +50,10 @@ resource "github_repository_milestone" "v0_5_0" {
   title       = "v0.5.0 - Creator Community, Submissions & Safety Guardrails"
   description = "Direct track uploading, first-login consent, creator identity, request lifecycle state machine, and automated Whisper/Gemini vocal ASR safety scanning."
   state       = "open"
+
+  lifecycle {
+    ignore_changes = [state]
+  }
 }
 
 resource "github_repository_milestone" "v0_6_0" {
@@ -46,6 +62,10 @@ resource "github_repository_milestone" "v0_6_0" {
   title       = "v0.6.0 - Admin Studio, Web MCP & Observability"
   description = "Interactive Web MCP console, Vercel Flags SDK kill switches, soft track deletion, channel administration, and realtime moderation queues."
   state       = "open"
+
+  lifecycle {
+    ignore_changes = [state]
+  }
 }
 
 resource "github_repository_milestone" "v1_0_0" {
@@ -54,6 +74,10 @@ resource "github_repository_milestone" "v1_0_0" {
   title       = "v1.0.0 - Production Readiness, Bot Ecosystem & Scale"
   description = "Discord slash commands, Telegram bridge, cross-platform mini-player, AdSense monetization, and public launch."
   state       = "open"
+
+  lifecycle {
+    ignore_changes = [state]
+  }
 }
 
 # ── Issue Taxonomy Labels ─────────────────────────────────────────────────────
