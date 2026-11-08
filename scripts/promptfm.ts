@@ -7,14 +7,17 @@ loadEnvConfig(process.cwd());
 
 import { createBroadcastDrop, fetchLiveHeadlines } from '../src/lib/dj/engine';
 import { getNextAirplayItem, fetchLiveWeatherSummary, getNowPlaying, getUpNext } from '../src/lib/dj/rotation';
+import { getStationQueue, formatQueueForCLI } from '../src/lib/dj/queue';
 import { synthesizeScheduledRequest, rejectScheduledRequest, synthesizeBatchAnnouncement } from '../src/lib/dj/batches';
 import { getAllDJs, getActiveDJ, getDJById, getAdsConfig, getActiveAdSpot } from '../src/lib/dj/roster';
 import { createAdminClient } from '../src/lib/supabase/server';
 import { broadcastToCommunity, castVoteForTrack } from '../src/lib/chat/bridge';
-import { submitContentReport, getRecentReports, resolveContentReport } from '../src/lib/safety/reports';
+import { submitContentReport, getRecentReports, resolveContentReport, auditContentReports } from '../src/lib/safety/reports';
 import { autoGenerateChannelGuardrails } from '../src/lib/safety/channel-guardrails';
-import { getAllChannels } from '../src/lib/radio/channels';
+import { getAllChannels, setChannelActiveOverride, isChannelActive } from '../src/lib/radio/channels';
 import { findTracksByVibe, indexTrackEmbedding } from '../src/lib/dj/rag';
+import { queueSong, getSongQueueStatus } from '../src/lib/song/pathway';
+import { editTrackMetadata, deleteTrack } from '../src/lib/dj/track-management';
 import {
   registerTelegramWebhook,
   getTelegramWebhookInfo,
@@ -40,6 +43,11 @@ import {
   stopStream,
   type StreamPlatform,
 } from '../src/lib/streaming/rtmp-controller';
+import {
+  getInfraBudgetPolicy,
+  shouldBuildVercelDeployment,
+  evaluateCIJobsForPR,
+} from '../src/lib/infra/budget-gate';
 import { execSync } from 'child_process';
 import { readFileSync, writeFileSync, appendFileSync, existsSync } from 'fs';
 import { join, basename } from 'path';
@@ -70,7 +78,7 @@ Airplay Queue ("Up Next"):
   next                    Test the rotation clock: calculate what plays next (music, news, or weather)
   vote <trackId>          Cast an upvote for a track from terminal
   vibe <prompt>           pgvector semantic RAG search: discover tracks matching any vibe prompt
-  queue list              View the upcoming songs scheduled to play next
+  q / queue [list]        View the upcoming songs and scheduled requests to play next
   queue next <trackId>    Bump a track to the very top of the live queue
   queue remove <queueId>  Remove an item from the upcoming queue
   queue <prompt>          Find & queue a track matching a text vibe using semantic RAG
@@ -109,10 +117,20 @@ Live Video Streaming (YouTube & TikTok):
   stream stop youtube     Stop YouTube live stream
   stream stop tiktok      Stop TikTok live stream
 
+$0 Infra Budget & Preview Protection Gate:
+  budget                  View active $0 budget policy, Vercel CPU limits & CI trimming status
+  budget gate             Evaluate Vercel preview build gate decision
+                          Flags: --env [preview|production] --branch <name> --message <text> --fork [true|false]
+  budget ci               Evaluate which CI jobs will run for given PR actor and changed files
+                          Flags: --actor <user> --files <f1,f2>
+
 Moderation & Schedule:
   channels list           List radio broadcast channels, assigned DJs & guardrail policies
   channels create <slug> <name> Create a channel with automated 18+ guardrails & disclaimers
-                          Flags: --18plus --dj <id> --desc "Vibe description"
+                          Flags: --18plus --dj <id> --desc "Vibe description" --disabled
+  channels enable <slug>  Enable a radio broadcast channel for airplay and discovery
+  channels disable <slug> Disable a radio broadcast channel (take offline / rollback)
+  channels toggle <slug>  Toggle a radio broadcast channel active/disabled status
   requests list           View scheduled Discord/Telegram requests by batch
   requests air <id>       Force-synthesize & air a scheduled dedication or request
   requests reject <id>    Remove item from batch with reason & notify user on Telegram/Discord
@@ -120,6 +138,10 @@ Moderation & Schedule:
   admin pending           List community tracks waiting for review
   admin approve <id>      Approve a pending track for airplay
   admin reject <id>       Reject a track
+  admin list              List all tracks in database
+  admin edit <id>         Update track metadata (title, artist, category, lyrics, explicit)
+                          Flags: --title "New" --artist "New" --category "New" --desc "New" --explicit true/false
+  admin delete <id>       Delete a track by UUID or title (supports --soft archival)
   schedule                Display declarative hourly programming from schedule.yaml
   help                    Show this guide
 `);
@@ -451,36 +473,32 @@ Moderation & Schedule:
       break;
     }
 
+    case 'song': {
+      const query = args.join(' ').trim();
+      if (!query) {
+        console.error('Provide search prompt: npm run promptfm song "dark metal about love"');
+        return;
+      }
+
+      console.log(`🔎 Searching and queueing via Unified Song Pathway: "${query}"...`);
+      const result = await queueSong({
+        source: 'cli',
+        requestedBy: 'Terminal Admin',
+        prompt: query,
+      });
+
+      console.log(result.confirmationMessage);
+      break;
+    }
+
+    case 'q':
     case 'queue': {
       const sub = args[1];
       const supabase = createAdminClient();
 
-      if (sub === 'list') {
-        const { data: qData, error } = await supabase
-          .from('channel_queue')
-          .select('id, track_id, prompt_used, requested_by, created_at, track:tracks(title, artist_name, tool_used)')
-          .is('played_at', null)
-          .order('created_at', { ascending: true })
-          .limit(15);
-
-        if (error) {
-          console.error('Error fetching queue:', error.message);
-          return;
-        }
-
-        console.log(`\n🎵 PromptFM Active "Up Next" Queue (${qData?.length || 0} upcoming):`);
-        if (!qData || qData.length === 0) {
-          console.log('• Queue is empty. Looping community top chart tracks.');
-        } else {
-          qData.forEach((item, index) => {
-            const tr = (item as unknown as { track: { title: string; artist_name: string; tool_used: string } }).track;
-            console.log(
-              `  #${index + 1} [Queue ID: ${item.id}] "${tr?.title || 'Unknown'}" by ${tr?.artist_name || 'N/A'} (Requested by: ${item.requested_by}${
-                item.prompt_used ? ` - "${item.prompt_used}"` : ''
-              })`
-            );
-          });
-        }
+      if (!sub || sub === 'list') {
+        const stationQueue = await getStationQueue({ channelSlug: 'main', upcomingLimit: 10, scheduledLimit: 10 });
+        console.log(formatQueueForCLI(stationQueue));
         return;
       }
 
@@ -506,58 +524,36 @@ Moderation & Schedule:
           return;
         }
 
-        // Fetch main channel
-        const { data: channel } = await supabase.from('channels').select('id').eq('slug', 'main').single();
-        if (!channel) {
-          console.error('Main channel not found.');
-          return;
-        }
-
-        // Insert at the front with an earlier timestamp
-        const { error } = await supabase.from('channel_queue').insert({
-          channel_id: channel.id,
-          track_id: trackId,
-          requested_by: 'Station Admin',
-          created_at: new Date(Date.now() - 3600000).toISOString(), // Prioritized to front
+        const res = await queueSong({
+          source: 'cli',
+          requestedBy: 'Station Admin',
+          trackId,
+          priority: true,
         });
 
-        if (error) {
-          console.error('Failed to bump track:', error.message);
+        if (res.status === 'queued') {
+          console.log(`⚡ Bumped "${res.track?.title}" to play NEXT! [Queue #1 • ${res.eta.formattedETA}]`);
         } else {
-          console.log(`⚡ Bumped track ${trackId} to play NEXT!`);
+          console.log(res.confirmationMessage);
         }
         return;
       }
 
-      // Default: semantic RAG prompt-search
-      const query = args.slice(1).join(' ');
+      // Default: unified song pathway queue by prompt
+      const query = (command === 'song' ? args.join(' ') : args.slice(1).join(' ')).trim();
       if (!query) {
-        console.error('Provide search prompt: npm run promptfm queue "dark metal about love"');
+        console.error('Provide search prompt: npm run promptfm song "dark metal about love"');
         return;
       }
 
-      console.log(`🔎 Performing semantic RAG vibe search for: "${query}"...`);
-      const matches = await findTracksByVibe(query, {
-        limit: 1,
-        matchThreshold: 0.15,
+      console.log(`🔎 Searching and queueing via Unified Song Pathway: "${query}"...`);
+      const result = await queueSong({
+        source: 'cli',
+        requestedBy: 'Terminal Admin',
+        prompt: query,
       });
 
-      const selected = matches?.[0];
-      if (selected) {
-        const { data: channel } = await supabase.from('channels').select('id').eq('slug', 'main').single();
-        if (channel) {
-          await supabase.from('channel_queue').insert({
-            channel_id: channel.id,
-            track_id: selected.id,
-            prompt_used: query,
-            requested_by: 'Terminal Listener (Semantic RAG)',
-          });
-          const scorePercent = Math.round(selected.similarity * 100);
-          console.log(`✅ Queued for airplay: "${selected.title}" by ${selected.artist_name} (${selected.tool_used}) [Match: ${scorePercent}% via ${selected.matchMethod}]`);
-        }
-      } else {
-        console.log(`No matching track found for "${query}".`);
-      }
+      console.log(result.confirmationMessage);
       break;
     }
 
@@ -1118,7 +1114,116 @@ Moderation & Schedule:
         return;
       }
 
-      console.log('Admin subcommands: pending, approve <id>, reject <id>');
+      if (sub === 'edit') {
+        if (!targetId) {
+          console.error('Usage: npm run promptfm admin edit <id_or_title> [--title "New"] [--artist "New"] [--category "New"] [--desc "New"] [--lyrics "New"] [--explicit true|false] [--tool "Suno"]');
+          return;
+        }
+
+        const title = parseArg('--title');
+        const artist = parseArg('--artist');
+        const category = parseArg('--category');
+        const desc = parseArg('--desc') || parseArg('--description');
+        const lyrics = parseArg('--lyrics');
+        const tool = parseArg('--tool');
+        const explicitFlag = parseArg('--explicit');
+        const isExplicit = explicitFlag !== undefined ? explicitFlag === 'true' || explicitFlag === '1' : undefined;
+
+        try {
+          const res = await editTrackMetadata(
+            targetId,
+            {
+              title,
+              artist_name: artist,
+              category,
+              description: desc,
+              lyrics,
+              tool_used: tool,
+              is_explicit: isExplicit,
+            },
+            'Admin CLI'
+          );
+
+          console.log(`✅ ${res.message}`);
+          console.log(`• Title: "${res.track.title}" by ${res.track.artist_name}`);
+          console.log(`• Category: ${res.track.category} | Tool: ${res.track.tool_used} | Explicit: ${res.track.is_explicit ? 'Yes' : 'No'}`);
+          if (res.indexed) {
+            console.log(`• Semantic pgvector embedding re-indexed successfully.`);
+          }
+        } catch (err: unknown) {
+          console.error(`Failed to edit track:`, err instanceof Error ? err.message : String(err));
+        }
+        return;
+      }
+
+      if (sub === 'delete') {
+        if (!targetId) {
+          console.error('Usage: npm run promptfm admin delete <id_or_title> [--soft]');
+          return;
+        }
+
+        const isSoft = args.includes('--soft');
+
+        try {
+          const res = await deleteTrack(targetId, { softDelete: isSoft, actor: 'Admin CLI' });
+          console.log(`🗑️ ${res.message}`);
+        } catch (err: unknown) {
+          console.error(`Failed to delete track:`, err instanceof Error ? err.message : String(err));
+        }
+        return;
+      }
+
+      console.log('Admin subcommands: pending, approve <id>, reject <id>, edit <id> [flags], delete <id> [--soft]');
+      break;
+    }
+
+    case 'track':
+    case 'tracks': {
+      const sub = args[1];
+      const targetId = args[2];
+      if (sub === 'edit') {
+        const title = parseArg('--title');
+        const artist = parseArg('--artist');
+        const category = parseArg('--category');
+        const desc = parseArg('--desc') || parseArg('--description');
+        const lyrics = parseArg('--lyrics');
+        const tool = parseArg('--tool');
+        const explicitFlag = parseArg('--explicit');
+        const isExplicit = explicitFlag !== undefined ? explicitFlag === 'true' || explicitFlag === '1' : undefined;
+
+        if (!targetId) {
+          console.error('Usage: npm run promptfm track edit <id_or_title> [flags]');
+          return;
+        }
+
+        try {
+          const res = await editTrackMetadata(
+            targetId,
+            { title, artist_name: artist, category, description: desc, lyrics, tool_used: tool, is_explicit: isExplicit },
+            'Admin CLI'
+          );
+          console.log(`✅ ${res.message}`);
+        } catch (err: unknown) {
+          console.error(`Failed to edit track:`, err instanceof Error ? err.message : String(err));
+        }
+        return;
+      }
+
+      if (sub === 'delete') {
+        if (!targetId) {
+          console.error('Usage: npm run promptfm track delete <id_or_title> [--soft]');
+          return;
+        }
+        try {
+          const res = await deleteTrack(targetId, { softDelete: args.includes('--soft'), actor: 'Admin CLI' });
+          console.log(`🗑️ ${res.message}`);
+        } catch (err: unknown) {
+          console.error(`Failed to delete track:`, err instanceof Error ? err.message : String(err));
+        }
+        return;
+      }
+
+      console.log('Usage: npm run promptfm track [edit|delete] <id_or_title>');
       break;
     }
 
@@ -1160,28 +1265,60 @@ Moderation & Schedule:
         return;
       }
 
+      if (sub === 'audit') {
+        const limit = parseInt(parseArg('--limit') || '100', 10);
+        console.log('🔍 Auditing content reports for unattributed or suspicious modifications...\n');
+        const audit = await auditContentReports({ limit });
+
+        console.log('📋 Content Reports Moderation & Security Audit');
+        console.log('='.repeat(60));
+        console.log(`Audit Timestamp: ${audit.timestamp}`);
+        console.log(`Total Reports Analyzed: ${audit.total_reports}`);
+        console.log(`  • Pending:   ${audit.pending_count}`);
+        console.log(`  • Actioned:  ${audit.actioned_count}`);
+        console.log(`  • Dismissed: ${audit.dismissed_count}`);
+        console.log(`  • Reviewed:  ${audit.reviewed_count}`);
+        console.log(`Unaudited Modifications: ${audit.unaudited_count}`);
+        console.log(`Suspicious / High-Risk:   ${audit.suspicious_count}`);
+        console.log(`Status: ${audit.clean ? '✅ PASS - All resolved reports carry valid actor attribution' : '⚠️ WARNING - Unattributed or suspicious status changes detected!'}`);
+        console.log('='.repeat(60));
+
+        if (audit.flagged_items.length > 0) {
+          console.log('\n🚨 Flagged Items:');
+          for (const item of audit.flagged_items) {
+            console.log(`\n• [${item.severity.toUpperCase()}] ${item.report.id} (${item.report.reason}) -> ${item.report.status}`);
+            console.log(`  Target:         ${item.report.target_type} (${item.report.target_id})`);
+            console.log(`  Issue:          ${item.issue}`);
+            console.log(`  Message:        ${item.message}`);
+            console.log(`  Recommendation: ${item.recommendation}`);
+          }
+        }
+        return;
+      }
+
       if (sub === 'resolve' || sub === 'action') {
         const reportId = args[2];
         const action = (parseArg('--action') || 'actioned') as 'actioned' | 'dismissed';
         const notes = parseArg('--notes') || 'Resolved via PromptFM Admin CLI';
+        const actor = parseArg('--actor') || 'CLI Operator';
 
         if (!reportId) {
-          console.error('Usage: npm run promptfm -- report resolve <reportId> [--action actioned|dismissed] [--notes "explanation"]');
+          console.error('Usage: npm run promptfm -- report resolve <reportId> [--action actioned|dismissed] [--notes "explanation"] [--actor "moderator"]');
           return;
         }
 
-        const res = await resolveContentReport(reportId, action, notes);
-        console.log(`✅ Report ${res.reportId} marked as ${res.status.toUpperCase()}!`);
+        const res = await resolveContentReport(reportId, action, notes, actor);
+        console.log(`✅ Report ${res.reportId} marked as ${res.status.toUpperCase()} by ${res.resolved_by}!`);
         if (res.notes) console.log(`   Notes: "${res.notes}"`);
         return;
       }
 
-      console.log('Report commands: npm run promptfm -- report list | report file <id> [reason] [details] | report resolve <id> [--action actioned|dismissed]');
+      console.log('Report commands: npm run promptfm -- report list | report audit [--limit N] | report file <id> [reason] [details] | report resolve <id> [--action actioned|dismissed] [--notes "..."] [--actor "..."]');
       break;
     }
 
     case 'channels': {
-      const sub = args[1]; // 'list' | 'create'
+      const sub = args[1]; // 'list' | 'create' | 'enable' | 'disable' | 'toggle'
       if (sub === 'list' || !sub) {
         const official = getAllChannels();
         let dbChannels: any[] = [];
@@ -1207,6 +1344,7 @@ Moderation & Schedule:
             allowExplicit247: ch.allowExplicitAllDay ?? false,
             minAge: ch.minAge ?? 0,
             badge: ch.badge,
+            isActive: ch.isActive,
           });
         }
         for (const ch of dbChannels) {
@@ -1231,6 +1369,7 @@ Moderation & Schedule:
             allowExplicit247: ch.allow_explicit_24_7 ?? existing.allowExplicit247 ?? guard.allow_explicit_24_7,
             minAge: ch.min_age ?? existing.minAge ?? guard.min_age,
             badge: ch.badge || existing.badge || (guard.allow_explicit_24_7 ? '🔞 18+ Explicit' : '📻 Channel'),
+            isActive: ch.is_active !== undefined ? Boolean(ch.is_active) : (existing.isActive ?? false),
           });
         }
 
@@ -1242,7 +1381,37 @@ Moderation & Schedule:
             : ch.isFamilySafe
             ? '✅ FAMILY SAFE (All Ages)'
             : '⚡ 16+ STANDARD';
-          console.log(`• [${ch.slug.padEnd(12)}] "${ch.name}" | Host: ${ch.djName || ch.djId} | ${rating}`);
+          const status = ch.isActive ? '🟢 [ACTIVE]' : '🔴 [DISABLED]';
+          console.log(`• [${ch.slug.padEnd(12)}] "${ch.name}" | ${status} | Host: ${ch.djName || ch.djId} | ${rating}`);
+        }
+        return;
+      }
+
+      if (sub === 'enable' || sub === 'disable' || sub === 'toggle') {
+        const slug = args[2]?.toLowerCase().trim();
+        if (!slug) {
+          console.error(`Usage: npm run promptfm -- channels ${sub} <slug>`);
+          return;
+        }
+
+        const currentActive = isChannelActive(slug);
+        const nextActive = sub === 'enable' ? true : sub === 'disable' ? false : !currentActive;
+        setChannelActiveOverride(slug, nextActive);
+
+        try {
+          const supabase = createAdminClient();
+          const { error } = await supabase.from('channels').upsert({ slug, is_active: nextActive }, { onConflict: 'slug' });
+          if (error) {
+            console.warn(`[Warning] Database update had error: ${error.message}. Local override applied.`);
+          }
+        } catch (err: any) {
+          console.warn(`[Note] Database optional/offline. Local state updated.`);
+        }
+
+        if (nextActive) {
+          console.log(`✅ Channel "${slug}" is now ENABLED (Active for airplay & discovery).`);
+        } else {
+          console.log(`⛔ Channel "${slug}" is now DISABLED (Offline / Rolled back).`);
         }
         return;
       }
@@ -1251,11 +1420,13 @@ Moderation & Schedule:
         const slug = args[2]?.toLowerCase().trim();
         const name = args[3]?.trim();
         const is18Plus = args.includes('--18plus');
+        const isDisabled = args.includes('--disabled');
+        const isActive = !isDisabled;
         const djId = parseArg('--dj') || 'dj_neon';
         const desc = parseArg('--desc') || '';
 
         if (!slug || !name) {
-          console.error('Usage: npm run promptfm -- channels create <slug> <name> [--18plus] [--dj <djId>] [--desc "Description"]');
+          console.error('Usage: npm run promptfm -- channels create <slug> <name> [--18plus] [--disabled] [--dj <djId>] [--desc "Description"]');
           return;
         }
 
@@ -1280,6 +1451,7 @@ Moderation & Schedule:
           allow_explicit_24_7: guardrails.allow_explicit_24_7,
           age_gate_disclaimer: guardrails.age_gate_disclaimer,
           stream_url: `https://stream.promptfm.live/live?channel=${slug}`,
+          is_active: isActive,
         };
 
         const dbPayload = {
@@ -1291,7 +1463,10 @@ Moderation & Schedule:
           requires_age_gate: guardrails.requires_age_gate,
           allow_explicit_24_7: guardrails.allow_explicit_24_7,
           age_gate_disclaimer: guardrails.age_gate_disclaimer,
+          is_active: isActive,
         };
+
+        setChannelActiveOverride(slug, isActive);
 
         try {
           const supabase = createAdminClient();
@@ -1299,13 +1474,14 @@ Moderation & Schedule:
           if (error) {
             // Fallback to base columns if migration columns are not yet cached
             const { error: fallbackError } = await supabase.from('channels').upsert(
-              { slug, name, description: desc },
+              { slug, name, description: desc, is_active: isActive },
               { onConflict: 'slug' }
             );
             if (fallbackError) {
               console.error('Database Error:', fallbackError.message);
             } else {
               console.log(`✅ Channel "${name}" (${slug}) created in database with automated guardrails:`);
+              console.log(`   - Status:              ${isActive ? 'Active / Enabled' : 'Disabled / Inactive'}`);
               console.log(`   - 18+ Explicit 24/7:   ${guardrails.allow_explicit_24_7}`);
               console.log(`   - Age Gate Required:   ${guardrails.requires_age_gate}`);
               console.log(`   - Minimum Age:         ${guardrails.min_age}`);
@@ -1317,6 +1493,7 @@ Moderation & Schedule:
             }
           } else {
             console.log(`✅ Channel "${name}" (${slug}) created successfully with automated guardrails:`);
+            console.log(`   - Status:              ${isActive ? 'Active / Enabled' : 'Disabled / Inactive'}`);
             console.log(`   - 18+ Explicit 24/7:   ${guardrails.allow_explicit_24_7}`);
             console.log(`   - Age Gate Required:   ${guardrails.requires_age_gate}`);
             console.log(`   - Minimum Age:         ${guardrails.min_age}`);
@@ -1332,7 +1509,7 @@ Moderation & Schedule:
         return;
       }
 
-      console.log('Channels subcommands: npm run promptfm -- channels list | channels create <slug> <name> [--18plus]');
+      console.log('Channels subcommands: npm run promptfm -- channels list | channels create <slug> <name> [--18plus] [--disabled] | channels enable <slug> | channels disable <slug> | channels toggle <slug>');
       break;
     }
 
@@ -1596,6 +1773,78 @@ Moderation & Schedule:
       break;
     }
 
+    case 'budget': {
+      const sub = args[1] || 'policy';
+
+      if (sub === 'policy' || sub === 'status') {
+        const policy = getInfraBudgetPolicy();
+        console.log('\n📊 PromptFM $0 Infrastructure Budget & Free-Tier Policy:');
+        console.log(`• Monthly Cost Target: $${policy.monthlyCostTargetUsd}.00 (Strict Zero-Cost Mandate)`);
+        console.log(`• Vercel Plan: Hobby / Free Tier`);
+        console.log(`• Vercel Fluid Active CPU Limit: ${policy.vercelMaxActiveCpuHoursHobby} hours/month included`);
+        console.log(`• Vercel Active CPU Alert Threshold: ${policy.vercelActiveCpuWarningThresholdPercent}%`);
+        console.log(`• Forked PR Preview Approval Required: ${policy.forkPreviewsRequireApproval ? 'YES (Maintainer authorization needed)' : 'NO'}`);
+        console.log(`• Auto-Deploy Previews: ${policy.autoPreviewsEnabledByDefault ? 'ENABLED' : 'OPT-IN (Requires [preview] commit tag or manual trigger)'}`);
+        console.log(`• Protected Previews: ${policy.protectedPreviewAccess ? 'ENABLED (Deployment Protection active)' : 'DISABLED'}`);
+        console.log('\nOptimizations In Place:');
+        console.log('1. Edge CDN Caching on dynamic radio routes (s-maxage=5s to 30s)');
+        console.log('2. Browser Visibility pause: inactive background tabs halt live status polling');
+        console.log('3. Robots disallow on preview deployments to prevent search crawler CPU burn');
+        console.log('4. Ignored build step (scripts/vercel-budget-gate.sh) cancels bot/doc PR builds');
+        console.log('5. GitHub Actions CI trims Playwright & 30m mutation testing on routine/doc PRs');
+        return;
+      }
+
+      if (sub === 'gate') {
+        const env = parseArg('--env') || process.env.VERCEL_ENV || 'preview';
+        const branch = parseArg('--branch') || process.env.VERCEL_GIT_COMMIT_REF || 'feature/test';
+        const msg = parseArg('--message') || process.env.VERCEL_GIT_COMMIT_MESSAGE || 'test commit';
+        const fork = parseArg('--fork') === 'true' || process.env.VERCEL_GIT_IS_PULL_REQUEST_FROM_FORK === '1';
+
+        const decision = shouldBuildVercelDeployment({
+          vercelEnv: env,
+          gitBranch: branch,
+          commitMessage: msg,
+          isFork: fork,
+        });
+
+        console.log('\n🚪 Vercel Budget Gate Decision:');
+        console.log(`• Environment: ${env}`);
+        console.log(`• Git Branch: ${branch}`);
+        console.log(`• Commit Message: "${msg}"`);
+        console.log(`• Forked PR: ${fork}`);
+        console.log(`• Result: ${decision.shouldBuild ? '✅ PROCEED (exit 1)' : '🛑 CANCEL/SKIP (exit 0)'}`);
+        console.log(`• Reason: ${decision.reason}`);
+        return;
+      }
+
+      if (sub === 'ci') {
+        const actor = parseArg('--actor') || 'contributor';
+        const filesRaw = parseArg('--files') || '';
+        const files = filesRaw ? filesRaw.split(',').map((f) => f.trim()) : [];
+
+        const jobs = evaluateCIJobsForPR({
+          changedFiles: files,
+          actor,
+        });
+
+        console.log('\n🤖 CI Job Evaluation:');
+        console.log(`• PR Actor: ${actor}`);
+        console.log(`• Changed Files: ${files.length > 0 ? files.join(', ') : '(all/none specified)'}`);
+        console.log(`• Lint & Static Types: ${jobs.lintAndTypecheck ? 'RUN' : 'SKIP'}`);
+        console.log(`• Vitest & Coverage: ${jobs.unitAndIntegrationTests ? 'RUN' : 'SKIP'}`);
+        console.log(`• Playwright E2E UI: ${jobs.playwrightE2E ? 'RUN' : 'SKIP'}`);
+        console.log(`• Stryker Mutation Testing: ${jobs.mutationTesting ? 'RUN' : 'SKIP'}`);
+        console.log(`• Terraform Lint & Validate: ${jobs.terraformValidate ? 'RUN' : 'SKIP'}`);
+        console.log(`• CodeQL Security Scan: ${jobs.codeqlSecurityScan ? 'RUN' : 'SKIP'}`);
+        console.log(`• Package Vulnerability Scan: ${jobs.packageVulnerabilityScan ? 'RUN' : 'SKIP'}`);
+        return;
+      }
+
+      console.error(`Unknown budget subcommand: "${sub}". Valid subcommands: policy, gate, ci.`);
+      break;
+    }
+
     case 'listen': {
       const streamUrl = process.env.NEXT_PUBLIC_STREAM_URL || 'https://ice1.somafm.com/groovesalad-128-mp3';
       console.log(`🔊 Connecting to PromptFM Stream: ${streamUrl}`);
@@ -1617,7 +1866,13 @@ Moderation & Schedule:
   }
 }
 
-main().catch((err) => {
-  console.error('Fatal CLI Error:', err);
-  process.exit(1);
-});
+main()
+  .then(() => {
+    if (command !== 'listen') {
+      process.exit(0);
+    }
+  })
+  .catch((err) => {
+    console.error('Fatal CLI Error:', err);
+    process.exit(1);
+  });

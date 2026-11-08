@@ -27,7 +27,7 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_TEST_BASE_URL
     ? undefined
     : {
-        command: process.env.CI ? 'npm run start' : 'npm run dev',
+        command: process.env.CI ? 'npm run start' : `npx next dev -p ${PORT}`,
         url: baseURL,
         timeout: 120 * 1000,
         reuseExistingServer: !process.env.CI,

@@ -39,6 +39,8 @@ import {
   RadioChannel,
   DEFAULT_CHANNEL_SLUG,
   getChannelBySlug,
+  getPublicChannels,
+  getPublicChannelBySlug,
   getStreamUrlForChannel,
   isValidChannelSlug,
 } from '@/lib/radio/channels';
@@ -46,6 +48,8 @@ import {
   buildQueueDisplayItems,
   calculateTrackProgress,
   formatAudioTime,
+  getQueueDisplayMode,
+  getPlaybackProgressAria,
 } from '@/lib/radio/progress';
 import {
   formatMobilePlayerTime,
@@ -100,7 +104,11 @@ function EqualizerBars({ playing }: { playing: boolean }) {
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-export default function AudioPlayer() {
+export interface AudioPlayerProps {
+  initialNowPlaying?: NowPlayingInfo | null;
+}
+
+export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerProps = {}) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const controllerRef = useRef<StreamPlayerController | null>(null);
 
@@ -114,7 +122,7 @@ export default function AudioPlayer() {
   const [showChannelMenu, setShowChannelMenu] = useState(false);
 
   // Now Playing & Live Transcript State
-  const [nowPlaying, setNowPlaying] = useState<NowPlayingInfo | null>(null);
+  const [nowPlaying, setNowPlaying] = useState<NowPlayingInfo | null>(initialNowPlaying);
   const [voted, setVoted] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
   const [showUpNext, setShowUpNext] = useState(false);
@@ -129,7 +137,8 @@ export default function AudioPlayer() {
     autoPlay: boolean;
   } | null>(null);
 
-  const currentChannel = getChannelBySlug(currentChannelSlug);
+  const publicChannels = getPublicChannels();
+  const currentChannel = getPublicChannelBySlug(currentChannelSlug);
 
   // Fetch Now Playing info for a given channel
   const fetchNowPlaying = useCallback(async (slug?: string) => {
@@ -189,11 +198,30 @@ export default function AudioPlayer() {
     }
   }, [currentChannelSlug]);
 
-  // Periodic polling for Now Playing updates
+  // Periodic polling for Now Playing updates (respects page visibility to save bandwidth and compute)
   useEffect(() => {
     fetchNowPlaying(currentChannelSlug);
-    const interval = setInterval(() => fetchNowPlaying(currentChannelSlug), 10000);
-    return () => clearInterval(interval);
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      fetchNowPlaying(currentChannelSlug);
+    }, 10000);
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        fetchNowPlaying(currentChannelSlug);
+      }
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+    };
   }, [fetchNowPlaying, currentChannelSlug]);
 
   // Second-by-second progress ticker for live broadcast
@@ -281,7 +309,7 @@ export default function AudioPlayer() {
   }, [fetchNowPlaying]);
 
   const switchChannel = useCallback((slug: string, autoPlay = false) => {
-    const targetChannel = getChannelBySlug(slug);
+    const targetChannel = getChannelBySlug(slug, true);
     const validSlug = targetChannel.slug;
 
     if (targetChannel.requiresAgeGate && typeof window !== 'undefined') {
@@ -314,9 +342,9 @@ export default function AudioPlayer() {
         const urlParams = new URLSearchParams(window.location.search);
         const urlChannel = urlParams.get('channel');
         const storedChannel = localStorage.getItem('promptfm_channel');
-        if (urlChannel && isValidChannelSlug(urlChannel)) {
+        if (urlChannel && isValidChannelSlug(urlChannel, { publicOnly: true })) {
           initialSlug = urlChannel;
-        } else if (storedChannel && isValidChannelSlug(storedChannel)) {
+        } else if (storedChannel && isValidChannelSlug(storedChannel, { publicOnly: true })) {
           initialSlug = storedChannel;
         }
       } catch {
@@ -440,6 +468,13 @@ export default function AudioPlayer() {
     }
   };
 
+  const trackProgress = calculateTrackProgress(elapsedSeconds, durationSeconds);
+  const progressAria = getPlaybackProgressAria(
+    elapsedSeconds,
+    durationSeconds,
+    nowPlaying?.title ? `Playback progress: ${nowPlaying.title}` : 'Playback progress'
+  );
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <>
@@ -453,15 +488,23 @@ export default function AudioPlayer() {
         role="region"
         aria-label="Live radio player"
       >
-        {/* Real-time Broadcast Progress Bar */}
-        <div className="absolute top-0 left-0 right-0 h-[2px] bg-zinc-800/80 overflow-hidden">
+        {/* Real-time Broadcast Progress Bar with full ARIA semantics (Issue #87) */}
+        <div
+          role="progressbar"
+          aria-label={progressAria['aria-label']}
+          aria-valuenow={trackProgress.percent}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuetext={`${trackProgress.formattedElapsed} of ${trackProgress.formattedDuration}`}
+          className="absolute top-0 left-0 right-0 h-[3px] bg-zinc-800/90 overflow-hidden"
+        >
           <div
-            className="h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400 transition-all duration-1000 ease-linear"
-            style={{ width: `${Math.min(100, Math.round((elapsedSeconds / durationSeconds) * 100))}%` }}
+            className="h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400 transition-all duration-1000 ease-linear motion-reduce:transition-none"
+            style={{ width: `${trackProgress.percent}%` }}
           />
         </div>
         {/* Channel Switcher Popover Menu */}
-        {showChannelMenu && (
+        {showChannelMenu && publicChannels.length > 1 && (
           <div
             data-testid="channels-popover"
             className={`${getPopoverPositionClasses('channels')} bg-zinc-900 border border-zinc-700/80 rounded-2xl p-3 shadow-2xl space-y-2`}
@@ -482,15 +525,19 @@ export default function AudioPlayer() {
             </div>
 
             <div className="space-y-1.5 overflow-y-auto max-h-[50vh] pr-0.5">
-              {OFFICIAL_CHANNELS.map((ch) => {
+              {publicChannels.map((ch) => {
                 const isSelected = ch.slug === currentChannelSlug;
+                const isChannelDisabled = ch.isActive === false;
                 return (
                   <button
                     key={ch.slug}
                     type="button"
+                    disabled={isChannelDisabled}
                     onClick={() => switchChannel(ch.slug, isPlaying)}
                     className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-all ${
-                      isSelected
+                      isChannelDisabled
+                        ? 'opacity-40 cursor-not-allowed text-zinc-500'
+                        : isSelected
                         ? 'bg-zinc-800 text-white border border-emerald-500/50 shadow-sm'
                         : 'hover:bg-zinc-800/60 text-zinc-300 border border-transparent'
                     }`}
@@ -502,9 +549,13 @@ export default function AudioPlayer() {
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
                           <span className="text-xs font-bold truncate">{ch.shortName}</span>
-                          <span className="text-[10px] text-zinc-400 font-medium">({ch.djName})</span>
+                          {isChannelDisabled ? (
+                            <span className="text-[10px] text-zinc-500 font-medium">(Offline)</span>
+                          ) : (
+                            <span className="text-[10px] text-zinc-400 font-medium">({ch.djName})</span>
+                          )}
                         </div>
-                        <p className="text-[10px] text-zinc-400 truncate">{ch.badge}</p>
+                        <p className="text-[10px] text-zinc-400 truncate">{isChannelDisabled ? 'Channel Offline' : ch.badge}</p>
                       </div>
                     </div>
                     {isSelected && <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />}
@@ -542,6 +593,10 @@ export default function AudioPlayer() {
 
         {/* Up Next Popover Modal */}
         {showUpNext && (() => {
+          const queueMode = getQueueDisplayMode(
+            nowPlaying ? ({ ...nowPlaying, id: nowPlaying.id || '' } as any) : null,
+            upNextList as any
+          );
           const modalQueueItems = buildQueueDisplayItems(
             nowPlaying ? ({ ...nowPlaying, id: nowPlaying.id || '' } as any) : null,
             upNextList as any,
@@ -552,29 +607,100 @@ export default function AudioPlayer() {
           return (
             <div
               data-testid="upnext-popover"
+              id="player-queue-popover"
+              role="dialog"
+              aria-label={`Broadcast queue for ${currentChannel.name}`}
               className={`${getPopoverPositionClasses('upNext')} bg-zinc-900 border border-zinc-700 rounded-xl p-3 shadow-2xl space-y-2`}
             >
               <div className="flex items-center justify-between text-[11px] font-semibold text-emerald-400 border-b border-zinc-800 pb-1.5 flex-shrink-0">
                 <span className="flex items-center gap-1.5">
-                  <ListMusic className="w-3.5 h-3.5" />
-                  Up Next on {currentChannel.name}
+                  <ListMusic className="w-3.5 h-3.5" aria-hidden="true" />
+                  {queueMode === 'now-playing-only'
+                    ? `Live Queue on ${currentChannel.name}`
+                    : `Up Next on ${currentChannel.name}`}
                 </span>
                 <button
                   type="button"
                   onClick={() => setShowUpNext(false)}
-                  className="text-zinc-500 hover:text-white min-w-[20px] min-h-[20px] flex items-center justify-center"
-                  aria-label="Close Up Next queue"
+                  className="text-zinc-500 hover:text-white min-w-[20px] min-h-[20px] flex items-center justify-center p-0.5"
+                  aria-label="Close queue popover"
                 >
                   ✕
                 </button>
               </div>
+
               <div className="overflow-y-auto max-h-[50vh] pr-0.5 space-y-1.5">
-                {modalQueueItems.length === 0 ? (
-                  <p className="text-xs text-zinc-400 py-2">
+                {queueMode === 'empty' ? (
+                  <p className="text-xs text-zinc-400 py-2" data-testid="player-queue-empty">
                     Automated rotation selecting from top-voted community tracks.
                   </p>
+                ) : queueMode === 'now-playing-only' ? (
+                  <div className="space-y-2">
+                    {modalQueueItems.slice(0, 1).map((item) => (
+                      <div
+                        key={item.id}
+                        className="p-2 rounded-lg text-xs bg-emerald-950/40 border border-emerald-500/60 shadow-sm space-y-1.5"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 flex-shrink-0 bg-emerald-500 text-black font-extrabold">
+                            <span className="w-1.5 h-1.5 rounded-full bg-black animate-ping" />
+                            ON AIR
+                          </span>
+                          <img
+                            src={item.cover_art_url || '/logo-mark.png'}
+                            alt={`${item.title} cover art`}
+                            className="w-8 h-8 rounded object-cover border border-zinc-800 flex-shrink-0"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).src = '/logo-mark.png';
+                            }}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium truncate text-emerald-300 font-bold">{item.title}</p>
+                            <p className="text-[11px] text-zinc-400 truncate">{item.artist}</p>
+                          </div>
+                        </div>
+
+                        {item.progressPercent !== undefined && (
+                          <div className="space-y-1 pt-1 border-t border-emerald-500/20">
+                            <div className="flex justify-between text-[10px] text-zinc-400 font-mono">
+                              <span className="text-emerald-400 font-semibold">Playing Now</span>
+                              <span>{formatAudioTime(elapsedSeconds)} / {formatAudioTime(durationSeconds)}</span>
+                            </div>
+                            <div
+                              className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden"
+                              role="progressbar"
+                              aria-valuenow={item.progressPercent}
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                              aria-label="Track playback progress"
+                            >
+                              <div
+                                className="h-full bg-emerald-400 rounded-full transition-all duration-1000 ease-linear"
+                                style={{ width: `${item.progressPercent}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    {/* Explicit status when no upcoming tracks are queued */}
+                    <div
+                      className="p-2.5 rounded-lg bg-zinc-950/80 border border-dashed border-zinc-800 text-xs space-y-1"
+                      data-testid="player-queue-standing-by"
+                    >
+                      <div className="flex items-center gap-1.5 text-zinc-300 font-medium">
+                        <Sparkles className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
+                        <span>No upcoming tracks queued</span>
+                      </div>
+                      <p className="text-[11px] text-zinc-400 leading-snug">
+                        Automated rotation will select the next track from top-voted community tracks.
+                      </p>
+                    </div>
+                  </div>
                 ) : (
-                  modalQueueItems.slice(0, 4).map((item, i) => {
+                  <div className="space-y-1.5">
+                    {modalQueueItems.slice(0, 4).map((item, i) => {
                     const isCurrent = item.isCurrent;
                     return (
                       <div
@@ -600,7 +726,7 @@ export default function AudioPlayer() {
                           </span>
                           <img
                             src={item.cover_art_url || '/logo-mark.png'}
-                            alt={item.title}
+                            alt={`${item.title} cover art`}
                             className="w-8 h-8 rounded object-cover border border-zinc-800 flex-shrink-0"
                             onError={(e) => {
                               (e.currentTarget as HTMLImageElement).src = '/logo-mark.png';
@@ -626,7 +752,14 @@ export default function AudioPlayer() {
                               <span className="text-emerald-400 font-semibold">Playing Now</span>
                               <span>{formatAudioTime(elapsedSeconds)} / {formatAudioTime(durationSeconds)}</span>
                             </div>
-                            <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
+                            <div
+                              className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden"
+                              role="progressbar"
+                              aria-valuenow={item.progressPercent}
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                              aria-label="Track playback progress"
+                            >
                               <div
                                 className="h-full bg-emerald-400 rounded-full transition-all duration-1000 ease-linear"
                                 style={{ width: `${item.progressPercent}%` }}
@@ -636,16 +769,17 @@ export default function AudioPlayer() {
                         )}
                       </div>
                     );
-                  })
-                )}
-              </div>
+                  })}
+                </div>
+              )}
+            </div>
 
               <Link
                 href={`/schedule?channel=${currentChannel.slug}`}
                 onClick={() => setShowUpNext(false)}
                 className="mt-2 flex items-center justify-center gap-1.5 text-center text-xs text-emerald-400 hover:text-emerald-300 font-medium py-1.5 px-2 rounded-lg bg-zinc-950/70 border border-zinc-800 hover:border-emerald-500/30 transition-colors flex-shrink-0"
               >
-                <Calendar className="w-3.5 h-3.5" />
+                <Calendar className="w-3.5 h-3.5" aria-hidden="true" />
                 <span>Full 24-Hour Broadcast Schedule &rarr;</span>
               </Link>
             </div>
@@ -723,21 +857,31 @@ export default function AudioPlayer() {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 sm:gap-2">
               {/* Channel Selector Button */}
-              <button
-                type="button"
-                onClick={() => setShowChannelMenu((prev) => !prev)}
-                className="flex items-center gap-1 px-1.5 xs:px-2 py-0.5 rounded-md text-[11px] font-bold bg-zinc-800 hover:bg-zinc-750 text-emerald-400 border border-emerald-500/30 hover:border-emerald-500/60 transition-colors flex-shrink-0"
-                title="Switch radio channel"
-                aria-label={`Current channel: ${currentChannel.shortName}. Click to change channel`}
-              >
-                {getStationIcon(currentChannel.slug)}
-                <span className="hidden xs:inline">{currentChannel.shortName}</span>
-                <ChevronUp
-                  className={`w-3 h-3 text-emerald-400 transition-transform ${
-                    showChannelMenu ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
+              {publicChannels.length > 1 ? (
+                <button
+                  type="button"
+                  onClick={() => setShowChannelMenu((prev) => !prev)}
+                  className="flex items-center gap-1 px-1.5 xs:px-2 py-0.5 rounded-md text-[11px] font-bold bg-zinc-800 hover:bg-zinc-750 text-emerald-400 border border-emerald-500/30 hover:border-emerald-500/60 transition-colors flex-shrink-0"
+                  title="Switch radio channel"
+                  aria-label={`Current channel: ${currentChannel.shortName}. Click to change channel`}
+                >
+                  {getStationIcon(currentChannel.slug)}
+                  <span className="hidden xs:inline">{currentChannel.shortName}</span>
+                  <ChevronUp
+                    className={`w-3 h-3 text-emerald-400 transition-transform ${
+                      showChannelMenu ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+              ) : (
+                <div
+                  className="flex items-center gap-1 px-1.5 xs:px-2 py-0.5 rounded-md text-[11px] font-bold bg-zinc-800 text-emerald-400 border border-emerald-500/30 flex-shrink-0"
+                  title="PromptFM Main Stage"
+                >
+                  {getStationIcon(currentChannel.slug)}
+                  <span className="hidden xs:inline">{currentChannel.shortName}</span>
+                </div>
+              )}
 
               <div className="flex items-center gap-1 min-w-0 flex-1">
                 <span className="text-white font-semibold text-xs sm:text-sm truncate min-w-0 flex-1">
@@ -760,8 +904,13 @@ export default function AudioPlayer() {
                 {nowPlaying ? nowPlaying.artist : isPlaying ? currentChannel.vibe : 'Click play to tune in'}
               </p>
               {nowPlaying && (
-                <span className="text-[10px] font-mono text-emerald-400/90 bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded inline-flex items-center flex-shrink-0">
-                  {formatMobilePlayerTime(elapsedSeconds, durationSeconds)}
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-mono text-emerald-400/90 bg-zinc-900/90 border border-zinc-800 px-1.5 py-0.5 rounded flex-shrink-0 tabular-nums shadow-sm"
+                  aria-label={`Playback time: ${trackProgress.formattedElapsed} of ${trackProgress.formattedDuration}`}
+                >
+                  <span>{trackProgress.formattedElapsed}</span>
+                  <span className="text-zinc-600" aria-hidden="true">/</span>
+                  <span className="text-zinc-400">{trackProgress.formattedDuration}</span>
                 </span>
               )}
               {nowPlaying?.transcript && (
@@ -776,6 +925,19 @@ export default function AudioPlayer() {
                 </button>
               )}
             </div>
+
+            {/* Mobile-only inline playback progress indicator for iPhone / small screens (Issue #87) */}
+            {nowPlaying && (
+              <div
+                className="sm:hidden w-full h-[2px] bg-zinc-800/80 rounded-full overflow-hidden mt-1"
+                aria-hidden="true"
+              >
+                <div
+                  className="h-full bg-gradient-to-r from-emerald-400 to-teal-400 rounded-full transition-all duration-1000 ease-linear motion-reduce:transition-none"
+                  style={{ width: `${trackProgress.percent}%` }}
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -797,6 +959,9 @@ export default function AudioPlayer() {
             type="button"
             onClick={() => setShowUpNext((prev) => !prev)}
             aria-label="Toggle Up Next airplay queue"
+            aria-expanded={showUpNext}
+            aria-controls="player-queue-popover"
+            aria-haspopup="dialog"
             className={`flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-lg text-xs font-semibold transition-all border ${
               showUpNext
                 ? 'bg-emerald-500 text-black border-emerald-400 shadow-md shadow-emerald-500/20'
@@ -804,7 +969,7 @@ export default function AudioPlayer() {
             }`}
             title="See upcoming tracks"
           >
-            <ListMusic className={`w-3.5 h-3.5 ${showUpNext ? 'text-black' : 'text-emerald-400'}`} />
+            <ListMusic className={`w-3.5 h-3.5 ${showUpNext ? 'text-black' : 'text-emerald-400'}`} aria-hidden="true" />
             <span className="hidden sm:inline">Up Next</span>
           </button>
 

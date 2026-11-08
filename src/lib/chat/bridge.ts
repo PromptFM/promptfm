@@ -20,6 +20,51 @@ export interface BroadcastNotification {
   postToX?: boolean;
 }
 
+const NOW_PLAYING_DEDUPE_WINDOW_MS = 60_000;
+const recentNowPlayingDiscord = new Map<string, number>();
+const recentNowPlayingTelegram = new Map<string, number>();
+const recentNowPlayingX = new Map<string, number>();
+
+export function resetNowPlayingDedupeCache(): void {
+  recentNowPlayingDiscord.clear();
+  recentNowPlayingTelegram.clear();
+  recentNowPlayingX.clear();
+}
+
+function getNowPlayingKey(payload: BroadcastNotification): string | null {
+  if (payload.category !== 'now_playing') return null;
+  return payload.trackId || `${payload.title}:::${payload.artist || ''}`;
+}
+
+function isNowPlayingDuplicate(payload: BroadcastNotification, target: 'discord' | 'telegram' | 'x'): boolean {
+  const key = getNowPlayingKey(payload);
+  if (!key) return false;
+  const map =
+    target === 'discord'
+      ? recentNowPlayingDiscord
+      : target === 'telegram'
+        ? recentNowPlayingTelegram
+        : recentNowPlayingX;
+  const lastSent = map.get(key);
+  if (lastSent && Date.now() - lastSent < NOW_PLAYING_DEDUPE_WINDOW_MS) {
+    return true;
+  }
+  return false;
+}
+
+function recordNowPlayingSent(payload: BroadcastNotification, target: 'discord' | 'telegram' | 'x'): void {
+  const key = getNowPlayingKey(payload);
+  if (key) {
+    const map =
+      target === 'discord'
+        ? recentNowPlayingDiscord
+        : target === 'telegram'
+          ? recentNowPlayingTelegram
+          : recentNowPlayingX;
+    map.set(key, Date.now());
+  }
+}
+
 let fallbackDemoVotes = 0;
 
 /**
@@ -71,8 +116,12 @@ export async function castVoteForTrack(
  * Includes direct 1-click vote buttons and formatted spoken transcripts.
  */
 export async function sendDiscordNotification(payload: BroadcastNotification): Promise<boolean> {
+  if (payload.category === 'now_playing' && isNowPlayingDuplicate(payload, 'discord')) {
+    return true;
+  }
+
   const webhookUrl =
-    payload.category === 'now_playing'
+    payload.category === 'now_playing' || payload.category === 'dedication'
       ? process.env.DISCORD_NOW_PLAYING_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL
       : process.env.DISCORD_FEED_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL;
   if (!webhookUrl) return false;
@@ -173,6 +222,9 @@ export async function sendDiscordNotification(payload: BroadcastNotification): P
         components: components.length > 0 ? components : undefined,
       }),
     });
+    if (res.ok) {
+      recordNowPlayingSent(payload, 'discord');
+    }
     return res.ok;
   } catch (err) {
     console.error('Failed to dispatch Discord webhook:', err);
@@ -184,6 +236,10 @@ export async function sendDiscordNotification(payload: BroadcastNotification): P
  * Sends a notification to Telegram with an Inline Keyboard for voting and live transcripts.
  */
 export async function sendTelegramNotification(payload: BroadcastNotification): Promise<boolean> {
+  if (payload.category === 'now_playing' && isNowPlayingDuplicate(payload, 'telegram')) {
+    return true;
+  }
+
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
   if (!botToken || !chatId) return false;
@@ -242,6 +298,9 @@ export async function sendTelegramNotification(payload: BroadcastNotification): 
         disable_web_page_preview: false,
       }),
     });
+    if (res.ok) {
+      recordNowPlayingSent(payload, 'telegram');
+    }
     return res.ok;
   } catch (err) {
     console.error('Failed to dispatch Telegram message:', err);
@@ -262,9 +321,12 @@ export async function broadcastToCommunity(
   ];
 
   if (options?.postToX || payload.postToX) {
-    const rawText = `${payload.title ? `${payload.title}: ` : ''}${payload.message}`;
-    const truncated = rawText.length > 270 ? `${rawText.slice(0, 267)}...` : rawText;
-    tasks.push(postTweetToX(truncated, { url: payload.url }));
+    if (payload.category !== 'now_playing' || !isNowPlayingDuplicate(payload, 'x')) {
+      recordNowPlayingSent(payload, 'x');
+      const rawText = `${payload.title ? `${payload.title}: ` : ''}${payload.message}`;
+      const truncated = rawText.length > 270 ? `${rawText.slice(0, 267)}...` : rawText;
+      tasks.push(postTweetToX(truncated, { url: payload.url }));
+    }
   }
 
   return Promise.allSettled(tasks);

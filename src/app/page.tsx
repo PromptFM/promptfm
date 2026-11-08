@@ -19,16 +19,24 @@ export default function HomePage() {
     <main className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-start text-center px-4 py-8 sm:py-12 pb-[calc(8rem+env(safe-area-inset-bottom,0px))] gap-8 sm:gap-14">
       {/* Hero */}
       <div className="space-y-4 max-w-2xl pt-2 sm:pt-4">
-        {/* Logo mark — AI-generated icon with neon glow */}
-        <div className="flex justify-center mb-2">
-          <Image
-            src="/logo-mark.png"
-            alt="PromptFM icon"
-            width={100}
-            height={100}
-            className="w-[84px] h-[84px] sm:w-[120px] sm:h-[120px] rounded-2xl drop-shadow-[0_0_32px_rgba(52,211,153,0.45)]"
-            priority
-          />
+        {/* Main Stage Station Icon Treatment — Branded emblem with live pulse indicator */}
+        <div className="flex justify-center mb-3">
+          <div className="relative inline-flex flex-col items-center">
+            <div className="relative">
+              <Image
+                src="/logo-mark.png"
+                alt="PromptFM Main Stage 24/7 AI Radio"
+                width={110}
+                height={110}
+                className="w-[90px] h-[90px] sm:w-[130px] sm:h-[130px] rounded-2xl drop-shadow-[0_0_36px_rgba(52,211,153,0.5)] border border-emerald-500/30 ring-2 ring-emerald-500/20"
+                priority
+              />
+              <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-zinc-950/95 border border-emerald-500/40 text-[10px] font-bold text-emerald-400 shadow-lg tracking-wider uppercase whitespace-nowrap">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Main Stage</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Real-time live listeners telemetry badge */}
@@ -40,7 +48,7 @@ export default function HomePage() {
         </h1>
 
         <p className="text-zinc-400 text-xs sm:text-base md:text-lg max-w-xl mx-auto px-2">
-          Discover, vote on, and submit AI-generated music. Tune into 5 curated theme stations
+          Discover, vote on, and submit AI-generated music. Tune into PromptFM Main Stage
           live around the clock while the community and open-source developers drive the radio forward.
         </p>
 
@@ -51,7 +59,7 @@ export default function HomePage() {
             className={heroGrid.primaryButton}
           >
             <Radio className="w-4 h-4" />
-            Explore Live Channels
+            Tune In Main Stage
           </a>
           <div className={heroGrid.secondaryGrid}>
             <Link
@@ -86,12 +94,12 @@ export default function HomePage() {
         </div>
 
         {/* Feature pills */}
-        <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2.5 text-xs sm:text-sm text-zinc-400 pt-2 max-w-lg mx-auto">
+        <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2.5 text-xs sm:text-sm text-zinc-400 pt-2 max-w-xl mx-auto">
           {[
-            { icon: <Radio className="w-3.5 h-3.5 text-emerald-400" />, label: '5 Live Stations' },
-            { icon: <Code2 className="w-3.5 h-3.5 text-emerald-400" />, label: 'Open Source Radio' },
-            { icon: <Music2 className="w-3.5 h-3.5 text-emerald-400" />, label: 'Suno · Udio · Audio' },
-            { icon: <Upload className="w-3.5 h-3.5 text-emerald-400" />, label: 'Direct R2 Upload' },
+            { icon: <Radio className="w-3.5 h-3.5 text-emerald-400" />, label: 'Main Stage · 24/7 AI Radio' },
+            { icon: <Code2 className="w-3.5 h-3.5 text-emerald-400" />, label: 'Open Community Development' },
+            { icon: <Music2 className="w-3.5 h-3.5" />, label: 'Suno · Udio · Stable Audio' },
+            { icon: <Upload className="w-3.5 h-3.5" />, label: 'Direct R2 Upload' },
           ].map(({ icon, label }) => (
             <span
               key={label}
@@ -180,9 +188,8 @@ export default function HomePage() {
             </h3>
             <p>
               To protect artists and rightsholders, PromptFM implements automated safety guardrails, 
-              including COPPA-compliant channel isolation (restricting nursery and kids tracks strictly 
-              to the Kids channel), late-night watershed parental controls, and a direct DMCA statutory 
-              notice agent registered under 17 U.S.C. § 512(c).
+              including family-safe filtering on the main stage broadcast, late-night watershed parental controls, 
+              and a direct DMCA statutory notice agent registered under 17 U.S.C. § 512(c).
             </p>
           </div>
         </div>
