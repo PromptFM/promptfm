@@ -10,12 +10,15 @@ import UpNextSection from '@/components/UpNextSection';
 import FundingSection from '@/components/FundingSection';
 import ContributeSection from '@/components/ContributeSection';
 import CommunitySection from '@/components/CommunitySection';
+import { getMobileHeroGridClasses } from '@/lib/radio/mobile-layout';
 
 export default function HomePage() {
+  const heroGrid = getMobileHeroGridClasses();
+
   return (
-    <main className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-start text-center px-4 py-12 pb-36 gap-10 sm:gap-14">
+    <main className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-start text-center px-4 py-8 sm:py-12 pb-[calc(8rem+env(safe-area-inset-bottom,0px))] gap-8 sm:gap-14">
       {/* Hero */}
-      <div className="space-y-4 max-w-2xl pt-4">
+      <div className="space-y-4 max-w-2xl pt-2 sm:pt-4">
         {/* Main Stage Station Icon Treatment — Branded emblem with live pulse indicator */}
         <div className="flex justify-center mb-3">
           <div className="relative inline-flex flex-col items-center">
@@ -25,7 +28,7 @@ export default function HomePage() {
                 alt="PromptFM Main Stage 24/7 AI Radio"
                 width={110}
                 height={110}
-                className="sm:w-[130px] sm:h-[130px] rounded-2xl drop-shadow-[0_0_36px_rgba(52,211,153,0.5)] border border-emerald-500/30 ring-2 ring-emerald-500/20"
+                className="w-[90px] h-[90px] sm:w-[130px] sm:h-[130px] rounded-2xl drop-shadow-[0_0_36px_rgba(52,211,153,0.5)] border border-emerald-500/30 ring-2 ring-emerald-500/20"
                 priority
               />
               <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-zinc-950/95 border border-emerald-500/40 text-[10px] font-bold text-emerald-400 shadow-lg tracking-wider uppercase whitespace-nowrap">
@@ -44,52 +47,54 @@ export default function HomePage() {
           <span className="text-emerald-400">AI Radio</span>
         </h1>
 
-        <p className="text-zinc-400 text-sm sm:text-base md:text-lg max-w-xl mx-auto px-2">
+        <p className="text-zinc-400 text-xs sm:text-base md:text-lg max-w-xl mx-auto px-2">
           Discover, vote on, and submit AI-generated music. Tune into PromptFM Main Stage
           live around the clock while the community and open-source developers drive the radio forward.
         </p>
 
         {/* CTAs */}
-        <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3 w-full pt-2">
+        <div className={heroGrid.container}>
           <a
             href="#channels"
-            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-black font-bold px-6 py-3 rounded-xl transition-colors text-sm sm:text-base shadow-lg shadow-emerald-500/20 whitespace-nowrap"
+            className={`${heroGrid.primaryButton} whitespace-nowrap`}
           >
             <Radio className="w-4 h-4" />
             Tune In Main Stage
           </a>
-          <Link
-            href="/top"
-            className="w-full sm:w-auto flex items-center justify-center gap-2 border border-zinc-700 hover:border-zinc-500 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm sm:text-base whitespace-nowrap"
-          >
-            <Music2 className="w-4 h-4" />
-            Weekly Charts
-          </Link>
-          <a
-            href="#funding"
-            className="w-full sm:w-auto flex items-center justify-center gap-2 border border-emerald-500/50 hover:border-emerald-400 text-emerald-300 hover:text-white font-semibold px-5 py-3 rounded-xl transition-colors text-sm sm:text-base bg-emerald-950/30 shadow-md shadow-emerald-500/10 whitespace-nowrap"
-          >
-            <Heart className="w-4 h-4 text-emerald-400 fill-emerald-400/20" />
-            Support Station
-          </a>
-          <a
-            href="#contribute"
-            className="w-full sm:w-auto flex items-center justify-center gap-2 border border-zinc-700 hover:border-zinc-500 text-zinc-300 hover:text-white font-semibold px-5 py-3 rounded-xl transition-colors text-sm sm:text-base whitespace-nowrap"
-          >
-            <Code2 className="w-4 h-4 text-emerald-400" />
-            Contribute
-          </a>
-          <Link
-            href="/submit"
-            className="w-full sm:w-auto flex items-center justify-center gap-2 border border-zinc-700 hover:border-zinc-500 text-zinc-300 hover:text-white font-semibold px-5 py-3 rounded-xl transition-colors text-sm sm:text-base whitespace-nowrap"
-          >
-            <Upload className="w-4 h-4" />
-            Submit
-          </Link>
+          <div className={heroGrid.secondaryGrid}>
+            <Link
+              href="/top"
+              className={`${heroGrid.secondaryButton} whitespace-nowrap`}
+            >
+              <Music2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
+              Weekly Charts
+            </Link>
+            <a
+              href="#funding"
+              className="flex items-center justify-center gap-1.5 sm:gap-2 border border-emerald-500/50 hover:border-emerald-400 text-emerald-300 hover:text-white font-semibold px-3 py-2.5 sm:px-5 sm:py-3 rounded-xl transition-colors text-xs sm:text-base bg-emerald-950/30 shadow-md shadow-emerald-500/10 whitespace-nowrap"
+            >
+              <Heart className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 fill-emerald-400/20" />
+              Support Station
+            </a>
+            <a
+              href="#contribute"
+              className={`${heroGrid.secondaryButton} whitespace-nowrap`}
+            >
+              <Code2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
+              Contribute
+            </a>
+            <Link
+              href="/submit"
+              className={`${heroGrid.secondaryButton} whitespace-nowrap`}
+            >
+              <Upload className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              Submit
+            </Link>
+          </div>
         </div>
 
         {/* Feature pills */}
-        <div className="flex flex-wrap justify-center gap-2 sm:gap-3 text-xs sm:text-sm text-zinc-400 pt-3">
+        <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2.5 text-xs sm:text-sm text-zinc-400 pt-2 max-w-xl mx-auto">
           {[
             { icon: <Radio className="w-3.5 h-3.5 text-emerald-400" />, label: 'Main Stage · 24/7 AI Radio' },
             { icon: <Code2 className="w-3.5 h-3.5 text-emerald-400" />, label: 'Open Community Development' },
@@ -98,7 +103,7 @@ export default function HomePage() {
           ].map(({ icon, label }) => (
             <span
               key={label}
-              className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-full"
+              className="flex items-center gap-1.5 bg-zinc-900/90 border border-zinc-800 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[11px] sm:text-xs"
             >
               {icon} {label}
             </span>
