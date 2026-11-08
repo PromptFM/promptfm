@@ -31,9 +31,18 @@ function runGate(env: Record<string, string>): { status: number; stdout: string;
 
 describe('scripts/vercel-budget-gate.js CLI Execution', () => {
   it('exits with 0 (cancel build) on routine main merges in production', () => {
+    // To ensure testing an untagged routine commit on main, pass an untagged parent commit SHA
+    let untaggedSha = 'a3eacd61f291dbb2b963dcd03db7d393af73a6c9';
+    try {
+      untaggedSha = execSync('git rev-parse HEAD~1', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
+    } catch {
+      // Use fallback commit hash for shallow clones
+    }
+
     const result = runGate({
       VERCEL_ENV: 'production',
       VERCEL_GIT_COMMIT_REF: 'main',
+      VERCEL_GIT_COMMIT_SHA: untaggedSha,
       VERCEL_GIT_COMMIT_MESSAGE: 'Merge pull request #120 from PromptFM/issue43',
     });
 

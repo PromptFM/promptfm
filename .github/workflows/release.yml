@@ -8,9 +8,13 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Semantic Version Tag (e.g. promptfm/v1.0.0 or v1.0.0)'
-        required: true
-        default: 'promptfm/v0.1.0'
+        description: 'Semantic Version (defaults to package.json version if blank, e.g. 0.2.0 or promptfm/v0.2.0)'
+        required: false
+        default: ''
+      target_commit:
+        description: 'Target Git SHA or branch to cut release from (defaults to HEAD)'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -18,18 +22,20 @@ permissions:
   statuses: write
   pull-requests: write
 
+concurrency:
+  group: release-promptfm
+  cancel-in-progress: false
+
 jobs:
   release:
     name: 📦 Package, Release & Stamp Vercel Deployment
     runs-on: ubuntu-latest
-    environment:
-      name: production
-      url: https://promptfm.live
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
 
       - name: ⚙️ Setup Node.js 22
         uses: actions/setup-node@v7
@@ -41,20 +47,52 @@ jobs:
         run: npm ci
 
       - name: 🧪 Verify Quality & Unit Test Suite
-        run: npm test
-
-      - name: 🔍 TypeScript Strict Typecheck
-        run: npm run typecheck
+        run: |
+          npm test
+          npm run typecheck
 
       - name: 🏷️ Resolve Release Tag & Metadata
         id: meta
         run: |
-          TAG="${{ github.ref_name }}"
-          if [ -z "$TAG" ] || [ "$TAG" = "main" ]; then
-            TAG="${{ inputs.version }}"
-          fi
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          node -e '
+            const fs = require("fs");
+            const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+            
+            const currentTag = "${{ github.ref_name }}";
+            const inputVersion = ("${{ github.event.inputs.version }}" || "").trim();
+            const targetCommit = ("${{ github.event.inputs.target_commit }}" || "").trim();
+            const sha = targetCommit || process.env.GITHUB_SHA || "HEAD";
+            
+            let releaseTag = "";
+            if (currentTag && (currentTag.startsWith("promptfm/") || currentTag.startsWith("v"))) {
+              releaseTag = currentTag;
+            } else if (inputVersion) {
+              releaseTag = inputVersion.startsWith("promptfm/") || inputVersion.startsWith("v")
+                ? inputVersion
+                : "promptfm/v" + inputVersion;
+            } else {
+              const version = pkg.version || "0.2.0";
+              releaseTag = "promptfm/v" + version;
+            }
+            
+            console.log(`Resolved Release Tag: ${releaseTag}`);
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `tag=${releaseTag}\n`);
+          '
           echo "commit_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+      - name: 🏷️ Push Release Tag (if manual trigger and not already tagged)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          TAG="${{ steps.meta.outputs.tag }}"
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "Tag $TAG already exists on remote, proceeding."
+          else
+            echo "Tagging HEAD with: $TAG"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" -m "Release $TAG"
+            git push origin "$TAG"
+          fi
 
       - name: 🌐 Create GitHub Deployment (Production)
         id: deployment
@@ -63,14 +101,22 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           environment: 'production'
           description: 'PromptFM Live 24/7 Radio Station Production Deployment'
-          ref: ${{ steps.meta.outputs.commit_sha }}
+          ref: ${{ steps.meta.outputs.tag }}
 
       - name: 🚀 Verify / Trigger Vercel Production Build
         id: vercel
         env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
         run: |
-          if [ -n "$VERCEL_DEPLOY_HOOK" ]; then
+          if [ -n "$VERCEL_TOKEN" ]; then
+            echo "Deploying to Vercel Production via Vercel CLI..."
+            PROD_URL=$(npx vercel --prod --yes --token="$VERCEL_TOKEN")
+            echo "Vercel Production URL: $PROD_URL"
+            echo "target_url=$PROD_URL" >> $GITHUB_OUTPUT
+          elif [ -n "$VERCEL_DEPLOY_HOOK" ]; then
             echo "Triggering Vercel Production Deploy Hook..."
             HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$VERCEL_DEPLOY_HOOK")
             echo "Vercel deploy hook HTTP status: $HTTP_STATUS"
@@ -79,10 +125,11 @@ jobs:
             else
               echo "Deploy hook returned non-2xx status ($HTTP_STATUS), proceeding with git integration verification."
             fi
+            echo "target_url=https://promptfm.live" >> $GITHUB_OUTPUT
           else
             echo "Vercel auto-deploys via GitHub Git Integration on release tags/main under $0 budget policy."
+            echo "target_url=https://promptfm.live" >> $GITHUB_OUTPUT
           fi
-          echo "target_url=https://promptfm.live" >> $GITHUB_OUTPUT
 
       - name: 🩺 Verify Production Station Endpoint
         id: health_check
@@ -118,5 +165,4 @@ jobs:
           draft: false
           prerelease: false
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+          GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}

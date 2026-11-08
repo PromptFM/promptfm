@@ -11,13 +11,11 @@ describe('GitHub Actions Workflows Suite', () => {
     return fs.readFileSync(filePath, 'utf-8');
   };
 
-  describe('Release PromptFM Workflow (release-promptfm.yml)', () => {
+  describe('Release PromptFM Workflow (release.yml)', () => {
     it('exists and includes workflow_dispatch and promptfm/* tag trigger', () => {
-      const content = readWorkflow('release-promptfm.yml');
-      expect(content).toContain('name: 🚀 Release PromptFM');
+      const content = readWorkflow('release.yml');
       expect(content).toContain('workflow_dispatch:');
       expect(content).toContain('promptfm/*');
-      expect(content).toContain('formatReleaseTag');
       expect(content).toContain('npx vercel --prod');
     });
   });

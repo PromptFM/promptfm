@@ -139,7 +139,7 @@
   ],
   "workflows": [
     {
-      "file": ".github/workflows/release-promptfm.yml",
+      "file": ".github/workflows/release.yml",
       "name": "🚀 Release PromptFM",
       "trigger": "workflow_dispatch | push tag promptfm/*"
     },
