@@ -7,7 +7,7 @@
 import { createAdminClient } from '../supabase/server';
 import { createBroadcastDrop, fetchLiveHeadlines } from './engine';
 import { getActiveDJ, getAdsConfig, getActiveAdSpot, isContentAllowedForAirplay, DJProfile } from './roster';
-import { getStationSchedule } from '../radio/schedule';
+import { getStationSchedule, ScheduleBlock, ClockMilestone } from '../radio/schedule';
 import { broadcastToCommunity } from '../chat/bridge';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
@@ -45,6 +45,12 @@ let lastAdTimestamp = 0;
 const channelAirplayItems = new Map<string, AirplayItem>();
 const channelAirplayStartedAt = new Map<string, number>();
 
+// In-memory per-channel recently played track IDs for anti-repeat
+const channelRecentlyPlayed = new Map<string, string[]>();
+
+// In-memory per-channel sequential progression index for scheduled countdown shows
+const channelCountdownPosition = new Map<string, number>();
+
 let currentAirplayItem: AirplayItem | null = null;
 let currentAirplayStartedAt: number = Date.now();
 let pendingAirplayItem: AirplayItem | null = null;
@@ -78,6 +84,98 @@ export function resetAirplayDedupeCache(): void {
   recentAirplayAnnouncedByChannel.clear();
   pendingAirplayItems.clear();
   pendingAirplayItem = null;
+}
+
+/**
+ * Returns recently played track IDs for a channel.
+ */
+export function getRecentlyPlayed(channelSlug = 'main'): string[] {
+  return channelRecentlyPlayed.get(channelSlug) || [];
+}
+
+/**
+ * Clears recently played history for testing or cache resets.
+ */
+export function clearRecentlyPlayed(channelSlug?: string): void {
+  if (channelSlug) {
+    channelRecentlyPlayed.delete(channelSlug);
+  } else {
+    channelRecentlyPlayed.clear();
+  }
+}
+
+/**
+ * Returns current countdown position for a channel.
+ */
+export function getCountdownPosition(channelSlug = 'main'): number {
+  return channelCountdownPosition.get(channelSlug) || 0;
+}
+
+/**
+ * Resets countdown index for a channel.
+ */
+export function resetCountdownPosition(channelSlug?: string): void {
+  if (channelSlug) {
+    channelCountdownPosition.delete(channelSlug);
+  } else {
+    channelCountdownPosition.clear();
+  }
+}
+
+export interface CountdownConfig {
+  isCountdown: boolean;
+  size: 20 | 40;
+  order: 'asc' | 'desc';
+}
+
+/**
+ * Determines whether the active show or milestones constitute a scheduled Top 20 or Top 40 countdown show.
+ */
+export function resolveCountdownConfig(
+  show?: ScheduleBlock | null,
+  milestones?: ClockMilestone[]
+): CountdownConfig {
+  if (show?.is_countdown || show?.countdown_size) {
+    return {
+      isCountdown: true,
+      size: show.countdown_size === 40 ? 40 : 20,
+      order: show.countdown_order || 'desc',
+    };
+  }
+
+  if (show?.show) {
+    const showLower = show.show.toLowerCase();
+    if (showLower.includes('top 40') || showLower.includes('top40')) {
+      return {
+        isCountdown: true,
+        size: 40,
+        order: show.countdown_order || (showLower.includes('countdown') ? 'desc' : 'asc'),
+      };
+    }
+    if (showLower.includes('top 20') || showLower.includes('top20')) {
+      return {
+        isCountdown: true,
+        size: 20,
+        order: show.countdown_order || (showLower.includes('countdown') ? 'desc' : 'asc'),
+      };
+    }
+  }
+
+  if (milestones && milestones.length > 0) {
+    for (const m of milestones) {
+      const titleLower = m.title.toLowerCase();
+      if (m.type === 'music' || (m.type as string) === 'countdown') {
+        if (titleLower.includes('top 40 countdown') || titleLower.includes('top 40 show')) {
+          return { isCountdown: true, size: 40, order: 'desc' };
+        }
+        if (titleLower.includes('top 20 countdown') || titleLower.includes('top 20 show')) {
+          return { isCountdown: true, size: 20, order: 'desc' };
+        }
+      }
+    }
+  }
+
+  return { isCountdown: false, size: 20, order: 'desc' };
 }
 
 /**
@@ -787,11 +885,13 @@ export async function markTrackStarted(
           (actual as AirplayItem).artist ||
           'PromptFM Core';
         itemToStart = {
-          id: actual.id,
+          id: actual.id || itemId || 'track-resolved',
           type: (actual as AirplayItem).type || 'music',
-          title: actual.title,
+          title: actual.title || title || 'PromptFM Track',
           artist: artistName,
-          audio_url: actual.audio_url,
+          audio_url:
+            actual.audio_url ||
+            'https://oxfacfdpxbxilucooijy.supabase.co/storage/v1/object/public/tracks/promptfm_ambient_ai_anthem.mp3',
           cover_art_url: actual.cover_art_url || '/logo-mark.png',
           category: actual.category,
           description: actual.description,
@@ -1092,18 +1192,35 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
     }
   }
 
-  // ── 5. Standard Music Rotation: Pick from Top Approved Community Tracks ────
+  // ── 5. Standard Music Rotation or Scheduled Countdown Show ────
   // When schedule has only music milestones, PromptFM streams 100% music without interruptions.
   tracksSinceLastInterstitial++;
   tracksSinceLastAd++;
 
-  // Fetch top approved tracks ordered by upvotes
-  const { data: rawTracks } = await supabase
-    .from('tracks')
-    .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, description, lyrics, is_explicit, family_friendly')
-    .eq('status', 'approved')
-    .order('upvotes_count', { ascending: false })
-    .limit(40);
+  const countdownConfig = resolveCountdownConfig(
+    stationSchedule.current_show,
+    activeMilestones
+  );
+
+  let rawTracks: any[] | null = null;
+
+  if (countdownConfig.isCountdown) {
+    const { data } = await supabase
+      .from('tracks')
+      .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, description, lyrics, is_explicit, family_friendly')
+      .eq('status', 'approved')
+      .order('upvotes_count', { ascending: false })
+      .limit(countdownConfig.size);
+    rawTracks = data;
+  } else {
+    // Everyday main-stage rotation: pull from full approved library without limiting to 40
+    const { data } = await supabase
+      .from('tracks')
+      .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, description, lyrics, is_explicit, family_friendly')
+      .eq('status', 'approved')
+      .order('upvotes_count', { ascending: false });
+    rawTracks = data;
+  }
 
   // Filter against parental controls and channel rating restrictions
   const tracks = (rawTracks || []).filter((t) =>
@@ -1118,16 +1235,46 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
   );
 
   if (tracks && tracks.length > 0) {
-    // Weighted random selection: Higher upvoted songs are picked much more frequently
-    const weightedPool: typeof tracks = [];
-    tracks.forEach((t, index) => {
-      const weight = index < 5 ? 4 : index < 15 ? 2 : 1;
-      for (let i = 0; i < weight; i++) {
-        weightedPool.push(t);
-      }
-    });
+    let chosen: (typeof tracks)[0];
 
-    const chosen = weightedPool[Math.floor(Math.random() * weightedPool.length)] || tracks[0]!;
+    if (countdownConfig.isCountdown) {
+      // In a scheduled countdown show (Top 20 / Top 40), tracks play strictly in order
+      const orderedTracks =
+        countdownConfig.order === 'desc'
+          ? [...tracks].reverse() // Countdown: #20 down to #1 (or #40 down to #1)
+          : [...tracks]; // Ascending: #1 to #20 (or #1 to #40)
+
+      const currentPos = channelCountdownPosition.get(channelSlug) ?? 0;
+      chosen = orderedTracks[currentPos % orderedTracks.length] || orderedTracks[0]!;
+      channelCountdownPosition.set(channelSlug, (currentPos + 1) % orderedTracks.length);
+    } else {
+      // Everyday rotation: reset countdown progression
+      channelCountdownPosition.delete(channelSlug);
+
+      const currentPlayingId = channelAirplayItems.get(channelSlug)?.id || currentAirplayItem?.id;
+      const recentIds = channelRecentlyPlayed.get(channelSlug) || [];
+
+      // Anti-repeat: exclude currently playing and recently played tracks
+      let candidates = tracks.filter((t) => !recentIds.includes(t.id) && t.id !== currentPlayingId);
+
+      // If library is exhausted by recent history, fall back to excluding just current track
+      if (candidates.length === 0) {
+        candidates = tracks.filter((t) => t.id !== currentPlayingId);
+      }
+      if (candidates.length === 0) {
+        candidates = tracks;
+      }
+
+      // Pick from candidates: broad, fair rotation across the full library
+      const chosenIndex = Math.floor(Math.random() * candidates.length);
+      chosen = candidates[chosenIndex] || tracks[0]!;
+
+      // Update recently played history (keep up to 20 tracks, or up to half the catalog size)
+      const maxHistory = Math.max(1, Math.min(20, Math.floor(tracks.length / 2)));
+      const updatedRecent = [...recentIds.filter((id) => id !== chosen.id), chosen.id].slice(-maxHistory);
+      channelRecentlyPlayed.set(channelSlug, updatedRecent);
+    }
+
     return await finishAndBroadcast({
       id: chosen.id,
       type: 'music',

@@ -26,6 +26,9 @@ export interface ScheduleBlock {
   dj_prompt_style: string;
   is_live: boolean;
   clock_milestones: ClockMilestone[];
+  is_countdown?: boolean;
+  countdown_size?: 20 | 40;
+  countdown_order?: 'asc' | 'desc';
 }
 
 export interface StationSchedule {
@@ -36,13 +39,13 @@ export interface StationSchedule {
   generated_at_utc: string;
 }
 
-const STANDARD_HOURLY_MILESTONES: ClockMilestone[] = [
+export const STANDARD_HOURLY_MILESTONES: ClockMilestone[] = [
   {
     minute: 0,
-    title: 'Hourly Community Top 40 Countdown',
+    title: 'Community Headliners & Vault Rotation',
     type: 'music',
     icon: 'Radio',
-    description: 'Top upvoted community AI music productions headlining the hour.',
+    description: 'Featured community AI music productions headlining the hour from across the approved library.',
   },
   {
     minute: 15,
@@ -66,6 +69,71 @@ const STANDARD_HOURLY_MILESTONES: ClockMilestone[] = [
     description: 'Community queue picks and listener favorite tracks streamed back-to-back.',
   },
 ];
+
+export const COUNTDOWN_HOURLY_MILESTONES: ClockMilestone[] = [
+  {
+    minute: 0,
+    title: 'Scheduled Community Chart Countdown',
+    type: 'music',
+    icon: 'Radio',
+    description: 'Official community chart countdown played strictly in order.',
+  },
+  {
+    minute: 15,
+    title: 'Countdown Mid-Tier Climbers',
+    type: 'music',
+    icon: 'Sparkles',
+    description: 'Chart climbers advancing toward the top positions.',
+  },
+  {
+    minute: 30,
+    title: 'Countdown Top 10 Contenders',
+    type: 'music',
+    icon: 'Music',
+    description: 'The highest-ranking tracks battling for the week\'s top spots.',
+  },
+  {
+    minute: 45,
+    title: 'Countdown Podium & #1 Reveal',
+    type: 'music',
+    icon: 'Radio',
+    description: 'The countdown finale culminating in the community #1 song.',
+  },
+];
+
+/**
+ * Factory helper to construct explicit countdown schedule blocks (e.g. Weekly Top 20 or Top 40).
+ */
+export function createCountdownShowBlock(opts?: {
+  id?: string;
+  time_utc?: string;
+  start_hour_utc?: number;
+  end_hour_utc?: number;
+  show?: string;
+  dj?: DJProfile;
+  countdown_size?: 20 | 40;
+  countdown_order?: 'asc' | 'desc';
+  is_live?: boolean;
+}): ScheduleBlock {
+  const size = opts?.countdown_size || 20;
+  const dj = opts?.dj || getDJById('dj_vance');
+  return {
+    id: opts?.id || `main-top-${size}-countdown`,
+    time_utc: opts?.time_utc || '18:00 - 19:00 UTC',
+    start_hour_utc: opts?.start_hour_utc ?? 18,
+    end_hour_utc: opts?.end_hour_utc ?? 19,
+    show: opts?.show || `The Weekly Top ${size} Countdown`,
+    dj,
+    genre: 'Official Community Chart Leaders',
+    ai_tools: ['All Models'],
+    dj_prompt_style: dj.stylePrompt || 'Smooth velvet baritone countdown delivery',
+    is_live: opts?.is_live ?? false,
+    clock_milestones: COUNTDOWN_HOURLY_MILESTONES,
+    is_countdown: true,
+    countdown_size: size,
+    countdown_order: opts?.countdown_order || 'desc',
+  };
+}
 
 /**
  * Checks if a given UTC hour falls within a start and end hour range,

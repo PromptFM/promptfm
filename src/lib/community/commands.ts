@@ -24,8 +24,8 @@ export const AIRPLAY_CLOCK_SEGMENTS: AirplayClockSegment[] = [
     range: ':00 – :15',
     startMinute: 0,
     endMinute: 15,
-    title: 'Top 40 Power',
-    description: 'Highest voted community tracks from weekly charts.',
+    title: 'Community Headliners',
+    description: 'Featured community AI music productions and catalog highlights.',
   },
   {
     index: 1,
@@ -65,8 +65,8 @@ export function getActiveClockSegment(minute: number): AirplayClockSegment {
     range: ':00 – :15',
     startMinute: 0,
     endMinute: 15,
-    title: 'Top 40 Power',
-    description: 'Highest voted community tracks from weekly charts.',
+    title: 'Community Headliners',
+    description: 'Featured community AI music productions and catalog highlights.',
   };
   return AIRPLAY_CLOCK_SEGMENTS[index] ?? fallback;
 }
@@ -148,7 +148,7 @@ export function getBotHelpText(format: 'markdown_v1' | 'telegram' | 'discord' = 
 **⏰ Airplay Schedule & When Songs Play:**
 • **Song Requests (\`/song\` or \`/s\`):** Accepted 24/7! Enqueued into \`channel_queue\` and played next in the live stream.
 • **Hourly Clock Wheel Cadence:**
-  - \`:00 - :15\` — Top 40 Power Rotation (Top community voted hits)
+  - \`:00 - :15\` — Community Headliners Rotation (Featured community hits and catalog highlights)
   - \`:15 - :30\` — Deep Cuts & Ambient Explorations
   - \`:30 - :45\` — Rhythm Transition (Breakbeats & Synthwave)
   - \`:45 - :00\` — **Listener Showcase & Community Requests** *(Your requested songs take the spotlight!)*
@@ -175,7 +175,7 @@ Tune in live: https://promptfm.live`;
 *⏰ Airplay Schedule & When Songs Play:*
 • *Song Requests (/song or /s):* Accepted 24/7! Enqueued and played next in live stream.
 • *Hourly Clock Wheel Cadence:*
-  - :00 - :15 — Top 40 Power Rotation (Top community hits)
+  - :00 - :15 — Community Headliners Rotation (Featured community hits and catalog highlights)
   - :15 - :30 — Deep Cuts & Ambient Explorations
   - :30 - :45 — Rhythm Transition (Breakbeats & Synthwave)
   - :45 - :00 — *Listener Showcase & Community Requests* (Your requested tracks!)
