@@ -143,4 +143,114 @@ lifecycle {
 **Why this matters:**
 When you close a milestone from the GitHub Web UI or mobile app upon shipping a release, Terraform **ignores the `state` attribute**. Subsequent `terraform apply` runs will **never** reopen closed milestones or fight your UI workflow.
 
+---
+
+## 📖 8. Step-by-Step Developer & Admin Examples
+
+### Example 1: Adding a New Issue Label
+To add a new label to the repository, add a new key to `local.github_labels` in [`infra/terraform/github.tf`](../infra/terraform/github.tf):
+
+```hcl
+locals {
+  github_labels = {
+    # Existing labels...
+    "performance" = {
+      color       = "ff9900"
+      description = "Speed insights, latency profiling, and bundle optimization"
+    }
+  }
+}
+```
+Optionally also reflect it in [`config/github-project.json`](../config/github-project.json) for documentation.
+
+---
+
+### Example 2: Adding a New Milestone
+To declare a new release milestone in [`infra/terraform/github.tf`](../infra/terraform/github.tf), define a `github_repository_milestone` block and ensure `ignore_changes = [state]` is set:
+
+```hcl
+resource "github_repository_milestone" "v1_1_0" {
+  owner       = var.github_owner
+  repository  = var.github_repository
+  title       = "v1.1.0 - Next-Gen DJ Voice Synthesis"
+  description = "Custom voice cloning, automated multi-lingual commentary, and RAG contextual banter."
+  state       = "open"
+
+  lifecycle {
+    ignore_changes = [state]
+  }
+}
+```
+
+---
+
+### Example 3: Adding a New Project View
+To add or modify views in the PromptFM Community Project Board ([https://github.com/orgs/PromptFM/projects/1](https://github.com/orgs/PromptFM/projects/1)), update [`config/github-project.json`](../config/github-project.json):
+
+```json
+{
+  "id": "security-audit",
+  "name": "🛡️ Security & Access Audits",
+  "layout": "BOARD_LAYOUT"
+}
+```
+Supported layout types:
+- `BOARD_LAYOUT`: Kanban column view (Todo, In Progress, Done).
+- `TABLE_LAYOUT`: Dense spreadsheet/backlog view with sorting and filters.
+- `ROADMAP_LAYOUT`: Timeline view mapped to milestone deadlines.
+
+---
+
+### Example 4: Modifying Production Gate Branch Rules
+To change branch protection settings (e.g. increase required approvals or add new CI checks), edit `resource "github_repository_ruleset" "main_branch_gate"` in [`infra/terraform/github.tf`](../infra/terraform/github.tf):
+
+#### A. Increasing Required Approvals from 1 to 2:
+```hcl
+pull_request {
+  required_approving_review_count = 2 # Changed from 1
+  require_code_owner_review       = true
+  dismiss_stale_reviews_on_push   = true
+}
+```
+
+#### B. Adding a New Required CI Status Check:
+```hcl
+required_status_checks {
+  strict_required_status_checks_policy = true
+
+  # Add new check context alongside existing checks:
+  required_check {
+    context = "playwright-e2e-tests"
+  }
+}
+```
+
+#### C. Adding a New Bypass Team (e.g., Security Leads):
+```hcl
+bypass_actors {
+  actor_id    = 20507551 # Team ID from: gh api orgs/PromptFM/teams/<slug>
+  actor_type  = "Team"
+  bypass_mode = "pull_request"
+}
+```
+
+---
+
+### Example 5: Assigning Domain Ownership in CODEOWNERS
+To require review from specific sub-teams or individuals for particular paths, edit [`.github/CODEOWNERS`](./CODEOWNERS):
+
+```text
+# Default global maintainers
+* @PromptFM/core @atrifan
+
+# Audio & DJ engineering require @PromptFM/core
+src/lib/dj/ @PromptFM/core @atrifan
+src/lib/audio/ @PromptFM/core @atrifan
+
+# Cloud infrastructure & deployment require board review
+infra/ @PromptFM/core @atrifan
+.github/ @PromptFM/core @atrifan
+```
+
+
 
