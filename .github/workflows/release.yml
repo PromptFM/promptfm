@@ -149,7 +149,7 @@ jobs:
           description: 'Verified on Vercel Production ($0 Infra Path)'
 
       - name: ❌ Stamp Deployment Failure (if build failed)
-        if: failure()
+        if: failure() && steps.deployment.outputs.deployment_id != ''
         uses: chrnorm/deployment-status@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
