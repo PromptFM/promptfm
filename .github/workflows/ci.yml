@@ -55,17 +55,24 @@ jobs:
           HAS_INFRA=false
           HAS_UI=false
           HAS_CORE=false
+          HAS_SQL=false
 
           if [ -z "$CHANGED_FILES" ]; then
             DOC_ONLY=false
             HAS_UI=true
             HAS_CORE=true
             HAS_INFRA=true
+            HAS_SQL=true
           else
             while IFS= read -r file; do
               [ -z "$file" ] && continue
               case "$file" in
                 *.md|docs/*|.github/ISSUE_TEMPLATE/*|LICENSE|.gitleaksignore|.env.local.example)
+                  ;;
+                supabase/*|*.sql)
+                  DOC_ONLY=false
+                  HAS_SQL=true
+                  HAS_CORE=true
                   ;;
                 infra/*|.github/workflows/ci.yml)
                   DOC_ONLY=false
@@ -92,6 +99,7 @@ jobs:
           echo "has_infra=$HAS_INFRA" >> $GITHUB_OUTPUT
           echo "has_ui=$HAS_UI" >> $GITHUB_OUTPUT
           echo "has_core_domain=$HAS_CORE" >> $GITHUB_OUTPUT
+          echo "has_sql=$HAS_SQL" >> $GITHUB_OUTPUT
 
   lint-and-typecheck:
     name: lint-and-typecheck
@@ -115,6 +123,10 @@ jobs:
 
       - name: Run TypeScript Typecheck
         run: npm run typecheck
+
+      - name: Run SQL Schema Linter
+        if: needs.detect-changes.outputs.has_sql == 'true' || github.event_name == 'push'
+        run: npm run lint:sql
 
   unit-and-integration-tests:
     name: unit-and-integration-tests

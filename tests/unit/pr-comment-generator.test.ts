@@ -28,8 +28,16 @@ describe('PR Comment Guidance Generator', () => {
       expect(changes.hasAnsible).toBe(true);
     });
 
-    it('returns false for both when only application files change', () => {
+    it('returns false for all when only application files change', () => {
       const changes = detectInfraChanges(['src/app/page.tsx', 'src/components/AudioPlayer.tsx']);
+      expect(changes.hasTerraform).toBe(false);
+      expect(changes.hasAnsible).toBe(false);
+      expect(changes.hasSql).toBe(false);
+    });
+
+    it('detects SQL schema changes when files in supabase/ or *.sql are modified', () => {
+      const changes = detectInfraChanges(['supabase/migrations/20261109_new_table.sql']);
+      expect(changes.hasSql).toBe(true);
       expect(changes.hasTerraform).toBe(false);
       expect(changes.hasAnsible).toBe(false);
     });
@@ -82,6 +90,19 @@ describe('PR Comment Guidance Generator', () => {
 
       expect(comment).toContain('After merge have an admin run the Update terraform workflow');
       expect(comment).toContain('After merge have an admin run the Update ansible workflow');
+    });
+
+    it('includes card for SQL schema changes when supabase or .sql files are touched', () => {
+      const comment = generatePRGuidanceComment({
+        commitSha: 'a1b2c3d4e5f6',
+        changedFiles: ['supabase/migrations/20261108_new_table.sql'],
+        checksPassed: true,
+      });
+
+      expect(comment).toContain('SQL Schema Update Required');
+      expect(comment).toContain('After merge have an admin run the Update SQL Schema workflow');
+      expect(comment).toContain('https://github.com/PromptFM/promptfm/actions/workflows/apply-sql-schema.yml');
+      expect(comment).not.toContain('Update terraform workflow');
     });
 
     it('informs that checks must pass when checksPassed is false', () => {

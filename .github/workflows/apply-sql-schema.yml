@@ -1,0 +1,58 @@
+name: 🐘 Apply SQL Schema Migrations
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run migration plan in dry-run mode without modifying database'
+        type: boolean
+        default: false
+        required: false
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/**'
+      - 'scripts/apply-sql-migrations.ts'
+      - 'src/lib/sql/**'
+      - '.github/workflows/apply-sql-schema.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sql-schema-migration
+  cancel-in-progress: false
+
+jobs:
+  apply-sql-schema:
+    name: apply-sql-schema
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run SQL Schema Linter Pre-Flight Check
+        run: npm run lint:sql
+
+      - name: Pull Secrets from Vercel (Single Source of Truth)
+        if: ${{ secrets.VERCEL_TOKEN != '' }}
+        run: |
+          npx vercel env pull .env.production.local --environment=production --yes
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Run SQL Schema Migrations
+        run: npm run db:migrate
+        env:
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}

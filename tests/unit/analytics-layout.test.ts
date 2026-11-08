@@ -17,3 +17,4 @@ describe('Vercel Web Analytics Integration (Issue #30)', () => {
     expect(content).toContain('<Analytics />');
   });
 });
+

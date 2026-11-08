@@ -78,6 +78,27 @@ describe('GitHub Actions Workflows Suite', () => {
     });
   });
 
+  describe('Apply SQL Schema Workflow (apply-sql-schema.yml)', () => {
+    it('exists, triggers on main push and workflow_dispatch, pulls secrets from Vercel, and executes db:migrate', () => {
+      const content = readWorkflow('apply-sql-schema.yml');
+      expect(content).toContain('name: 🐘 Apply SQL Schema Migrations');
+      expect(content).toContain('workflow_dispatch:');
+      expect(content).toContain('branches: [main]');
+      expect(content).toContain('supabase/**');
+      expect(content).toContain('npm run lint:sql');
+      expect(content).toContain('npx vercel env pull .env.production.local --environment=production --yes');
+      expect(content).toContain('npm run db:migrate');
+    });
+  });
+
+  describe('SQL Schema Linter in CI Workflow (ci.yml)', () => {
+    it('detects SQL changes and executes npm run lint:sql', () => {
+      const content = readWorkflow('ci.yml');
+      expect(content).toContain('has_sql');
+      expect(content).toContain('npm run lint:sql');
+    });
+  });
+
   describe('Playwright CI Optimization (ci.yml) (Issue #83)', () => {
     it('caches Playwright browser and skips install-deps on cache hit', () => {
       const content = readWorkflow('ci.yml');

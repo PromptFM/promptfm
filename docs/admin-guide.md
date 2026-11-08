@@ -818,6 +818,71 @@ When a user flags a comment or issue:
   - **Hide comment**: Hide the offending content with reason (Abuse, Off-topic, Spam).
   - **Block user**: Apply temporary or permanent interaction limits in accordance with [`CODE_OF_CONDUCT.md`](../CODE_OF_CONDUCT.md).
 
+---
+
+## 17. PostgreSQL & Supabase Database Schema Management
+
+PromptFM uses PostgreSQL hosted on Supabase (`oxfacfdpxbxilucooijy.supabase.co`). All database schema changes and migrations are tracked as code under `supabase/migrations/` and automated through GitHub Actions.
+
+### A. Architectural Choice: TypeScript Migrator vs. Ansible
+
+- **Why Not Ansible for Database Schema?**
+  Ansible is specifically designed for server/VM configuration (e.g. provisioning the GCP Compute Engine streamer VM running Icecast / Liquidsoap). Supabase is a cloud-managed DBaaS. Running Ansible to execute SQL migrations would require Python `psycopg2` packages, local host inventory, and extra runtime overhead without native type safety.
+- **Why TypeScript Migrator with Vercel Secret Resolution?**
+  - **Single Source of Truth**: Production database credentials (`SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `DATABASE_URL`) are stored in Vercel. In GitHub Actions, `npx vercel env pull .env.production.local --environment=production --yes` pulls live credentials seamlessly.
+  - **Native Node 22 Stack**: Runs directly via `jiti` with `pg` and `@supabase/supabase-js`, with 0 additional system dependencies.
+  - **Idempotency & Auditing**: Schema migrations are tracked in `public.schema_migrations` with SHA256 checksums and UTC timestamps.
+  - **Red-Green-Refactor Tested**: Full unit test and Stryker mutation coverage.
+
+---
+
+### B. SQL Schema Linter & Quality Gate
+
+Every Pull Request that alters `.sql` or `supabase/` files triggers automated SQL linting in CI:
+- **Syntax Validation**: Ensures balanced parentheses `()`, balanced quotes `''`, and dollar quote tags (`$$...$$`).
+- **Idempotent DDL**: Enforces `CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`, and `DROP TABLE IF EXISTS` for repeatable deployments.
+- **Safety Enforcement**: Prohibits dangerous destructive operations like naked `DROP DATABASE`.
+- **Supabase Row Level Security (RLS)**: Enforces `ALTER TABLE ... ENABLE ROW LEVEL SECURITY;` on public tables.
+
+---
+
+### C. 4-Way Operational Control Reference
+
+#### 1. Terminal CLI
+```bash
+# Lint all repository SQL files
+npm run lint:sql
+
+# Check only files changed relative to main branch
+npx jiti scripts/lint-sql.ts --changed
+
+# Preview pending database migrations without modifying database (Dry Run)
+npm run db:migrate -- --dry-run
+
+# Execute pending schema migrations against live database
+npm run db:migrate
+```
+
+#### 2. GitHub Actions Workflow (UI & Web)
+- **Workflow:** `🐘 Apply SQL Schema Migrations` (`.github/workflows/apply-sql-schema.yml`)
+- **Triggers:**
+  - **Automatic**: Merges to `main` touching `supabase/**`, `src/lib/sql/**`, or `scripts/apply-sql-migrations.ts`.
+  - **Manual**: Via **Actions ➔ Apply SQL Schema Migrations ➔ Run workflow** (with optional `dry_run` toggle).
+
+#### 3. PR Guidance Bot Card
+When a pull request includes SQL migrations, the automated PR guidance bot adds:
+```markdown
+> [!IMPORTANT]
+> **SQL Schema Update Required:** After merge have an admin run the [Update SQL Schema workflow](https://github.com/PromptFM/promptfm/actions/workflows/apply-sql-schema.yml)
+```
+
+#### 4. REST / Secret Sync
+Pull production Supabase secrets from Vercel:
+```bash
+npx vercel env pull .env.production.local --environment=production --yes
+```
+
+
 
 
 

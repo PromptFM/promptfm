@@ -12,6 +12,16 @@ describe('PR Comment CLI & Output Generation', () => {
     expect(result.commentMarkdown).toContain('make an admin run the Make preview link workflow on the following sha: `c0ffee1234567890`');
     expect(result.commentMarkdown).toContain('After merge have an admin run the Update terraform workflow');
     expect(result.hasInfraChanges).toBe(true);
+    expect(result.hasSql).toBe(false);
+
+    const sqlResult = generatePRCommentOutput({
+      commitSha: 'c0ffee1234567890',
+      changedFiles: ['supabase/migrations/20261108_table.sql'],
+      checksPassed: true,
+    });
+    expect(sqlResult.hasSql).toBe(true);
+    expect(sqlResult.hasInfraChanges).toBe(true);
+    expect(sqlResult.commentMarkdown).toContain('Update SQL Schema workflow');
   });
 });
 

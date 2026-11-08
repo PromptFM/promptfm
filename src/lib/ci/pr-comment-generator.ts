@@ -17,14 +17,16 @@ export interface PRCommentParams {
 export interface InfraChangesResult {
   hasTerraform: boolean;
   hasAnsible: boolean;
+  hasSql: boolean;
 }
 
 /**
- * Detects whether changed files contain Terraform and/or Ansible modifications.
+ * Detects whether changed files contain Terraform, Ansible, or SQL schema modifications.
  */
 export function detectInfraChanges(changedFiles: string[]): InfraChangesResult {
   let hasTerraform = false;
   let hasAnsible = false;
+  let hasSql = false;
 
   for (const file of changedFiles) {
     if (
@@ -41,9 +43,17 @@ export function detectInfraChanges(changedFiles: string[]): InfraChangesResult {
     ) {
       hasAnsible = true;
     }
+    if (
+      /^supabase\//i.test(file) ||
+      /\.sql$/i.test(file) ||
+      /scripts\/apply-sql-migrations\.ts/i.test(file) ||
+      /src\/lib\/sql\//i.test(file)
+    ) {
+      hasSql = true;
+    }
   }
 
-  return { hasTerraform, hasAnsible };
+  return { hasTerraform, hasAnsible, hasSql };
 }
 
 /**
@@ -54,15 +64,17 @@ export function generatePRCommentOutput(params: PRCommentParams): {
   hasInfraChanges: boolean;
   hasTerraform: boolean;
   hasAnsible: boolean;
+  hasSql: boolean;
 } {
-  const { hasTerraform, hasAnsible } = detectInfraChanges(params.changedFiles);
+  const { hasTerraform, hasAnsible, hasSql } = detectInfraChanges(params.changedFiles);
   const commentMarkdown = generatePRGuidanceComment(params);
 
   return {
     commentMarkdown,
-    hasInfraChanges: hasTerraform || hasAnsible,
+    hasInfraChanges: hasTerraform || hasAnsible || hasSql,
     hasTerraform,
     hasAnsible,
+    hasSql,
   };
 }
 export function generatePRGuidanceComment(params: PRCommentParams): string {
@@ -72,7 +84,7 @@ Quality and security checks must pass before preview links or infrastructure dep
 Please review the failing checks in GitHub Actions.`;
   }
 
-  const { hasTerraform, hasAnsible } = detectInfraChanges(params.changedFiles);
+  const { hasTerraform, hasAnsible, hasSql } = detectInfraChanges(params.changedFiles);
   const cleanSha = params.commitSha.trim();
 
   const lines: string[] = [
@@ -87,10 +99,10 @@ Please review the failing checks in GitHub Actions.`;
     `*💡 Core team members can also trigger a preview deployment directly by commenting \`/pr-link\` on this PR.*`,
   ];
 
-  if (hasTerraform || hasAnsible) {
+  if (hasTerraform || hasAnsible || hasSql) {
     lines.push(``);
     lines.push(`---`);
-    lines.push(`### 🏗️ Infrastructure Changes Detected`);
+    lines.push(`### 🏗️ Infrastructure & Database Changes Detected`);
     lines.push(``);
 
     if (hasTerraform) {
@@ -101,6 +113,13 @@ Please review the failing checks in GitHub Actions.`;
     if (hasAnsible) {
       lines.push(`> [!IMPORTANT]`);
       lines.push(`> **Ansible Update Required:** After merge have an admin run the Update ansible workflow`);
+    }
+
+    if (hasSql) {
+      lines.push(`> [!IMPORTANT]`);
+      lines.push(
+        `> **SQL Schema Update Required:** After merge have an admin run the Update SQL Schema workflow: https://github.com/PromptFM/promptfm/actions/workflows/apply-sql-schema.yml`
+      );
     }
   }
 
