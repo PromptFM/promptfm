@@ -56,3 +56,4 @@ jobs:
         run: npm run db:migrate
         env:
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
+

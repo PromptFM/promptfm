@@ -22,6 +22,16 @@ describe('PR Comment CLI & Output Generation', () => {
     expect(sqlResult.hasSql).toBe(true);
     expect(sqlResult.hasInfraChanges).toBe(true);
     expect(sqlResult.commentMarkdown).toContain('Update SQL Schema workflow');
+
+    const secretsResult = generatePRCommentOutput({
+      commitSha: 'c0ffee1234567890',
+      changedFiles: ['infra/terraform/secrets.auto.tfvars'],
+      checksPassed: true,
+      prBody: 'Updated secrets notes',
+    });
+    expect(secretsResult.hasSecrets).toBe(true);
+    expect(secretsResult.hasInfraChanges).toBe(true);
+    expect(secretsResult.commentMarkdown).toContain('Update Secrets workflow');
   });
 });
 

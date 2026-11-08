@@ -37,7 +37,7 @@ function main() {
   const checksPassed = process.env.CHECKS_PASSED !== 'false';
   const prBody = process.env.PR_BODY || '';
 
-  const { commentMarkdown, hasInfraChanges, hasSql } = generatePRCommentOutput({
+  const { commentMarkdown, hasInfraChanges, hasSql, hasSecrets } = generatePRCommentOutput({
     commitSha,
     changedFiles,
     checksPassed,
@@ -59,7 +59,7 @@ function main() {
   if (process.env.GITHUB_OUTPUT) {
     fs.appendFileSync(
       process.env.GITHUB_OUTPUT,
-      `has_infra_changes=${hasInfraChanges}\nhas_sql_changes=${hasSql}\ncommit_sha=${commitSha}\n`
+      `has_infra_changes=${hasInfraChanges}\nhas_sql_changes=${hasSql}\nhas_secrets_changes=${hasSecrets}\ncommit_sha=${commitSha}\n`
     );
   }
 }

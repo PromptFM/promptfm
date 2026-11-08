@@ -31,3 +31,4 @@ describe('SQL Linter CLI (scripts/lint-sql.ts)', () => {
     expect(exitCode).toBe(0);
   });
 });
+

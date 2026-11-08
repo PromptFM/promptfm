@@ -33,6 +33,7 @@ describe('PR Comment Guidance Generator', () => {
       expect(changes.hasTerraform).toBe(false);
       expect(changes.hasAnsible).toBe(false);
       expect(changes.hasSql).toBe(false);
+      expect(changes.hasSecrets).toBe(false);
     });
 
     it('detects SQL schema changes when files in supabase/ or *.sql are modified', () => {
@@ -40,6 +41,13 @@ describe('PR Comment Guidance Generator', () => {
       expect(changes.hasSql).toBe(true);
       expect(changes.hasTerraform).toBe(false);
       expect(changes.hasAnsible).toBe(false);
+      expect(changes.hasSecrets).toBe(false);
+    });
+
+    it('detects secret configuration changes when secret files are touched', () => {
+      const changes = detectInfraChanges(['infra/terraform/secrets.auto.tfvars', 'src/lib/infra/secrets-sync.ts']);
+      expect(changes.hasSecrets).toBe(true);
+      expect(changes.hasTerraform).toBe(true);
     });
   });
 
@@ -66,6 +74,7 @@ describe('PR Comment Guidance Generator', () => {
 
       expect(comment).toContain('make an admin run the Make preview link workflow on the following sha');
       expect(comment).toContain('After merge have an admin run the Update terraform workflow');
+      expect(comment).toContain('https://github.com/PromptFM/promptfm/actions/workflows/apply-terraform.yml');
       expect(comment).not.toContain('Update ansible workflow');
     });
 
@@ -78,6 +87,7 @@ describe('PR Comment Guidance Generator', () => {
 
       expect(comment).toContain('make an admin run the Make preview link workflow on the following sha');
       expect(comment).toContain('After merge have an admin run the Update ansible workflow');
+      expect(comment).toContain('https://github.com/PromptFM/promptfm/actions/workflows/apply-terraform.yml');
       expect(comment).not.toContain('Update terraform workflow');
     });
 
@@ -90,6 +100,18 @@ describe('PR Comment Guidance Generator', () => {
 
       expect(comment).toContain('After merge have an admin run the Update terraform workflow');
       expect(comment).toContain('After merge have an admin run the Update ansible workflow');
+    });
+
+    it('includes card for Secrets changes with link to update-secrets workflow', () => {
+      const comment = generatePRGuidanceComment({
+        commitSha: 'a1b2c3d4e5f6',
+        changedFiles: ['src/lib/infra/secrets-sync.ts'],
+        checksPassed: true,
+        prBody: 'Updated secrets sync logic',
+      });
+
+      expect(comment).toContain('Secrets Update Required');
+      expect(comment).toContain('https://github.com/PromptFM/promptfm/actions/workflows/update-secrets.yml');
     });
 
     it('includes card for SQL schema changes when supabase or .sql files are touched', () => {

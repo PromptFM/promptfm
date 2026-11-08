@@ -37,3 +37,4 @@ describe('SQL Migration CLI (scripts/apply-sql-migrations.ts)', () => {
     }
   });
 });
+

@@ -18,15 +18,17 @@ export interface InfraChangesResult {
   hasTerraform: boolean;
   hasAnsible: boolean;
   hasSql: boolean;
+  hasSecrets: boolean;
 }
 
 /**
- * Detects whether changed files contain Terraform, Ansible, or SQL schema modifications.
+ * Detects whether changed files contain Terraform, Ansible, SQL schema, or secret modifications.
  */
 export function detectInfraChanges(changedFiles: string[]): InfraChangesResult {
   let hasTerraform = false;
   let hasAnsible = false;
   let hasSql = false;
+  let hasSecrets = false;
 
   for (const file of changedFiles) {
     if (
@@ -51,9 +53,18 @@ export function detectInfraChanges(changedFiles: string[]): InfraChangesResult {
     ) {
       hasSql = true;
     }
+    if (
+      /infra\/ansible\/group_vars/i.test(file) ||
+      /infra\/terraform\/.*\.tfvars/i.test(file) ||
+      /secrets-sync\.ts/i.test(file) ||
+      /\.env\.example$/i.test(file) ||
+      /\.env\.local\.example$/i.test(file)
+    ) {
+      hasSecrets = true;
+    }
   }
 
-  return { hasTerraform, hasAnsible, hasSql };
+  return { hasTerraform, hasAnsible, hasSql, hasSecrets };
 }
 
 /**
@@ -65,16 +76,18 @@ export function generatePRCommentOutput(params: PRCommentParams): {
   hasTerraform: boolean;
   hasAnsible: boolean;
   hasSql: boolean;
+  hasSecrets: boolean;
 } {
-  const { hasTerraform, hasAnsible, hasSql } = detectInfraChanges(params.changedFiles);
+  const { hasTerraform, hasAnsible, hasSql, hasSecrets } = detectInfraChanges(params.changedFiles);
   const commentMarkdown = generatePRGuidanceComment(params);
 
   return {
     commentMarkdown,
-    hasInfraChanges: hasTerraform || hasAnsible || hasSql,
+    hasInfraChanges: hasTerraform || hasAnsible || hasSql || hasSecrets,
     hasTerraform,
     hasAnsible,
     hasSql,
+    hasSecrets,
   };
 }
 export function generatePRGuidanceComment(params: PRCommentParams): string {
@@ -84,7 +97,7 @@ Quality and security checks must pass before preview links or infrastructure dep
 Please review the failing checks in GitHub Actions.`;
   }
 
-  const { hasTerraform, hasAnsible, hasSql } = detectInfraChanges(params.changedFiles);
+  const { hasTerraform, hasAnsible, hasSql, hasSecrets } = detectInfraChanges(params.changedFiles);
   const cleanSha = params.commitSha.trim();
 
   const lines: string[] = [
@@ -99,7 +112,7 @@ Please review the failing checks in GitHub Actions.`;
     `*💡 Core team members can also trigger a preview deployment directly by commenting \`/pr-link\` on this PR.*`,
   ];
 
-  if (hasTerraform || hasAnsible || hasSql) {
+  if (hasTerraform || hasAnsible || hasSql || hasSecrets) {
     lines.push(``);
     lines.push(`---`);
     lines.push(`### 🏗️ Infrastructure & Database Changes Detected`);
@@ -107,18 +120,29 @@ Please review the failing checks in GitHub Actions.`;
 
     if (hasTerraform) {
       lines.push(`> [!IMPORTANT]`);
-      lines.push(`> **Terraform Update Required:** After merge have an admin run the Update terraform workflow`);
+      lines.push(
+        `> **Terraform Update Required:** After merge have an admin run the Update terraform workflow: https://github.com/PromptFM/promptfm/actions/workflows/apply-terraform.yml`
+      );
     }
 
     if (hasAnsible) {
       lines.push(`> [!IMPORTANT]`);
-      lines.push(`> **Ansible Update Required:** After merge have an admin run the Update ansible workflow`);
+      lines.push(
+        `> **Ansible Update Required:** After merge have an admin run the Update ansible workflow: https://github.com/PromptFM/promptfm/actions/workflows/apply-terraform.yml`
+      );
     }
 
     if (hasSql) {
       lines.push(`> [!IMPORTANT]`);
       lines.push(
         `> **SQL Schema Update Required:** After merge have an admin run the Update SQL Schema workflow: https://github.com/PromptFM/promptfm/actions/workflows/apply-sql-schema.yml`
+      );
+    }
+
+    if (hasSecrets) {
+      lines.push(`> [!IMPORTANT]`);
+      lines.push(
+        `> **Secrets Update Required:** If new production secrets or credentials are required, have an admin run the Update Secrets workflow: https://github.com/PromptFM/promptfm/actions/workflows/update-secrets.yml`
       );
     }
   }

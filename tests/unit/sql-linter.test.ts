@@ -168,3 +168,4 @@ describe('SQL Database Linter (sql-linter)', () => {
     });
   });
 });
+

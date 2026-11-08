@@ -131,3 +131,4 @@ export function applyMigrations(
 
   return processSequentially();
 }
+
