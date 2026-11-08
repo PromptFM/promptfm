@@ -34,13 +34,14 @@ describe('GitHub Actions Workflows Suite', () => {
   });
 
   describe('Create Preview Link Workflow (create-preview-link.yml)', () => {
-    it('exists and accepts commit_sha input to generate preview url', () => {
+    it('exists and accepts commit_sha input or /pr-link comment from core members', () => {
       const content = readWorkflow('create-preview-link.yml');
       expect(content).toContain('name: 🔍 Create Preview Link in Vercel');
       expect(content).toContain('workflow_dispatch:');
-      expect(content).toContain('commit_sha:');
+      expect(content).toContain('issue_comment:');
+      expect(content).toContain('/pr-link');
       expect(content).toContain('npx vercel deploy');
-      expect(content).toContain('listPullRequestsAssociatedWithCommit');
+      expect(content).toContain('atrifan');
     });
   });
 
