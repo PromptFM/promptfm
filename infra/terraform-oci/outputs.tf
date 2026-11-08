@@ -22,3 +22,8 @@ output "home_region" {
   description = "Tenancy home region (Always Free A1 lives here)"
   value       = local.home_region
 }
+
+output "instance_ocid" {
+  description = "OCID of the streamer VM (used in the Oracle console links)"
+  value       = oci_core_instance.streamer.id
+}

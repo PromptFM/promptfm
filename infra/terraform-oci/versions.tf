@@ -24,7 +24,7 @@ provider "google" {
 }
 
 # One JSON secret keeps this at a single Secret Manager version (6 are free).
-# Keys: user_ocid, tenancy_ocid, fingerprint, region, private_key.
+# Keys: user_ocid, tenancy_ocid, fingerprint, region, private_key, budget_alert_email (optional).
 data "google_secret_manager_secret_version" "oci" {
   secret = var.oci_credentials_secret
 }
@@ -33,6 +33,7 @@ locals {
   oci = jsondecode(data.google_secret_manager_secret_version.oci.secret_data)
 
   compartment_id = var.compartment_ocid != "" ? var.compartment_ocid : nonsensitive(local.oci.tenancy_ocid)
+  budget_email   = var.budget_alert_email != "" ? var.budget_alert_email : try(nonsensitive(local.oci.budget_alert_email), "")
 }
 
 provider "oci" {

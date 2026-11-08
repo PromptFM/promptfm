@@ -22,28 +22,28 @@ variable "instance_name" {
   default     = "promptfm-streamer"
 }
 
-# Always Free limits for Ampere A1: 4 OCPU and 24 GB RAM in total across the tenancy,
-# and 200 GB of block storage including boot volumes. The validations below keep a typo from
-# creating something billable.
+# Always Free limits for Ampere A1 (Oracle docs, 2026): 1,500 OCPU-hours and 9,000 GB-hours a month,
+# which is 2 OCPU and 12 GB running all month, plus 200 GB of block storage including boot volumes.
+# The validations below keep a typo from creating something billable.
 variable "ocpus" {
-  description = "A1 OCPUs (Always Free allows up to 4 in total)"
+  description = "A1 OCPUs (Always Free covers 2 running all month)"
   type        = number
   default     = 2
 
   validation {
-    condition     = var.ocpus >= 1 && var.ocpus <= 4
-    error_message = "Always Free A1 allows at most 4 OCPUs in total."
+    condition     = var.ocpus >= 1 && var.ocpus <= 2
+    error_message = "Always Free A1 covers 2 OCPUs running all month (1,500 OCPU-hours)."
   }
 }
 
 variable "memory_gb" {
-  description = "A1 memory in GB (Always Free allows up to 24 in total)"
+  description = "A1 memory in GB (Always Free covers 12 running all month)"
   type        = number
   default     = 12
 
   validation {
-    condition     = var.memory_gb >= 1 && var.memory_gb <= 24
-    error_message = "Always Free A1 allows at most 24 GB of memory in total."
+    condition     = var.memory_gb >= 1 && var.memory_gb <= 12
+    error_message = "Always Free A1 covers 12 GB running all month (9,000 GB-hours)."
   }
 }
 
@@ -77,7 +77,30 @@ variable "ssh_allowed_cidr" {
 }
 
 variable "budget_alert_email" {
-  description = "If set, creates a $1 monthly budget that emails this address at 100% of actual spend"
+  description = "Overrides the budget_alert_email key of the credentials secret"
   type        = string
   default     = ""
+}
+
+variable "egress_alarm_gb_per_day" {
+  description = "Alarm when outbound traffic in one day passes this many GB. 10 TB/month is free, so 300 GB/day is about 9.3 TB/month."
+  type        = number
+  default     = 300
+}
+
+variable "enforce_quotas" {
+  description = "Create a tenancy quota policy that blocks everything except the Always Free Arm allowance and 200 GB storage"
+  type        = bool
+  default     = true
+}
+
+variable "availability_domain_index" {
+  description = "Which availability domain to launch in (0, 1, 2). Free Arm capacity runs out per domain, so try the others on 'Out of host capacity'."
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.availability_domain_index >= 0 && var.availability_domain_index <= 2
+    error_message = "Ashburn has up to 3 availability domains (0-2)."
+  }
 }
