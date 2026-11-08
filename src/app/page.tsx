@@ -50,38 +50,38 @@ export default function HomePage() {
         </p>
 
         {/* CTAs */}
-        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto max-w-xs sm:max-w-none justify-center pt-2">
+        <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3 w-full pt-2">
           <a
             href="#channels"
-            className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-black font-bold px-6 py-3 rounded-xl transition-colors text-sm sm:text-base shadow-lg shadow-emerald-500/20"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-black font-bold px-6 py-3 rounded-xl transition-colors text-sm sm:text-base shadow-lg shadow-emerald-500/20 whitespace-nowrap"
           >
             <Radio className="w-4 h-4" />
             Tune In Main Stage
           </a>
           <Link
             href="/top"
-            className="flex items-center justify-center gap-2 border border-zinc-700 hover:border-zinc-500 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm sm:text-base"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 border border-zinc-700 hover:border-zinc-500 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm sm:text-base whitespace-nowrap"
           >
             <Music2 className="w-4 h-4" />
             Weekly Charts
           </Link>
           <a
             href="#funding"
-            className="flex items-center justify-center gap-2 border border-emerald-500/50 hover:border-emerald-400 text-emerald-300 hover:text-white font-semibold px-5 py-3 rounded-xl transition-colors text-sm sm:text-base bg-emerald-950/30 shadow-md shadow-emerald-500/10"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 border border-emerald-500/50 hover:border-emerald-400 text-emerald-300 hover:text-white font-semibold px-5 py-3 rounded-xl transition-colors text-sm sm:text-base bg-emerald-950/30 shadow-md shadow-emerald-500/10 whitespace-nowrap"
           >
             <Heart className="w-4 h-4 text-emerald-400 fill-emerald-400/20" />
             Support Station
           </a>
           <a
             href="#contribute"
-            className="flex items-center justify-center gap-2 border border-zinc-700 hover:border-zinc-500 text-zinc-300 hover:text-white font-semibold px-5 py-3 rounded-xl transition-colors text-sm sm:text-base"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 border border-zinc-700 hover:border-zinc-500 text-zinc-300 hover:text-white font-semibold px-5 py-3 rounded-xl transition-colors text-sm sm:text-base whitespace-nowrap"
           >
             <Code2 className="w-4 h-4 text-emerald-400" />
             Contribute
           </a>
           <Link
             href="/submit"
-            className="flex items-center justify-center gap-2 border border-zinc-700 hover:border-zinc-500 text-zinc-300 hover:text-white font-semibold px-5 py-3 rounded-xl transition-colors text-sm sm:text-base"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 border border-zinc-700 hover:border-zinc-500 text-zinc-300 hover:text-white font-semibold px-5 py-3 rounded-xl transition-colors text-sm sm:text-base whitespace-nowrap"
           >
             <Upload className="w-4 h-4" />
             Submit
