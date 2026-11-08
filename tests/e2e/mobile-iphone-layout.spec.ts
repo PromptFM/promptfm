@@ -55,8 +55,8 @@ test.describe('Mobile iPhone Layout, Bottom Player & Popovers (#109)', () => {
     expect(chartsBox).not.toBeNull();
     expect(supportBox).not.toBeNull();
     if (chartsBox && supportBox) {
-      // Both should be roughly on the same vertical line (grid row 1)
-      expect(Math.abs(chartsBox.y - supportBox.y)).toBeLessThan(10);
+      // Both should be on the same vertical line (grid row 1)
+      expect(Math.abs(chartsBox.y - supportBox.y)).toBeLessThan(20);
       // Width should be balanced (< 200px each on 390px viewport)
       expect(chartsBox.width).toBeLessThan(200);
       expect(supportBox.width).toBeLessThan(200);

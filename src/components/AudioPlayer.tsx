@@ -978,7 +978,7 @@ export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerPro
               type="button"
               onClick={handleQuickVote}
               disabled={voted}
-              aria-label="Upvote currently playing track"
+              aria-label={`${nowPlaying.upvotes_count ?? 0} upvotes, upvote track`}
               className={`flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-lg text-xs font-bold transition-all border ${
                 voted
                   ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'

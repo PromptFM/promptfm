@@ -55,13 +55,15 @@ export function calculateQueueETA(params: {
   remainingSecondsOnCurrentTrack?: number;
   averageTrackSeconds?: number;
   baseTime?: number;
+  stagedTrackSeconds?: number;
 }): QueueETAResult {
   const position = Math.max(1, params.queuePosition);
   const remainingCurrent = params.remainingSecondsOnCurrentTrack ?? 120;
   const avgTrack = params.averageTrackSeconds ?? 210;
+  const stagedSec = Math.max(0, params.stagedTrackSeconds ?? 0);
 
-  // Queue position #1 plays after current track finishes; subsequent items wait for items ahead
-  const estimatedSeconds = Math.max(30, remainingCurrent + (position - 1) * avgTrack);
+  // Queue position #1 plays after current track (+ staged track) finishes; subsequent items wait for items ahead
+  const estimatedSeconds = Math.max(30, remainingCurrent + stagedSec + (position - 1) * avgTrack);
   const estimatedMinutes = Math.max(1, Math.round(estimatedSeconds / 60));
 
   const baseMs = params.baseTime ?? Date.now();

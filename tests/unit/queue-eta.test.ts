@@ -10,6 +10,7 @@ import { getUpNext } from '@/lib/dj/rotation';
 
 const mockChannelQueue: any[] = [];
 const mockRequestsTable: any[] = [];
+let mockStagedItem: any = null;
 
 vi.mock('@/lib/supabase/server', () => {
   return {
@@ -117,6 +118,7 @@ vi.mock('@/lib/supabase/server', () => {
                       artist: 'DJ Live',
                       duration_hint_seconds: 180,
                     },
+                    staged_item: mockStagedItem,
                     started_at: new Date(Date.now() - 60 * 1000).toISOString(), // 60s elapsed, ~120s remaining
                   },
                   error: null,
@@ -153,6 +155,7 @@ describe('Issue #43 Reproduction & Queue ETA Fix (TDD)', () => {
   beforeEach(() => {
     mockChannelQueue.length = 0;
     mockRequestsTable.length = 0;
+    mockStagedItem = null;
     vi.clearAllMocks();
   });
 
@@ -183,6 +186,21 @@ describe('Issue #43 Reproduction & Queue ETA Fix (TDD)', () => {
       // 90s + 2 * 210s = 510s (~8.5 min -> 9 min)
       expect(eta.estimatedSeconds).toBe(510);
       expect(eta.estimatedMinutes).toBe(9);
+      expect(eta.isProvisional).toBe(true);
+    });
+
+    it('calculates dynamic ETA accounting for staged track duration', () => {
+      const eta = calculateQueueETA({
+        queuePosition: 1,
+        remainingSecondsOnCurrentTrack: 120,
+        averageTrackSeconds: 210,
+        stagedTrackSeconds: 210,
+      });
+
+      expect(eta.queuePosition).toBe(1);
+      // 120s remaining + 210s staged track = 330s (~5.5 min -> 6 min)
+      expect(eta.estimatedSeconds).toBe(330);
+      expect(eta.estimatedMinutes).toBe(6);
       expect(eta.isProvisional).toBe(true);
     });
   });
@@ -228,6 +246,50 @@ describe('Issue #43 Reproduction & Queue ETA Fix (TDD)', () => {
       expect(res2.confirmationMessage).toContain('Position: #2 in queue');
       expect(res2.confirmationMessage).toContain('provisional');
       expect(res2.estimatedMinutes).toBeGreaterThanOrEqual(res1.estimatedMinutes || 0);
+    });
+
+    it('includes staged track duration in dynamic ETA when a track is pre-buffered in station_state', async () => {
+      mockStagedItem = {
+        id: 'track-staged-1',
+        title: 'Cyber Skyline',
+        artist: 'Synth Master',
+        duration_hint_seconds: 210,
+      };
+
+      const result = await scheduleListenerRequest({
+        platform: 'discord',
+        platform_user_id: 'user-disc-staged',
+        platform_user_name: 'StagedListener',
+        type: 'song',
+        content: 'Sunset Grooves',
+      });
+
+      // 120s current remaining + 210s staged = 330s (~6 mins)
+      expect(result.estimatedMinutes).toBe(6);
+      expect(result.confirmationMessage).toContain('~6m');
+      expect(result.confirmationMessage).toContain('provisional');
+    });
+
+    it('deduplicates when listener requests a track that is already staged in station_state', async () => {
+      mockStagedItem = {
+        id: 'track-101',
+        title: 'Sunset Grooves',
+        artist: 'Deep House',
+        duration_hint_seconds: 200,
+      };
+
+      const result = await scheduleListenerRequest({
+        platform: 'discord',
+        platform_user_id: 'user-disc-staged-repeat',
+        platform_user_name: 'RepeatListener',
+        type: 'song',
+        content: 'Sunset Grooves',
+      });
+
+      // Must not insert a duplicate into channel_queue
+      expect(mockChannelQueue.length).toBe(0);
+      expect(result.confirmationMessage).toContain('already');
+      expect(result.confirmationMessage).toContain('Sunset Grooves');
     });
   });
 
@@ -287,6 +349,39 @@ describe('Issue #43 Reproduction & Queue ETA Fix (TDD)', () => {
       expect(upNext.length).toBe(1);
       expect(upNext[0]?.id).toBe('t-1');
       expect(upNext[0]?.queue_position).toBe(1);
+    });
+
+    it('places the staged track at position #1 and offsets channel_queue items to position #2 and beyond', async () => {
+      mockStagedItem = {
+        id: 'track-staged-hero',
+        title: 'Hero Staged Track',
+        artist: 'Hero DJ',
+        audio_url: 'https://example.com/staged.mp3',
+        upvotes_count: 50,
+        duration_hint_seconds: 200,
+      };
+
+      mockChannelQueue.push({
+        id: 'q-item-queued',
+        track_id: 'track-101',
+        requested_by: '@AlexListener (discord)',
+        played_at: null,
+        track: {
+          id: 'track-101',
+          title: 'Sunset Grooves',
+          artist_name: 'Deep House',
+          audio_url: 'https://example.com/audio.mp3',
+          upvotes_count: 15,
+          duration_hint_seconds: 180,
+        },
+      });
+
+      const upNext = await getUpNext('main', 5);
+      expect(upNext.length).toBeGreaterThanOrEqual(2);
+      expect(upNext[0]?.id).toBe('track-staged-hero');
+      expect(upNext[0]?.queue_position).toBe(1);
+      expect(upNext[1]?.id).toBe('track-101');
+      expect(upNext[1]?.queue_position).toBe(2);
     });
   });
 });

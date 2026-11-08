@@ -30,6 +30,7 @@ export interface AirplayItem {
   requested_by?: string;
   estimated_air_time?: string;
   queue_position?: number;
+  is_provisional?: boolean;
   dj?: {
     id: string;
     name: string;
@@ -60,6 +61,19 @@ let currentAirplayItem: AirplayItem | null = null;
 let currentAirplayStartedAt: number = Date.now();
 let pendingAirplayItem: AirplayItem | null = null;
 const pendingAirplayItems = new Map<string, AirplayItem>();
+const stagedAirplayItemByChannel = new Map<string, AirplayItem>();
+
+export function getPendingAirplayItem(channelSlug = 'main'): AirplayItem | null {
+  return stagedAirplayItemByChannel.get(channelSlug) || pendingAirplayItem || null;
+}
+
+export function setPendingAirplayItem(channelSlug = 'main', item: AirplayItem | null): void {
+  if (item) {
+    stagedAirplayItemByChannel.set(channelSlug, item);
+  } else {
+    stagedAirplayItemByChannel.delete(channelSlug);
+  }
+}
 
 const recentAirplayAnnouncedByChannel = new Map<string, Map<string, number>>();
 
@@ -90,6 +104,7 @@ export function resetAirplayDedupeCache(): void {
   pendingAirplayItems.clear();
   channelPendingAirplayItems.clear();
   pendingAirplayItem = null;
+  stagedAirplayItemByChannel.clear();
 }
 
 export function getPendingAirplayItems(channelSlug = 'main'): AirplayItem[] {
@@ -577,6 +592,7 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
 export async function getUpNext(channelSlug = 'main', limit = 5): Promise<AirplayItem[]> {
   const supabase = createAdminClient();
   const upNext: AirplayItem[] = [];
+  const existingIds = new Set<string>();
   const now = new Date();
 
   // Retrieve currently active airplay item to ensure it is never duplicated in "Up Next"
@@ -584,9 +600,56 @@ export async function getUpNext(channelSlug = 'main', limit = 5): Promise<Airpla
   const currentTrackId = currentNowPlaying.item.id;
   const currentQueueId = currentNowPlaying.item.queue_id;
 
+  if (currentTrackId && currentTrackId !== 'demo-fallback') {
+    existingIds.add(currentTrackId);
+  }
+
   const currentElapsed = currentNowPlaying.elapsedSeconds || 0;
   const currentHint = currentNowPlaying.item.duration_hint_seconds || 210;
   let runningOffsetSeconds = Math.max(30, currentHint - currentElapsed);
+
+  // 0. Check if a track is already staged / pre-buffered to air next
+  let stagedItem: any = null;
+  try {
+    const { data: stateData } = await supabase
+      .from('station_state')
+      .select('staged_item')
+      .eq('channel_slug', channelSlug)
+      .maybeSingle();
+    if (stateData?.staged_item) {
+      stagedItem = stateData.staged_item;
+    }
+  } catch {
+    // Non-blocking
+  }
+  if (!stagedItem) {
+    stagedItem = getPendingAirplayItem(channelSlug);
+  }
+
+  if (stagedItem && stagedItem.id && !existingIds.has(stagedItem.id)) {
+    existingIds.add(stagedItem.id);
+    const targetTime = new Date(now.getTime() + runningOffsetSeconds * 1000);
+    const hoursStr = String(targetTime.getUTCHours()).padStart(2, '0');
+    const minStr = String(targetTime.getUTCMinutes()).padStart(2, '0');
+
+    upNext.push({
+      id: stagedItem.id,
+      type: stagedItem.type || 'music',
+      title: stagedItem.title,
+      artist: stagedItem.artist || stagedItem.artist_name || 'PromptFM Core',
+      audio_url: stagedItem.audio_url,
+      cover_art_url: stagedItem.cover_art_url || '/logo-mark.png',
+      category: stagedItem.category,
+      tool_used: stagedItem.tool_used,
+      upvotes_count: stagedItem.upvotes_count ?? 0,
+      queue_position: 1,
+      estimated_air_time: `${hoursStr}:${minStr} UTC`,
+      is_provisional: true,
+      requested_by: stagedItem.requested_by,
+      duration_hint_seconds: stagedItem.duration_hint_seconds || 210,
+    });
+    runningOffsetSeconds += (stagedItem.duration_hint_seconds || 210);
+  }
 
   // 1. Check listener queued requests in channel_queue
   const { data: channel } = await supabase.from('channels').select('id').eq('slug', channelSlug).maybeSingle();
@@ -1047,11 +1110,13 @@ export async function markTrackStarted(
   if (pendingAirplayItem && itemToStart && pendingAirplayItem.id === itemToStart.id) {
     pendingAirplayItem = null;
   }
+  setPendingAirplayItem(channelSlug, null);
 
   try {
     await supabase.from('station_state').upsert({
       channel_slug: channelSlug,
       airplay_item: itemToStart,
+      staged_item: null,
       started_at: new Date(startedAt).toISOString(),
       updated_at: new Date().toISOString(),
     });
@@ -1102,11 +1167,28 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
     if (item.title) {
       pendingAirplayItems.set(item.title.toLowerCase().trim(), item);
     }
+    setPendingAirplayItem(channelSlug, item);
 
     if (!autoPromote) {
       const list = channelPendingAirplayItems.get(channelSlug) || [];
       list.push(item);
       channelPendingAirplayItems.set(channelSlug, list);
+
+      try {
+        const query = supabase
+          .from('station_state')
+          .update({
+            staged_item: item,
+            updated_at: new Date().toISOString(),
+          });
+        if (query && typeof (query as any).eq === 'function') {
+          await (query as any).eq('channel_slug', channelSlug);
+        } else {
+          await query;
+        }
+      } catch {
+        // Non-blocking station_state staged_item update
+      }
     } else {
       const list = channelPendingAirplayItems.get(channelSlug) || [];
       if (list.length > 0) {
@@ -1130,6 +1212,7 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
           .upsert({
             channel_slug: channelSlug,
             airplay_item: item,
+            staged_item: null,
             started_at: new Date(startedAt).toISOString(),
             updated_at: new Date().toISOString(),
           });
