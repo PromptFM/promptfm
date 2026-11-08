@@ -52,13 +52,14 @@ stream = crossfade(duration=1.5, dynamic_stream)
 radio = fallback(track_sensitive=false, [stream, emergency_fallback])
 radio = source.on_track(radio, on_airplay_start)
 
-# 5. Stream to Icecast
+# 5. Stream to Icecast with explicit UTF-8 metadata encoding
 output.icecast(
   %mp3(bitrate=128, samplerate=44100),
   host="icecast",
   port=8000,
   password="promptfm_source_2026",
   mount="/stream.mp3",
+  encoding="UTF-8",
   name="PromptFM — 24/7 AI Generated Music Radio",
   description="Continuous generative beats, AI DJ monologues, and community-curated music.",
   url="https://promptfm.live",

@@ -8,12 +8,13 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:8000:8000"
+    entrypoint: ["icecast", "-c", "/etc/icecast.xml"]
     environment:
       - ICECAST_SOURCE_PASSWORD=promptfm_source_2026
       - ICECAST_ADMIN_PASSWORD=promptfm_admin_2026
       - ICECAST_PASSWORD=promptfm_stream_2026
     volumes:
-      - ./icecast.xml:/etc/icecast2/icecast.xml:ro
+      - ./icecast.xml:/etc/icecast.xml:ro
 
   # 2. Liquidsoap Radio Automation & Dynamic DJ Mixer
   liquidsoap:
@@ -53,4 +54,3 @@ services:
       - ./overlay.jpg:/app/overlay.jpg:ro
     working_dir: /app
     command: ["sh", "-c", "apk add --no-cache ffmpeg bash && node controller.js"]
-

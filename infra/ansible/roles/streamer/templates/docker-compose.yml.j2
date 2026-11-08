@@ -8,12 +8,13 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:{{ icecast_port | default(8000) }}:8000"
+    entrypoint: ["icecast", "-c", "/etc/icecast.xml"]
     environment:
       - ICECAST_SOURCE_PASSWORD={{ icecast_source_password }}
       - ICECAST_ADMIN_PASSWORD={{ icecast_admin_password }}
       - ICECAST_PASSWORD=promptfm_hackme_2026
     volumes:
-      - ./icecast.xml:/etc/icecast2/icecast.xml:ro
+      - ./icecast.xml:/etc/icecast.xml:ro
 
   # 2. Liquidsoap Radio Automation & Dynamic DJ Mixer
   liquidsoap:
@@ -56,4 +57,3 @@ services:
 volumes:
   caddy_data:
   caddy_config:
-

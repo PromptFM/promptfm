@@ -10,6 +10,13 @@ import { getActiveDJ, getAdsConfig, getActiveAdSpot, isContentAllowedForAirplay,
 import { getStationSchedule, ScheduleBlock, ClockMilestone } from '../radio/schedule';
 import { broadcastToCommunity } from '../chat/bridge';
 import { syncAirplayRequestTransition } from '../song/lifecycle';
+import {
+  repairMojibake,
+  parseIcecastTitle,
+  parseIcecastStatus,
+  fetchIcecastMetadata,
+  type IcecastStatus,
+} from './icecast-metadata';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 
@@ -302,36 +309,23 @@ export function updateCurrentAirplayUpvotes(trackId: string, count: number): voi
 }
 
 /**
- * Queries Icecast's status-json.xsl for the live on-air stream title.
+ * Queries Icecast's status-json.xsl for the live on-air stream title and metadata.
+ * Automatically decodes and recovers any broken UTF-8 characters / mojibake.
  * Used to verify and reconcile what listeners are actively hearing on Icecast.
  */
 export async function getIcecastLiveTitle(): Promise<{ title: string; artist?: string } | null> {
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 1200);
-    const res = await fetch('https://stream.promptfm.live/status-json.xsl', {
-      signal: controller.signal,
-      cache: 'no-store',
-    });
-    clearTimeout(timer);
-    if (!res.ok) return null;
-    const json = await res.json();
-    const source = json?.icestats?.source;
-    if (!source) return null;
-    const mount = Array.isArray(source) ? source[0] : source;
-    const rawTitle = mount?.title;
-    if (!rawTitle || typeof rawTitle !== 'string') return null;
-    if (rawTitle.includes(' - ')) {
-      const parts = rawTitle.split(' - ');
-      const artist = parts[0]?.trim();
-      const title = parts.slice(1).join(' - ').trim();
-      return { title, artist };
-    }
-    return { title: rawTitle.trim() };
-  } catch {
+  const metadata = await fetchIcecastMetadata('https://stream.promptfm.live/status-json.xsl', 1200);
+  if (!metadata || !metadata.title) {
     return null;
   }
+  if (metadata.artist) {
+    return { title: metadata.title, artist: metadata.artist };
+  }
+  return { title: metadata.title };
 }
+
+export { repairMojibake, parseIcecastTitle, parseIcecastStatus, fetchIcecastMetadata };
+export type { IcecastStatus };
 
 /**
  * Returns the currently active audio item, active DJ, and elapsed seconds.
