@@ -351,7 +351,7 @@ PromptFM's airplay engine is strictly **schedule-driven**:
 
 3. **Hourly Musical Clock Milestones (Current Schedule)**:
    Each hour of programming is structured around 4 music milestones:
-   - `:00` — **Hourly Community Top 40 Countdown**: The highest-voted community tracks headlining the hour.
+   - `:00` — **Community Headliners & Vault Rotation**: Featured community AI music productions headlining the hour from across the approved library.
    - `:15` — **Deep Cut & Indie AI Showcase**: Hidden gems and undiscovered AI music productions.
    - `:30` — **Mid-Hour Rhythm & Vibe Transition**: Seamless tempo shifts and fresh instrumental beats.
    - `:45` — **Listener Requested Airplay Block**: Community queue requests and listener picks streamed back-to-back.

@@ -39,7 +39,7 @@ Every hour on PromptFM follows a structured 4-part radio clock wheel:
   ┌────────────────────────────────────────────────────────┐
   │              PROMPTFM HOURLY CLOCK WHEEL               │
   ├──────────────┬─────────────────────────────────────────┤
-  │ :00 – :15    │ Top 40 Power Rotation (Weekly Chart)    │
+  │ :00 – :15    │ Community Headliners (Catalog Highlights)│
   ├──────────────┼─────────────────────────────────────────┤
   │ :15 – :30    │ Deep Cuts & Ambient Explorations        │
   ├──────────────┼─────────────────────────────────────────┤
