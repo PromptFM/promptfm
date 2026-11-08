@@ -167,7 +167,7 @@ Please review the failing checks in GitHub Actions.`;
 
     if (hasSecrets) {
       lines.push(
-        `> - **Secrets Update Required:** If new production secrets or credentials are required, have an admin run the Update Secrets workflow: https://github.com/PromptFM/promptfm/actions/workflows/update-secrets.yml`
+        `> - **Secrets Update Required:** Changes to sensitive credentials or secrets detected in Ansible/Terraform. To hand off production credentials safely, generate an encrypted self-destructing link via [Password Pusher](https://pwpush.com) or [OneTimeSecret](https://onetimesecret.com) and tag **@atrifan** or email **dev@promptfm.live** (or have an admin run the [Update Secrets workflow](https://github.com/PromptFM/promptfm/actions/workflows/update-secrets.yml)).`
       );
     }
   }

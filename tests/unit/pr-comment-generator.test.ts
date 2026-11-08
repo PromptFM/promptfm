@@ -161,7 +161,7 @@ describe('PR Comment Guidance Generator', () => {
       expect(comment).toContain('Update Secrets workflow');
     });
 
-    it('includes card for Secrets changes with link to update-secrets workflow', () => {
+    it('includes card for Secrets changes with link to update-secrets workflow and tags @atrifan', () => {
       const comment = generatePRGuidanceComment({
         commitSha: 'a1b2c3d4e5f6',
         changedFiles: ['src/lib/infra/secrets-sync.ts'],
@@ -171,6 +171,8 @@ describe('PR Comment Guidance Generator', () => {
 
       expect(comment).toContain('Secrets Update Required');
       expect(comment).toContain('https://github.com/PromptFM/promptfm/actions/workflows/update-secrets.yml');
+      expect(comment).toContain('@atrifan');
+      expect(comment).toContain('Password Pusher');
     });
 
     it('includes card for SQL schema changes when supabase or .sql files are touched', () => {
