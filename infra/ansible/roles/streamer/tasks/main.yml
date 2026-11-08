@@ -91,6 +91,9 @@
     msg:
       - "✅ PromptFM Icecast audio stream is LIVE on port {{ icecast_port | default(8000) }}!"
       - "📊 Google Cloud 0-Cost Dashboard: https://console.cloud.google.com/monitoring/dashboards/builder/ce33f584-e48f-407a-b2e7-1d1fa9e990ff?project=promptfm-radio-1793623670"
+      - "☁️ Oracle Cloud instances ($0, Always Free): https://cloud.oracle.com/compute/instances?region=us-ashburn-1"
+      - "📉 Oracle Metrics Explorer (CPU, outbound bytes): https://cloud.oracle.com/monitoring/metrics-explorer?region=us-ashburn-1"
+      - "💲 Oracle Cost Analysis: https://cloud.oracle.com/account-management/cost-analysis"
       - "📈 Vercel Web Analytics ($0 Tier): https://vercel.com/alextrifan/promptfm/analytics"
       - "📻 Live Web Radio: https://promptfm.live"
       - "🎙️ Station Manager Studio: https://promptfm.live/admin"
