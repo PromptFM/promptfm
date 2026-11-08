@@ -55,7 +55,21 @@ export function formatAirTime(airTime?: string | null): string {
  */
 export function formatStatus(status?: string | null): string {
   if (!status) return 'Pending';
-  return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+  const clean = status.toLowerCase();
+  switch (clean) {
+    case 'accepted':
+      return 'Accepted';
+    case 'queued':
+      return 'In Queue';
+    case 'airing_soon':
+      return 'Airing Soon';
+    case 'playing':
+      return 'On Air Now';
+    case 'played':
+      return 'Played';
+    default:
+      return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+  }
 }
 
 /**
@@ -140,7 +154,12 @@ export function formatQueueForDiscord(queue: StationQueueResult, siteUrl?: strin
   if (queue.upcoming.length > 0) {
     queue.upcoming.forEach((item, index) => {
       const toolStr = item.tool_used ? ` (${item.tool_used})` : '';
-      text += `${index + 1}. **"${item.title}"** by ${item.artist}${toolStr} — 🔥 ${item.upvotes_count ?? 0} votes\n`;
+      const requestBadge = item.requested_by
+        ? index === 0
+          ? ` — ⏳ **[AIRING SOON]** (Requested by ${item.requested_by})`
+          : ` — 📋 **[QUEUED #${index + 1}]** (Requested by ${item.requested_by})`
+        : '';
+      text += `${index + 1}. **"${item.title}"** by ${item.artist}${toolStr}${requestBadge} — 🔥 ${item.upvotes_count ?? 0} votes\n`;
     });
   }
 
@@ -179,7 +198,12 @@ export function formatQueueForTelegram(queue: StationQueueResult, siteUrl?: stri
   if (queue.upcoming.length > 0) {
     queue.upcoming.forEach((item, index) => {
       const toolStr = item.tool_used ? ` (${item.tool_used})` : '';
-      text += `${index + 1}. *"${item.title}"* by ${item.artist}${toolStr} — 🔥 ${item.upvotes_count ?? 0} votes\n`;
+      const requestBadge = item.requested_by
+        ? index === 0
+          ? ` — ⏳ *[AIRING SOON]* (Requested by ${item.requested_by})`
+          : ` — 📋 *[QUEUED #${index + 1}]* (Requested by ${item.requested_by})`
+        : '';
+      text += `${index + 1}. *"${item.title}"* by ${item.artist}${toolStr}${requestBadge} — 🔥 ${item.upvotes_count ?? 0} votes\n`;
     });
   }
 
@@ -218,7 +242,12 @@ export function formatQueueForCLI(queue: StationQueueResult): string {
     output += `\nUpcoming Tracks:\n`;
     queue.upcoming.forEach((item, index) => {
       const toolStr = item.tool_used ? ` (${item.tool_used})` : '';
-      output += `  #${index + 1} "${item.title}" by ${item.artist}${toolStr} [Votes: ${item.upvotes_count ?? 0}]\n`;
+      const requestBadge = item.requested_by
+        ? index === 0
+          ? ` [AIRING SOON - Requested by ${item.requested_by}]`
+          : ` [QUEUED #${index + 1} - Requested by ${item.requested_by}]`
+        : '';
+      output += `  #${index + 1} "${item.title}" by ${item.artist}${toolStr}${requestBadge} [Votes: ${item.upvotes_count ?? 0}]\n`;
     });
   }
 

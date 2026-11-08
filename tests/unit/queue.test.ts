@@ -82,12 +82,17 @@ describe('PromptFM Unified Queue Service (Issue #86)', () => {
       expect(formatStatus('')).toBe('Pending');
     });
 
-    it('capitalizes valid status strings', () => {
+    it('capitalizes valid status strings and formats lifecycle states', () => {
       expect(formatStatus('scheduled')).toBe('Scheduled');
       expect(formatStatus('SCHEDULED')).toBe('Scheduled');
       expect(formatStatus('pending')).toBe('Pending');
       expect(formatStatus('aired')).toBe('Aired');
+      expect(formatStatus('played')).toBe('Played');
       expect(formatStatus('rejected')).toBe('Rejected');
+      expect(formatStatus('accepted')).toBe('Accepted');
+      expect(formatStatus('queued')).toBe('In Queue');
+      expect(formatStatus('airing_soon')).toBe('Airing Soon');
+      expect(formatStatus('playing')).toBe('On Air Now');
     });
   });
 
@@ -264,6 +269,44 @@ describe('PromptFM Unified Queue Service (Issue #86)', () => {
 
       const result = formatQueueForDiscord(emptyQueue, 'https://promptfm.live');
       expect(result).toContain('[Tune in Live](https://promptfm.live)');
+    });
+
+    it('formats upcoming tracks with listener attribution for airing soon and queued positions', () => {
+      const queue: StationQueueResult = {
+        channel: 'main',
+        upcoming: [
+          {
+            id: 't-req-1',
+            type: 'music',
+            title: 'Neon Midnight',
+            artist: 'SynthArtist',
+            audio_url: 'https://audio1.mp3',
+            requested_by: '@alex (discord)',
+          },
+          {
+            id: 't-req-2',
+            type: 'music',
+            title: 'Lo-Fi Sunset',
+            artist: 'ChillBot',
+            audio_url: 'https://audio2.mp3',
+            requested_by: '@sara (telegram)',
+          },
+        ],
+        scheduledRequests: [],
+        hasItems: true,
+      };
+
+      const discordRes = formatQueueForDiscord(queue);
+      expect(discordRes).toContain('1. **"Neon Midnight"** by SynthArtist — ⏳ **[AIRING SOON]** (Requested by @alex (discord)) — 🔥 0 votes');
+      expect(discordRes).toContain('2. **"Lo-Fi Sunset"** by ChillBot — 📋 **[QUEUED #2]** (Requested by @sara (telegram)) — 🔥 0 votes');
+
+      const telegramRes = formatQueueForTelegram(queue);
+      expect(telegramRes).toContain('1. *"Neon Midnight"* by SynthArtist — ⏳ *[AIRING SOON]* (Requested by @alex (discord)) — 🔥 0 votes');
+      expect(telegramRes).toContain('2. *"Lo-Fi Sunset"* by ChillBot — 📋 *[QUEUED #2]* (Requested by @sara (telegram)) — 🔥 0 votes');
+
+      const cliRes = formatQueueForCLI(queue);
+      expect(cliRes).toContain('#1 "Neon Midnight" by SynthArtist [AIRING SOON - Requested by @alex (discord)]');
+      expect(cliRes).toContain('#2 "Lo-Fi Sunset" by ChillBot [QUEUED #2 - Requested by @sara (telegram)]');
     });
 
     it('formats upcoming tracks with and without tool and upvotes count fallback', () => {

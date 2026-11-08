@@ -90,6 +90,7 @@ Every administrative capability is designed with **100% feature parity** across 
 | **List Community Batches/Requests** | Batches Tab | `requests list` | `promptfm_admin_list_requests` |
 | **Synthesize & Air Batch Request** | Click "Air Now" | `requests air <requestId>` | `promptfm_admin_air_request` |
 | **Reject Request with Feedback** | Click "Reject & Notify" | `requests reject <id> --reason "..."` | `promptfm_admin_reject_request` |
+| **Track Request Lifecycle Status** | Web Queue Card | `request <id\|query>` | `promptfm_get_request_status` |
 | **List Content / Safety Reports** | Reports Tab | `report list` | `promptfm_admin_list_reports` |
 | **Audit Content Reports** | Reports Tab ("Audit Reports Window") | `report audit [--limit N]` | `promptfm_admin_audit_reports` |
 | **File Content Report** | Web 🚩 Report Modal | `report file <id> <reason>` | `promptfm_report_content` |
@@ -148,6 +149,7 @@ The PromptFM CLI is a standalone station management suite located in `scripts/pr
 | `queue list` | Shows the active upcoming airplay rotation for the main channel. | `npm run promptfm -- queue list` |
 | `queue next <trackId>` | Force-injects a track to play **NEXT** on air. | `npm run promptfm -- queue next 0df3ba68-...` |
 | `queue remove <queueId>` | Drops an item from the upcoming queue. | `npm run promptfm -- queue remove 1234` |
+| `request <id or query>` | Inspects the end-to-end lifecycle status, queue position, ETA, and airplay state of a listener request (canonical: `accepted` → `queued` → `airing_soon` → `playing` → `played`/`rejected`). | `npm run promptfm -- request 186f9b8c` |
 | `now` | Displays currently playing track, active AI DJ on air, and elapsed time. | `npm run promptfm -- now` |
 | `next` | Lists the next 5 items queued for broadcast. | `npm run promptfm -- next` |
 

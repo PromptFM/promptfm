@@ -236,7 +236,7 @@ CREATE TABLE IF NOT EXISTS public.community_requests (
   content             TEXT        NOT NULL, -- Prompt, message, or request details
   target              TEXT,       -- Dedicated person (for dedications) or City (for weather) or Zodiac sign
   batch_id            TEXT,       -- e.g. "batch-15:30"
-  status              TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'scheduled', 'aired', 'rejected')),
+  status              TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'scheduled', 'queued', 'airing_soon', 'playing', 'aired', 'played', 'rejected')),
   rejection_reason    TEXT,       -- Explanation sent back to Discord / Telegram if rejected
   is_explicit         BOOLEAN     NOT NULL DEFAULT false,
   estimated_air_time  TIMESTAMPTZ,

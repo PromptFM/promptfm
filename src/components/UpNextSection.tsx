@@ -5,7 +5,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import Image from 'next/image';
-import { ListMusic, ThumbsUp, Radio, Sparkles, Disc3 } from 'lucide-react';
+import { ListMusic, ThumbsUp, Radio, Sparkles, Disc3, Headphones } from 'lucide-react';
 import { DEFAULT_CHANNEL_SLUG, getChannelBySlug } from '@/lib/radio/channels';
 import {
   buildQueueDisplayItems,
@@ -212,6 +212,16 @@ export default function UpNextSection() {
                           {item.category}
                         </span>
                       )}
+                      {item.requested_by && (
+                        <span
+                          data-testid="requested-by-badge"
+                          className="text-[10px] bg-purple-950/70 border border-purple-500/30 text-purple-300 px-1.5 py-0.5 rounded truncate max-w-[140px] flex items-center gap-1 font-medium"
+                          title={`Requested by ${item.requested_by}`}
+                        >
+                          <Headphones className="w-2.5 h-2.5 flex-shrink-0 text-purple-400" aria-hidden="true" />
+                          <span className="truncate">@{item.requested_by.replace(/^@/, '')}</span>
+                        </span>
+                      )}
                       {typeof item.upvotes_count === 'number' && (
                         <span className="flex items-center gap-1 text-[10px] text-emerald-400/90 font-medium ml-auto">
                           <ThumbsUp className="w-2.5 h-2.5" aria-hidden="true" />
@@ -362,6 +372,16 @@ export default function UpNextSection() {
                         {item.category && (
                           <span className="text-[10px] bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded truncate max-w-[90px]">
                             {item.category}
+                          </span>
+                        )}
+                        {item.requested_by && (
+                          <span
+                            data-testid="requested-by-badge"
+                            className="text-[10px] bg-purple-950/70 border border-purple-500/30 text-purple-300 px-1.5 py-0.5 rounded truncate max-w-[140px] flex items-center gap-1 font-medium"
+                            title={`Requested by ${item.requested_by}`}
+                          >
+                            <Headphones className="w-2.5 h-2.5 flex-shrink-0 text-purple-400" aria-hidden="true" />
+                            <span className="truncate">@{item.requested_by.replace(/^@/, '')}</span>
                           </span>
                         )}
                         {typeof item.upvotes_count === 'number' && (

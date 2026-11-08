@@ -17,6 +17,7 @@ import { autoGenerateChannelGuardrails } from '../src/lib/safety/channel-guardra
 import { getAllChannels, setChannelActiveOverride, isChannelActive } from '../src/lib/radio/channels';
 import { findTracksByVibe, indexTrackEmbedding } from '../src/lib/dj/rag';
 import { queueSong, getSongQueueStatus } from '../src/lib/song/pathway';
+import { getRequestLifecycle, formatRequestLifecycleMessage } from '../src/lib/song/lifecycle';
 import { editTrackMetadata, deleteTrack } from '../src/lib/dj/track-management';
 import {
   registerTelegramWebhook,
@@ -82,6 +83,7 @@ Airplay Queue ("Up Next"):
   queue next <trackId>    Bump a track to the very top of the live queue
   queue remove <queueId>  Remove an item from the upcoming queue
   queue <prompt>          Find & queue a track matching a text vibe using semantic RAG
+  request <id|query>      Track live request lifecycle status, ETA, and queue position (alias: req)
 
 AI Voice & Broadcast:
   djs                     View full AI DJ roster, voices, and who is currently LIVE
@@ -554,6 +556,19 @@ Moderation & Schedule:
       });
 
       console.log(result.confirmationMessage);
+      break;
+    }
+
+    case 'req':
+    case 'request': {
+      const query = args.filter((a) => a !== '--channel' && a !== parseArg('--channel')).slice(1).join(' ').trim();
+      if (!query) {
+        console.error('Provide request ID or song title: npm run promptfm request <id|title>');
+        return;
+      }
+      const channel = parseArg('--channel') || 'main';
+      const info = await getRequestLifecycle(query, channel);
+      console.log(formatRequestLifecycleMessage(info, 'cli'));
       break;
     }
 
