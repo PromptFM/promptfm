@@ -84,9 +84,13 @@ jobs:
 
       - name: Preview Terraform Plan
         run: terraform -chdir=infra/terraform plan
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Apply Terraform Infrastructure
         run: terraform -chdir=infra/terraform apply -auto-approve
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Apply Hostinger DNS Zone State ($0 Egress Enforcement)
         run: npm run promptfm -- dns apply promptfm.live --state infra/dns/promptfm.live.state.json --force

@@ -56,9 +56,14 @@ resource "google_compute_firewall" "allow_web" {
 
 # 3. Always-Free Compute Engine VM (e2-micro, 30GB pd-standard disk)
 resource "google_compute_instance" "streamer" {
-  name         = var.instance_name
-  machine_type = var.machine_type
-  zone         = var.zone
+  name                      = var.instance_name
+  machine_type              = var.machine_type
+  zone                      = var.zone
+  allow_stopping_for_update = true
+
+  lifecycle {
+    ignore_changes = [service_account]
+  }
 
   tags = ["http-server", "https-server", "promptfm-streamer"]
 
