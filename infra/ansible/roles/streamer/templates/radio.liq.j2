@@ -28,13 +28,14 @@ stream = crossfade(duration=1.5, dynamic_stream)
 # Fallback safely if stream encounters an issue
 radio = fallback(track_sensitive=false, [stream, emergency_fallback])
 
-# 4. Stream to Icecast
+# 4. Stream to Icecast with explicit UTF-8 metadata encoding
 output.icecast(
   %mp3(bitrate={{ stream_bitrate | default(128) }}, samplerate=44100),
   host="icecast",
   port=8000,
   password="{{ icecast_source_password }}",
   mount="/stream.mp3",
+  encoding="UTF-8",
   name="PromptFM — 24/7 AI Generated Music Radio",
   description="Continuous generative beats, AI DJ monologues, and community-curated music.",
   url="{{ promptfm_api_url }}",
