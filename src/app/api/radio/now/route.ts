@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getNowPlaying, getUpNext } from '@/lib/dj/rotation';
+import { getScheduledRequests } from '@/lib/dj/queue';
 import { getLiveListenerStats, registerListenerPing } from '@/lib/radio/listeners';
 
 export const dynamic = 'force-dynamic';
@@ -21,33 +22,42 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [status, upNext] = await Promise.all([
+    const [status, upNext, scheduledRequests] = await Promise.all([
       getNowPlaying(channelSlug),
       getUpNext(channelSlug, 3),
+      getScheduledRequests(5).catch(() => []),
     ]);
 
     const listenerStats = getLiveListenerStats(channelSlug);
 
-    return NextResponse.json({
-      success: true,
-      channel: channelSlug,
-      now_playing: {
-        ...status.item,
-        rank: status.rank ?? null,
-        total_approved_tracks: status.totalApprovedTracks ?? null,
+    return NextResponse.json(
+      {
+        success: true,
+        channel: channelSlug,
+        now_playing: {
+          ...status.item,
+          rank: status.rank ?? null,
+          total_approved_tracks: status.totalApprovedTracks ?? null,
+        },
+        up_next: upNext,
+        scheduled_requests: scheduledRequests,
+        listeners_count: listenerStats.channelListeners,
+        listeners: {
+          channel: listenerStats.channelListeners,
+          network_total: listenerStats.totalNetworkListeners,
+          active_channels_count: listenerStats.activeChannelsCount,
+        },
+        active_dj: status.activeDJ,
+        elapsed_seconds: status.elapsedSeconds,
+        duration_seconds: status.item.duration_hint_seconds || (status.item.type === 'music' ? 210 : 30),
+        started_at: status.startedAt,
       },
-      up_next: upNext,
-      listeners_count: listenerStats.channelListeners,
-      listeners: {
-        channel: listenerStats.channelListeners,
-        network_total: listenerStats.totalNetworkListeners,
-        active_channels_count: listenerStats.activeChannelsCount,
-      },
-      active_dj: status.activeDJ,
-      elapsed_seconds: status.elapsedSeconds,
-      duration_seconds: status.item.duration_hint_seconds || (status.item.type === 'music' ? 210 : 30),
-      started_at: status.startedAt,
-    });
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=5, stale-while-revalidate=10',
+        },
+      }
+    );
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });

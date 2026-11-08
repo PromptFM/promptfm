@@ -15,7 +15,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:changed": "vitest --changed origin/main",
+    "test:related": "vitest related",
     "test:mutate": "stryker run",
+    "test:mutate:affected": "jiti scripts/mutate-affected.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },
@@ -25,6 +28,7 @@
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.118.0",
     "@vercel/analytics": "^2.0.1",
+    "flags": "^4.4.0",
     "lucide-react": "^1.66.0",
     "music-metadata": "^12.3.4",
     "next": "^14.2.5",
@@ -33,6 +37,7 @@
     "resend": "^6.37.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@playwright/test": "^1.64.1",
     "@stryker-mutator/core": "^10.1.1",
     "@stryker-mutator/vitest-runner": "^10.1.1",

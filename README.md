@@ -122,13 +122,22 @@ make deploy
 PromptFM enforces strict **Test-Driven Development (TDD)** and mutation testing across all business logic:
 
 ```bash
-# Run Vitest test suite (250 unit & integration tests)
+# Run Vitest test suite (unit & integration tests)
 npm test
+
+# Run tests affected by current git branch/diff
+npm run test:changed
+
+# Run tests related to specific files
+npm run test:related src/lib/audio/player-controller.ts
 
 # Run test suite with code coverage
 npm run test:coverage
 
-# Run Stryker Mutation Testing (ensures ≥80% mutation score on core logic)
+# Run Targeted Stryker Mutation Testing (fast - runs on modified domain code only)
+npm run test:mutate:affected
+
+# Run Full Stryker Mutation Testing (comprehensive domain baseline audit)
 npm run test:mutate
 
 # Validate TypeScript typings
