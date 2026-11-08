@@ -1,0 +1,129 @@
+{
+  "domain": "promptfm.live",
+  "updatedAt": "2026-11-08T12:10:49.111Z",
+  "version": 1,
+  "zone": [
+    {
+      "name": "resend._domainkey",
+      "records": [
+        {
+          "content": "\"p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDLgk8jvT+02FmeiMUEUzcQoNI4VnN53T7xmeduPje76yg9RF7XRMNgpyaNj0iYNMNoXI36OXFWyPXfzhI1Ty65jazf+wWvNjN1d8hsyCtDY2g8iWPX9XSZS35ZF6EMgUay5JgPoP+bBlS8wdlMkzvwkK7fX4Em0wxCoqalTo1yFwIDAQAB\"",
+          "is_disabled": false
+        }
+      ],
+      "ttl": 300,
+      "type": "TXT"
+    },
+    {
+      "name": "www",
+      "records": [
+        {
+          "content": "17b314bad0a79a1d.vercel-dns-017.com.",
+          "is_disabled": false
+        }
+      ],
+      "ttl": 300,
+      "type": "CNAME"
+    },
+    {
+      "name": "stream",
+      "records": [
+        {
+          "content": "34.123.80.137",
+          "is_disabled": false
+        }
+      ],
+      "ttl": 300,
+      "type": "A"
+    },
+    {
+      "name": "rsend",
+      "records": [
+        {
+          "content": "send.forge.rmta.net.",
+          "is_disabled": false
+        }
+      ],
+      "ttl": 300,
+      "type": "CNAME"
+    },
+    {
+      "name": "send",
+      "records": [
+        {
+          "content": "\"v=spf1 include:amazonses.com ~all\"",
+          "is_disabled": false
+        }
+      ],
+      "ttl": 300,
+      "type": "TXT"
+    },
+    {
+      "name": "send",
+      "records": [
+        {
+          "content": "10 feedback-smtp.eu-west-1.amazonses.com.",
+          "is_disabled": false
+        }
+      ],
+      "ttl": 300,
+      "type": "MX"
+    },
+    {
+      "name": "_dmarc",
+      "records": [
+        {
+          "content": "\"v=DMARC1; p=none; sp=none; rua=mailto:contact@promptfm.live\"",
+          "is_disabled": false
+        }
+      ],
+      "ttl": 300,
+      "type": "TXT"
+    },
+    {
+      "name": "@",
+      "records": [
+        {
+          "content": "\"google-site-verification=JyC0MUsTb-PI8ssnpZsCcwmWCw-BxPvn7S07-2FDHRA\"",
+          "is_disabled": false
+        },
+        {
+          "content": "\"v=spf1 include:amazonses.com ~all\"",
+          "is_disabled": false
+        }
+      ],
+      "ttl": 300,
+      "type": "TXT"
+    },
+    {
+      "name": "@",
+      "records": [
+        {
+          "content": "9 receive-euw1.forge.rmta.net.",
+          "is_disabled": false
+        },
+        {
+          "content": "10 feedback.resend.com.",
+          "is_disabled": false
+        }
+      ],
+      "ttl": 300,
+      "type": "MX"
+    },
+    {
+      "name": "@",
+      "records": [
+        {
+          "content": "216.198.79.1",
+          "is_disabled": false
+        },
+        {
+          "content": "64.29.17.1",
+          "is_disabled": false
+        }
+      ],
+      "ttl": 300,
+      "type": "A"
+    }
+  ]
+}

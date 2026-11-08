@@ -1,0 +1,113 @@
+{
+  "description": "PromptFM Canonical DNS Zone Architecture Template with $0 Egress Protection",
+  "version": 1,
+  "zone": [
+    {
+      "name": "www",
+      "type": "CNAME",
+      "ttl": 300,
+      "records": [
+        {
+          "content": "17b314bad0a79a1d.vercel-dns-017.com.",
+          "is_disabled": false
+        }
+      ]
+    },
+    {
+      "name": "stream",
+      "type": "CNAME",
+      "ttl": 300,
+      "records": [
+        {
+          "content": "{{STREAM_CNAME_TARGET:-promptfm-stream.cfargotunnel.com.}}",
+          "is_disabled": false
+        }
+      ]
+    },
+    {
+      "name": "rsend",
+      "type": "CNAME",
+      "ttl": 300,
+      "records": [
+        {
+          "content": "send.forge.rmta.net.",
+          "is_disabled": false
+        }
+      ]
+    },
+    {
+      "name": "send",
+      "type": "TXT",
+      "ttl": 300,
+      "records": [
+        {
+          "content": "\"v=spf1 include:amazonses.com ~all\"",
+          "is_disabled": false
+        }
+      ]
+    },
+    {
+      "name": "send",
+      "type": "MX",
+      "ttl": 300,
+      "records": [
+        {
+          "content": "10 feedback-smtp.eu-west-1.amazonses.com.",
+          "is_disabled": false
+        }
+      ]
+    },
+    {
+      "name": "_dmarc",
+      "type": "TXT",
+      "ttl": 300,
+      "records": [
+        {
+          "content": "\"v=DMARC1; p=none; sp=none; rua=mailto:contact@{{DOMAIN}}\"",
+          "is_disabled": false
+        }
+      ]
+    },
+    {
+      "name": "@",
+      "type": "TXT",
+      "ttl": 300,
+      "records": [
+        {
+          "content": "\"v=spf1 include:amazonses.com ~all\"",
+          "is_disabled": false
+        }
+      ]
+    },
+    {
+      "name": "@",
+      "type": "MX",
+      "ttl": 300,
+      "records": [
+        {
+          "content": "9 receive-euw1.forge.rmta.net.",
+          "is_disabled": false
+        },
+        {
+          "content": "10 feedback.resend.com.",
+          "is_disabled": false
+        }
+      ]
+    },
+    {
+      "name": "@",
+      "type": "A",
+      "ttl": 300,
+      "records": [
+        {
+          "content": "216.198.79.1",
+          "is_disabled": false
+        },
+        {
+          "content": "64.29.17.1",
+          "is_disabled": false
+        }
+      ]
+    }
+  ]
+}

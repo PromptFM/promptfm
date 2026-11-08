@@ -3,9 +3,9 @@
 // Unified domain service for track metadata editing and library deletion
 // Shared across CLI (scripts/promptfm.ts), MCP (/api/mcp), and Web UI (/admin)
 
-import { createAdminClient } from '@/lib/supabase/server';
-import { indexTrackEmbedding } from '@/lib/dj/rag';
-import type { Track, AITool } from '@/types/database';
+import { createAdminClient } from '../supabase/server';
+import { indexTrackEmbedding } from './rag';
+import type { Track, AITool } from '../../types/database';
 
 export interface TrackMetadataUpdates {
   title?: string;

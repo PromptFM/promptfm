@@ -17,6 +17,7 @@
     "src/lib/mcp/**/*.ts",
     "src/lib/flags/**/*.ts",
     "src/lib/email/**/*.ts",
+    "src/lib/infra/**/*.ts",
     "!src/lib/**/*.d.ts",
     "!src/**/*.test.ts",
     "!src/**/*.spec.ts"

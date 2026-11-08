@@ -35,22 +35,9 @@ resource "google_storage_bucket" "tf_state" {
   }
 }
 
-# 2. Firewall Rule: Allow Icecast 2 streaming on Port 8000
-resource "google_compute_firewall" "allow_icecast" {
-  name        = "allow-icecast-stream"
-  network     = "default"
-  description = "Allows incoming audio listener traffic on Icecast port 8000"
-
-  allow {
-    protocol = "tcp"
-    ports    = ["8000"]
-  }
-
-  source_ranges = ["0.0.0.0/0"]
-  target_tags   = ["http-server", "promptfm-streamer"]
-}
-
-# 2b. Firewall Rule: Allow HTTP & HTTPS for Caddy Automatic SSL (Ports 80 & 443)
+# 2. Firewall Rule: Allow HTTP & HTTPS for Caddy SSL proxy on ports 80 and 443
+# Direct port 8000 access is strictly BLOCKED from public ingress to ensure listeners cannot
+# bypass the Cloudflare edge / Caddy SSL layer and trigger GCP VM bandwidth egress charges (Issue #127).
 resource "google_compute_firewall" "allow_web" {
   name        = "allow-http-https"
   network     = "default"
