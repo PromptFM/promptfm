@@ -1,0 +1,14 @@
+#cloud-config
+# Oracle's Ubuntu images ship iptables rules that drop everything except SSH,
+# even when the VCN security list allows 80/443. Open them on the host as well.
+package_update: true
+packages:
+  - docker.io
+  - docker-compose-v2
+  - iptables-persistent
+runcmd:
+  - iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
+  - iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+  - netfilter-persistent save
+  - systemctl enable --now docker
+  - usermod -aG docker ubuntu

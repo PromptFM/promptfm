@@ -1,0 +1,12 @@
+# Credentials are read from GCP Secret Manager (promptfm-oci-credentials), not from this file.
+# Everything below is optional.
+
+# Defaults to the tenancy (root compartment).
+# compartment_ocid = "ocid1.compartment.oc1..replace-me"
+
+# Always Free A1 limits are 4 OCPU / 24 GB in total. 2 / 12 is plenty for Icecast + Liquidsoap + ffmpeg.
+# ocpus     = 2
+# memory_gb = 12
+
+# Emails an alert at $1 of actual spend. It does not stop spending.
+# budget_alert_email = "you@example.com"
