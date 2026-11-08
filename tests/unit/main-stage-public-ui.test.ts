@@ -142,5 +142,26 @@ describe('Issue #85: Main-Stage-Only Public UI (TDD)', () => {
       expect(html).not.toContain('5 Live Stations');
       expect(html).not.toContain('5 curated theme stations');
     });
+
+    it('ensures hero CTA buttons have whitespace-nowrap and flex-wrap to prevent vertical text squishing', () => {
+      const html = renderToString(React.createElement(HomePage));
+
+      // Buttons container should allow flex-wrap
+      expect(html).toContain('flex-wrap');
+      // Hero action buttons should have whitespace-nowrap
+      expect(html).toContain('whitespace-nowrap');
+      expect(html).toContain('Tune In Main Stage');
+    });
+  });
+
+  describe('ChannelsGrid - Header Badge Layout and Visual Separation', () => {
+    it('renders status badge in a flex header rather than absolute positioning that overlaps title', () => {
+      const html = renderToString(React.createElement(ChannelsGrid));
+
+      // In single-stage mode, status badge must not have absolute positioning
+      expect(html).not.toContain('absolute top-4 right-4');
+      expect(html).toMatch(/SELECTED|ON AIR/);
+    });
   });
 });
+
