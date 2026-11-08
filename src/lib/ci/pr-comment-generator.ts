@@ -20,6 +20,7 @@ export interface InfraChangesResult {
   hasSql: boolean;
   hasSecrets: boolean;
   hasUi: boolean;
+  hasDns?: boolean;
 }
 
 /**
@@ -31,6 +32,7 @@ export function detectInfraChanges(changedFiles: string[]): InfraChangesResult {
   let hasSql = false;
   let hasSecrets = false;
   let hasUi = false;
+  let hasDns = false;
 
   for (const file of changedFiles) {
     if (file.endsWith('.md') || file === '.gitignore' || file.startsWith('docs/')) {
@@ -42,6 +44,9 @@ export function detectInfraChanges(changedFiles: string[]): InfraChangesResult {
       (/^infra\/terraform\//i.test(file) && !file.endsWith('.ts') && !file.endsWith('.json'))
     ) {
       hasTerraform = true;
+    }
+    if (/^infra\/dns\//i.test(file)) {
+      hasDns = true;
     }
     if (
       (/^infra\/ansible\//i.test(file) || /^infra\/roles\//i.test(file) || /playbook\.ya?ml$/i.test(file)) &&
@@ -74,7 +79,7 @@ export function detectInfraChanges(changedFiles: string[]): InfraChangesResult {
     }
   }
 
-  return { hasTerraform, hasAnsible, hasSql, hasSecrets, hasUi };
+  return { hasTerraform, hasAnsible, hasSql, hasSecrets, hasUi, hasDns };
 }
 
 /**
@@ -88,20 +93,22 @@ export function generatePRCommentOutput(params: PRCommentParams): {
   hasSql: boolean;
   hasSecrets: boolean;
   hasUi: boolean;
+  hasDns?: boolean;
 } {
-  const { hasTerraform, hasAnsible, hasSql, hasSecrets, hasUi } = detectInfraChanges(
+  const { hasTerraform, hasAnsible, hasSql, hasSecrets, hasUi, hasDns } = detectInfraChanges(
     params.changedFiles
   );
   const commentMarkdown = generatePRGuidanceComment(params);
 
   return {
     commentMarkdown,
-    hasInfraChanges: hasTerraform || hasAnsible || hasSql || hasSecrets,
+    hasInfraChanges: hasTerraform || hasAnsible || hasSql || hasSecrets || Boolean(hasDns),
     hasTerraform,
     hasAnsible,
     hasSql,
     hasSecrets,
     hasUi,
+    hasDns,
   };
 }
 export function generatePRGuidanceComment(params: PRCommentParams): string {
@@ -111,7 +118,7 @@ Quality and security checks must pass before preview links or infrastructure dep
 Please review the failing checks in GitHub Actions.`;
   }
 
-  const { hasTerraform, hasAnsible, hasSql, hasSecrets, hasUi } = detectInfraChanges(
+  const { hasTerraform, hasAnsible, hasSql, hasSecrets, hasUi, hasDns } = detectInfraChanges(
     params.changedFiles
   );
   const cleanSha = params.commitSha.trim();
@@ -139,7 +146,7 @@ Please review the failing checks in GitHub Actions.`;
     );
   }
 
-  if (hasTerraform || hasAnsible || hasSql || hasSecrets) {
+  if (hasTerraform || hasAnsible || hasSql || hasSecrets || hasDns) {
     lines.push(``);
     lines.push(`---`);
     lines.push(`### 🏗️ Infrastructure & Database Changes Detected`);
@@ -150,6 +157,12 @@ Please review the failing checks in GitHub Actions.`;
     if (hasTerraform) {
       lines.push(
         `> - **Terraform Infrastructure:** Changes detected in \`infra/terraform/\`. CI automatically lints formatting and checks live state vs configuration. After merge, an admin must trigger the [Apply Terraform workflow](https://github.com/PromptFM/promptfm/actions/workflows/apply-terraform.yml) or push tag \`promptfm-infra/<version>\` to apply.`
+      );
+    }
+
+    if (hasDns) {
+      lines.push(
+        `> - **Hostinger DNS Configuration:** Changes detected in \`infra/dns/\`. After merge, an admin must trigger the [Apply Hostinger DNS workflow](https://github.com/PromptFM/promptfm/actions/workflows/apply-dns.yml), run the [Apply Terraform workflow](https://github.com/PromptFM/promptfm/actions/workflows/apply-terraform.yml), or execute \`npm run promptfm -- dns apply promptfm.live --state infra/dns/promptfm.live.state.json --force\` to synchronize live DNS records.`
       );
     }
 

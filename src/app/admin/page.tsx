@@ -975,6 +975,17 @@ export default function AdminDashboard() {
             </span>
           </a>
           <a
+            href="https://vercel.com/alextrifan/promptfm/speed-insights"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between p-2.5 bg-zinc-950/60 hover:bg-zinc-850/80 border border-zinc-800/80 rounded-xl transition-colors group"
+          >
+            <span className="text-zinc-300">Vercel Speed Insights</span>
+            <span className="text-zinc-400 group-hover:text-emerald-400 text-[11px] font-semibold">
+              $0 Web Vitals ↗
+            </span>
+          </a>
+          <a
             href="https://console.cloud.google.com/monitoring/dashboards/builder/ce33f584-e48f-407a-b2e7-1d1fa9e990ff?project=promptfm-radio-1793623670"
             target="_blank"
             rel="noopener noreferrer"

@@ -78,6 +78,11 @@ describe('PR Comment Guidance Generator', () => {
       expect(changes.hasSecrets).toBe(true);
       expect(changes.hasTerraform).toBe(true);
     });
+
+    it('detects DNS changes when files in infra/dns are modified', () => {
+      const changes = detectInfraChanges(['infra/dns/promptfm.live.state.json']);
+      expect(changes.hasDns).toBe(true);
+    });
   });
 
   describe('generatePRGuidanceComment', () => {
@@ -140,6 +145,17 @@ describe('PR Comment Guidance Generator', () => {
 
       expect(comment).toContain('Terraform Infrastructure');
       expect(comment).toContain('Ansible Configuration');
+    });
+
+    it('includes card for DNS changes when infra/dns files are touched', () => {
+      const comment = generatePRGuidanceComment({
+        commitSha: 'a1b2c3d4e5f6',
+        changedFiles: ['infra/dns/promptfm.live.state.json'],
+        checksPassed: true,
+      });
+
+      expect(comment).toContain('Hostinger DNS Configuration');
+      expect(comment).toContain('apply-dns.yml');
     });
 
     it('does not nest consecutive [!IMPORTANT] alerts inside a single blockquote', () => {

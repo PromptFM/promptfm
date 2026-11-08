@@ -1,19 +1,20 @@
 # 📻 PromptFM — 24/7 AI Music Radio & Creator Community
 
-[![Production](https://img.shields.io/badge/Production-promptfm.live-10b981?style=for-the-badge&logo=vercel)](https://promptfm.live)
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/alextrifan/promptfm)
-[![System Status](https://img.shields.io/endpoint?url=https://promptfm.live/api/status?format=badge&style=for-the-badge)](https://promptfm.live/status)
-[![CI Quality & Security Gate](https://github.com/PromptFM/promptfm/actions/workflows/ci.yml/badge.svg?branch=main&style=for-the-badge)](https://github.com/PromptFM/promptfm/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/Tests-489%20Passing-brightgreen?style=for-the-badge&logo=vitest)](https://github.com/PromptFM/promptfm)
-[![Mutation Score](https://img.shields.io/badge/Stryker%20Mutation-Core%20Domain-blueviolet?style=for-the-badge)](https://github.com/PromptFM/promptfm)
-[![GCP Free Tier](https://img.shields.io/badge/GCP%20Always--Free-$0.00%2Fmo-4285F4?style=for-the-badge&logo=googlecloud)](https://console.cloud.google.com/?project=promptfm-radio-1793623670)
-[![LOGS](https://img.shields.io/badge/LOGS-Cloud%20Logging-E37400?style=for-the-badge&logo=googlecloud&logoColor=white)](https://console.cloud.google.com/logs/query?project=promptfm-radio-1793623670)
-[![LOGS_VERCEL](https://img.shields.io/badge/LOGS_VERCEL-Runtime%20Logs-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/alextrifan/promptfm/logs)
-[![FLAGS_VERCEL](https://img.shields.io/badge/FLAGS_VERCEL-Feature%20Flags-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/alextrifan/promptfm/flags)
-[![DASHBOARDS_GCP](https://img.shields.io/badge/DASHBOARDS_GCP-Cloud%20Monitoring-4285F4?style=for-the-badge&logo=googlecloud&logoColor=white)](https://console.cloud.google.com/monitoring/dashboards/builder/ce33f584-e48f-407a-b2e7-1d1fa9e990ff?project=promptfm-radio-1793623670)
-[![DASHBOARDS_VERCEL](https://img.shields.io/badge/DASHBOARDS_VERCEL-Vercel%20Analytics-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/alextrifan/promptfm/analytics)
-[![TRACES_GCP](https://img.shields.io/badge/TRACES_GCP-Cloud%20Trace-34A853?style=for-the-badge&logo=googlecloud&logoColor=white)](https://console.cloud.google.com/traces/overview?project=promptfm-radio-1793623670)
-[![License](https://img.shields.io/badge/License-Community%20Source--Available-purple?style=for-the-badge)](LICENSE)
+[![Production](./public/badges/production.svg)](https://promptfm.live)
+[![Deployed on Vercel](./public/badges/deployed-on-vercel.svg)](https://vercel.com/alextrifan/promptfm)
+[![System Status](./public/badges/status-operational.svg)](https://promptfm.live/status)
+[![CI Quality & Security Gate](https://github.com/PromptFM/promptfm/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/PromptFM/promptfm/actions/workflows/ci.yml)
+[![Tests](./public/badges/tests.svg)](https://github.com/PromptFM/promptfm)
+[![Mutation Score](./public/badges/mutation.svg)](https://github.com/PromptFM/promptfm)
+[![GCP Free Tier](./public/badges/gcp-always-free.svg)](https://console.cloud.google.com/?project=promptfm-radio-1793623670)
+[![LOGS](./public/badges/logs-cloud-logging.svg)](https://console.cloud.google.com/logs/query?project=promptfm-radio-1793623670)
+[![LOGS_VERCEL](./public/badges/logs-vercel.svg)](https://vercel.com/alextrifan/promptfm/logs)
+[![FLAGS_VERCEL](./public/badges/flags-vercel.svg)](https://vercel.com/alextrifan/promptfm/flags)
+[![DASHBOARDS_GCP](./public/badges/dashboards-gcp.svg)](https://console.cloud.google.com/monitoring/dashboards/builder/ce33f584-e48f-407a-b2e7-1d1fa9e990ff?project=promptfm-radio-1793623670)
+[![DASHBOARDS_VERCEL](./public/badges/dashboards-vercel.svg)](https://vercel.com/alextrifan/promptfm/analytics)
+[![SPEED_INSIGHTS_VERCEL](./public/badges/speed-insights-vercel.svg)](https://vercel.com/alextrifan/promptfm/speed-insights)
+[![TRACES_GCP](./public/badges/traces-gcp.svg)](https://console.cloud.google.com/traces/overview?project=promptfm-radio-1793623670)
+[![License](./public/badges/license.svg)](LICENSE)
 
 **PromptFM** is an autonomous 24/7 AI-generated music radio platform and community chart. Featuring **5 live theme stations** (including After Dark 18+ Explicit with statutory legal age verification), continuous uninterrupted **100% pure music rotation**, real-time listener voting, and direct MP3/M4A creator uploads with automatic ID3 metadata and album art extraction.
 
@@ -29,6 +30,7 @@ PromptFM is engineered to operate strictly within 100% zero-cost cloud tiers. Us
 | **GCP Cloud Logging** | [Cloud Logging Console](https://console.cloud.google.com/logs/query?project=promptfm-radio-1793623670) | Real-time VM streamer logs, Liquidsoap transitions, Icecast access/error logs, and structured JSON stdout | **$0.00** (50GB/mo Free) |
 | **GCP Cloud Trace** | [Cloud Trace Overview](https://console.cloud.google.com/traces/overview?project=promptfm-radio-1793623670) | Distributed W3C trace latency across API requests, TTS synthesis spans, and Supabase RPC calls | **$0.00** (Free Tier) |
 | **Vercel Web Analytics** | [Vercel Realtime Analytics](https://vercel.com/alextrifan/promptfm/analytics) | Live visitors online, real-time listener telemetry, page views, iOS Safari homescreen users, referral sources, Core Web Vitals | **$0.00** (Hobby Plan) |
+| **Vercel Speed Insights** | [Vercel Speed Insights](https://vercel.com/alextrifan/promptfm/speed-insights) | Real User Monitoring (RUM), Core Web Vitals (LCP, FID, CLS, INP, TTFB) by route and device score | **$0.00** (Included) |
 | **Vercel Runtime Logs** | [Vercel Function Logs](https://vercel.com/alextrifan/promptfm/logs) | Real-time edge and serverless execution logs, API route latencies, and streaming errors | **$0.00** (Included) |
 | **Vercel Feature Flags** | [Vercel Flags Console](https://vercel.com/alextrifan/promptfm/flags) | Real-time feature flags, emergency kill-switches, AI DJ monologue prompt experiments, and canary channel rollouts | **$0.00** (Included) |
 | **Google AI Studio** | [Gemini AI Studio Dashboard](https://aistudio.google.com) | Gemini API free key quota usage (15 RPM / 1,500 requests/day free allowance) under `Gemini Project` (`gen-lang-client-0217883943`) | **$0.00** |
@@ -393,7 +395,7 @@ PromptFM is an independent project. To maintain 100% legal compliance and operat
 ### Supported Donation Rails
 - **Stripe Checkout:** Direct card, Apple Pay, and Google Pay support via [Stripe Donation](https://donate.stripe.com/6oUaEYdUpa9zgEA2H3cQU00).
 - **PayPal.Me:** Direct 1-click tips via [paypal.me/promptfm](https://paypal.me/promptfm).
-- **GitHub Sponsors:** 0% platform fee developer patronage at [github.com/sponsors/PromptFM](https://github.com/sponsors/PromptFM).
+- **GitHub Sponsors:** 0% platform fee developer patronage at [github.com/sponsors/promptfm/signup](https://github.com/sponsors/promptfm/signup).
 - **Ko-fi:** 1-click tips via Apple Pay, Google Pay, and PayPal at [ko-fi.com/promptfm](https://ko-fi.com/promptfm).
 - **Bitcoin (BTC):** Direct on-chain contribution on Bitcoin Mainnet only to `bc1qaplta50757v7c4vrk7vnry0vfd6c47rpmyvnj9` ([View on Mempool](https://mempool.space/address/bc1qaplta50757v7c4vrk7vnry0vfd6c47rpmyvnj9)).
 - **Ethereum / USDC:** Direct ERC-20 & ETH contribution on Ethereum Mainnet only to `0x9581F969727Ff987958d050C80662578C50F6A9f` ([View on Etherscan](https://etherscan.io/address/0x9581F969727Ff987958d050C80662578C50F6A9f)).

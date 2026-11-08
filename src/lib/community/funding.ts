@@ -168,7 +168,7 @@ export function getDonationOptions(): DonationOption[] {
       id: 'github',
       name: 'GitHub Sponsors',
       description: 'Zero platform fees for open source development and hosting costs.',
-      url: 'https://github.com/sponsors/PromptFM',
+      url: 'https://github.com/sponsors/promptfm/signup',
       fee: '0% platform fee',
       supportsApplePay: false,
       recommendedAudience: 'developers',

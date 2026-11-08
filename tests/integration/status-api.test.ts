@@ -30,4 +30,33 @@ describe('GET /api/status API Integration', () => {
     expect(data.message).toBeTruthy();
     expect(data.color).toMatch(/brightgreen|yellow|red/);
   });
+
+  it('supports format=svg parameter returning direct image/svg+xml badge', async () => {
+    const req = new NextRequest('http://localhost:3000/api/status?format=svg');
+    const response = await GET(req);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('image/svg+xml');
+    expect(response.headers.get('cache-control')).toContain('public');
+    const body = await response.text();
+    expect(body).toContain('<svg xmlns="http://www.w3.org/2000/svg"');
+    expect(body).toContain('PROMPTFM STATUS');
+    expect(body).toMatch(/OPERATIONAL|DEGRADED|OUTAGE/);
+  });
+
+  it('returns outage SVG badge with HTTP 200 when checkSystemHealth throws in format=svg mode', async () => {
+    const healthChecker = await import('@/lib/status/health-checker');
+    const spy = vi.spyOn(healthChecker, 'checkSystemHealth').mockRejectedValueOnce(new Error('Database timeout'));
+
+    const req = new NextRequest('http://localhost:3000/api/status?format=svg');
+    const response = await GET(req);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('image/svg+xml');
+    const body = await response.text();
+    expect(body).toContain('OUTAGE');
+    expect(body).toContain('#e05d44');
+
+    spy.mockRestore();
+  });
 });

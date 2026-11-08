@@ -84,6 +84,11 @@ jobs:
       - name: Apply Terraform Infrastructure
         run: terraform -chdir=infra/terraform apply -auto-approve
 
+      - name: Apply Hostinger DNS Zone State ($0 Egress Enforcement)
+        run: npm run promptfm -- dns apply promptfm.live --state infra/dns/promptfm.live.state.json --force
+        env:
+          HOSTINGER_API_TOKEN: ${{ secrets.HOSTINGER_API_TOKEN }}
+
       - name: Tag and Record Infrastructure Release
         run: npm run promptfm -- tag infra
         env:

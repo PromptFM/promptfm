@@ -51,5 +51,45 @@ describe('Admin Quick Navigation Badges in README.md', () => {
     expect(content).toMatch(/Vercel.*Flags/i);
     expect(content).toMatch(/kill-switch|kill switch|feature flag/i);
   });
+
+  it('contains clickable badge for SPEED_INSIGHTS_VERCEL linking to Vercel Speed Insights', () => {
+    const content = fs.readFileSync(readmePath, 'utf8');
+    expect(content).toMatch(/\[!\[.*SPEED_INSIGHTS.*\]\(.*\)\]\((https:\/\/vercel\.com\/alextrifan\/promptfm\/speed-insights[^)]*)\)/i);
+  });
+
+  it('contains Vercel Speed Insights entry in Operational Dashboards table', () => {
+    const content = fs.readFileSync(readmePath, 'utf8');
+    expect(content).toContain('https://vercel.com/alextrifan/promptfm/speed-insights');
+    expect(content).toMatch(/Speed Insights/i);
+    expect(content).toMatch(/Core Web Vitals|RUM/i);
+  });
+
+  it('contains Vercel Speed Insights quick link in Admin page', () => {
+    const adminPagePath = path.resolve(__dirname, '../../src/app/admin/page.tsx');
+    const content = fs.readFileSync(adminPagePath, 'utf8');
+    expect(content).toContain('https://vercel.com/alextrifan/promptfm/speed-insights');
+    expect(content).toMatch(/Vercel Speed Insights/i);
+  });
+
+  it('verifies all local badge asset references in README.md exist on disk', () => {
+    const content = fs.readFileSync(readmePath, 'utf8');
+    const badgeRegex = /!\[([^\]]*)\]\((\.\/public\/badges\/[^)]+\.svg|public\/badges\/[^)]+\.svg)\)/g;
+    const matches = [...content.matchAll(badgeRegex)];
+
+    expect(matches.length).toBeGreaterThan(0);
+
+    for (const match of matches) {
+      const relPath = match[2];
+      if (!relPath) continue;
+      const normalizedPath = path.resolve(__dirname, '../../', relPath.replace(/^\.\//, ''));
+      expect(fs.existsSync(normalizedPath), `Local badge asset ${relPath} does not exist on disk`).toBe(true);
+    }
+  });
+
+  it('contains resilient Production and Status badges without fragile shields.io parameters', () => {
+    const content = fs.readFileSync(readmePath, 'utf8');
+    expect(content).toMatch(/\[!\[.*Production.*\]\(.*\)\]\(https:\/\/promptfm\.live\)/i);
+    expect(content).toMatch(/\[!\[.*Status.*\]\(.*\)\]\(https:\/\/promptfm\.live\/status\)/i);
+  });
 });
 

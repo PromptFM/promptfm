@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import Image from 'next/image';
 import Script from 'next/script';
 import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import './globals.css';
 import AudioPlayer from '@/components/AudioPlayer';
 import CookieConsentBanner from '@/components/CookieConsentBanner';
@@ -61,8 +62,9 @@ export default function RootLayout({
         {/* AdSense & GDPR / CCPA Cookie Consent Manager */}
         <CookieConsentBanner />
 
-        {/* Vercel 0-Cost Real-Time Web Analytics */}
+        {/* Vercel 0-Cost Real-Time Web Analytics & Speed Insights */}
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
