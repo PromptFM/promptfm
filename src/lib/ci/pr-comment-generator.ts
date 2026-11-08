@@ -125,7 +125,7 @@ Please review the failing checks in GitHub Actions.`;
     `**Preview Deployment Instruction:**`,
     `make an admin run the Make preview link workflow on the following sha: \`${cleanSha}\``,
     ``,
-    `*💡 Core team members can also trigger a preview deployment directly by commenting \`/pr-link\` on this PR.*`,
+    `*💡 Core team members can also trigger a preview deployment directly by commenting \`/pr-link\` or re-trigger CI checks with \`/retest\` on this PR.*`,
   ];
 
   if (hasUi) {

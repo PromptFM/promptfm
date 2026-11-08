@@ -1,0 +1,96 @@
+name: 🔁 Re-run CI Checks
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  actions: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  retest:
+    name: retest
+    if: |
+      github.event.issue.pull_request != null &&
+      (startsWith(github.event.comment.body, '/retest') ||
+       startsWith(github.event.comment.body, '/test') ||
+       startsWith(github.event.comment.body, '/ci'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger CI Workflow Re-run
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          script: |
+            const comment = context.payload.comment;
+            const issue = context.payload.issue;
+            const authorAssoc = (comment.author_association || '').toUpperCase();
+            const username = comment.user.login;
+
+            const isAuthorized =
+              ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(authorAssoc) ||
+              username.toLowerCase() === 'atrifan';
+
+            if (!isAuthorized) {
+              console.log(`Unauthorized /retest attempted by @${username}`);
+              await github.rest.reactions.createForIssueComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: comment.id,
+                content: '-1',
+              });
+              return;
+            }
+
+            // Acknowledge with rocket emoji
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: comment.id,
+              content: 'rocket',
+            });
+
+            // Get PR head SHA
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: issue.number,
+            });
+
+            const headSha = pr.head.sha;
+            console.log(`Looking for workflow runs on PR #${issue.number} at SHA ${headSha}`);
+
+            const { data: runs } = await github.rest.actions.listWorkflowRunsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head_sha: headSha,
+            });
+
+            const ciRun = runs.workflow_runs.find(r =>
+              (r.name && r.name.toLowerCase().includes('ci')) ||
+              (r.path && r.path.includes('ci.yml'))
+            );
+
+            if (ciRun) {
+              console.log(`Re-running workflow run ID ${ciRun.id} (${ciRun.name})...`);
+              try {
+                await github.rest.actions.reRunWorkflow({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  run_id: ciRun.id,
+                });
+                console.log(`Successfully re-triggered workflow run ${ciRun.id}`);
+              } catch (err) {
+                console.log(`reRunWorkflow full failed (${err.message}), falling back to reRunWorkflowFailedJobs...`);
+                await github.rest.actions.reRunWorkflowFailedJobs({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  run_id: ciRun.id,
+                });
+                console.log(`Successfully re-triggered failed jobs for run ${ciRun.id}`);
+              }
+            } else {
+              console.log(`No existing CI workflow run found for SHA ${headSha}.`);
+            }

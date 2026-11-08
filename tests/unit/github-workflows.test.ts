@@ -46,6 +46,17 @@ describe('GitHub Actions Workflows Suite', () => {
     });
   });
 
+  describe('Re-test CI Workflow (retest.yml)', () => {
+    it('exists, listens for /retest comments from maintainers, and triggers re-run of CI workflow', () => {
+      const content = readWorkflow('retest.yml');
+      expect(content).toContain('name: 🔁 Re-run CI Checks');
+      expect(content).toContain('issue_comment:');
+      expect(content).toContain('/retest');
+      expect(content).toContain('reRunWorkflow');
+      expect(content).toContain('atrifan');
+    });
+  });
+
   describe('Update Secrets Workflow (update-secrets.yml)', () => {
     it('exists, requires secret_key/secret_value and references SecretShare guide', () => {
       const content = readWorkflow('update-secrets.yml');
