@@ -48,4 +48,17 @@ describe('GitHub Branch Protection, CODEOWNERS & Production Gate Rulesets', () =
     expect(content).toContain('context = "secret-leak-detection"');
     expect(content).toContain('context = "codeql-security-scan"');
   });
+
+  it('validates .github/RULESET.md documents ruleset ID, direct push prohibition, bypass modes, and CODEOWNERS integration', () => {
+    const rulesetMdPath = path.join(rootDir, '.github/RULESET.md');
+    expect(fs.existsSync(rulesetMdPath)).toBe(true);
+    const content = fs.readFileSync(rulesetMdPath, 'utf8');
+
+    expect(content).toContain('Main Branch Production Gate');
+    expect(content).toContain('26815412');
+    expect(content).toContain('pull_request');
+    expect(content).toContain('@PromptFM/core');
+    expect(content).toContain('non_fast_forward');
+  });
 });
+
