@@ -515,7 +515,7 @@ npm run promptfm -- stream stop tiktok
 
 ## 7. $0 Infrastructure Budget Policy & Free-Tier Guardrails (Vercel & CI)
 
-PromptFM is architected to operate **permanently within the $0/month free-tier budget** across all cloud providers (GCP Always Free `e2-micro`, Vercel Hobby, Cloudflare R2, and Supabase Free Tier). To prevent sudden cost spikes or exceeding Vercel's included **4 hours/month of Fluid Active CPU**, strict operational guardrails are enforced across deployment previews and CI pipelines.
+PromptFM is architected to operate **permanently within the $0/month free-tier budget** across all cloud providers (GCP Always Free `e2-micro`, Oracle Cloud Always Free, Vercel Hobby, Cloudflare R2, and Supabase Free Tier). To prevent sudden cost spikes or exceeding Vercel's included **4 hours/month of Fluid Active CPU**, strict operational guardrails are enforced across deployment previews and CI pipelines.
 
 ### A. Core Budget Metrics & Limits
 
@@ -525,6 +525,10 @@ PromptFM is architected to operate **permanently within the $0/month free-tier b
 | **Vercel Previews** | Unlimited builds | Gated & Protected | Cancel on bot/doc PRs, require maintainer authorization for forked PRs |
 | **GitHub Actions CI** | 2,000 mins / month | Concurrency cancel | Concurrency group per PR, path scope detection, Playwright browser caching |
 | **GCP Compute VM** | 1 `e2-micro` (Always Free) | 1 VM in `us-central1` | Terraform IaC state locking, 128 kbps audio stream |
+| **GCP Outbound Traffic** | 1 GB / month | One 128 kbps listener is about 41 GB / month | Over the free tier, which is why the stream is moving to Oracle |
+| **Oracle Compute VM** | Ampere A1: 1,500 OCPU-hours + 9,000 GB-hours / month (2 OCPU / 12 GB) | 1 VM in `us-ashburn-1` | Terraform validations lock shape and size; idle instances can be reclaimed by Oracle |
+| **Oracle Outbound Traffic** | 10 TB / month | 300 GB/day email alarm | OCI Monitoring alarm (`infra/terraform-oci`) |
+| **Oracle Quota Policy** | Always Free allowance only | Tenancy-wide | Quota policy blocks every other resource; $1 budget email |
 | **Cloudflare R2 Egress** | Unlimited free egress | Free tier bandwidth | Public audio distribution via custom domain |
 
 ### B. Vercel Preview Deployment Protection & Gating
@@ -735,6 +739,7 @@ PromptFM leverages automated GitHub Actions workflows to govern releases, Vercel
 | :--- | :--- | :--- | :--- |
 | **🚀 Release PromptFM** | `.github/workflows/release.yml` | `workflow_dispatch` or push tag `promptfm/*` / `v*.*.*` | Verifies quality gate, tags and cuts release, deploys to Vercel Production, stamps single Active GitHub Deployment with release tag, and creates GitHub Release. |
 | **🏗️ Apply Terraform Changes** | `.github/workflows/apply-terraform.yml` | `workflow_dispatch` or push tag `promptfm-infra/*` | Runs `npm run prepare-infra`, initializes free GCS state backend, applies Terraform, conditionally runs Ansible via zero-cost IAP tunneling ($0.00), and synchronizes Hostinger DNS. |
+| **🏗️ Apply Terraform (Oracle streamer)** | `.github/workflows/apply-terraform-oci.yml` | `workflow_dispatch` (`apply`) | Plans the Oracle Always Free streamer in `infra/terraform-oci` (state prefix `terraform/oci-state`); only applies when `apply` is ticked. Credentials come from `promptfm-oci-credentials`. |
 | **🔍 Create Preview Link in Vercel** | `.github/workflows/create-preview-link.yml` | `workflow_dispatch` (`commit_sha`) | On-demand Vercel preview deployment for a specific commit SHA without auto-triggering on PR approval. |
 | **🔐 Update Secrets in Vercel** | `.github/workflows/update-secrets.yml` | `workflow_dispatch` (`secret_key`, `secret_value`, `environments`) | Securely writes environment variables to Vercel with SecretShare runbook integration. |
 | **⏪ Rollback PromptFM** | `.github/workflows/rollback.yml` | `workflow_dispatch` (`rollback_ref`) | Rolls back production to a specified commit SHA or Tag, generating `promptfm/rollback-<sha>` or `promptfm/rollback-<version>`. |
@@ -968,7 +973,7 @@ PromptFM maintains a strict multi-cloud separation of concerns to achieve zero s
 
 | Tier / Location | What Lives Here | Storage / Authority | Cost Model |
 |---|---|---|---|
-| **Google Cloud Secret Manager** | Database credentials (`promptfm-database-url`), Supabase service role key (`promptfm-supabase-service-role-key`), Hostinger DNS token (`promptfm-hostinger-api-token`), OAuth secrets | Primary Vault for Backend & Infra | **$0.00 Always-Free** (up to 6 active secret versions, 10k requests/mo) |
+| **Google Cloud Secret Manager** | Database credentials (`promptfm-database-url`), Supabase service role key (`promptfm-supabase-service-role-key`), Hostinger DNS token (`promptfm-hostinger-api-token`), Oracle Cloud API credentials as one JSON secret (`promptfm-oci-credentials`), OAuth secrets | Primary Vault for Backend & Infra | **$0.00 Always-Free** (up to 6 active secret versions, 10k requests/mo) |
 | **Vercel Environment** | UI feature flags (`FLAGS_SECRET`), public analytics IDs, client endpoints (`NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_STREAM_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) | Client UI & Frontend Runtime | **$0.00 Hobby Plan** (no backend/infra secrets permitted) |
 | **GitHub Actions Secrets** | Deployment roots only: `GCP_SA_KEY`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `GITHUB_TOKEN` | CI/CD Runner Orchestration | **$0.00 Free Actions Runners** |
 | **Local Machine** | **0 secrets stored on disk**. Ambient Application Default Credentials (ADC) via `gcloud` | Developer Sandbox | **$0.00** |
@@ -1046,36 +1051,44 @@ All PromptFM secrets in project `promptfm-radio-1793623670` fit strictly within 
 | `promptfm-database-url` | Supabase / PostgreSQL direct pooled connection | Automatic | 1 | Included in 6 max |
 | `promptfm-supabase-service-role-key` | Backend Supabase admin / schema migrations | Automatic | 1 | Included in 6 max |
 | `promptfm-hostinger-api-token` | DNS record sync for `promptfm.live` | Automatic | 1 | Included in 6 max |
+| `promptfm-oci-credentials` | Oracle Cloud API credentials for `infra/terraform-oci` (one JSON secret: `user_ocid`, `tenancy_ocid`, `fingerprint`, `region`, `private_key`) | Automatic | 1 | Included in 6 max |
 | `promptfm-google-oauth-client-id` | Google OAuth Web Client ID | Automatic | 0-1 | Included in 6 max |
 | `promptfm-google-oauth-client-secret` | Google OAuth Client Secret | Automatic | 0-1 | Included in 6 max |
-| **Total Project Usage** | | | **3-5 / 6 active versions** | **✅ 100% $0.00** |
+| **Total Project Usage** | | | **4-6 / 6 active versions** | **✅ 100% $0.00** |
 
 ---
 
 ### E. Provider-by-Provider Multi-Cloud $0.00 Best Practices
 
-To maintain a permanent $0.00 cloud invoice across all four providers:
+To maintain a permanent $0.00 cloud invoice across all five providers:
 
 #### 1. Google Cloud Platform (GCP)
 - **Compute**: Keep VM instance strictly on `e2-micro` (1 shared core, 1 GB memory) in `us-central1`.
 - **Boot Disk**: Use 30 GB standard persistent disk (`pd-standard`). Never select `pd-ssd` or `pd-balanced`.
 - **Cloud Storage (GCS)**: Terraform state bucket `promptfm-tfstate-promptfm-radio-1793623670` in `us-central1` standard storage (Always-Free includes up to 5 GB storage and 5,000 Class A operations).
-- **Network Egress**: Always-Free includes 1 GB egress/month to internet. Audio streaming is proxied via Cloudflare Tunnel, which routes outbound traffic over Google's internal Cloudflare peering at 0 cost.
+- **Network Egress**: Always-Free includes 1 GB egress/month to internet. One 128 kbps listener is about 41 GB/month, so GCP cannot carry the stream for free. A Cloudflare Tunnel does not help: the audio still leaves the VM and is billed as outbound traffic. The stream is moving to Oracle (see below).
 - **Cloud Logging**: Free allocation includes 50 GB ingestion/month.
 
-#### 2. Vercel
+#### 2. Oracle Cloud (Always Free)
+- **Compute**: Ampere A1 only (`VM.Standard.A1.Flex`), at most 2 OCPU / 12 GB (1,500 OCPU-hours + 9,000 GB-hours a month). Terraform validations and the tenancy quota policy enforce this.
+- **Outbound traffic**: 10 TB/month free. The alarm emails at 300 GB/day.
+- **Budget**: $1 budget sends an email on any cost. Confirm the Notifications email subscription once.
+- **Reclaim**: Oracle can reclaim idle Always Free instances. Watch CPU and network in Metrics Explorer.
+- **Docs and links**: [Oracle Always Free streamer](oracle-always-free-streamer.md).
+
+#### 3. Vercel
 - **Hobby Tier**: $0.00/month.
 - **Compute Guard**: Production deploys trigger only on release tags (`promptfm/*`); preview builds trigger on-demand via `/pr-link` or maintainer dispatch.
 - **Serverless & Edge**: Stay within 100 GB-hours edge/serverless compute execution.
 - **Secrets & Flags**: Store UI flags (`FLAGS_SECRET`, `NEXT_PUBLIC_*`) only. Never store backend infrastructure secrets in Vercel.
 
-#### 3. Supabase
+#### 4. Supabase
 - **Free Plan**: Up to 2 active database projects at $0.00/month.
 - **Database Storage**: Keep database size &le; 500 MB.
 - **Connection Pooling**: Always connect via the Supabase pooler (`aws-0-*.pooler.supabase.com:6543`) with `sslmode=require` to prevent database connection exhaustion.
 - **Egress**: Stay &le; 5 GB monthly egress.
 
-#### 4. Hostinger
+#### 5. Hostinger
 - **DNS Management**: DNS records for `promptfm.live` are automated via Hostinger DNS API with zero added API charges.
 
 ---

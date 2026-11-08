@@ -2,6 +2,8 @@
 
 This document specifies the exact architecture, cost-safeguard boundaries, and step-by-step setup to host the PromptFM 24/7 continuous audio stream server on Google Cloud Platform with **zero ongoing cost**.
 
+> **The stream is moving to Oracle Cloud.** GCP only includes 1 GB/month of outbound traffic, and one 128 kbps listener is about 41 GB/month. Oracle's Always Free tier includes about 10 TB/month. See [Oracle Always Free streamer](oracle-always-free-streamer.md). This document describes the current GCP host until the cutover is done.
+
 ---
 
 ## 1. The Google Cloud "Always Free" Limits
@@ -15,54 +17,33 @@ Google Cloud provides an Always Free tier for Compute Engine that never expires.
 | **Region** | `us-central1` (Iowa), `us-east1` (SC), or `us-west1` (Oregon) | `us-central1-a` | ✅ |
 | **Disk Type** | Standard Persistent Disk (`pd-standard`) | `pd-standard` | ✅ |
 | **Disk Size** | Up to 30 GB total across project | 30 GB boot disk | ✅ |
-| **External IPv4** | Ephemeral IPv4 only (Static reserved IPv4 costs ~$3/mo) | Ephemeral / Cloudflare Tunnel | ✅ |
-| **Network Egress** | 1 GB/month free to internet (Overages: ~$0.085/GB) | **0 GB direct egress** (Cloudflare Tunnel) | ✅ |
+| **External IPv4** | Ephemeral IPv4 only (Static reserved IPv4 costs ~$3/mo) | Ephemeral | ✅ |
+| **Network Egress** | 1 GB/month free to internet (Overages: ~$0.085/GB) | Every listener byte counts; one listener is ~41 GB/month | ❌ (over 1 GB) |
 
 ---
 
-## 2. The Zero-Egress Bandwidth Architecture
+## 2. Egress on GCP
 
 A 24/7 audio broadcast at 128 kbps produces:
 $$\text{Bandwidth per listener} = 128\text{ kbps} = 16\text{ KB/sec} \approx 41.5\text{ GB / month}$$
 
-If listeners connect directly to the GCP VM IP, 10 listeners would consume ~415 GB/month and trigger GCP bandwidth charges.
+GCP includes 1 GB/month of outbound traffic to the internet. One continuous listener is already about 41 GB/month, and 10 listeners are about 415 GB/month (overage about $0.085/GB).
 
-### Solution: Free Cloudflare Tunnel (`cloudflared`)
+### A Cloudflare Tunnel does not remove this
 ```
-┌────────────────────────────────────────────────────────┐
-│                   GCP e2-micro VM                      │
-│             (us-central1 — 100% Always Free)           │
-│                                                        │
-│  ┌────────────────────────┐   Feeds    ┌────────────┐  │
-│  │   Liquidsoap Engine    │ ─────────► │  Icecast2  │  │
-│  │ (Dynamic crossfader    │  128 kbps  │ (/stream)  │  │
-│  │  & PromptFM API client)│   stream   └──────┬─────┘  │
-│  └───────────▲────────────┘                   │        │
-│              │ Queries API                    │ Local  │
-│              │ & fetches MP3s                 │ port   │
-│              │                                ▼ 8000   │
-│  ┌───────────┴────────────┐            ┌────────────┐  │
-│  │ PromptFM Next.js & R2  │            │ cloudflared│  │
-│  │ (/api/radio/next)      │            │  (Tunnel)  │  │
-│  └────────────────────────┘            └──────┬─────┘  │
-└───────────────────────────────────────────────┼────────┘
-                                                │ Free Tunnel
-                                                ▼
-                                   ┌────────────────────────┐
-                                   │  Cloudflare Edge CDN   │
-                                   │ (stream.promptfm.com)  │
-                                   │  $0 Egress to World    │
-                                   └────────────┬───────────┘
-                                                │
-                                                ▼
-                                    Listeners & Web Player
+Listeners ──► Cloudflare Edge ──► cloudflared (on the VM) ──► Icecast
+                    ▲                      │
+                    └──────────────────────┘
+          the audio still leaves the VM through GCP's network
 ```
 
 1. The Icecast server binds only to `localhost:8000`.
-2. A lightweight `cloudflared` Docker container initiates an outbound tunnel to Cloudflare Edge.
-3. Listeners stream through `https://stream.promptfm.com`.
-4. Cloudflare provides **unlimited free egress bandwidth** and automatic SSL certificates.
-5. GCP egress from the VM to Cloudflare is virtually zero, keeping monthly costs at **$0.00**.
+2. A `cloudflared` container opens an outbound tunnel to Cloudflare, and Cloudflare forwards each listener's request through it.
+3. Every byte a listener receives is sent by Icecast, through the tunnel, out of the VM. GCP bills it as outbound traffic.
+4. Cloudflare can cache static files, but a live stream is not cacheable, so the tunnel does not reduce the bytes the VM sends.
+5. Cloudflare adds TLS and DDoS protection. It does not make GCP egress free.
+
+This is why the stream is moving to Oracle Cloud, where the free outbound allowance covers it. See [Oracle Always Free streamer](oracle-always-free-streamer.md).
 
 ---
 

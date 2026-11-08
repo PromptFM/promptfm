@@ -1,6 +1,6 @@
 // tests/unit/zero-egress-stream.test.ts
-// Verifies Issue #127: Keep stream.promptfm.live off direct GCP VM egress.
-// Ensures DNS resolves stream to edge CNAME, and GCP firewall blocks direct 0.0.0.0/0 port 80/443 ingress.
+// Verifies Issue #127: the GCP host's tunnel setup (stream CNAME to a Cloudflare Tunnel, no public 80/443 on GCP).
+// This is the GCP-host rule. A tunnel does not reduce VM egress; the stream is moving to Oracle (docs/oracle-always-free-streamer.md).
 
 import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';

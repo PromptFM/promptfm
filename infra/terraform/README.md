@@ -54,7 +54,7 @@ terraform output
 
 ### Outputs:
 * `external_ip`: Public IP of the stream server VM.
-* `stream_url`: `https://stream.<domain>/stream.mp3` (Zero-egress edge audio stream).
+* `stream_url`: `https://stream.<domain>/stream.mp3` (audio stream; the Oracle host in `infra/terraform-oci` replaces the GCP one, since GCP only includes 1 GB/month of outbound traffic).
 * `internal_icecast_url`: `http://127.0.0.1:8000/stream.mp3` (Internal localhost mount).
 * `primary_domain`: Active managed domain name (e.g. `promptfm.live`).
 * `dns_state_tracked`: Boolean indicator if declarative DNS state is present in `infra/dns/`.

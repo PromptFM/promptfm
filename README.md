@@ -35,7 +35,10 @@ PromptFM is engineered to operate strictly within 100% zero-cost cloud tiers. Us
 | **Vercel Feature Flags** | [Vercel Flags Console](https://vercel.com/alextrifan/promptfm/flags) | Real-time feature flags, emergency kill-switches, AI DJ monologue prompt experiments, and canary channel rollouts | **$0.00** (Included) |
 | **Google AI Studio** | [Gemini AI Studio Dashboard](https://aistudio.google.com) | Gemini API free key quota usage (15 RPM / 1,500 requests/day free allowance) under `Gemini Project` (`gen-lang-client-0217883943`) | **$0.00** |
 | **Station Manager Studio** | [promptfm.live/admin](https://promptfm.live/admin) | On-air queue curation, community submission moderation, Discord/Telegram batch requests, manual DJ voice drops, channel management | **$0.00** |
-| **Icecast 2 Stream Admin** | [stream.promptfm.live:8000/admin](http://stream.promptfm.live:8000/admin/) | Direct Icecast mount points (`/stream.mp3`, `/cyberpunk.mp3`, `/chillout.mp3`, `/kids.mp3`, `/afterdark.mp3`), connected socket listeners, bitrate telemetry | **$0.00** (GCP VM) |
+| **Icecast 2 Stream Admin** | [stream.promptfm.live:8000/admin](http://stream.promptfm.live:8000/admin/) | Direct Icecast mount points (`/stream.mp3`, `/cyberpunk.mp3`, `/chillout.mp3`, `/kids.mp3`, `/afterdark.mp3`), connected socket listeners, bitrate telemetry (served by the current GCP VM; moves with the stream to the Oracle VM at cutover) | **$0.00** (GCP VM) |
+| **Oracle Cloud Instances** | [Compute instances](https://cloud.oracle.com/compute/instances?region=us-ashburn-1) | New Always Free streamer VM (Ampere A1): state, shape, public IP | **$0.00 (Always Free)** |
+| **Oracle Metrics Explorer** | [Metrics Explorer](https://cloud.oracle.com/monitoring/metrics-explorer?region=us-ashburn-1) | Streamer CPU and memory (`oci_computeagent`) and outbound bytes (`oci_vcn` `VnicToNetworkBytes`) | **$0.00 (Always Free)** |
+| **Oracle Cost Analysis** | [Cost Analysis](https://cloud.oracle.com/account-management/cost-analysis) | Confirms the Oracle bill stays at $0 | **$0.00 (Always Free)** |
 
 ### 🚩 Vercel Feature Flags & Real-Time Kill-Switches
 Station administrators can manage production feature flags, rollout canary channels, toggle experimental Gemini AI DJ prompts, or trigger emergency kill-switches instantly without deploying code or redeploying edge containers:
@@ -48,7 +51,7 @@ Station administrators can manage production feature flags, rollout canary chann
 
 ## 🏗️ Architecture & Cloud Infrastructure
 
-PromptFM combines a **Next.js 14 App Router** frontend/API with an autonomous **Always-Free GCP Streamer VM** and Supabase PostgreSQL backend:
+PromptFM combines a **Next.js 14 App Router** frontend/API with an autonomous Always-Free Streamer VM and Supabase PostgreSQL backend. The stream is moving from GCP (1 GB/month free outbound, too little for audio) to Oracle Cloud Always Free (about 10 TB/month outbound free); GCP stays the live host until the cutover is done ([details](docs/oracle-always-free-streamer.md)):
 
 ```
                                 [Listener Web / iPhone PWA]
@@ -58,7 +61,7 @@ PromptFM combines a **Next.js 14 App Router** frontend/API with an autonomous **
                        ▼ HTTPS (Port 443)                          ▼ HTTPS
           ┌───────────────────────────┐               ┌───────────────────────────┐
           │   stream.promptfm.live    │               │       promptfm.live       │
-          │ (GCP Compute Engine Free) │               │   (Vercel Edge Network)   │
+          │ (GCP now ➔ Oracle Free)   │               │   (Vercel Edge Network)   │
           └─────────────┬─────────────┘               └─────────────┬─────────────┘
                         │                                           │
          ┌──────────────┴──────────────┐             ┌──────────────┴──────────────┐
@@ -86,7 +89,13 @@ The complete streaming server infrastructure and Google Cloud Monitoring dashboa
 - **Firewall Rules:** Ingress ports `80` (HTTP-01 challenge), `443` (Caddy TLS stream), and `8000` (Icecast).
 - **Telemetry Dashboard:** Provisions `google_monitoring_dashboard.telemetry_dashboard` from [`config/gcp-dashboard.json`](config/gcp-dashboard.json).
 
-### 2. Ansible (`infra/ansible/`)
+### 2. Oracle Cloud (`infra/terraform-oci/`)
+- **Always Free Ampere A1 VM** (Ubuntu 24.04 Arm, 2 OCPU / 12 GB) in `us-ashburn-1`, reserved public IP, ports `22`/`80`/`443` only.
+- **$0 guards:** Terraform validations, a tenancy quota policy that blocks everything except Always Free, a $1 budget email, and an alarm at 300 GB/day outbound.
+- **Credentials and state:** secret `promptfm-oci-credentials` in GCP Secret Manager; state in the same GCS bucket under `terraform/oci-state`.
+- **Apply:** the **Apply Terraform (Oracle streamer)** workflow (plan-only unless `apply` is ticked), or `infra/terraform-oci/retry-apply.sh` when Oracle reports `Out of host capacity`. See [docs/oracle-always-free-streamer.md](docs/oracle-always-free-streamer.md).
+
+### 3. Ansible (`infra/ansible/`)
 - Installs Docker, Docker Compose, and Caddy reverse proxy.
 - Deploys multi-channel Icecast 2 configuration and Liquidsoap radio crossfader script.
 - Verifies stream health and outputs all operational dashboard URLs.
