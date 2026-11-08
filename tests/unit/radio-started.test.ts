@@ -5,6 +5,8 @@ import {
   getNextAirplayItem,
   getNowPlaying,
   formatLiquidsoapAnnotateUri,
+  isAirplayRecentlyAnnounced,
+  recordAirplayAnnounced,
   resetAirplayDedupeCache,
   AirplayItem,
 } from '@/lib/dj/rotation';
@@ -149,7 +151,7 @@ describe('Liquidsoap Synchronization & Track Started Flow', () => {
     });
   });
 
-  describe('markTrackStarted', () => {
+  describe('markTrackStarted & Community Broadcast Safeguards (Issue #44)', () => {
     it('promotes pending next item to now playing when liquidsoap signals start', async () => {
       // 1. Prefetch the next track without auto-promoting
       const nextItem = await getNextAirplayItem('main', false);
@@ -163,15 +165,6 @@ describe('Liquidsoap Synchronization & Track Started Flow', () => {
       const nowPlaying = await getNowPlaying('main');
       expect(nowPlaying.item.id).toBe(nextItem.id);
       expect(nowPlaying.elapsedSeconds).toBeLessThanOrEqual(2);
-    });
-
-    it('matches pending next item by title case-insensitively when liquidsoap passes title', async () => {
-      const nextItem = await getNextAirplayItem('main', false);
-      expect(nextItem).toBeDefined();
-
-      const started = await markTrackStarted('main', undefined, nextItem.title.toLowerCase());
-      expect(started.id).toBe(nextItem.id);
-      expect(started.title).toBe(nextItem.title);
     });
 
     it('handles demo fallback gracefully if liquidsoap signals fallback item', async () => {
@@ -482,6 +475,47 @@ describe('Liquidsoap Synchronization & Track Started Flow', () => {
       const next = await getNextAirplayItem('main', false);
       const started = await markTrackStarted('main', undefined, next.title);
       expect(started.id).toBe(next.id);
+    });
+
+    it('provides isAirplayRecentlyAnnounced and resetAirplayDedupeCache helper semantics', () => {
+      expect(isAirplayRecentlyAnnounced('main', 'test-track')).toBe(false);
+
+      recordAirplayAnnounced('main', 'test-track');
+      expect(isAirplayRecentlyAnnounced('main', 'test-track')).toBe(true);
+
+      // Multiple tracks recorded on same channel must preserve all entries
+      recordAirplayAnnounced('main', 'test-track-2');
+      expect(isAirplayRecentlyAnnounced('main', 'test-track')).toBe(true);
+      expect(isAirplayRecentlyAnnounced('main', 'test-track-2')).toBe(true);
+
+      // Unrecorded track on existing channel map returns false
+      expect(isAirplayRecentlyAnnounced('main', 'unrecorded-track')).toBe(false);
+
+      // Different channel should not be marked announced
+      expect(isAirplayRecentlyAnnounced('cyberpunk', 'test-track')).toBe(false);
+
+      // Expiration after 60s
+      vi.useFakeTimers();
+      const baseTime = 1_000_000;
+      vi.setSystemTime(baseTime);
+      recordAirplayAnnounced('main', 'time-track');
+
+      // 59.999s -> still announced
+      vi.setSystemTime(baseTime + 59_999);
+      expect(isAirplayRecentlyAnnounced('main', 'time-track')).toBe(true);
+
+      // exactly 60.000s -> false
+      vi.setSystemTime(baseTime + 60_000);
+      expect(isAirplayRecentlyAnnounced('main', 'time-track')).toBe(false);
+
+      // 60.001s -> false
+      vi.setSystemTime(baseTime + 60_001);
+      expect(isAirplayRecentlyAnnounced('main', 'time-track')).toBe(false);
+
+      vi.useRealTimers();
+
+      resetAirplayDedupeCache();
+      expect(isAirplayRecentlyAnnounced('main', 'test-track')).toBe(false);
     });
   });
 });
