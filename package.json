@@ -27,6 +27,8 @@
     "test:related": "vitest related",
     "test:mutate": "stryker run",
     "test:mutate:affected": "jiti scripts/mutate-affected.ts",
+    "test:speed": "jiti scripts/profile-speed.ts --strict",
+    "profile:speed": "jiti scripts/profile-speed.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },
@@ -36,6 +38,7 @@
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.118.0",
     "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.1.0",
     "flags": "^4.4.0",
     "lucide-react": "^1.66.0",
     "music-metadata": "^12.3.4",

@@ -132,6 +132,9 @@ jobs:
         if: needs.detect-changes.outputs.has_infra == 'true' || github.event_name == 'push'
         run: npm run promptfm -- dns status promptfm.live --strict
 
+      - name: Run Speed Insights & CI Performance Profiling
+        run: npm run test:speed
+
   unit-and-integration-tests:
     name: unit-and-integration-tests
     runs-on: ubuntu-latest

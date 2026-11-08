@@ -12,6 +12,7 @@
 [![FLAGS_VERCEL](https://img.shields.io/badge/FLAGS_VERCEL-Feature%20Flags-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/alextrifan/promptfm/flags)
 [![DASHBOARDS_GCP](https://img.shields.io/badge/DASHBOARDS_GCP-Cloud%20Monitoring-4285F4?style=for-the-badge&logo=googlecloud&logoColor=white)](https://console.cloud.google.com/monitoring/dashboards/builder/ce33f584-e48f-407a-b2e7-1d1fa9e990ff?project=promptfm-radio-1793623670)
 [![DASHBOARDS_VERCEL](https://img.shields.io/badge/DASHBOARDS_VERCEL-Vercel%20Analytics-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/alextrifan/promptfm/analytics)
+[![SPEED_INSIGHTS_VERCEL](https://img.shields.io/badge/SPEED_INSIGHTS-Vercel%20Speed-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/alextrifan/promptfm/speed-insights)
 [![TRACES_GCP](https://img.shields.io/badge/TRACES_GCP-Cloud%20Trace-34A853?style=for-the-badge&logo=googlecloud&logoColor=white)](https://console.cloud.google.com/traces/overview?project=promptfm-radio-1793623670)
 [![License](https://img.shields.io/badge/License-Community%20Source--Available-purple?style=for-the-badge)](LICENSE)
 
@@ -29,6 +30,7 @@ PromptFM is engineered to operate strictly within 100% zero-cost cloud tiers. Us
 | **GCP Cloud Logging** | [Cloud Logging Console](https://console.cloud.google.com/logs/query?project=promptfm-radio-1793623670) | Real-time VM streamer logs, Liquidsoap transitions, Icecast access/error logs, and structured JSON stdout | **$0.00** (50GB/mo Free) |
 | **GCP Cloud Trace** | [Cloud Trace Overview](https://console.cloud.google.com/traces/overview?project=promptfm-radio-1793623670) | Distributed W3C trace latency across API requests, TTS synthesis spans, and Supabase RPC calls | **$0.00** (Free Tier) |
 | **Vercel Web Analytics** | [Vercel Realtime Analytics](https://vercel.com/alextrifan/promptfm/analytics) | Live visitors online, real-time listener telemetry, page views, iOS Safari homescreen users, referral sources, Core Web Vitals | **$0.00** (Hobby Plan) |
+| **Vercel Speed Insights** | [Vercel Speed Insights](https://vercel.com/alextrifan/promptfm/speed-insights) | Real User Monitoring (RUM), Core Web Vitals (LCP, FID, CLS, INP, TTFB) by route and device score | **$0.00** (Included) |
 | **Vercel Runtime Logs** | [Vercel Function Logs](https://vercel.com/alextrifan/promptfm/logs) | Real-time edge and serverless execution logs, API route latencies, and streaming errors | **$0.00** (Included) |
 | **Vercel Feature Flags** | [Vercel Flags Console](https://vercel.com/alextrifan/promptfm/flags) | Real-time feature flags, emergency kill-switches, AI DJ monologue prompt experiments, and canary channel rollouts | **$0.00** (Included) |
 | **Google AI Studio** | [Gemini AI Studio Dashboard](https://aistudio.google.com) | Gemini API free key quota usage (15 RPM / 1,500 requests/day free allowance) under `Gemini Project` (`gen-lang-client-0217883943`) | **$0.00** |

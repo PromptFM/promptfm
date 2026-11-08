@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "maxRegressionTolerancePercent": 15,
+  "updatedAt": "2026-11-08T22:00:00.000Z",
+  "metrics": {
+    "first_load_js_kb": {
+      "baseline": 118.4,
+      "budget": 160.0,
+      "unit": "kB",
+      "description": "Shared JS bundle loaded across all Next.js routes"
+    },
+    "station_rotation_ms": {
+      "baseline": 4.8,
+      "budget": 12.0,
+      "unit": "ms",
+      "description": "Main stage rotation and anti-repeat queue calculation latency"
+    },
+    "api_radio_now_ms": {
+      "baseline": 8.5,
+      "budget": 25.0,
+      "unit": "ms",
+      "description": "Live station now-playing status serialization latency"
+    },
+    "audio_metadata_overhead_ms": {
+      "baseline": 14.2,
+      "budget": 35.0,
+      "unit": "ms",
+      "description": "ID3 metadata extraction and track resolution execution time"
+    },
+    "api_status_cold_start_ms": {
+      "baseline": 12.0,
+      "budget": 30.0,
+      "unit": "ms",
+      "description": "Health check /api/status payload synthesis overhead"
+    }
+  }
+}

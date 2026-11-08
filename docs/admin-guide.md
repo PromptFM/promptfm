@@ -602,6 +602,7 @@ Query the $0 budget status programmatically from any MCP-enabled client:
 
 #### 3. Web Studio Console (`/admin`)
 - Vercel dashboard metrics can be reviewed at [vercel.com/alextrifan/promptfm/usage](https://vercel.com/alextrifan/promptfm/usage).
+- Vercel Speed Insights and Real User Monitoring (RUM) Core Web Vitals can be monitored at [vercel.com/alextrifan/promptfm/speed-insights](https://vercel.com/alextrifan/promptfm/speed-insights).
 - Deployment protection can be toggled under **Project Settings ➔ Deployment Protection** in the Vercel console.
 
 #### 4. REST API & Dynamic Headers

@@ -31,6 +31,17 @@ describe('GitHub Actions Workflows Suite', () => {
       expect(content).toContain('npm run prepare-infra');
       expect(content).toContain('terraform -chdir=infra/terraform init');
       expect(content).toContain('terraform -chdir=infra/terraform apply -auto-approve');
+      expect(content).toContain('dns apply promptfm.live');
+    });
+  });
+
+  describe('Apply Hostinger DNS Workflow (apply-dns.yml)', () => {
+    it('exists, supports workflow_dispatch, and executes promptfm dns apply to enforce $0 egress', () => {
+      const content = readWorkflow('apply-dns.yml');
+      expect(content).toContain('name: 🌐 Apply Hostinger DNS Changes');
+      expect(content).toContain('workflow_dispatch:');
+      expect(content).toContain('dns apply');
+      expect(content).toContain('promptfm.live.state.json');
     });
   });
 
@@ -130,6 +141,14 @@ describe('GitHub Actions Workflows Suite', () => {
       const content = readWorkflow('ci.yml');
       expect(content).toContain('has_sql');
       expect(content).toContain('npm run lint:sql');
+    });
+  });
+
+  describe('Speed Insights & Performance Profiling in CI Workflow (ci.yml)', () => {
+    it('executes npm run test:speed to detect bundle and runtime latency regressions', () => {
+      const content = readWorkflow('ci.yml');
+      expect(content).toContain('npm run test:speed');
+      expect(content).toMatch(/Speed Insights.*Profiling|test:speed/i);
     });
   });
 
