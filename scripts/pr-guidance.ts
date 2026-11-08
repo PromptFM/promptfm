@@ -64,7 +64,9 @@ function main() {
   }
 }
 
-if (require.main === module) {
+export { main };
+
+if (!process.env.VITEST) {
   main();
 }
 

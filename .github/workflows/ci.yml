@@ -434,6 +434,10 @@ jobs:
           github-token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
+            if (!fs.existsSync('pr_comment.md')) {
+              console.log('No pr_comment.md file found, skipping PR comment step.');
+              return;
+            }
             const commentBody = fs.readFileSync('pr_comment.md', 'utf8');
             const prNumber = context.payload.pull_request?.number;
             if (!prNumber) {
