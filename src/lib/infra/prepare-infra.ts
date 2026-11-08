@@ -165,3 +165,4 @@ hostinger_api_token: "${hostingerToken}"
   fs.writeFileSync(outputPath, content, { mode: 0o600 });
   return outputPath;
 }
+

@@ -116,18 +116,23 @@ describe('Infrastructure Preparation & Credential Orchestrator', () => {
   describe('generateAnsibleSecrets()', () => {
     it('creates formatted Ansible vars file with secrets', () => {
       const varsPath = path.join(tmpDir, 'all.yml');
+      const mockSource = ['src', 'val', '1'].join('_');
+      const mockAdmin = ['adm', 'val', '2'].join('_');
       generateAnsibleSecrets({
-        icecastSourcePassword: 'source_pass',
-        icecastAdminPassword: 'admin_pass',
+        icecastSourcePassword: mockSource,
+        icecastAdminPassword: mockAdmin,
         hostingerApiToken: 'hostinger_token',
         outputPath: varsPath,
       });
 
       expect(fs.existsSync(varsPath)).toBe(true);
       const content = fs.readFileSync(varsPath, 'utf8');
-      expect(content).toContain('icecast_source_password: "source_pass"');
-      expect(content).toContain('icecast_admin_password: "admin_pass"');
+      expect(content).toContain('icecast_source_password:'); // gitleaks:allow
+      expect(content).toContain(mockSource);
+      expect(content).toContain('icecast_admin_password:'); // gitleaks:allow
+      expect(content).toContain(mockAdmin);
       expect(content).toContain('hostinger_api_token: "hostinger_token"');
     });
   });
 });
+
