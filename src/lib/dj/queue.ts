@@ -5,6 +5,9 @@
 import { createAdminClient } from '../supabase/server';
 import { getUpNext, type AirplayItem } from './rotation';
 import type { RequestType } from './batches';
+import { isEmailRequest } from '../email/inbound';
+
+export { isEmailRequest };
 
 export interface ScheduledCommunityRequest {
   id: string;
@@ -64,10 +67,16 @@ export function formatStatus(status?: string | null): string {
 export async function getScheduledRequests(limit = 5): Promise<ScheduledCommunityRequest[]> {
   try {
     const supabase = createAdminClient();
-    const query = supabase
+    let query = supabase
       .from('community_requests')
-      .select('id, platform, platform_user_name, type, content, target, batch_id, status, estimated_air_time, created_at')
-      .in('status', ['pending', 'scheduled'])
+      .select('id, platform, platform_user_id, platform_user_name, type, content, target, batch_id, status, estimated_air_time, created_at')
+      .in('status', ['pending', 'scheduled']);
+
+    if (typeof (query as any).not === 'function') {
+      query = (query as any).not('content', 'ilike', '[Inbound%');
+    }
+
+    const execQuery = query
       .order('created_at', { ascending: true })
       .limit(limit);
 
@@ -76,11 +85,11 @@ export async function getScheduledRequests(limit = 5): Promise<ScheduledCommunit
       timeoutId = setTimeout(() => resolve({ data: null, error: null }), 600);
     });
 
-    const res = await Promise.race([query, timeoutPromise]);
+    const res = await Promise.race([execQuery, timeoutPromise]);
     if (timeoutId) clearTimeout(timeoutId);
 
     if (res?.data && Array.isArray(res.data)) {
-      return res.data as ScheduledCommunityRequest[];
+      return (res.data as ScheduledCommunityRequest[]).filter((r) => !isEmailRequest(r));
     }
     return [];
   } catch {

@@ -249,11 +249,42 @@ CREATE INDEX IF NOT EXISTS idx_community_requests_status_type
   ON public.community_requests (status, type, created_at ASC);
 
 ALTER TABLE public.community_requests ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public read and submit community requests"
-  ON public.community_requests FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Public read and submit community requests" ON public.community_requests;
+CREATE POLICY "Public can insert community requests"
+  ON public.community_requests FOR INSERT
+  WITH CHECK (type IN ('song', 'dedication', 'weather', 'news', 'zodiac'));
+CREATE POLICY "Public can view community requests"
+  ON public.community_requests FOR SELECT
+  USING (
+    type IN ('song', 'dedication', 'weather', 'news', 'zodiac')
+    AND content NOT LIKE '[Inbound%'
+  );
 
 -- ----------------------------------------------------------------
--- 10. CONTENT REPORTS TABLE
+-- 10. INBOUND EMAILS TABLE (Admin-only handling)
+-- Stores official Resend inbound messages and contact inquiries
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.inbound_emails (
+  id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  resend_id           TEXT,
+  from_address        TEXT        NOT NULL,
+  to_addresses        TEXT[]      NOT NULL DEFAULT '{}',
+  subject             TEXT        NOT NULL,
+  text_body           TEXT,
+  html_body           TEXT,
+  category            TEXT        NOT NULL DEFAULT 'inquiry' CHECK (category IN ('inquiry', 'contact', 'complaint', 'support', 'other')),
+  status              TEXT        NOT NULL DEFAULT 'received' CHECK (status IN ('received', 'forwarded', 'handled', 'archived')),
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_inbound_emails_category_created
+  ON public.inbound_emails (category, created_at DESC);
+
+ALTER TABLE public.inbound_emails ENABLE ROW LEVEL SECURITY;
+-- No public policies created: table is strictly private to service_role (createAdminClient).
+
+-- ----------------------------------------------------------------
+-- 11. CONTENT REPORTS TABLE
 -- Handles community reports across Web, Discord, Telegram, and MCP
 -- ----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.content_reports (
@@ -281,7 +312,7 @@ CREATE POLICY "Public can view own or pending reports"
   ON public.content_reports FOR SELECT USING (true);
 
 -- ----------------------------------------------------------------
--- 11. SAFE MIGRATION PATCH (For existing databases)
+-- 12. SAFE MIGRATION PATCH (For existing databases)
 -- ----------------------------------------------------------------
 ALTER TABLE public.tracks ADD COLUMN IF NOT EXISTS is_explicit BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE public.tracks ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
