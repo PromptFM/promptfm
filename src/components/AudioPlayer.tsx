@@ -866,7 +866,7 @@ export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerPro
               )}
 
               <div className="flex items-center gap-1 min-w-0">
-                <span className="text-white font-semibold text-xs sm:text-sm truncate max-w-[110px] xs:max-w-[160px] sm:max-w-xs md:max-w-sm">
+                <span className="text-white font-semibold text-xs sm:text-sm truncate max-w-[190px] xs:max-w-[240px] sm:max-w-xs md:max-w-sm">
                   {nowPlaying ? nowPlaying.title : currentChannel.name}
                 </span>
               </div>
@@ -882,7 +882,7 @@ export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerPro
             </div>
 
             <div className="flex items-center gap-2 mt-0.5">
-              <p className="text-[11px] sm:text-xs text-zinc-400 truncate max-w-[120px] xs:max-w-[160px] sm:max-w-xs">
+              <p className="text-[11px] sm:text-xs text-zinc-400 truncate max-w-[190px] xs:max-w-[240px] sm:max-w-xs">
                 {nowPlaying ? nowPlaying.artist : isPlaying ? currentChannel.vibe : 'Click play to tune in'}
               </p>
               {nowPlaying && (
