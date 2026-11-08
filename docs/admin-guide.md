@@ -888,6 +888,9 @@ PromptFM enforces strict branch governance on `main` through declarative GitHub 
 - **Specification**: Complete specification in [`.github/RULESET.md`](file:///Users/trifan/.gemini/antigravity/worktrees/promptfm/vercel_speed_insights/.github/RULESET.md).
 - **Milestone State Drift Protection**: All `github_repository_milestone` resources in `infra/terraform/github.tf` declare `lifecycle { ignore_changes = [state] }`. When you close a milestone from the GitHub UI, Terraform will **never** reopen it on subsequent applies.
 
+#### 5. How-To Examples Matrix
+Step-by-step copy-paste examples for adding labels, defining new milestones, configuring project board views (`BOARD_LAYOUT`, `TABLE_LAYOUT`, `ROADMAP_LAYOUT`), and adjusting branch gate review policies are maintained in [`.github/RULESET.md#8-step-by-step-developer--admin-examples`](file:///Users/trifan/.gemini/antigravity/worktrees/promptfm/vercel_speed_insights/.github/RULESET.md#8-step-by-step-developer--admin-examples).
+
 ---
 
 ## 17. PostgreSQL & Supabase Database Schema Management
