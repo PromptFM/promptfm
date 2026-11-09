@@ -21,8 +21,11 @@ export interface ForwardingDecision {
 }
 
 function parseAddress(raw: string): { local: string; domain: string } {
-  const bracket = raw.match(/<([^>]+)>/);
-  const addr = (bracket?.[1] ?? raw).trim().toLowerCase();
+  // No regex here: this runs on inbound mail headers, which anyone can make long.
+  const open = raw.indexOf('<');
+  const close = raw.indexOf('>', open + 1);
+  const inner = open !== -1 && close !== -1 ? raw.slice(open + 1, close) : raw;
+  const addr = inner.trim().toLowerCase();
   const at = addr.lastIndexOf('@');
   return { local: addr.slice(0, at), domain: addr.slice(at + 1) };
 }

@@ -39,6 +39,25 @@ describe('resolveForwarding (config/inbound-forwarding.json)', () => {
     });
   });
 
+  it('reads the address from the first angle-bracket pair; a stray or empty bracket is not an address', () => {
+    expect(resolveForwarding(['<legal@promptfm.live>'], cfg).category).toBe('complaint');
+    expect(resolveForwarding(['legal@promptfm.live>'], cfg).category).toBe('contact');
+    expect(resolveForwarding(['Name <legal@promptfm.live> <x@y.com>'], cfg).category).toBe('complaint');
+    expect(resolveForwarding(['<>legal@promptfm.live'], cfg).category).toBe('contact');
+    expect(resolveForwarding(['Name><legal@promptfm.live>'], cfg).category).toBe('complaint');
+    expect(resolveForwarding(['<legal@promptfm.live'], cfg).category).toBe('contact');
+    expect(resolveForwarding(['<>'], cfg).category).toBe('contact');
+    expect(resolveForwarding(['X<legal@promptfm.live>'], cfg).category).toBe('complaint');
+    const short: ForwardingConfig = { ...cfg, domain: 'x.co' };
+    expect(resolveForwarding(['<legal@x.com'], short).category).toBe('contact');
+  });
+
+  it('stays fast on a very long header with many opening brackets', () => {
+    const started = Date.now();
+    resolveForwarding(['<'.repeat(200000) + 'legal@promptfm.live'], cfg);
+    expect(Date.now() - started).toBeLessThan(500);
+  });
+
   it('tolerates spaces inside the angle brackets and addresses without an @', () => {
     expect(resolveForwarding(['PromptFM < legal@promptfm.live >'], cfg).category).toBe('complaint');
     expect(resolveForwarding(['not-an-address'], cfg).category).toBe('contact');
