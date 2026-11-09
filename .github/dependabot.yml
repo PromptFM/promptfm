@@ -25,6 +25,9 @@ updates:
           - "@playwright/*"
           - "postcss*"
           - "tailwindcss*"
+    ignore:
+      - dependency-name: "tailwindcss"
+        update-types: ["version-update:semver-major"]
 
   # ── GitHub Actions CI/CD Pipeline Workflows ────────────────────
   - package-ecosystem: "github-actions"
