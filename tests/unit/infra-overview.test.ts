@@ -51,6 +51,15 @@ describe('Infrastructure overview doc (docs/infra-overview.md)', () => {
     expect(doc).toContain('Click Confirm');
   });
 
+  it('documents the laptop switch, its prerequisites, how to check it, and that it does not edit stream-host', () => {
+    expect(doc).toContain('### From a laptop (no tags needed)');
+    expect(doc).toContain('infra/converge-stream.sh gcp       # stream on the GCP VM');
+    expect(doc).toContain('infra/converge-stream.sh oracle    # stream back on Oracle');
+    expect(doc).toContain('gcloud auth login');
+    expect(doc).toContain('curl -sI https://stream.promptfm.live/stream.mp3');
+    expect(doc).toContain('does **not** edit `infra/stream-host`');
+  });
+
   it('does not mention scripts that no longer exist', () => {
     expect(doc).not.toContain('rollback-stream-to-gcp');
     expect(doc).not.toContain('return-stream-to-oracle');

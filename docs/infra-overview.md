@@ -137,8 +137,37 @@ A tag whose commit is not on `main` is **not** applied automatically, and neithe
 
 - **Back to Oracle, or to any tag:** Actions, **Rollback Infrastructure**, `target_ref` = `promptfm-infra/0.3.0-<sha>`.
 - **To GCP:** the same workflow with `target_ref` = `promptfm-infra/0.2.0-<sha>`.
-- **From a laptop, in an emergency:** `infra/converge-stream.sh gcp` or `infra/converge-stream.sh oracle`.
+- **From a laptop, no tags needed:** see [From a laptop](#from-a-laptop-no-tags-needed) below.
 - After a switch to GCP, the committed DNS file still lists the Oracle IP. That is fine: the script sets the `stream` record from the live IP of the active host.
+
+### From a laptop (no tags needed)
+
+Use this when the tags do not exist yet, or GitHub Actions is unavailable. It is the same script the workflow runs.
+
+**Needs:** `gcloud auth login` (the account must reach the project and Secret Manager), `terraform`, `ansible`, `python3`, `curl`, `npm ci`, and the Hostinger token (`HOSTINGER_API_TOKEN` from `~/.zprofile`, or Secret Manager).
+
+```bash
+infra/converge-stream.sh gcp       # stream on the GCP VM
+infra/converge-stream.sh oracle    # stream back on Oracle
+infra/converge-stream.sh           # whatever infra/stream-host says
+```
+
+**What you will see:** `quiesce` (Oracle to standby, when going to GCP), a Terraform apply of only the GCP VM and its 80/443 rule, `serve` (start containers or put Oracle on air, set the `stream` DNS record), then `stream answers on <ip> (HTTP 200)` and `Done: the stream is served from <host>`.
+
+**Check it afterwards:**
+
+```bash
+curl -sI https://stream.promptfm.live/stream.mp3 | head -1                 # HTTP/2 200
+curl -s https://stream.promptfm.live/status-json.xsl | head -c 300         # a title and a listener count
+npm run promptfm -- dns status promptfm.live                               # stream A record = the active host
+```
+
+DNS can take up to the record's 300 s TTL to reach everyone.
+
+**Good to know:**
+- It is safe to run again. If it stops halfway (for example the GCP VM was still booting), run the same command.
+- It does **not** edit `infra/stream-host`. A later tag apply or **Apply Infrastructure** run converges to the word in that file, which may move the stream again. After a laptop switch to GCP, either finish the emergency and switch back, or commit `gcp` in `infra/stream-host` so the file matches reality.
+- Switching to GCP breaks the $0 goal (section 5, part 4).
 
 ---
 
@@ -167,7 +196,7 @@ Also look at the Oracle [instance page](https://cloud.oracle.com/compute/instanc
 
 **3. Last resort: switch to GCP.**
 
-Run **Rollback Infrastructure** with the `0.2.0` snapshot tag, or `infra/converge-stream.sh gcp`. Two things to know:
+Run **Rollback Infrastructure** with the `0.2.0` snapshot tag, or `infra/converge-stream.sh gcp` ([laptop steps](#from-a-laptop-no-tags-needed)). Two things to know:
 
 - Tag names are labels for snapshots. There is no real `v0.2.0` of the old setup, because the old commit cannot be applied (section 4). The `0.2.0` snapshot is today's code with the stream host set to `gcp`.
 - The GCP VM gets a **new** public IP when it starts. The script reads it and points DNS at it.
