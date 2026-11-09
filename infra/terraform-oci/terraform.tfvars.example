@@ -1,0 +1,12 @@
+# Credentials and the alert email are read from GCP Secret Manager (promptfm-oci-credentials), not from this file.
+# Everything below is optional.
+
+# Defaults to the tenancy (root compartment).
+# compartment_ocid = "ocid1.compartment.oc1..replace-me"
+
+# Always Free covers 2 OCPU / 12 GB of Ampere A1 running all month (1,500 OCPU-hours, 9,000 GB-hours).
+# ocpus     = 2
+# memory_gb = 12
+
+# egress_alarm_gb_per_day = 300
+# enforce_quotas          = true

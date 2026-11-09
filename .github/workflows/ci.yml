@@ -303,6 +303,15 @@ jobs:
       - name: Validate Terraform Configuration
         run: terraform -chdir=infra/terraform validate
 
+      - name: Check Oracle Streamer Module Formatting
+        run: terraform fmt -check -recursive infra/terraform-oci
+
+      - name: Initialize Oracle Streamer Module (Local Validation)
+        run: terraform -chdir=infra/terraform-oci init -backend=false
+
+      - name: Validate Oracle Streamer Module
+        run: terraform -chdir=infra/terraform-oci validate
+
       - name: Check Terraform Live State vs Configuration (Dry-Run Plan)
         run: |
           if [ -n "$GCP_SA_KEY" ]; then

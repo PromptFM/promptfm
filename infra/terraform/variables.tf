@@ -110,12 +110,6 @@ variable "stream_subdomain" {
   default     = "stream"
 }
 
-variable "cloudflare_tunnel_enabled" {
-  description = "Whether to route audio traffic through Cloudflare Tunnel for $0 GCP egress"
-  type        = bool
-  default     = true
-}
-
 variable "hostinger_api_token" {
   description = "Hostinger API token for automated DNS zone synchronization and domain migration"
   type        = string
@@ -145,3 +139,9 @@ variable "github_repository" {
 }
 
 
+
+variable "streamer_vm_running" {
+  description = "Whether the GCP streamer VM is running. The stream is served from Oracle (infra/terraform-oci), so this is false and the VM stays stopped. GCP only includes 1 GB/month of outbound traffic. infra/converge-stream.sh sets it from infra/stream-host: true only while the GCP VM serves the stream."
+  type        = bool
+  default     = false
+}

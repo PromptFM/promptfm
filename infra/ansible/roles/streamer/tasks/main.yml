@@ -6,7 +6,7 @@
   apt:
     name:
       - docker.io
-      - docker-compose
+      - docker-compose-v2
       - curl
       - ufw
     state: present
@@ -26,18 +26,29 @@
     group: "{{ ansible_user }}"
     mode: '0755'
 
-- name: Deploy Icecast 2 configuration
-  template:
-    src: icecast.xml.j2
+- name: Deploy Icecast 2 configuration (deploy/streamer is the single source of truth)
+  register: icecast_conf
+  copy:
+    src: "{{ playbook_dir }}/../../deploy/streamer/icecast.xml"
     dest: "{{ app_dir }}/icecast.xml"
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: '0644'
 
 - name: Deploy Liquidsoap radio script
-  template:
-    src: radio.liq.j2
+  register: radio_script
+  copy:
+    src: "{{ playbook_dir }}/../../deploy/streamer/radio.liq"
     dest: "{{ app_dir }}/radio.liq"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+
+- name: Deploy Liquidsoap standby script (does not call the PromptFM API)
+  register: standby_script
+  copy:
+    src: "{{ playbook_dir }}/../../deploy/streamer/radio-standby.liq"
+    dest: "{{ app_dir }}/radio-standby.liq"
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: '0644'
@@ -68,11 +79,24 @@
     force: false
 
 - name: Launch Icecast and Liquidsoap streaming containers
-  command: docker-compose up -d
+  command: docker compose up -d
   args:
     chdir: "{{ app_dir }}"
   environment:
     CLOUDFLARE_TUNNEL_TOKEN: "{{ lookup('env', 'CLOUDFLARE_TUNNEL_TOKEN') | default('', true) }}"
+
+# Icecast and Liquidsoap read their config at start, and a changed bind-mounted file does not recreate the container.
+- name: Restart Icecast when its config changed
+  command: docker compose restart icecast
+  args:
+    chdir: "{{ app_dir }}"
+  when: icecast_conf is changed
+
+- name: Restart Liquidsoap when its scripts changed
+  command: docker compose restart liquidsoap
+  args:
+    chdir: "{{ app_dir }}"
+  when: radio_script is changed or standby_script is changed
 
 - name: Wait for Icecast port 8000 to become available
   wait_for:
@@ -91,6 +115,9 @@
     msg:
       - "✅ PromptFM Icecast audio stream is LIVE on port {{ icecast_port | default(8000) }}!"
       - "📊 Google Cloud 0-Cost Dashboard: https://console.cloud.google.com/monitoring/dashboards/builder/ce33f584-e48f-407a-b2e7-1d1fa9e990ff?project=promptfm-radio-1793623670"
+      - "☁️ Oracle Cloud instances ($0, Always Free): https://cloud.oracle.com/compute/instances?region=us-ashburn-1"
+      - "📉 Oracle Metrics Explorer (CPU, outbound bytes): https://cloud.oracle.com/monitoring/metrics-explorer?region=us-ashburn-1"
+      - "💲 Oracle Cost Analysis: https://cloud.oracle.com/account-management/cost-analysis"
       - "📈 Vercel Web Analytics ($0 Tier): https://vercel.com/alextrifan/promptfm/analytics"
       - "📻 Live Web Radio: https://promptfm.live"
       - "🎙️ Station Manager Studio: https://promptfm.live/admin"

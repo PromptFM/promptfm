@@ -1924,7 +1924,7 @@ Moderation & Schedule:
           console.log(`• Last Updated: ${state.updatedAt}`);
           console.log(`• Version: ${state.version}`);
           console.log(`• Total Records: ${state.zone.length}`);
-          console.log(`• Zero-Egress Status: ${egressCheck.compliant ? '✅ Compliant (Edge CNAME)' : `⚠️ Non-Compliant: ${egressCheck.message}`}\n`);
+          console.log(`• Zero-Egress Status: ${egressCheck.compliant ? '✅ Compliant (not the GCP VM)' : `⚠️ Non-Compliant: ${egressCheck.message}`}\n`);
           for (const r of state.zone) {
             console.log(`  ${r.type.padEnd(6)} ${r.name.padEnd(20)} (TTL: ${r.ttl})`);
             r.records.forEach((rec) => console.log(`         ➔ ${rec.content}`));

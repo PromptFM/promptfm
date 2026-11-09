@@ -1,0 +1,10 @@
+{
+  "domain": "promptfm.live",
+  "default_forward_to": ["trifan.alex.criss@gmail.com"],
+  "aliases": {
+    "dev": { "category": "contact" },
+    "contact": { "category": "contact" },
+    "report": { "category": "complaint" },
+    "legal": { "category": "complaint" }
+  }
+}

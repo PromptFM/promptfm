@@ -1,0 +1,59 @@
+name: 📻 Deploy Streamer (Oracle)
+
+on:
+  workflow_dispatch:
+    inputs:
+      standby:
+        description: 'Put the streamer in standby: loops the fallback and never calls the API. Leave off to stay on air with radio.liq.'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-streamer-oci
+  cancel-in-progress: false
+
+jobs:
+  deploy-streamer-oci:
+    name: deploy-streamer-oci
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.7.5
+
+      - name: Configure GCP Service Account Credentials
+        run: |
+          if [ -z "${{ secrets.GCP_SA_KEY }}" ]; then
+            echo "::error::GCP_SA_KEY secret is required in GitHub repository secrets."
+            exit 1
+          fi
+          if echo "${{ secrets.GCP_SA_KEY }}" | grep -q '^{'; then
+            echo "${{ secrets.GCP_SA_KEY }}" > /tmp/gcp-sa-key.json
+          else
+            echo "${{ secrets.GCP_SA_KEY }}" | base64 -d > /tmp/gcp-sa-key.json
+          fi
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-sa-key.json" >> $GITHUB_ENV
+          gcloud auth activate-service-account --key-file=/tmp/gcp-sa-key.json
+
+      - name: Install Ansible
+        run: |
+          if ! command -v ansible-playbook &>/dev/null; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq ansible
+          fi
+
+      - name: Deploy the streamer
+        env:
+          STANDBY: ${{ inputs.standby }}
+        run: |
+          EXTRA=""
+          if [ "$STANDBY" = "true" ]; then
+            EXTRA="-e liquidsoap_script=radio-standby.liq"
+          fi
+          infra/ansible/deploy-oci.sh $EXTRA

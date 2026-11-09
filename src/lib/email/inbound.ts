@@ -5,6 +5,7 @@
 
 import { createAdminClient } from '../supabase/server';
 import { forwardInboundEmail, type ReceivedEmailDetail } from './receiving';
+import { resolveForwarding } from './forwarding';
 import { randomUUID } from 'crypto';
 
 export interface InboundEmailPayload {
@@ -56,13 +57,17 @@ export async function handleInboundEmail(payload: InboundEmailPayload): Promise<
   const cleanSubject = typeof payload.subject === 'string' && payload.subject.trim() ? payload.subject.trim() : 'No Subject';
   const cleanBody = typeof payload.text === 'string' && payload.text ? payload.text : typeof payload.html === 'string' && payload.html ? payload.html : '';
 
+  const routing = resolveForwarding(
+    recipients,
+    undefined,
+    process.env.ADMIN_CONTACT_EMAIL ? [process.env.ADMIN_CONTACT_EMAIL] : []
+  );
   const isComplaint =
+    routing.category === 'complaint' ||
     recipientsStr.includes('complaint') ||
     recipientsStr.includes('dmca') ||
-    recipientsStr.includes('legal') ||
     /dmca|copyright|infringe|abuse|violation|harass/i.test(cleanSubject);
 
-  const adminEmail = process.env.ADMIN_CONTACT_EMAIL || 'trifan.alex.criss@gmail.com';
 
   const emailDetail: ReceivedEmailDetail = {
     id: emailId || randomUUID(),
@@ -77,7 +82,8 @@ export async function handleInboundEmail(payload: InboundEmailPayload): Promise<
   // 1. Forward email to station administrator
   let forwarded = false;
   try {
-    forwarded = Boolean(await forwardInboundEmail(emailDetail, adminEmail));
+    const results = await Promise.all(routing.forwardTo.map((target) => forwardInboundEmail(emailDetail, target)));
+    forwarded = results.some(Boolean);
   } catch {
     // remains false
   }

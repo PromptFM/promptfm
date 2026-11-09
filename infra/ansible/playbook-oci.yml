@@ -1,0 +1,14 @@
+---
+# infra/ansible/playbook-oci.yml
+# Deploys the streamer to the Oracle Always Free host. Kept separate from playbook.yml so the GCP flow is untouched.
+#   ansible-playbook playbook-oci.yml                              # standby: loops the fallback, does not call the API
+#   ansible-playbook playbook-oci.yml -e liquidsoap_script=radio.liq   # on air (cutover)
+
+- name: Configure PromptFM streamer on Oracle Always Free
+  hosts: streamer_oci
+  become: true
+  vars:
+    app_dir: "/opt/promptfm/streamer"
+
+  roles:
+    - streamer

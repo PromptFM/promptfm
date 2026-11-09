@@ -489,5 +489,22 @@ describe('Inbound Email Routing Service (Issue #115)', () => {
       expect(result.success).toBe(true);
       expect(result.forwarded).toBe(true);
     });
+
+    it('treats mail to report@ and legal@ as a complaint and forwards it', async () => {
+      for (const to of ['report@promptfm.live', 'legal@promptfm.live']) {
+        mockInsert.mockClear();
+        const result = await handleInboundEmail({ from: 'x@example.com', to: [to], subject: 'Hello', text: 'please look' });
+        expect(result.category).toBe('complaint');
+        expect(result.forwarded).toBe(true);
+        expect(mockFrom).toHaveBeenCalledWith('content_reports');
+      }
+    });
+
+    it('treats mail to dev@ and contact@ as contact, not a complaint', async () => {
+      for (const to of ['dev@promptfm.live', 'contact@promptfm.live']) {
+        const result = await handleInboundEmail({ from: 'x@example.com', to: [to], subject: 'Hello', text: 'hi' });
+        expect(result.category).toBe('contact');
+      }
+    });
   });
 });

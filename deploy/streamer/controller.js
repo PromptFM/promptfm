@@ -96,7 +96,7 @@ function spawnFfmpeg(platform, targetRtmpUrl) {
     '-keyint_min', '60',
     '-r', '30',
     '-c:a', 'aac',
-    '-b:a', '192k',
+    '-b:a', '128k',
     '-ar', '44100',
     '-f', 'flv',
     targetRtmpUrl,

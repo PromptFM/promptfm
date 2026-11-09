@@ -108,6 +108,30 @@
     .btn-primary { background: #059669; border-color: #059669; color: #fff; }
     .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: #000; }
 
+    /* Oracle monitor banner */
+    .oracle-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+      max-width: 60rem;
+      margin: 0 auto 2.5rem;
+      padding: 1rem 1.25rem;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-left: 4px solid #C74634;
+      border-radius: 0.75rem;
+      color: var(--text);
+      text-decoration: none;
+      text-align: left;
+    }
+    .oracle-banner:hover { border-color: #C74634; background: var(--card-hover); }
+    .oracle-banner:focus-visible { outline: 3px solid #f59e0b; outline-offset: 3px; }
+    .oracle-banner-title { font-weight: 700; color: #fff; }
+    .oracle-banner-text { flex: 1 1 18rem; font-size: 0.9rem; color: var(--muted); }
+    .oracle-banner-cta { font-weight: 600; color: #fff; white-space: nowrap; }
+
     /* Real-Time Status Pill Bar */
     .status-bar {
       display: flex;
@@ -220,12 +244,13 @@
     <header>
       <div class="badge">PROMPTFM ARCHITECTURE, DEV &amp; OPS PORTAL</div>
       <h1>PromptFM <span>Documentation</span></h1>
-      <p class="lead">Autonomous 24/7 AI Music Radio network engineered for strict $0.00 cloud costs, rigorous Test-Driven Development (TDD), zero-egress Cloudflare audio delivery, and multi-lane SemVer automation.</p>
+      <p class="lead">Autonomous 24/7 AI Music Radio network engineered for strict $0.00 cloud costs, rigorous Test-Driven Development (TDD), a 24/7 audio stream served from Oracle Cloud Always Free (10 TB/month outbound), and multi-lane SemVer automation.</p>
 
       <div class="quick-actions">
         <a href="https://promptfm.live" class="btn btn-primary" target="_blank" rel="noopener">🎧 Tune In Live (promptfm.live)</a>
         <a href="https://vercel.com/alextrifan/promptfm/flags" class="btn" target="_blank" rel="noopener">🚩 Vercel Flags Console</a>
         <a href="https://console.cloud.google.com/monitoring/dashboards/builder/ce33f584-e48f-407a-b2e7-1d1fa9e990ff?project=promptfm-radio-1793623670" class="btn" target="_blank" rel="noopener">📊 GCP Telemetry Dashboard</a>
+        <a href="https://cloud.oracle.com/monitoring/metrics-explorer?region=us-ashburn-1" class="btn" target="_blank" rel="noopener">☁️ Oracle Monitor</a>
         <a href="https://github.com/PromptFM/promptfm" class="btn" target="_blank" rel="noopener">⭐ GitHub Repo</a>
       </div>
 
@@ -235,8 +260,16 @@
         <div class="status-item"><span class="dot"></span> System API: <strong>/api/status (Live)</strong></div>
         <div class="status-item"><span class="dot"></span> Vercel Edge: <strong>Production Active</strong></div>
         <div class="status-item"><span class="dot"></span> Speed Insights: <strong><a href="https://vercel.com/alextrifan/promptfm/speed-insights" target="_blank" style="color:var(--accent); text-decoration:none;">Vercel RUM &amp; Web Vitals &rarr;</a></strong></div>
-        <div class="status-item"><span class="dot"></span> GCP Streamer: <strong>e2-micro ($0.00 Always Free)</strong></div>
+        <div class="status-item"><span class="dot"></span> GCP Streamer: <strong>e2-micro, stopped (retired)</strong></div>
+        <div class="status-item"><span class="dot"></span> Oracle Streamer: <strong>On air, AMD micro ($0.00 Always Free, quota-capped)</strong></div>
       </div>
+
+      <!-- Oracle monitor banner -->
+      <a class="oracle-banner" href="https://cloud.oracle.com/monitoring/metrics-explorer?region=us-ashburn-1" target="_blank" rel="noopener">
+        <span class="oracle-banner-title">☁️ Oracle Cloud monitor</span>
+        <span class="oracle-banner-text">Streamer CPU, outbound traffic and cost. Spend is capped at $0 by a quota policy, with a $1 budget email and a 300 GB/day outbound alarm.</span>
+        <span class="oracle-banner-cta">Open the monitor &rarr;</span>
+      </a>
     </header>
 
     <!-- Search & Filter Bar -->
@@ -285,7 +318,7 @@ npm run promptfm -- vibe "late night coding synthwave"</pre>
         </div>
         <div class="card">
           <h3>Domain &amp; Zero-Egress DNS Audit</h3>
-          <p>Audit DNS zones, migrate Hostinger records, and verify that all streaming traffic is safely routed through Cloudflare to avoid GCP egress bills:</p>
+          <p>Audit DNS zones, migrate Hostinger records, and check the <code>stream</code> record. A Cloudflare Tunnel does not remove GCP egress (GCP includes 1 GB/month), so the stream moved to Oracle Cloud:</p>
           <pre>npm run promptfm -- dns status promptfm.live
 npm run promptfm -- dns diff stream.promptfm.live
 npm run promptfm -- dns validate promptfm.live</pre>
@@ -340,6 +373,17 @@ npm run promptfm -- tag sql-rollback &lt;version&gt;</pre>
           <p><a href="https://console.cloud.google.com/traces/overview?project=promptfm-radio-1793623670" class="link" target="_blank" rel="noopener">🔍 GCP Cloud Trace (Distributed W3C Tracing) &rarr;</a></p>
         </div>
         <div class="card">
+          <h3>Oracle Cloud (Always Free)</h3>
+          <p>Streamer VM metrics and outbound traffic against the 10 TB/month free allowance. A quota policy blocks anything billable, with a $1 budget email and a 300 GB/day outbound alarm:</p>
+          <p><a href="https://cloud.oracle.com/monitoring/metrics-explorer?region=us-ashburn-1" class="link" target="_blank" rel="noopener">📉 Oracle Metrics Explorer (CPU, outbound bytes) &rarr;</a></p>
+          <p><a href="https://cloud.oracle.com/compute/instances?region=us-ashburn-1" class="link" target="_blank" rel="noopener">☁️ Oracle Compute Instances &rarr;</a></p>
+          <p><a href="https://cloud.oracle.com/monitoring/alarms?region=us-ashburn-1" class="link" target="_blank" rel="noopener">🚨 Oracle Alarms &rarr;</a></p>
+          <p><a href="https://cloud.oracle.com/account-management/cost-analysis" class="link" target="_blank" rel="noopener">💲 Oracle Cost Analysis &rarr;</a></p>
+          <p><a href="https://cloud.oracle.com/account-management/budgets" class="link" target="_blank" rel="noopener">🧾 Oracle Budgets &rarr;</a></p>
+          <p><a href="https://cloud.oracle.com/quotas" class="link" target="_blank" rel="noopener">🛑 Oracle Quota Policy ($0 hard cap) &rarr;</a></p>
+          <p><a href="https://github.com/PromptFM/promptfm/blob/main/docs/oracle-always-free-streamer.md" class="link" target="_blank" rel="noopener">📘 How the $0 policy works &rarr;</a></p>
+        </div>
+        <div class="card">
           <h3>Vercel &amp; Realtime Status Checks</h3>
           <p>Monitor edge execution logs, web analytics, speed insights, and instant feature toggles:</p>
           <p><a href="https://vercel.com/alextrifan/promptfm/flags" class="link" target="_blank" rel="noopener">🚩 Vercel Feature Flags &amp; Kill-Switches Console &rarr;</a></p>
@@ -371,6 +415,8 @@ npm run test:mutate</pre>
         <div class="card">
           <h3>Zero-Cost Philosophy</h3>
           <p>Every architectural component must operate strictly within Always-Free tiers ($0.00/mo). No third-party SaaS subscriptions (Datadog, Sentry, AWS NAT) are permitted.</p>
+          <a href="https://github.com/PromptFM/promptfm/blob/main/docs/infra-overview.md" class="link" target="_blank" rel="noopener">Infrastructure diagram, runbook and alert emails &rarr;</a>
+          <a href="https://github.com/PromptFM/promptfm/blob/main/docs/zero-cost-policy.md" class="link" target="_blank" rel="noopener">Read the $0 policy: Google Cloud, Vercel, Oracle &rarr;</a>
           <a href="https://github.com/PromptFM/promptfm/blob/main/docs/gcp-always-free-streamer.md" class="link" target="_blank" rel="noopener">Review $0 GCP Architecture Blueprint &rarr;</a>
         </div>
       </div>
@@ -382,8 +428,8 @@ npm run test:mutate</pre>
       <div class="grid">
         <div class="card">
           <h3>Completed Milestones</h3>
-          <p>✅ <strong>24/7 Always-Free GCP Streamer:</strong> Compute Engine e2-micro with Liquidsoap &amp; Icecast 2.<br>
-             ✅ <strong>Zero-Egress Audio Stream:</strong> Cloudflare Tunnel edge proxying with HTTPS on <code>stream.promptfm.live</code>.<br>
+          <p>✅ <strong>24/7 Always-Free Streamer:</strong> Liquidsoap &amp; Icecast 2, first on a GCP e2-micro (now stopped), since 2026-11-09 on an Oracle Always Free AMD micro VM.<br>
+             ✅ <strong>HTTPS Audio Stream:</strong> Caddy TLS on <code>stream.promptfm.live</code>. Served by the Oracle VM (<code>docs/oracle-always-free-streamer.md</code>); switching hosts is <code>infra/converge-stream.sh</code> (see <code>docs/infra-overview.md</code>).<br>
              ✅ <strong>Multi-Lane SemVer &amp; Rollback:</strong> Independent Git release tags for code, infra, and SQL migrations.</p>
           <a href="https://github.com/PromptFM/promptfm/blob/main/ROADMAP.md" class="link" target="_blank" rel="noopener">Read Engineering Roadmap (ROADMAP.md) &rarr;</a>
         </div>
@@ -408,10 +454,11 @@ npm run test:mutate</pre>
               <tr><th>Provider</th><th>Resource &amp; Quota Guard</th><th>Monthly Cost</th></tr>
             </thead>
             <tbody>
-              <tr><td><strong>Google Cloud</strong></td><td>e2-micro VM + 30GB PD + 5GB GCS + Secret Manager (&le;6 active versions)</td><td>$0.00 (Always-Free)</td></tr>
+              <tr><td><strong>Google Cloud</strong></td><td>e2-micro VM (stopped) + 30GB PD + 5GB GCS + Secret Manager (&le;6 active versions)</td><td>$0.00 (Always-Free)</td></tr>
+              <tr><td><strong>Oracle Cloud</strong></td><td>AMD micro VM today (Arm A1, 2 OCPU / 12 GB, when capacity returns) + 10 TB/month outbound, quota policy + $1 budget (secret <code>promptfm-oci-credentials</code>)</td><td>$0.00 (Always Free)</td></tr>
               <tr><td><strong>Supabase</strong></td><td>PostgreSQL Database (&le;500MB DB, &le;5GB egress, pooled connection)</td><td>$0.00 (Free Tier)</td></tr>
               <tr><td><strong>Vercel</strong></td><td>Next.js Edge &amp; Flags (Production release-tag guarded)</td><td>$0.00 (Hobby)</td></tr>
-              <tr><td><strong>Cloudflare</strong></td><td>Zero-Egress Tunnel + CDN Caching + DDoS Protection</td><td>$0.00 (Free Tier)</td></tr>
+              <tr><td><strong>Cloudflare</strong></td><td>Optional tunnel, DDoS protection (does not remove GCP VM egress)</td><td>$0.00 (Free Tier)</td></tr>
               <tr><td><strong>Hostinger</strong></td><td>DNS API Automation (promptfm.live zone management)</td><td>$0.00 (Domain Bundle)</td></tr>
               <tr><td><strong>Google AI Studio</strong></td><td>Gemini 3.5 Flash &amp; 2.5 Flash Voice TTS</td><td>$0.00 (15 RPM Free)</td></tr>
             </tbody>
@@ -480,6 +527,7 @@ npm run promptfm -- tag sql-rollback &lt;version&gt;</pre>
         <div class="card">
           <h3>Deployment &amp; Secret Management</h3>
           <p><strong>apply-terraform.yml:</strong> Applies Terraform infra, conditionally executes Ansible via zero-cost IAP tunneling upon <code>infra/ansible</code> or VM state changes, and syncs DNS upon <code>promptfm-infra/*</code> tags or manual dispatch.<br>
+             <strong>apply-terraform-oci.yml:</strong> Plans (and applies when <code>apply</code> is ticked) the Oracle Always Free streamer in <code>infra/terraform-oci</code>.<br>
              <strong>apply-sql-schema.yml:</strong> Applies Supabase database migrations upon <code>promptfm-sql/*</code> tags or manual dispatch using GCP Secret Manager credentials.<br>
              <strong>rotate-secrets.yml:</strong> Automated rotation for GCP Secret Manager credentials with immediate version N-1 destruction ($0 quota guard).<br>
              <strong>rollback-infra.yml &amp; rollback-sql.yml:</strong> Safe rollbacks to specific commit SHAs or migration versions.</p>

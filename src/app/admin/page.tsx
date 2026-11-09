@@ -2380,7 +2380,7 @@ export default function AdminDashboard() {
                 <span>⚡</span> Zero-Cost Stream Architecture & FFmpeg Pipeline
               </h4>
               <p>
-                The streaming controller sidecar runs on your <strong>GCP e2-micro Always-Free VM</strong> alongside Icecast. When triggered from this console, it spawns FFmpeg with hardware-efficient parameters (<code>-c:v libx264 -preset veryfast -b:v 1500k -g 60 -c:a aac -b:a 192k</code>), pulling the live Icecast 128kbps audio stream without consuming egress bandwidth, looping the high-resolution PromptFM visual art overlay, and multiplexing the RTMP feed directly to YouTube and TikTok.
+                The streaming controller sidecar runs on your <strong>GCP e2-micro Always-Free VM</strong> alongside Icecast. When triggered from this console, it spawns FFmpeg with hardware-efficient parameters (<code>-c:v libx264 -preset veryfast -b:v 1500k -g 60 -c:a aac -b:a 128k</code>), pulling the live Icecast 128kbps audio stream without consuming egress bandwidth, looping the high-resolution PromptFM visual art overlay, and multiplexing the RTMP feed directly to YouTube and TikTok.
               </p>
             </div>
           </div>

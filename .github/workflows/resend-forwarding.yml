@@ -1,0 +1,89 @@
+name: 📬 Resend Forwarding
+
+# Choose a promptfm.live address and the emails it forwards to. The change is made in
+# config/inbound-forwarding.json and opened as a pull request, so it is reviewed and then deployed with the app.
+# Empty emails puts the address back on the default one. To add a new address, edit the file and the options below.
+on:
+  workflow_dispatch:
+    inputs:
+      address:
+        description: 'Address to change'
+        type: choice
+        required: true
+        options:
+          - contact
+          - dev
+          - legal
+          - report
+      forward_to:
+        description: 'Emails to forward to, separated by commas. Empty = the default address.'
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: resend-forwarding
+  cancel-in-progress: false
+
+jobs:
+  resend-forwarding:
+    name: resend-forwarding
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Update config/inbound-forwarding.json
+        id: change
+        env:
+          ADDRESS: ${{ inputs.address }}
+          FORWARD_TO: ${{ inputs.forward_to }}
+        run: |
+          npm run -s email:forward -- "$ADDRESS" "$FORWARD_TO" | tee change.txt
+          echo "line=$(cat change.txt)" >> "$GITHUB_OUTPUT"
+          if git diff --quiet -- config/inbound-forwarding.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Nothing to change: that address already forwards there."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open a pull request
+        if: steps.change.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ADDRESS: ${{ inputs.address }}
+          LINE: ${{ steps.change.outputs.line }}
+        run: |
+          BRANCH="chore/forward-${ADDRESS}-${GITHUB_RUN_ID}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git add config/inbound-forwarding.json
+          git commit -m "chore(email): forward ${ADDRESS}@ to a new list"
+          git push origin "$BRANCH"
+          if ! gh pr create --base main --head "$BRANCH" \
+            --title "chore(email): change where ${ADDRESS}@promptfm.live forwards" \
+            --body "Given mail arrives at ${ADDRESS}@promptfm.live
+          When it is forwarded
+          Then it goes to the list below
+
+          ${LINE}
+
+          Run from the Resend Forwarding workflow. It takes effect when this is merged and Vercel deploys."; then
+            echo "::warning::The branch ${BRANCH} is pushed, but this repository does not let Actions open pull requests. Open it here: https://github.com/${GITHUB_REPOSITORY}/pull/new/${BRANCH}"
+            echo "Open the pull request: https://github.com/${GITHUB_REPOSITORY}/pull/new/${BRANCH}" >> "$GITHUB_STEP_SUMMARY"
+          fi

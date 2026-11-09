@@ -20,24 +20,29 @@ describe('GitHub Actions Workflows Suite', () => {
     });
   });
 
-  describe('Apply Terraform Changes Workflow (apply-terraform.yml)', () => {
-    it('exists, listens to promptfm-infra/* tags, and executes prepare-infra before terraform apply', () => {
+  describe('Apply Infrastructure Workflow (apply-terraform.yml)', () => {
+    it('exists, listens to promptfm-infra/* tags, and runs prepare-infra before terraform apply', () => {
       const content = readWorkflow('apply-terraform.yml');
-      expect(content).toContain('name: 🏗️ Apply Terraform Changes');
+      expect(content).toContain('name: 🏗️ Apply Infrastructure');
       expect(content).toContain('workflow_dispatch:');
       expect(content).toContain('promptfm-infra/*');
       expect(content).toContain('npm run prepare-infra');
       expect(content).toContain('terraform -chdir=infra/terraform init');
       expect(content).toContain('terraform -chdir=infra/terraform apply -auto-approve');
-      expect(content).toContain('dns apply promptfm.live');
     });
 
-    it('orchestrates Ansible conditionally via zero-cost IAP with skip and force controls', () => {
+    it('applies the stream host declared in infra/stream-host through infra/converge-stream.sh', () => {
       const content = readWorkflow('apply-terraform.yml');
-      expect(content).toContain('force_ansible:');
-      expect(content).toContain('skip_ansible:');
-      expect(content).toContain('npm run promptfm -- ansible');
-      expect(content).toContain('--terraform-log');
+      expect(content).toContain('infra/stream-host');
+      expect(content).toContain('TF_VAR_streamer_vm_running');
+      expect(content).toContain('infra/converge-stream.sh quiesce');
+      expect(content).toContain('infra/converge-stream.sh serve');
+    });
+
+    it('ignores rollback tags, which only record a rollback', () => {
+      const content = readWorkflow('apply-terraform.yml');
+      expect(content).toContain('promptfm-infra/rollback-*)');
+      expect(content).toContain('Rollback Infrastructure workflow');
     });
   });
 
@@ -98,13 +103,12 @@ describe('GitHub Actions Workflows Suite', () => {
   });
 
   describe('Rollback Infrastructure Workflow (rollback-infra.yml)', () => {
-    it('exists, listens to promptfm-infra/rollback-* tags and workflow_dispatch, and runs terraform plan/apply', () => {
+    it('exists, runs by hand for a target ref, reuses the apply workflow and records the rollback tag', () => {
       const content = readWorkflow('rollback-infra.yml');
-      expect(content).toContain('name: ⏪ Rollback Infrastructure (Terraform)');
-      expect(content).toContain('promptfm-infra/rollback-*');
+      expect(content).toContain('name: ⏪ Rollback Infrastructure');
       expect(content).toContain('workflow_dispatch:');
-      expect(content).toContain('terraform -chdir=infra/terraform plan');
-      expect(content).toContain('terraform -chdir=infra/terraform apply -auto-approve');
+      expect(content).toContain('target_ref:');
+      expect(content).toContain('uses: ./.github/workflows/apply-terraform.yml');
       expect(content).toContain('npm run promptfm -- tag infra-rollback');
     });
   });

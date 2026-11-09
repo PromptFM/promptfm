@@ -1,9 +1,10 @@
+{% set cloudflare_tunnel_token_effective = cloudflare_tunnel_token | default(lookup('env', 'CLOUDFLARE_TUNNEL_TOKEN'), true) | default('', true) %}
 version: '3.8'
 
 services:
   # 1. Icecast 2 Audio Distribution Server (Bound strictly to localhost to prevent direct VM egress)
   icecast:
-    image: infiniteproject/icecast:latest
+    image: libretime/icecast:2.4.4
     container_name: promptfm-icecast
     restart: unless-stopped
     ports:
@@ -25,28 +26,31 @@ services:
       - icecast
     volumes:
       - ./radio.liq:/etc/liquidsoap/radio.liq:ro
+      - ./radio-standby.liq:/etc/liquidsoap/radio-standby.liq:ro
       - ./fallback.mp3:/etc/liquidsoap/fallback.mp3:ro
-    command: ["liquidsoap", "/etc/liquidsoap/radio.liq"]
+    command: ["liquidsoap", "/etc/liquidsoap/{{ liquidsoap_script | default('radio.liq') }}"]
 
-  # 3. Cloudflare Tunnel (Free Zero-Egress Proxy to Edge CDN)
+{% if cloudflare_tunnel_token_effective %}
+  # 3. Cloudflare Tunnel (only rendered when a tunnel token is set; every listener byte still leaves the VM)
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: promptfm-tunnel
     restart: unless-stopped
     environment:
-      - TUNNEL_TOKEN={{ cloudflare_tunnel_token | default(lookup('env', 'CLOUDFLARE_TUNNEL_TOKEN') | default('', true)) }}
+      - TUNNEL_TOKEN={{ cloudflare_tunnel_token_effective }}
     command: tunnel --no-autoupdate run
     depends_on:
       - icecast
 
-  # 4. Caddy Automatic HTTPS Reverse Proxy (Internal loopback only; direct public ingress closed)
+{% endif %}
+  # 4. Caddy Automatic HTTPS Reverse Proxy (loopback by default; set caddy_bind_address=0.0.0.0 to serve the public)
   caddy:
     image: caddy:2-alpine
     container_name: promptfm-caddy
     restart: unless-stopped
     ports:
-      - "127.0.0.1:{{ caddy_http_port | default(80) }}:80"
-      - "127.0.0.1:{{ caddy_https_port | default(443) }}:443"
+      - "{{ caddy_bind_address | default('127.0.0.1') }}:{{ caddy_http_port | default(80) }}:80"
+      - "{{ caddy_bind_address | default('127.0.0.1') }}:{{ caddy_https_port | default(443) }}:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

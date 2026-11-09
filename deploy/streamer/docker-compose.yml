@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # 1. Icecast 2 Streaming Audio Server (Bound to 127.0.0.1 to prevent direct egress bypass)
   icecast:
-    image: infiniteproject/icecast:latest
+    image: libretime/icecast:2.4.4
     container_name: promptfm-icecast
     restart: unless-stopped
     ports:

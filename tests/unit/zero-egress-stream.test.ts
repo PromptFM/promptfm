@@ -1,6 +1,6 @@
 // tests/unit/zero-egress-stream.test.ts
-// Verifies Issue #127: Keep stream.promptfm.live off direct GCP VM egress.
-// Ensures DNS resolves stream to edge CNAME, and GCP firewall blocks direct 0.0.0.0/0 port 80/443 ingress.
+// Verifies Issue #127 / #150: listeners must not be served from the GCP VM (1 GB/month of outbound traffic is free).
+// The stream is served from the Oracle host (docs/oracle-always-free-streamer.md); GCP has no public 80/443.
 
 import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
@@ -17,8 +17,8 @@ describe('Zero-Egress Stream Architecture & Edge Protection (Issue #127)', () =>
   );
 
   describe('validateZeroEgressCompliance()', () => {
-    it('flags non-compliance when stream is an A record pointing directly to VM IP', () => {
-      const zoneWithDirectIP = [
+    it('flags non-compliance when stream is an A record pointing at the GCP VM', () => {
+      const zoneWithGcpIP = [
         {
           name: 'stream',
           type: 'A' as const,
@@ -27,26 +27,25 @@ describe('Zero-Egress Stream Architecture & Edge Protection (Issue #127)', () =>
         },
       ];
 
-      const check = validateZeroEgressCompliance(zoneWithDirectIP);
+      const check = validateZeroEgressCompliance(zoneWithGcpIP);
       expect(check.compliant).toBe(false);
       expect(check.risk).toBe('direct_vm_egress');
-      expect(check.message).toContain('points to an A record instead of an edge CNAME');
+      expect(check.message).toContain('points at the GCP VM');
     });
 
-    it('passes compliance when stream is a CNAME pointing to Cloudflare Tunnel edge', () => {
-      const zoneWithEdgeCNAME = [
+    it('passes compliance when stream is an A record to the Oracle host', () => {
+      const zoneWithOracleIP = [
         {
           name: 'stream',
-          type: 'CNAME' as const,
+          type: 'A' as const,
           ttl: 300,
-          records: [{ content: 'promptfm-stream.cfargotunnel.com.', is_disabled: false }],
+          records: [{ content: '129.80.56.27', is_disabled: false }],
         },
       ];
 
-      const check = validateZeroEgressCompliance(zoneWithEdgeCNAME);
+      const check = validateZeroEgressCompliance(zoneWithOracleIP);
       expect(check.compliant).toBe(true);
       expect(check.risk).toBe('none');
-      expect(check.message).toContain('routes through edge CNAME proxy');
     });
 
     it('flags non-compliance when stream record is missing from zone', () => {
@@ -66,14 +65,14 @@ describe('Zero-Egress Stream Architecture & Edge Protection (Issue #127)', () =>
   });
 
   describe('Declarative DNS State (infra/dns/promptfm.live.state.json)', () => {
-    it('configures stream as CNAME pointing to edge tunnel and NOT direct VM IP', () => {
+    it('points stream at the Oracle host and NOT at the GCP VM', () => {
       expect(fs.existsSync(dnsStateFile)).toBe(true);
       const stateContent = JSON.parse(fs.readFileSync(dnsStateFile, 'utf8'));
       const streamRecord = stateContent.zone.find((r: { name: string }) => r.name === 'stream');
 
       expect(streamRecord).toBeDefined();
-      expect(streamRecord.type).toBe('CNAME');
-      expect(streamRecord.records[0].content).toContain('.cfargotunnel.com');
+      expect(streamRecord.type).toBe('A');
+      expect(streamRecord.records[0].content).toBe('129.80.56.27');
       expect(streamRecord.records[0].content).not.toBe('34.123.80.137');
     });
 
@@ -86,16 +85,14 @@ describe('Zero-Egress Stream Architecture & Edge Protection (Issue #127)', () =>
   });
 
   describe('Terraform Firewall Rules (infra/terraform/main.tf)', () => {
-    it('disables allow-http-https from 0.0.0.0/0 when cloudflare_tunnel_enabled is true', () => {
+    it('opens allow-http-https from 0.0.0.0/0 only while the GCP VM serves the stream (streamer_vm_running)', () => {
       expect(fs.existsSync(terraformMainFile)).toBe(true);
       const tfContent = fs.readFileSync(terraformMainFile, 'utf8');
 
-      // The firewall rule must be gated by cloudflare_tunnel_enabled
-      expect(tfContent).toMatch(/count\s*=\s*var\.cloudflare_tunnel_enabled\s*\?\s*0\s*:\s*1/);
+      expect(tfContent).toMatch(/count\s*=\s*var\.streamer_vm_running\s*\?\s*1\s*:\s*0/);
       const allowWebBlock =
-        tfContent.split('resource "google_compute_firewall" "allow_web"')[1]?.split('}')[0] || '';
-      expect(allowWebBlock).toContain('count');
-      expect(allowWebBlock).toContain('var.cloudflare_tunnel_enabled');
+        tfContent.split('resource "google_compute_firewall" "allow_web"')[1]?.split('\n}\n')[0] || '';
+      expect(allowWebBlock).toContain('var.streamer_vm_running');
     });
   });
 

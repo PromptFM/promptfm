@@ -4,9 +4,12 @@ This directory contains the complete **Infrastructure-as-Code (Terraform)**, **C
 
 Designed to operate strictly within the **GCP Always Free Tier ($0.00 / Month)** with zero recurring costs.
 
+> **The GCP host is retired and stopped. The stream runs on Oracle Cloud Always Free** (AMD micro VM, on air since 2026-11-09). GCP includes only 1 GB/month of outbound traffic and one 128 kbps listener is about 41 GB/month, so the GCP host cannot carry the stream for free. The Oracle module is [`infra/terraform-oci`](terraform-oci/README.md); see [Oracle Always Free streamer](../docs/oracle-always-free-streamer.md). Terraform here keeps the GCP VM stopped (`streamer_vm_running = false`). Which host serves the stream is one word in [`stream-host`](stream-host); [`converge-stream.sh`](converge-stream.sh) and the infra tags switch it. See [docs/infra-overview.md](../docs/infra-overview.md). The sections below describe the GCP host as it was built.
+
 ---
 
 ## 📑 Table of Contents
+0. [Oracle Always Free Module (`terraform-oci`)](#0-oracle-always-free-module-terraform-oci)
 1. [Architecture Overview](#1-architecture-overview)
 2. [Caddy Automatic HTTPS & CORS Reverse Proxy](#2-caddy-automatic-https--cors-reverse-proxy)
 3. [DNS & Custom Domain Setup (`stream.promptfm.live`)](#3-dns--custom-domain-setup-streampromptfmlive)
@@ -18,6 +21,29 @@ Designed to operate strictly within the **GCP Always Free Tier ($0.00 / Month)**
 9. [Operational Command Reference](#9-operational-command-reference)
 10. [Troubleshooting & FAQs](#10-troubleshooting--faqs)
 11. [0-Cost Telemetry & Dashboards](#11-0-cost-telemetry--dashboards)
+
+---
+
+## 0. Oracle Always Free Module (`terraform-oci`)
+
+[`infra/terraform-oci`](terraform-oci/README.md) creates the stream host on Oracle Cloud (`us-ashburn-1`):
+
+| Resource | Detail |
+| :--- | :--- |
+| VM | Ubuntu 24.04. Today an AMD micro (`VM.Standard.E2.1.Micro`, 1 GB RAM + 2 GB swap, audio only) because Oracle had no free Arm capacity. Ampere A1 (2 OCPU / 12 GB) when capacity returns: remove `prevent_destroy`, `terraform apply -var shape=A1`, redeploy |
+| Network | VCN, reserved public IP, ports 22, 80 and 443 only |
+| Cost guards | Terraform validations lock to Always Free shapes and sizes, a tenancy quota policy blocks everything else, a $1 budget email, and an email alarm when outbound traffic passes 300 GB/day |
+| Credentials | GCP Secret Manager secret `promptfm-oci-credentials` (one JSON secret) |
+| State | GCS bucket `promptfm-tfstate-promptfm-radio-1793623670`, prefix `terraform/oci-state` |
+
+Oracle includes about 10 TB/month of outbound traffic, so no Cloudflare Tunnel is needed: Caddy serves TLS on 443 directly.
+
+How to apply:
+- GitHub Actions: run **Apply Terraform (Oracle streamer)**. It only previews the plan unless `apply` is ticked.
+- If apply fails with `Out of host capacity`, run `infra/terraform-oci/retry-apply.sh`, which retries until Oracle has a free A1.
+- Deploy the stack with `infra/ansible/deploy-oci.sh` or the **Deploy Streamer (Oracle)** workflow. The host is in the `[streamer_oci]` group of `infra/ansible/inventory.ini` (`caddy_bind_address=0.0.0.0`, `liquidsoap_script=radio.liq`). Tick `standby` in the workflow to loop the fallback instead of calling the API.
+
+Full details, the cutover record, rollback and release steps, and Oracle dashboard links: [docs/oracle-always-free-streamer.md](../docs/oracle-always-free-streamer.md).
 
 ---
 
@@ -93,7 +119,7 @@ stream.promptfm.live {
 ### Terraform Firewall Rules (`infra/terraform/main.tf`)
 To protect against GCP VM network egress charges, direct public access from `0.0.0.0/0` is strictly restricted:
 - `allow-icecast`: Port `8000` is disabled from public ingress; Icecast binds to `127.0.0.1:8000`.
-- `allow-http-https`: Gated by `var.cloudflare_tunnel_enabled ? 0 : 1`. When Cloudflare Tunnel is enabled (default), direct `0.0.0.0/0` ingress on ports 80/443 is disabled since `cloudflared` initiates outbound connections to Cloudflare Edge. Public listeners connect through `stream.promptfm.live` (CNAME to edge tunnel) with $0 egress fees.
+- `allow-http-https`: created only while the GCP VM serves the stream (`var.streamer_vm_running`, set from `infra/stream-host` by `infra/converge-stream.sh`). By default the VM is stopped and the rule does not exist, because GCP only includes 1 GB/month of outbound traffic.
 
 ---
 
@@ -101,15 +127,11 @@ To protect against GCP VM network egress charges, direct public access from `0.0
 
 PromptFM uses two dedicated hostnames:
 1. **`promptfm.live`**: Hosted on Vercel (Next.js web application, Admin Studio, community charts, and API endpoints).
-2. **`stream.promptfm.live`**: A DNS `CNAME` record pointing to the Cloudflare Tunnel / Edge CDN (`promptfm-stream.cfargotunnel.com.`) to ensure **$0 GCP VM bandwidth egress**. Direct public ingress to ports 80, 443, and 8000 on the VM is closed from `0.0.0.0/0`.
+2. **`stream.promptfm.live`**: An `A` record to the Oracle streamer (`129.80.56.27`, TTL 300). It used to be an `A` record to the retired GCP VM (`34.123.80.137`). Caddy on the Oracle VM serves TLS on 443 directly. The zero-egress rule is that `stream` must not point at the GCP VM; an `A` record to another host or a `CNAME` is compliant.
 
-### Adding the DNS Record (Hostinger / Cloudflare)
-1. In your Hostinger DNS management console (or via declarative state `infra/dns/promptfm.live.state.json`), ensure `stream` is configured as a `CNAME`:
-   - **Type**: `CNAME`
-   - **Name / Host**: `stream` (or `stream.promptfm.live`)
-   - **Points to (Value)**: `promptfm-stream.cfargotunnel.com.` (or your Cloudflare Tunnel hostname)
-   - **TTL**: 300 (or Auto)
-2. The `cloudflared` daemon on the streamer VM connects outbound to Cloudflare Edge, proxying audio traffic with unlimited free CDN egress bandwidth without hitting GCP egress quotas!
+### Changing the DNS record (Hostinger)
+1. Edit `stream` in the declarative state `infra/dns/promptfm.live.state.json` and apply it with `npm run promptfm -- dns apply promptfm.live`, or run the **Apply Hostinger DNS Changes** workflow. A `promptfm-infra/*` tag push also applies it (with `--force`).
+2. After a switch to GCP the IP is new (a stopped VM loses its ephemeral address). `infra/converge-stream.sh` reads it and points the `stream` record at it. See [docs/infra-overview.md](../docs/infra-overview.md).
 
 ---
 
@@ -228,7 +250,7 @@ make deploy
 ```
 
 ### What `make deploy` executes automatically:
-1. **Initializes & Runs Terraform**: Provisions the `e2-micro` VM, 30 GB standard disk, and firewall rules for web ports 80 and 443 (port 8000 is strictly blocked from public ingress to ensure zero direct GCP VM egress charges).
+1. **Initializes & Runs Terraform**: Provisions the `e2-micro` VM, 30 GB standard disk, and firewall rules for web ports 80 and 443 (port 8000 is blocked from public ingress; Icecast is reached through Caddy).
 2. **Dynamic Inventory Sync**: Resolves the VM's external IP address and updates Ansible's `inventory.ini`.
 3. **Waits for SSH**: Polls port 22 until the instance is reachable.
 4. **Runs Ansible Playbook**: Installs Docker & Docker Compose, deploys Icecast (bound strictly to `127.0.0.1`), Liquidsoap, and Caddy reverse proxy configs, downloads fallback audio, and starts containers.
@@ -318,6 +340,9 @@ The stream server, API quotas, and live audience telemetry are monitored through
 | **Google Cloud Monitoring** | [PromptFM 0-Cost Telemetry](https://console.cloud.google.com/monitoring/dashboards/builder/ce33f584-e48f-407a-b2e7-1d1fa9e990ff?project=promptfm-radio-1793623670) | Gemini 3.5 & 2.5 Flash TTS requests, latencies, GCS operations | **$0.00** |
 | **Vercel Web Analytics** | [Vercel Realtime Analytics](https://vercel.com/alextrifan/promptfm/analytics) | Real-time web visitors, iPhone PWA users, top referrers, Web Vitals | **$0.00** |
 | **Station Manager Studio** | [promptfm.live/admin](https://promptfm.live/admin) | Queue curation, batch requests, and telemetry quick-bar | **$0.00** |
+| **Oracle Cloud Instances** | [Compute instances](https://cloud.oracle.com/compute/instances?region=us-ashburn-1) | Oracle streamer VM state (this is the live host) | **$0.00 (Always Free)** |
+| **Oracle Metrics Explorer** | [Metrics Explorer](https://cloud.oracle.com/monitoring/metrics-explorer?region=us-ashburn-1) | CPU, memory and outbound bytes (`oci_computeagent`, `oci_vcn`) | **$0.00 (Always Free)** |
+| **Oracle Cost Analysis** | [Cost Analysis](https://cloud.oracle.com/account-management/cost-analysis) | Confirms the bill stays at $0 | **$0.00 (Always Free)** |
 | **Icecast 2 Admin** | [stream.promptfm.live:8000/admin](http://stream.promptfm.live:8000/admin/) | Mountpoint listener sockets, bandwidth telemetry | **$0.00** |
 
 Provisioned via Terraform resource `google_monitoring_dashboard.telemetry_dashboard` from [`config/gcp-dashboard.json`](../config/gcp-dashboard.json).

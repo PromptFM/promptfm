@@ -400,23 +400,19 @@ describe('Icecast UTF-8 Metadata & Mojibake Repair (Issue #133)', () => {
       expect(xml).toContain('<changeowner>');
     });
 
-    it('validates infra/ansible/roles/streamer/templates/icecast.xml.j2 specifies UTF-8 charset', () => {
-      const templatePath = path.join(rootDir, 'infra/ansible/roles/streamer/templates/icecast.xml.j2');
-      expect(fs.existsSync(templatePath)).toBe(true);
-      const xml = fs.readFileSync(templatePath, 'utf8');
-
-      expect(xml).toContain('<charset>UTF-8</charset>');
+    it('deploys the UTF-8 Icecast config from deploy/streamer, the single source of truth', () => {
+      const tasks = fs.readFileSync(path.join(rootDir, 'infra/ansible/roles/streamer/tasks/main.yml'), 'utf8');
+      expect(tasks).toContain('{{ playbook_dir }}/../../deploy/streamer/icecast.xml');
+      expect(tasks).toContain('{{ playbook_dir }}/../../deploy/streamer/radio.liq');
+      expect(tasks).not.toContain('icecast.xml.j2');
+      expect(tasks).not.toContain('radio.liq.j2');
     });
 
-    it('validates deploy/streamer/radio.liq and ansible radio.liq.j2 configure encoding="UTF-8"', () => {
-      const radioLiqPath = path.join(rootDir, 'deploy/streamer/radio.liq');
-      const radioJ2Path = path.join(rootDir, 'infra/ansible/roles/streamer/templates/radio.liq.j2');
-
-      const liqContent = fs.readFileSync(radioLiqPath, 'utf8');
-      const j2Content = fs.readFileSync(radioJ2Path, 'utf8');
-
-      expect(liqContent).toMatch(/encoding\s*=\s*"UTF-8"/);
-      expect(j2Content).toMatch(/encoding\s*=\s*"UTF-8"/);
+    it('validates deploy/streamer/radio.liq and radio-standby.liq configure encoding="UTF-8"', () => {
+      for (const file of ['radio.liq', 'radio-standby.liq']) {
+        const content = fs.readFileSync(path.join(rootDir, 'deploy/streamer', file), 'utf8');
+        expect(content, file).toMatch(/encoding\s*=\s*"UTF-8"/);
+      }
     });
 
     it('validates docker-compose.yml routes icecast directly via entrypoint with read-only config', () => {
