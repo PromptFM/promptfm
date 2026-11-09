@@ -9,7 +9,9 @@ The addresses are declared in [`config/inbound-forwarding.json`](../../config/in
 | `dev@`, `contact@` | contact | `default_forward_to` |
 | `report@`, `legal@` | complaint (goes to the moderation queue too) | `default_forward_to` |
 
-To add an address: add it under `aliases` (optionally with its own `forward_to`), merge, then run the apply below. Any other address on the domain still reaches `default_forward_to` as contact mail.
+Change where an address forwards: run the **Resend Forwarding** workflow (Actions, pick the address, list the emails) or `npm run email:forward -- legal "a@x.com, b@x.com"`. Both edit the file and open a pull request, and it takes effect when that is merged and deployed.
+
+To add an address: add it under `aliases` (optionally with its own `forward_to`), merge, add it to the workflow's dropdown, then run the apply below. Any other address on the domain still reaches `default_forward_to` as contact mail.
 
 ## Run it
 

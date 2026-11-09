@@ -29,8 +29,10 @@ function parseAddress(raw: string): { local: string; domain: string } {
 
 export function resolveForwarding(
   recipients: string[],
-  config: ForwardingConfig = defaultConfig as ForwardingConfig
+  config: ForwardingConfig = defaultConfig as ForwardingConfig,
+  defaultOverride: string[] = []
 ): ForwardingDecision {
+  const defaults = defaultOverride.length > 0 ? defaultOverride : config.default_forward_to;
   const targets: string[] = [];
   let category: 'contact' | 'complaint' = 'contact';
 
@@ -42,9 +44,32 @@ export function resolveForwarding(
         : undefined;
     if (!alias) continue;
     if (alias.category === 'complaint') category = 'complaint';
-    targets.push(...(alias.forward_to ?? config.default_forward_to));
+    targets.push(...(alias.forward_to ?? defaults));
   }
 
-  const forwardTo = [...new Set(targets.length > 0 ? targets : config.default_forward_to)];
+  const forwardTo = [...new Set(targets.length > 0 ? targets : defaults)];
   return { forwardTo, category };
+}
+
+const EMAIL = /^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+$/;
+
+/**
+ * Returns a copy of the config where one alias forwards to the given emails (commas, semicolons, spaces or
+ * newlines between them). An empty list puts the alias back on the default address.
+ */
+export function setAliasForwarding(config: ForwardingConfig, alias: string, emails: string): ForwardingConfig {
+  const existing = Object.hasOwn(config.aliases, alias) ? config.aliases[alias] : undefined;
+  if (!existing) {
+    throw new Error(`Unknown alias "${alias}". Known aliases: ${Object.keys(config.aliases).sort().join(', ')}`);
+  }
+
+  const list = [...new Set(emails.split(/[\s,;]+/).filter(Boolean).map((e) => e.toLowerCase()))];
+  const invalid = list.filter((e) => !EMAIL.test(e));
+  if (invalid.length > 0) {
+    throw new Error(`Not a valid email: ${invalid.join(', ')}`);
+  }
+
+  const next: ForwardingAlias =
+    list.length > 0 ? { category: existing.category, forward_to: list } : { category: existing.category };
+  return { ...config, aliases: { ...config.aliases, [alias]: next } };
 }
