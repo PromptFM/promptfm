@@ -98,6 +98,27 @@ for r in d["zone"]:
 json.dump(d, open(out, "w"), indent=2)
 PY
   npm run -s promptfm -- dns apply "$DOMAIN" --state "$state" --force
+
+  # The dns command prints its errors (for example a rejected token) but still exits 0, so ask Hostinger what the
+  # record says now. This reads the zone itself, so it does not wait for resolver caches.
+  local got
+  got="$(curl -s -m 20 -H "Authorization: Bearer $HOSTINGER_API_TOKEN" "https://developers.hostinger.com/api/dns/v1/zones/$DOMAIN" |
+    python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+zone = d if isinstance(d, list) else d.get("data", [])
+for r in zone:
+    if r.get("name") == "stream" and r.get("type") == "A":
+        print(",".join(x["content"] for x in r.get("records", [])))
+' || true)"
+  if [ "$got" != "$ip" ]; then
+    echo "The Hostinger record for stream.$DOMAIN is '${got:-unreadable}', expected $ip." >&2
+    exit 1
+  fi
+  echo "    DNS: stream.$DOMAIN -> $ip (read back from Hostinger)"
 }
 
 verify() {
