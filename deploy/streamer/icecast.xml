@@ -3,7 +3,9 @@
     <admin>admin@promptfm.internal</admin>
     <hostname>localhost</hostname>
     <limits>
-        <clients>2000</clients>
+        <!-- 10 TB/month free outbound / (128 kbps x 31 days = 42.9 GB per listener) = 233 listeners.
+             230 on the mount, plus room for the source, the admin page and status polls. -->
+        <clients>240</clients>
         <sources>10</sources>
         <queue-size>524288</queue-size>
         <client-timeout>30</client-timeout>
@@ -21,6 +23,7 @@
     <mount type="normal">
         <mount-name>/stream.mp3</mount-name>
         <fallback-mount>/fallback.mp3</fallback-mount>
+        <max-listeners>230</max-listeners>
         <fallback-override>1</fallback-override>
         <no-mount>0</no-mount>
         <burst-size>65536</burst-size>

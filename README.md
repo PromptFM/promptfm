@@ -54,6 +54,7 @@ PromptFM is engineered to operate strictly within 100% zero-cost cloud tiers. Us
 | **Terraform validations** | VM size locked to the free allowance, only the Arm A1 shape, plan fails outside the home region | Yes, before the API call |
 | **$1 budget** | Emails when actual spend reaches $1 | No, alert only |
 | **Outbound alarm** | Emails when the streamer sends more than 300 GB in a day (the free allowance is 10 TB/month). Created together with the VM | No, alert only |
+| **Listener cap + bitrate ceiling** | Icecast refuses listener 231 on `/stream.mp3` (230 listeners x 128 kbps for a 31-day month is 9.9 TB of the 10 TB free). Nothing encodes above 128 kbps; spoken word is 64 kbps. About 240 full-time listeners fit. See [bitrate and capacity](docs/oracle-always-free-streamer.md#bitrate-and-listener-capacity) | **Yes** |
 | **Network** | Only ports 22, 80 and 443 are open | n/a |
 
 Confirm the Oracle notification email once, or the two alerts won't arrive. Details: [docs/oracle-always-free-streamer.md](docs/oracle-always-free-streamer.md).
@@ -372,6 +373,7 @@ All community submissions via `/submit` are saved with `status: 'pending'`. They
 
 PromptFM exposes a streamable **Model Context Protocol (MCP)** server at [`https://promptfm.live/api/mcp`](https://promptfm.live/api/mcp) supporting both Public Listener Mode and Station Admin Mode.
 
+- **$0 Policy (Google Cloud, Vercel, Oracle):** [`docs/zero-cost-policy.md`](docs/zero-cost-policy.md) (what stops spending, what only alerts, and what to do when an alert fires).
 - **Listener Commands & Schedule Guide:** [`docs/listener-guide.md`](docs/listener-guide.md) (Discord & Telegram prompts, clock wheels, and queueing).
 - **MCP Integration Guide:** [`docs/mcp-integration-guide.md`](file:///Users/trifan/DEVELOPMENT/promptfm/docs/mcp-integration-guide.md) (Claude Desktop, Cursor, Antigravity, Windsurf).
 - **Public Tools:** Natural language vibe search (`promptfm_search_tracks_by_vibe`), chart rankings, live DJ status, song requests, and safety reporting.

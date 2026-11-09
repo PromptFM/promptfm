@@ -440,7 +440,7 @@ PromptFM can re-encode its 24/7 uninterrupted Icecast stream into high-definitio
                                │  ┌──────────────────────────────────────────────────┐  │
                                │  │   FFmpeg RTMP Sidecar & Stream Controller (3001) │  │
                                │  │   • Video: H.264 (1280x720 / 720x1280 @ 30fps)   │  │
-                               │  │   • Audio: AAC 192kbps / 44.1kHz                  │  │
+                               │  │   • Audio: AAC 128kbps / 44.1kHz                  │  │
                                │  │   • Overlays: Album cover art + logo loops       │  │
                                │  └───────────────┬──────────────────────┬───────────┘  │
                                └──────────────────┼──────────────────────┼──────────────┘
@@ -516,6 +516,8 @@ npm run promptfm -- stream stop tiktok
 ## 7. $0 Infrastructure Budget Policy & Free-Tier Guardrails (Vercel & CI)
 
 PromptFM is architected to operate **permanently within the $0/month free-tier budget** across all cloud providers (GCP Always Free `e2-micro`, Oracle Cloud Always Free, Vercel Hobby, Cloudflare R2, and Supabase Free Tier). To prevent sudden cost spikes or exceeding Vercel's included **4 hours/month of Fluid Active CPU**, strict operational guardrails are enforced across deployment previews and CI pipelines.
+
+> One page covers all three providers, with alerts and what to do when one fires: [zero-cost-policy.md](zero-cost-policy.md).
 
 ### A. Core Budget Metrics & Limits
 
