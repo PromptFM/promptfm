@@ -89,6 +89,21 @@ describe('Stream switch (GCP <-> Oracle)', () => {
       expect(sh).toContain('trap');
     });
 
+    it('cleans up its temporary file with an EXIT trap, not a RETURN trap that fires later with the variable gone (set -u)', () => {
+      expect(sh).not.toMatch(/trap [^\n]*RETURN/);
+      expect(sh).toMatch(/trap [^\n]*EXIT/);
+    });
+
+    it('gets the Hostinger token from Secret Manager when the environment has none, and refuses to run without one', () => {
+      expect(sh).toContain('promptfm-hostinger-api-token');
+      expect(sh).toContain('gcloud secrets versions access latest');
+      const body = fn('point_dns');
+      expect(body).toContain('HOSTINGER_API_TOKEN');
+      expect(body).toContain('exit 1');
+      // without a token the dns command only validates a local file and exits 0, so the DNS record would not move
+      before(body, 'exit 1', 'dns apply');
+    });
+
     it('fails when the stream does not answer on the chosen host', () => {
       const body = fn('verify');
       expect(body).toContain('--resolve');

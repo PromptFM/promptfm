@@ -24,6 +24,10 @@ ZONE="${GCP_ZONE:-us-central1-a}"
 INSTANCE="${GCP_INSTANCE:-promptfm-streamer}"
 DOMAIN="${DOMAIN_NAME:-promptfm.live}"
 
+# A RETURN trap would fire again on every later function return, after $state is gone (and set -u would fail).
+STATE_TMP=""
+trap '[ -z "$STATE_TMP" ] || rm -f "$STATE_TMP"' EXIT
+
 STEP="all"
 HOST=""
 for arg in "$@"; do
@@ -71,8 +75,17 @@ terraform_gcp() {
 # The stream record follows the active host. It is computed at run time because the GCP VM gets a new IP on every start.
 point_dns() {
   local ip="$1" state
+  # Without a token the dns command only validates a local copy and still exits 0, so the record would not move.
+  if [ -z "${HOSTINGER_API_TOKEN:-}" ]; then
+    HOSTINGER_API_TOKEN="$(gcloud secrets versions access latest --secret=promptfm-hostinger-api-token --project="$PROJECT" 2>/dev/null || true)"
+    export HOSTINGER_API_TOKEN
+  fi
+  if [ -z "$HOSTINGER_API_TOKEN" ]; then
+    echo "No Hostinger API token (env HOSTINGER_API_TOKEN or Secret Manager promptfm-hostinger-api-token): the DNS record cannot be moved." >&2
+    exit 1
+  fi
   state="$(mktemp)"
-  trap 'rm -f "$state"' RETURN
+  STATE_TMP="$state"
   python3 - "$state" "$ip" "$DOMAIN" <<'PY'
 import json, sys
 out, ip, domain = sys.argv[1:4]
