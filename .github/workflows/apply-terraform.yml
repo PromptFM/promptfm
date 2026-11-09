@@ -117,9 +117,11 @@ jobs:
           if [ "${{ github.event.inputs.force_ansible }}" = "true" ]; then
             FORCE_FLAG="--force"
           fi
-          SKIP_FLAG=""
-          if [ "${{ github.event.inputs.skip_ansible }}" = "true" ]; then
-            SKIP_FLAG="--skip"
+          # The GCP VM is retired (the stream runs on Oracle). Redeploying the old stack there would start a second
+          # Liquidsoap, so Ansible is skipped unless force_ansible is ticked on a manual run.
+          SKIP_FLAG="--skip"
+          if [ "${{ github.event.inputs.force_ansible }}" = "true" ]; then
+            SKIP_FLAG=""
           fi
           npm run promptfm -- ansible $FORCE_FLAG $SKIP_FLAG --terraform-log /tmp/terraform-apply.log
         env:

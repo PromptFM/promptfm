@@ -1,6 +1,6 @@
 {
   "domain": "promptfm.live",
-  "updatedAt": "2026-11-08T12:10:49.111Z",
+  "updatedAt": "2026-11-09T00:13:19.000Z",
   "version": 1,
   "zone": [
     {
@@ -29,12 +29,12 @@
       "name": "stream",
       "records": [
         {
-          "content": "promptfm-stream.cfargotunnel.com.",
+          "content": "129.80.56.27",
           "is_disabled": false
         }
       ],
       "ttl": 300,
-      "type": "CNAME"
+      "type": "A"
     },
     {
       "name": "rsend",

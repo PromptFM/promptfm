@@ -60,7 +60,11 @@ describe('PromptFM Documentation & Architecture Portal (docs/index.html)', () =>
 
     it('docs portal has a clickable Oracle monitor banner, a header button and a dashboards card', () => {
       const html = fs.readFileSync(portalPath, 'utf8');
-      expect(html).toMatch(new RegExp(`<a class="oracle-banner" href="${metrics.replace(/[?.]/g, '\\$&')}"[^>]*rel="noopener"`));
+      const bannerStart = html.indexOf('<a class="oracle-banner"');
+      expect(bannerStart).toBeGreaterThan(-1);
+      const banner = html.slice(bannerStart, html.indexOf('>', bannerStart));
+      expect(banner).toContain(`href="${metrics}"`);
+      expect(banner).toContain('rel="noopener"');
       expect(html).toContain('Oracle Monitor</a>');
       expect(html).toContain('Oracle Cloud (Always Free)');
       expect(html).toContain('https://cloud.oracle.com/quotas');

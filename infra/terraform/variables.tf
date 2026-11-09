@@ -145,3 +145,9 @@ variable "github_repository" {
 }
 
 
+
+variable "streamer_vm_running" {
+  description = "Whether the GCP streamer VM is running. The stream is served from Oracle (infra/terraform-oci), so this is false and the VM stays stopped. GCP only includes 1 GB/month of outbound traffic. Set it to true only when rolling the stream back to GCP (infra/rollback-stream-to-gcp.sh)."
+  type        = bool
+  default     = false
+}

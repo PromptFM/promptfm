@@ -60,6 +60,7 @@ resource "google_compute_instance" "streamer" {
   machine_type              = var.machine_type
   zone                      = var.zone
   allow_stopping_for_update = true
+  desired_status            = var.streamer_vm_running ? "RUNNING" : "TERMINATED"
 
   lifecycle {
     ignore_changes = [service_account]

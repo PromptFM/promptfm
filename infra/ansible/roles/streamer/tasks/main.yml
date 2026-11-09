@@ -6,7 +6,7 @@
   apt:
     name:
       - docker.io
-      - docker-compose
+      - docker-compose-v2
       - curl
       - ufw
     state: present
@@ -79,7 +79,7 @@
     force: false
 
 - name: Launch Icecast and Liquidsoap streaming containers
-  command: docker-compose up -d
+  command: docker compose up -d
   args:
     chdir: "{{ app_dir }}"
   environment:
@@ -87,13 +87,13 @@
 
 # Icecast and Liquidsoap read their config at start, and a changed bind-mounted file does not recreate the container.
 - name: Restart Icecast when its config changed
-  command: docker-compose restart icecast
+  command: docker compose restart icecast
   args:
     chdir: "{{ app_dir }}"
   when: icecast_conf is changed
 
 - name: Restart Liquidsoap when its scripts changed
-  command: docker-compose restart liquidsoap
+  command: docker compose restart liquidsoap
   args:
     chdir: "{{ app_dir }}"
   when: radio_script is changed or standby_script is changed

@@ -167,10 +167,17 @@ describe('Oracle Cloud streamer module (infra/terraform-oci)', () => {
       expect(wf).not.toMatch(/if:.*\bsecrets\./);
     });
 
+    it('uses the docker compose v2 plugin, because docker-compose v1 fails recreating containers with ContainerConfig errors', () => {
+      const tasks = read('infra/ansible/roles/streamer/tasks/main.yml');
+      expect(tasks).toContain('docker-compose-v2');
+      expect(tasks).toContain('docker compose up -d');
+      expect(tasks).not.toMatch(/command: docker-compose /);
+    });
+
     it('restarts Icecast and Liquidsoap when their config changes, because they do not reload it', () => {
       const tasks = read('infra/ansible/roles/streamer/tasks/main.yml');
-      expect(tasks).toContain('docker-compose restart icecast');
-      expect(tasks).toContain('docker-compose restart liquidsoap');
+      expect(tasks).toContain('docker compose restart icecast');
+      expect(tasks).toContain('docker compose restart liquidsoap');
       expect(tasks).toMatch(/icecast_conf is changed/);
     });
   });

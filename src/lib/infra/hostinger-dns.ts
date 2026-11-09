@@ -74,13 +74,19 @@ export interface ZeroEgressComplianceResult {
 }
 
 /**
- * Validates whether the DNS zone protects against direct GCP VM bandwidth egress charges (Issue #127).
- * The stream subdomain must point to an edge CNAME proxy (e.g. Cloudflare Tunnel, Edge CDN)
- * rather than a direct GCP VM IPv4 address.
+ * The GCP VM that used to serve the stream. GCP only includes 1 GB/month of outbound traffic and one
+ * 128 kbps listener is about 41 GB/month, so listeners must not be served from here.
+ */
+export const LEGACY_GCP_STREAM_VM_IPS: readonly string[] = ['34.123.80.137'];
+
+/**
+ * Validates that the stream subdomain does not send listeners to the GCP VM (Issues #127, #150).
+ * An A record to any other host (the Oracle Always Free VM) or a CNAME is fine.
  */
 export function validateZeroEgressCompliance(
   zone: HostingerDNSRecord[],
-  streamSubdomain: string = 'stream'
+  streamSubdomain: string = 'stream',
+  gcpVmIps: readonly string[] = LEGACY_GCP_STREAM_VM_IPS
 ): ZeroEgressComplianceResult {
   const streamRecord = zone.find(
     (r) => r.name.toLowerCase() === streamSubdomain.toLowerCase()
@@ -94,15 +100,27 @@ export function validateZeroEgressCompliance(
     };
   }
 
-  const primaryContent = streamRecord.records?.[0]?.content?.trim() || '';
+  const contents = (streamRecord.records ?? []).map((r) => r.content.trim());
+  const primaryContent = contents[0] || '';
 
   if (streamRecord.type === 'A') {
+    const gcpIp = contents.find((c) => gcpVmIps.includes(c));
+    if (gcpIp) {
+      return {
+        compliant: false,
+        risk: 'direct_vm_egress',
+        recordType: 'A',
+        target: gcpIp,
+        message: `Stream subdomain "${streamSubdomain}" points at the GCP VM (${gcpIp}). GCP only includes 1 GB/month of outbound traffic, so listener traffic would be billed.`,
+      };
+    }
+
     return {
-      compliant: false,
-      risk: 'direct_vm_egress',
+      compliant: true,
+      risk: 'none',
       recordType: 'A',
       target: primaryContent,
-      message: `Stream subdomain "${streamSubdomain}" points to an A record instead of an edge CNAME (${primaryContent}). Public listeners will hit the VM directly, incurring GCP egress bandwidth billing.`,
+      message: `Stream subdomain "${streamSubdomain}" points at ${primaryContent}, not the GCP VM.`,
     };
   }
 
@@ -112,7 +130,7 @@ export function validateZeroEgressCompliance(
       risk: 'none',
       recordType: 'CNAME',
       target: primaryContent,
-      message: `Stream subdomain "${streamSubdomain}" routes through edge CNAME proxy (${primaryContent}) with $0 GCP egress.`,
+      message: `Stream subdomain "${streamSubdomain}" routes through ${primaryContent}, not the GCP VM.`,
     };
   }
 
@@ -121,7 +139,7 @@ export function validateZeroEgressCompliance(
     risk: 'direct_vm_egress',
     recordType: streamRecord.type,
     target: primaryContent,
-    message: `Stream subdomain "${streamSubdomain}" uses unexpected record type ${streamRecord.type}. Expected edge CNAME.`,
+    message: `Stream subdomain "${streamSubdomain}" uses unexpected record type ${streamRecord.type}. Expected an A record to the stream host or a CNAME.`,
   };
 }
 

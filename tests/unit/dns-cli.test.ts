@@ -74,24 +74,75 @@ describe('PromptFM Hostinger DNS & Domain Migration CLI', () => {
     expect(oldStreamDiff?.action).toBe('delete');
   });
 
-  it('audits DNS zone zero-egress compliance and alerts on direct VM IP', () => {
-    const leakZone: hostingerDns.HostingerDNSRecord[] = [
-      {
-        name: 'stream',
-        type: 'A',
-        ttl: 300,
-        records: [{ content: '34.123.80.137' }],
-      },
+  it('audits the stream record: it must not point at the legacy GCP VM', () => {
+    const gcpZone: hostingerDns.HostingerDNSRecord[] = [
+      { name: 'stream', type: 'A', ttl: 300, records: [{ content: '34.123.80.137' }] },
     ];
+    const gcpCheck = hostingerDns.validateZeroEgressCompliance(gcpZone);
+    expect(gcpCheck.compliant).toBe(false);
+    expect(gcpCheck.risk).toBe('direct_vm_egress');
+    expect(gcpCheck.recordType).toBe('A');
+    expect(gcpCheck.target).toBe('34.123.80.137');
+    expect(gcpCheck.message).toContain('points at the GCP VM (34.123.80.137)');
 
-    const leakCheck = hostingerDns.validateZeroEgressCompliance(leakZone);
-    expect(leakCheck.compliant).toBe(false);
-    expect(leakCheck.risk).toBe('direct_vm_egress');
-    expect(leakCheck.message).toContain('points to an A record instead of an edge CNAME');
+    const oracleZone: hostingerDns.HostingerDNSRecord[] = [
+      { name: 'stream', type: 'A', ttl: 300, records: [{ content: '129.80.56.27' }] },
+    ];
+    const oracleCheck = hostingerDns.validateZeroEgressCompliance(oracleZone);
+    expect(oracleCheck.compliant).toBe(true);
+    expect(oracleCheck.risk).toBe('none');
+    expect(oracleCheck.recordType).toBe('A');
+    expect(oracleCheck.target).toBe('129.80.56.27');
+    expect(oracleCheck.message).toContain('not the GCP VM');
 
     const validCheck = hostingerDns.validateZeroEgressCompliance(sampleZone);
     expect(validCheck.compliant).toBe(true);
     expect(validCheck.risk).toBe('none');
+    expect(validCheck.recordType).toBe('CNAME');
+  });
+
+  it('treats any record that matches a GCP VM address as a leak, ignoring whitespace and the order', () => {
+    const mixed: hostingerDns.HostingerDNSRecord[] = [
+      {
+        name: 'stream',
+        type: 'A',
+        ttl: 300,
+        records: [{ content: '129.80.56.27' }, { content: ' 34.123.80.137 ' }],
+      },
+    ];
+    expect(hostingerDns.validateZeroEgressCompliance(mixed).compliant).toBe(false);
+
+    const padded: hostingerDns.HostingerDNSRecord[] = [
+      { name: 'stream', type: 'A', ttl: 300, records: [{ content: '  34.123.80.137  ' }] },
+    ];
+    const check = hostingerDns.validateZeroEgressCompliance(padded);
+    expect(check.compliant).toBe(false);
+    expect(check.target).toBe('34.123.80.137');
+  });
+
+  it('accepts a custom list of GCP VM addresses and a custom stream subdomain, case-insensitively', () => {
+    const zone: hostingerDns.HostingerDNSRecord[] = [
+      { name: 'Radio', type: 'A', ttl: 300, records: [{ content: '10.0.0.9' }] },
+    ];
+    expect(hostingerDns.validateZeroEgressCompliance(zone, 'radio', ['10.0.0.9']).compliant).toBe(false);
+    expect(hostingerDns.validateZeroEgressCompliance(zone, 'RADIO', ['10.0.0.1']).compliant).toBe(true);
+    expect(hostingerDns.LEGACY_GCP_STREAM_VM_IPS).toContain('34.123.80.137');
+  });
+
+  it('reports a missing stream record and unexpected record types', () => {
+    const missing = hostingerDns.validateZeroEgressCompliance([
+      { name: 'www', type: 'CNAME', ttl: 300, records: [{ content: 'x.vercel-dns-017.com.' }] },
+    ]);
+    expect(missing.compliant).toBe(false);
+    expect(missing.risk).toBe('missing_stream_record');
+    expect(missing.message).toContain('missing from DNS zone');
+
+    const odd = hostingerDns.validateZeroEgressCompliance([
+      { name: 'stream', type: 'TXT', ttl: 300, records: [{ content: '"hi"' }] },
+    ]);
+    expect(odd.compliant).toBe(false);
+    expect(odd.recordType).toBe('TXT');
+    expect(odd.message).toContain('unexpected record type TXT');
   });
 
   it('exposes lint:dns script in package.json targeting strict DNS status check', () => {
