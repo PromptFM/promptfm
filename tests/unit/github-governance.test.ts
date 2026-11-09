@@ -49,6 +49,12 @@ describe('GitHub Branch Protection, CODEOWNERS & Production Gate Rulesets', () =
     expect(content).toContain('context = "codeql-security-scan"');
   });
 
+  it('keeps the CI apply from editing the ruleset bypass actors, which the workflow token cannot read or write', () => {
+    const tf = fs.readFileSync(path.join(rootDir, 'infra/terraform/github.tf'), 'utf8');
+    const block = tf.split('resource "github_repository_ruleset" "main_branch_gate"')[1]?.split('\n}\n')[0] ?? '';
+    expect(block).toMatch(/lifecycle\s*\{\s*ignore_changes\s*=\s*\[bypass_actors\]/);
+  });
+
   it('validates .github/RULESET.md documents ruleset ID, direct push prohibition, bypass modes, and CODEOWNERS integration', () => {
     const rulesetMdPath = path.join(rootDir, '.github/RULESET.md');
     expect(fs.existsSync(rulesetMdPath)).toBe(true);

@@ -207,6 +207,13 @@ resource "github_repository_ruleset" "main_branch_gate" {
 
     required_linear_history = true
   }
+
+  # The workflow's GITHUB_TOKEN cannot read bypass actors (admin only), so every CI plan would see them as
+  # missing and try to PUT the ruleset, which gets a 403. Bypass actors are set when the ruleset is created or
+  # imported by an admin from a laptop; everything else in the ruleset is still managed here.
+  lifecycle {
+    ignore_changes = [bypass_actors]
+  }
 }
 
 
