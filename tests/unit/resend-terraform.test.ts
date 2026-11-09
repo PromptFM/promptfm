@@ -22,6 +22,12 @@ describe('Resend inbound mail Terraform (infra/terraform-resend)', () => {
     expect(read('infra/terraform-resend/variables.tf')).toContain('https://promptfm.live/api/webhooks/resend');
   });
 
+  it('cannot override the forwarders: the targets are never written by Terraform, and the webhook and secret cannot be destroyed', () => {
+    expect(main).not.toContain('forward_to');
+    expect(main).toContain('jsondecode(file(');
+    expect(main.match(/prevent_destroy = true/g)?.length).toBe(2);
+  });
+
   it('fails the plan when receiving is not enabled on the domain', () => {
     expect(main).toContain('postcondition');
     expect(main).toContain('capabilities.receiving == "enabled"');

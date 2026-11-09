@@ -37,6 +37,11 @@ resource "resend_webhook" "inbound" {
   endpoint = var.webhook_endpoint
   events   = ["email.received"]
   status   = "enabled"
+
+  # Deleting it would stop all inbound mail and issue a new signing secret.
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # Keeps RESEND_WEBHOOK_SECRET in Secret Manager equal to the webhook's real signing secret.
@@ -50,6 +55,10 @@ resource "google_secret_manager_secret" "webhook" {
 
   replication {
     auto {}
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 }
 

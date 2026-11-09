@@ -13,6 +13,14 @@ Change where an address forwards: run the **Resend Forwarding** workflow (Action
 
 To add an address: add it under `aliases` (optionally with its own `forward_to`), merge, add it to the workflow's dropdown, then run the apply below. Any other address on the domain still reaches `default_forward_to` as contact mail.
 
+## A re-run does not override the forwarders
+
+- The forwarding targets exist only in `config/inbound-forwarding.json`. Terraform reads that file for the list of addresses and never writes it, and Resend has no per-address forwarding setting to overwrite.
+- What Terraform does own is the webhook (endpoint, the `email.received` event, enabled) and the Secret Manager copy of its signing secret. A re-run puts those back if someone changed them in the Resend dashboard, which is the point.
+- Applying twice changes nothing: the plan is empty when nothing moved, and a new secret version is only added if the signing secret changes.
+- `prevent_destroy` is on the webhook and the secret, so a stray `terraform destroy` fails instead of stopping inbound mail.
+- Only the promptfm.live webhook is managed. The tulzo.online webhook in the same Resend account is not touched.
+
 ## Run it
 
 ```bash
