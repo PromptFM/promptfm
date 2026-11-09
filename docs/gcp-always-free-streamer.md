@@ -2,7 +2,7 @@
 
 This document specifies the exact architecture, cost-safeguard boundaries, and step-by-step setup to host the PromptFM 24/7 continuous audio stream server on Google Cloud Platform with **zero ongoing cost**.
 
-> **The stream is moving to Oracle Cloud.** GCP only includes 1 GB/month of outbound traffic, and one 128 kbps listener is about 41 GB/month. Oracle's Always Free tier includes about 10 TB/month. See [Oracle Always Free streamer](oracle-always-free-streamer.md). This document describes the current GCP host until the cutover is done.
+> **This GCP host is retired.** The stream moved to Oracle Cloud on 2026-11-09: GCP only includes 1 GB/month of outbound traffic, and one 128 kbps listener is about 41 GB/month, while Oracle's Always Free tier includes about 10 TB/month. The VM `promptfm-streamer` is stopped and its public 80/443 firewall rule is removed. This document is kept as the record of how the GCP host was built. To put the stream back on it, see [infra-overview.md](infra-overview.md) (`infra/converge-stream.sh gcp`, or the Rollback Infrastructure workflow).
 
 ---
 
@@ -43,7 +43,7 @@ Listeners ──► Cloudflare Edge ──► cloudflared (on the VM) ──► 
 4. Cloudflare can cache static files, but a live stream is not cacheable, so the tunnel does not reduce the bytes the VM sends.
 5. Cloudflare adds TLS and DDoS protection. It does not make GCP egress free.
 
-This is why the stream is moving to Oracle Cloud, where the free outbound allowance covers it. See [Oracle Always Free streamer](oracle-always-free-streamer.md).
+This is why the stream moved to Oracle Cloud, where the free outbound allowance covers it. See [Oracle Always Free streamer](oracle-always-free-streamer.md).
 
 ---
 

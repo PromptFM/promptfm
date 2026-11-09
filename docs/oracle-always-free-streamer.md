@@ -1,6 +1,6 @@
 # 24/7 PromptFM Stream Server on Oracle Cloud Always Free ($0.00 / Month)
 
-The 24/7 audio stream is moving from a GCP `e2-micro` to an Oracle Cloud Always Free Ampere A1 VM. The Terraform module is [`infra/terraform-oci`](../infra/terraform-oci/README.md). Until the cutover in section 6 is done, the live stream still runs on GCP ([GCP doc](gcp-always-free-streamer.md)).
+The 24/7 audio stream runs on an Oracle Cloud Always Free VM. Since the cutover on 2026-11-09 it is on air from an AMD micro VM (`VM.Standard.E2.1.Micro`, 1 GB RAM + 2 GB swap, `us-ashburn-1`), because Oracle had no free Arm (A1) capacity. The micro VM runs audio only. The Terraform module is [`infra/terraform-oci`](../infra/terraform-oci/README.md). The old GCP host is stopped ([GCP doc](gcp-always-free-streamer.md)); to put the stream back there, see [Rollback](#rollback).
 
 ---
 
@@ -11,7 +11,7 @@ The 24/7 audio stream is moving from a GCP `e2-micro` to an Oracle Cloud Always 
 | Outbound traffic to the internet | 1 GB/month | about 10 TB/month |
 | One 128 kbps listener (about 41 GB/month) | over the allowance | 0.4% of the allowance |
 | 10 listeners (about 415 GB/month) | about $35/month in overage | free |
-| Compute | `e2-micro`, 1 GB RAM | Ampere A1 (Arm), 2 OCPU / 12 GB |
+| Compute | `e2-micro`, 1 GB RAM | AMD micro today (1 GB RAM); Ampere A1 (Arm), 2 OCPU / 12 GB when capacity returns |
 
 A Cloudflare Tunnel does not help on GCP: it only changes the path, and every listener byte still leaves the VM, so GCP bills it. On Oracle the free allowance is large enough that the VM serves listeners directly and no Cloudflare is needed.
 
@@ -22,16 +22,15 @@ Oracle's A1 allowance is 1,500 OCPU-hours and 9,000 GB-hours a month, which is 2
 ## 2. Architecture
 
 ```
- Listeners ──► stream.promptfm.live (A record ➔ Oracle reserved public IP)
+ Listeners ──► stream.promptfm.live (A record ➔ Oracle public IP 129.80.56.27)
                      │  443 (TLS), 80 (certificate issuance + redirect)
                      ▼
 ┌──────────────────────────────────────────────────────────┐
 │  Oracle VM (Ubuntu 24.04, us-ashburn-1)                  │
 │                                                          │
 │  Caddy ──► Icecast (127.0.0.1:8000) ◄── Liquidsoap       │
-│                        │                                 │
-│                        └──► RTMP controller (ffmpeg)     │
-│                             ➔ YouTube / TikTok           │
+│                                                          │
+│  (no RTMP/ffmpeg video feeds on the micro VM)            │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -108,7 +107,7 @@ One secret keeps the project at 1 of the 6 free active secret versions.
 | Terraform | `infra/terraform-oci`, token from `gcloud auth print-access-token` | **Apply Terraform (Oracle streamer)** workflow |
 | Ansible | `infra/ansible/deploy-oci.sh` | **Deploy Streamer (Oracle)** workflow, which runs the same script |
 
-`deploy-oci.sh` takes the SSH key out of the secret, finds the VM's IP in the Terraform state, and runs `playbook-oci.yml`. The workflow stays in standby unless `go_live` is ticked.
+`deploy-oci.sh` takes the SSH key out of the secret, finds the VM's IP in the Terraform state, and runs `playbook-oci.yml`. The workflow leaves the streamer on air with `radio.liq`; tick `standby` to put it in standby (`radio-standby.liq`).
 
 Rotate with the **Rotate Secret** workflow. It adds the new version and destroys the old one (disabled versions still count toward the 6 free, so they must be destroyed).
 
@@ -128,33 +127,31 @@ Terraform only creates the VM. Ansible deploys the stack with its own playbook, 
 
 ```bash
 cd infra/ansible
-./deploy-oci.sh                                  # standby: loops the fallback track, never calls the API
-./deploy-oci.sh -e liquidsoap_script=radio.liq   # on air (cutover only)
+./deploy-oci.sh                                          # on air: the real radio.liq
+./deploy-oci.sh -e liquidsoap_script=radio-standby.liq   # standby: loops the fallback track, never calls the API
 ```
 
 `deploy-oci.sh` gets the SSH key from Secret Manager and the IP from the Terraform state, so there is nothing to configure. The **Deploy Streamer (Oracle)** workflow runs the same script. Icecast and Liquidsoap are restarted when their config changes, because they do not reload it themselves.
 
-The Oracle host is in the `[streamer_oci]` group of `inventory.ini` (`caddy_bind_address=0.0.0.0`, `liquidsoap_script=radio-standby.liq`). `terraform output ansible_inventory_line` gives the host line.
+The Oracle host is in the `[streamer_oci]` group of `inventory.ini` (`caddy_bind_address=0.0.0.0`, `liquidsoap_script=radio.liq`). `terraform output ansible_inventory_line` gives the host line.
 
-**Standby matters.** Liquidsoap asks the live API for the next track and reports every track start. Two streamers on air at once would consume the queue twice and double every Discord and Telegram "now playing" post. Until cutover the Oracle host runs `deploy/streamer/radio-standby.liq`, which loops the fallback track and never calls the API.
+**Standby matters.** Liquidsoap asks the live API for the next track and reports every track start. Two streamers on air at once would consume the queue twice and double every Discord and Telegram "now playing" post. Standby is `deploy/streamer/radio-standby.liq`, which loops the fallback track and never calls the API. Use it on the Oracle host whenever the GCP host is on air, for example during a rollback.
 
 The existing `scripts/run-ansible-iap.ts` runner goes through GCP IAP and only works for the GCP host. Use plain SSH for the Oracle one.
 
-The RTMP controller (ffmpeg bridge to YouTube/TikTok) is defined in `deploy/streamer/docker-compose.yml`. The Ansible compose template does not include it, and the GCP VM does not run it today either. Do not start it on the 1 GB micro VM: ffmpeg video encoding needs a full core. That compose file also starts `cloudflared` unconditionally, so do not run the whole file on Oracle without a tunnel token.
+The RTMP controller (ffmpeg bridge to YouTube/TikTok) is defined in `deploy/streamer/docker-compose.yml`. The Ansible compose template does not include it, and the GCP VM did not run it either. Do not start it on the 1 GB micro VM: ffmpeg video encoding needs a full core. That compose file also starts `cloudflared` unconditionally, so do not run the whole file on Oracle without a tunnel token.
 
 ---
 
-## 6. Cutover from GCP
+## 6. Cutover from GCP (done 2026-11-09)
+
+Done on 2026-11-09. The steps are kept as a record.
 
 1. Deploy to the Oracle host in standby (section 5). Before cutover, copy the existing TLS certificate so Caddy can serve HTTPS without the name pointing at it: stream the Caddy data volume (`streamer_caddy_data`) from the GCP VM to the Oracle VM. Check with `curl -k --resolve stream.promptfm.live:443:<oracle ip> https://stream.promptfm.live/stream.mp3 -o /dev/null -m 5 -w '%{http_code}\n'`.
 2. Go on air on Oracle and off air on GCP in one step, so only one Liquidsoap polls the API: stop `promptfm-liquidsoap` on the GCP VM, then run `ansible-playbook playbook-oci.yml -e liquidsoap_script=radio.liq`.
-3. Change the `stream` record to an `A` record with the Oracle IP in `infra/dns/promptfm.live.state.json`, then apply it with `npm run promptfm -- dns apply promptfm.live` or the **Apply Hostinger DNS Changes** workflow. TTL is 300 seconds.
+3. Change the `stream` record to an `A` record with the Oracle IP (129.80.56.27, TTL 300) in `infra/dns/promptfm.live.state.json`, then apply it with `npm run promptfm -- dns apply promptfm.live` or the **Apply Hostinger DNS Changes** workflow.
 4. Check `https://stream.promptfm.live/stream.mp3` and the web player.
-5. Stop the GCP VM (`gcloud compute instances stop promptfm-streamer`) and remove its 80/443 firewall rule so it cannot send traffic.
-
-Known follow-ups at cutover:
-- `npm run promptfm -- dns status --strict` and `tests/unit/zero-egress-stream.test.ts` still expect `stream` to be a CNAME to a tunnel (the GCP rule). They need updating when the record becomes an `A` record to Oracle.
-- If something goes wrong, point `stream` back to the old CNAME and start the GCP VM again.
+5. Stop the GCP VM and remove its 80/443 firewall rule so it cannot send traffic. Terraform keeps the VM stopped with `streamer_vm_running = false` (the default).
 
 ---
 
@@ -162,8 +159,14 @@ Known follow-ups at cutover:
 
 - **Idle reclaim.** Oracle can reclaim Always Free instances it considers idle (CPU, network and memory all under 20% for 7 days). A continuous stream carries steady traffic, but check **Metrics Explorer** after the first week. Upgrading the account to pay-as-you-go removes the reclaim risk. Resources inside the Always Free limits stay free, and the quota policy keeps anything else from being created, so the bill stays $0.
 - **No capacity.** Oracle may have no free Arm VM. The retry script handles this by falling back to 1 OCPU / 6 GB and then to the AMD micro.
-- **The micro VM is small.** 1/8 of a core, 1 GB of RAM (the VM adds 2 GB of swap) and a 50 Mbps network cap, about 390 listeners at 128 kbps. Enough for audio, not for the YouTube/TikTok video feed. To move to the Arm VM when capacity returns, remove `prevent_destroy` in `main.tf`, run `terraform apply -var shape=A1`, and redeploy with Ansible.
+- **The micro VM is small and runs audio only.** 1/8 of a core, 1 GB of RAM (the VM adds 2 GB of swap) and a 50 Mbps network cap, about 390 listeners at 128 kbps. Enough for audio. The YouTube/TikTok ffmpeg video feeds are not deployed on it. To move to the Arm VM when capacity returns, remove `prevent_destroy` in `main.tf`, run `terraform apply -var shape=A1`, and redeploy with Ansible.
 - **Region.** The A1 allowance only works in the tenancy's home region (`us-ashburn-1`).
+
+---
+
+## Rollback and tagging
+
+How the stream moves between Oracle and GCP, how the infra tags work, and the runbook for when Oracle stops are in [infra-overview.md](infra-overview.md). In short: `infra/stream-host` says `oracle` or `gcp`, and `infra/converge-stream.sh` (or the **Rollback Infrastructure** workflow with a tag) makes the infrastructure match it, one streamer at a time. A rollback to GCP breaks the $0 goal (about $0.17 a day per listener), so it is a short emergency measure.
 
 ---
 

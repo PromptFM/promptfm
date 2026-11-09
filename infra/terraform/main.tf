@@ -35,15 +35,15 @@ resource "google_storage_bucket" "tf_state" {
   }
 }
 
-# 2. Firewall Rule: Restrict public HTTP & HTTPS ingress to prevent direct VM egress charges (Issue #127)
-# When Cloudflare Tunnel is active (default), the cloudflared daemon initiates an outbound connection
-# from the VM to Cloudflare Edge. No inbound ports (80, 443, or 8000) are opened to 0.0.0.0/0.
-# Public listeners route through Cloudflare Edge (stream.promptfm.live CNAME) with unlimited $0 egress.
+# 2. Firewall Rule: public HTTP & HTTPS on the GCP VM, only while the GCP VM is meant to serve the stream.
+# GCP includes 1 GB/month of outbound traffic and one 128 kbps listener is about 41 GB/month, so by default
+# (streamer_vm_running = false, the stream is on Oracle) there is no public ingress at all. infra/converge-stream.sh
+# turns the VM and this rule on together for a switch back to GCP.
 resource "google_compute_firewall" "allow_web" {
-  count       = var.cloudflare_tunnel_enabled ? 0 : 1
+  count       = var.streamer_vm_running ? 1 : 0
   name        = "allow-http-https"
   network     = "default"
-  description = "Allows incoming HTTP/HTTPS traffic for Caddy SSL proxy on ports 80 and 443 (only when Cloudflare Tunnel is disabled)"
+  description = "Allows incoming HTTP/HTTPS traffic for the Caddy stream proxy on ports 80 and 443 (only while the GCP VM serves the stream)"
 
   allow {
     protocol = "tcp"

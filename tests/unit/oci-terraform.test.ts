@@ -155,14 +155,14 @@ describe('Oracle Cloud streamer module (infra/terraform-oci)', () => {
       expect(sh).not.toMatch(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/);
     });
 
-    it('has a manual deploy workflow that stays in standby unless go_live is ticked', () => {
+    it('has a manual deploy workflow that is on air unless standby is ticked', () => {
       const wf = read('.github/workflows/deploy-streamer-oci.yml');
       expect(wf).toContain('workflow_dispatch:');
       expect(wf).not.toMatch(/^\s*push:/m);
       expect(wf).not.toMatch(/^\s*schedule:/m);
-      expect(wf).toMatch(/go_live:\s*\n\s+description:[^\n]*\n\s+type: boolean\n\s+default: false/);
+      expect(wf).toMatch(/standby:\s*\n\s+description:[^\n]*\n\s+type: boolean\n\s+default: false/);
       expect(wf).toContain('infra/ansible/deploy-oci.sh');
-      expect(wf).toContain('liquidsoap_script=radio.liq');
+      expect(wf).toContain('liquidsoap_script=radio-standby.liq');
       expect(wf).toMatch(/^ {2}deploy-streamer-oci:\n {4}name: deploy-streamer-oci$/m);
       expect(wf).not.toMatch(/if:.*\bsecrets\./);
     });

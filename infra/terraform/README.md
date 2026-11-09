@@ -2,6 +2,8 @@
 
 This Terraform configuration provisions the PromptFM 24/7 continuous radio broadcast infrastructure on Google Cloud Platform while strictly adhering to the **GCP Always Free Tier ($0.00 / Month)**.
 
+> **The GCP streamer VM is retired.** The stream runs on Oracle Cloud since 2026-11-09 (see [Oracle Always Free streamer](../../docs/oracle-always-free-streamer.md)). `streamer_vm_running` defaults to `false`, so Terraform keeps `promptfm-streamer` stopped, and the public 80/443 firewall rule is removed. To put the stream back on GCP, switch the host (`infra/converge-stream.sh gcp`, or the **Rollback Infrastructure** workflow with a snapshot tag). It sets `streamer_vm_running` from `infra/stream-host`. See [docs/infra-overview.md](../../docs/infra-overview.md).
+
 ---
 
 ## 1. Always-Free Tier Cost Guarantee

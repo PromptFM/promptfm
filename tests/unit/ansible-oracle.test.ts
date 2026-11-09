@@ -69,7 +69,7 @@ describe("Ansible streamer compose template (Oracle support)", () => {
     expect(inventory).toMatch(/\[streamer_oci\]\npromptfm-streamer-oci ansible_host=/);
   });
 
-  describe('standby mode before cutover', () => {
+  describe('standby mode', () => {
     const read = (rel: string) => fs.readFileSync(path.join(rootDir, rel), 'utf8');
 
     it('the standby script loops the fallback and never calls the PromptFM API', () => {
@@ -85,12 +85,13 @@ describe("Ansible streamer compose template (Oracle support)", () => {
       expect(compose).toContain("liquidsoap_script | default('radio.liq')");
     });
 
-    it('keeps the Oracle host in its own group, in standby, with Caddy on all interfaces', () => {
+    it('keeps the Oracle host in its own group, on air by default, with Caddy on all interfaces', () => {
       const inv = read('infra/ansible/inventory.ini');
       const block = inv.split('[streamer_oci:vars]')[1]?.split('[streamer:vars]')[0] ?? '';
       expect(inv).toContain('[streamer_oci]');
       expect(block).toContain('caddy_bind_address=0.0.0.0');
-      expect(block).toContain('liquidsoap_script=radio-standby.liq');
+      expect(block).toContain('liquidsoap_script=radio.liq');
+      expect(block).not.toMatch(/^liquidsoap_script=radio-standby\.liq/m);
       expect(read('infra/ansible/playbook-oci.yml')).toContain('hosts: streamer_oci');
     });
   });

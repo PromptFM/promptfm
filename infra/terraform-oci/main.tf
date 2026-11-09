@@ -11,6 +11,9 @@ locals {
 }
 
 locals {
+  # Alert recipients: budget_alert_email may hold several addresses separated by commas.
+  alert_emails = [for e in split(",", local.budget_email) : trimspace(e) if trimspace(e) != ""]
+
   # SSH keys for the ubuntu user: the deploy key from the credentials secret (works in CI) plus,
   # on a laptop, the personal key if the file exists. OCI applies them at first boot only.
   secret_ssh_key = try(trimspace(nonsensitive(local.oci.ssh_public_key)), "")
@@ -181,7 +184,7 @@ resource "oci_core_public_ip" "streamer" {
 
 # $0 policy, layer 1: alerts. A budget only emails; it does not stop spending.
 resource "oci_budget_budget" "streamer" {
-  count          = local.budget_email != "" ? 1 : 0
+  count          = length(local.alert_emails) > 0 ? 1 : 0
   compartment_id = local.compartment_id
   amount         = 1
   reset_period   = "MONTHLY"
@@ -191,35 +194,44 @@ resource "oci_budget_budget" "streamer" {
 }
 
 resource "oci_budget_alert_rule" "streamer" {
-  count          = local.budget_email != "" ? 1 : 0
+  count          = length(local.alert_emails) > 0 ? 1 : 0
   budget_id      = oci_budget_budget.streamer[0].id
   display_name   = "promptfm-1-usd-actual"
   type           = "ACTUAL"
   threshold      = 100
   threshold_type = "PERCENTAGE"
-  recipients     = local.budget_email
+  recipients     = join(",", local.alert_emails)
   message        = "PromptFM Oracle spend reached $1."
 }
 
 # Outbound traffic is the only thing that can cost money here: 10 TB/month is free, a 128 kbps
 # listener is about 41 GB/month. The alarm fires well before the monthly limit.
 resource "oci_ons_notification_topic" "alerts" {
-  count          = local.budget_email != "" ? 1 : 0
+  count          = length(local.alert_emails) > 0 ? 1 : 0
   compartment_id = local.compartment_id
   name           = "promptfm-streamer-alerts"
   description    = "PromptFM streamer cost and traffic alerts"
 }
 
 resource "oci_ons_subscription" "alerts_email" {
-  count          = local.budget_email != "" ? 1 : 0
+  count          = length(local.alert_emails) > 0 ? 1 : 0
   compartment_id = local.compartment_id
   topic_id       = oci_ons_notification_topic.alerts[0].id
   protocol       = "EMAIL"
-  endpoint       = local.budget_email
+  endpoint       = local.alert_emails[0]
+}
+
+# Every extra address gets its own subscription. Each one must confirm once from the email Oracle sends it.
+resource "oci_ons_subscription" "alerts_email_more" {
+  for_each       = length(local.alert_emails) > 1 ? toset(slice(local.alert_emails, 1, length(local.alert_emails))) : toset([])
+  compartment_id = local.compartment_id
+  topic_id       = oci_ons_notification_topic.alerts[0].id
+  protocol       = "EMAIL"
+  endpoint       = each.value
 }
 
 resource "oci_monitoring_alarm" "egress" {
-  count                 = local.budget_email != "" ? 1 : 0
+  count                 = length(local.alert_emails) > 0 ? 1 : 0
   compartment_id        = local.compartment_id
   metric_compartment_id = local.compartment_id
   display_name          = "promptfm-streamer-egress-daily"

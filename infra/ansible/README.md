@@ -2,6 +2,8 @@
 
 This Ansible suite automates the software provisioning, container deployment, and configuration of the PromptFM 24/7 continuous stream server on Ubuntu 24.04 LTS.
 
+> **Which host.** The stream is served from Oracle (`[streamer_oci]`, deployed with `playbook-oci.yml` / `deploy-oci.sh`, on air with `radio.liq`; pass `-e liquidsoap_script=radio-standby.liq` for standby). The GCP host in `[streamer]` is retired and stopped. Running `playbook.yml` against it would create a second stack next to the one already on its disk, so the **Apply Infrastructure** workflow no longer runs Ansible there: `infra/converge-stream.sh` starts the containers that are already on the VM. See `docs/oracle-always-free-streamer.md`.
+
 ---
 
 ## What It Manages

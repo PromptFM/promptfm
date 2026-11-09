@@ -5,7 +5,7 @@ PromptFM runs at **$0/month**. Each provider gets three things: a design that st
 | Provider | What we rely on | Stops spending? | Alerts |
 | :--- | :--- | :--- | :--- |
 | **Oracle Cloud** | Always Free Arm VM (or AMD micro), 10 TB/month outbound, 200 GB storage | **Yes**: quota policy blocks anything billable | $1 budget email, 300 GB/day outbound alarm |
-| **Google Cloud** | Always Free e2-micro, 5 GB GCS, 6 Secret Manager versions, free logging and monitoring | **No hard stop**: budgets only alert | `$1 Monthly Budget Alert` at 50%, 90%, 100%, 150% |
+| **Google Cloud** | Always Free e2-micro (stopped), 5 GB GCS, 6 Secret Manager versions, free logging and monitoring | **No hard stop**: budgets only alert | `$1 Monthly Budget Alert` at 50%, 90%, 100%, 150% |
 | **Vercel** | Hobby plan, 4 hours/month of Fluid Active CPU | Hobby plans are not billed for overage (usage past a limit is blocked), plus our deploy gate | Vercel usage emails, turned on in the dashboard |
 
 A **budget is an alert, not a cap.** It emails you after the money is spent. The things that actually prevent spending are the Oracle quota policy, the Terraform size checks, the Icecast listener cap and the Vercel deploy gate.
@@ -41,11 +41,11 @@ Dashboards: [Compute instances](https://cloud.oracle.com/compute/instances?regio
 
 Everything in the project must stay inside Always Free:
 
-- One `e2-micro` VM, `pd-standard` disk of at most 30 GB. Never `e2-small`, `pd-balanced` or `pd-ssd`.
+- One `e2-micro` VM (`promptfm-streamer`, now stopped), `pd-standard` disk of at most 30 GB. Never `e2-small`, `pd-balanced` or `pd-ssd`.
 - No static IP (billed). The VM uses an ephemeral one.
 - GCS holds Terraform state only (5 GB free).
 - Secret Manager: at most 6 active secret versions. The **Rotate Secret** workflow destroys old versions, because disabled versions still count. Oracle's credentials are one JSON secret to save versions.
-- **Outbound traffic is the only real risk**: 1 GB/month free. That is why the stream moves to Oracle. After the cutover the GCP VM is stopped and its 80/443 firewall rule removed, so GCP sends no audio.
+- **Outbound traffic is the only real risk**: 1 GB/month free. That is why the stream moved to Oracle. The GCP VM was stopped and its public 80/443 firewall rule removed, so GCP sends no audio. Terraform keeps it stopped with `streamer_vm_running = false` (the default). To restart it, switch the stream host (`infra/converge-stream.sh gcp`, see [infra-overview.md](infra-overview.md)): that is a short emergency measure, because GCP bills outbound traffic past 1 GB/month.
 
 Alerts:
 - Budget `$1 Monthly Budget Alert` on the PromptFM billing account, thresholds 50%, 90%, 100% and 150% of $1.

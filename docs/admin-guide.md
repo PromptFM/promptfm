@@ -526,9 +526,9 @@ PromptFM is architected to operate **permanently within the $0/month free-tier b
 | **Vercel Fluid Active CPU** | 4.0 hours / month | 75% (3.0 hours) | Ignored build script, Edge CDN caching, background tab polling suspension |
 | **Vercel Previews** | Unlimited builds | Gated & Protected | Cancel on bot/doc PRs, require maintainer authorization for forked PRs |
 | **GitHub Actions CI** | 2,000 mins / month | Concurrency cancel | Concurrency group per PR, path scope detection, Playwright browser caching |
-| **GCP Compute VM** | 1 `e2-micro` (Always Free) | 1 VM in `us-central1` | Terraform IaC state locking, 128 kbps audio stream |
-| **GCP Outbound Traffic** | 1 GB / month | One 128 kbps listener is about 41 GB / month | Over the free tier, which is why the stream is moving to Oracle |
-| **Oracle Compute VM** | Ampere A1: 1,500 OCPU-hours + 9,000 GB-hours / month (2 OCPU / 12 GB) | 1 VM in `us-ashburn-1` | Terraform validations lock shape and size; idle instances can be reclaimed by Oracle |
+| **GCP Compute VM** | 1 `e2-micro` (Always Free) | 1 VM in `us-central1`, stopped | Terraform IaC state locking, `streamer_vm_running = false` |
+| **GCP Outbound Traffic** | 1 GB / month | One 128 kbps listener is about 41 GB / month | Over the free tier, which is why the stream moved to Oracle |
+| **Oracle Compute VM** | AMD micro today, Arm A1 when capacity returns (A1: 1,500 OCPU-hours + 9,000 GB-hours / month, 2 OCPU / 12 GB) | 1 VM in `us-ashburn-1` | Terraform validations lock shape and size; idle instances can be reclaimed by Oracle |
 | **Oracle Outbound Traffic** | 10 TB / month | 300 GB/day email alarm | OCI Monitoring alarm (`infra/terraform-oci`) |
 | **Oracle Quota Policy** | Always Free allowance only | Tenancy-wide | Quota policy blocks every other resource; $1 budget email |
 | **Cloudflare R2 Egress** | Unlimited free egress | Free tier bandwidth | Public audio distribution via custom domain |
@@ -782,12 +782,14 @@ PromptFM streamer VM configuration is managed by Ansible ([`infra/ansible/`](fil
 - **No Extra SSH Keys in GitHub Secrets**: `gcloud compute ssh` automatically generates an ephemeral SSH key inside the runner and registers it via Compute Engine instance metadata using the authenticated `GCP_SA_KEY` service account.
 
 #### 2. Change Detection & Decision Engine (`shouldRunAnsible`)
+> The **Apply Infrastructure** workflow no longer calls this for the GCP VM: the VM is a cold standby whose stack is started, not redeployed (see [infra-overview.md](infra-overview.md)). The CLI command below still works for a running GCP VM.
+
 To avoid unnecessary container restarts and conserve runner minutes, Ansible is applied **only when changes or uninitialized state are detected**:
 
 | Trigger Condition | Evaluated Signal | Decision |
 | :--- | :--- | :--- |
-| **Skip Override** | CLI `--skip` or workflow dispatch `skip_ansible: true` | **SKIP** (`Explicitly skipped via skip_ansible option`) |
-| **Force Override** | CLI `--force` or workflow dispatch `force_ansible: true` | **RUN** (`Forced execution via force_ansible option`) |
+| **Skip Override** | CLI `--skip` | **SKIP** (`Explicitly skipped via skip_ansible option`) |
+| **Force Override** | CLI `--force` | **RUN** (`Forced execution via force_ansible option`) |
 | **Ansible File Changes** | `git diff` detects modifications in `infra/ansible/**` | **RUN** (`Changes detected in infra/ansible configuration files`) |
 | **Terraform VM Modification** | Terraform apply log contains `google_compute_instance.streamer` creation/change | **RUN** (`Terraform provisioned or modified the streamer VM instance`) |
 | **Stream Health Failure** | Streamer audio stack is uninitialized or port 8000 is unhealthy | **RUN** (`Streamer service is marked unhealthy or uninitialized`) |
@@ -1068,11 +1070,11 @@ To maintain a permanent $0.00 cloud invoice across all five providers:
 - **Compute**: Keep VM instance strictly on `e2-micro` (1 shared core, 1 GB memory) in `us-central1`.
 - **Boot Disk**: Use 30 GB standard persistent disk (`pd-standard`). Never select `pd-ssd` or `pd-balanced`.
 - **Cloud Storage (GCS)**: Terraform state bucket `promptfm-tfstate-promptfm-radio-1793623670` in `us-central1` standard storage (Always-Free includes up to 5 GB storage and 5,000 Class A operations).
-- **Network Egress**: Always-Free includes 1 GB egress/month to internet. One 128 kbps listener is about 41 GB/month, so GCP cannot carry the stream for free. A Cloudflare Tunnel does not help: the audio still leaves the VM and is billed as outbound traffic. The stream is moving to Oracle (see below).
+- **Network Egress**: Always-Free includes 1 GB egress/month to internet. One 128 kbps listener is about 41 GB/month, so GCP cannot carry the stream for free. A Cloudflare Tunnel does not help: the audio still leaves the VM and is billed as outbound traffic. The stream moved to Oracle (see below); the GCP VM is stopped.
 - **Cloud Logging**: Free allocation includes 50 GB ingestion/month.
 
 #### 2. Oracle Cloud (Always Free)
-- **Compute**: Ampere A1 only (`VM.Standard.A1.Flex`), at most 2 OCPU / 12 GB (1,500 OCPU-hours + 9,000 GB-hours a month). Terraform validations and the tenancy quota policy enforce this.
+- **Compute**: Always Free shapes only: AMD micro (`VM.Standard.E2.1.Micro`, the current shape, audio only) or Ampere A1 (`VM.Standard.A1.Flex`) when capacity returns, at most 2 OCPU / 12 GB (1,500 OCPU-hours + 9,000 GB-hours a month). Terraform validations and the tenancy quota policy enforce this.
 - **Outbound traffic**: 10 TB/month free. The alarm emails at 300 GB/day.
 - **Budget**: $1 budget sends an email on any cost. Confirm the Notifications email subscription once.
 - **Reclaim**: Oracle can reclaim idle Always Free instances. Watch CPU and network in Metrics Explorer.

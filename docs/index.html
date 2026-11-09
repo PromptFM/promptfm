@@ -244,7 +244,7 @@
     <header>
       <div class="badge">PROMPTFM ARCHITECTURE, DEV &amp; OPS PORTAL</div>
       <h1>PromptFM <span>Documentation</span></h1>
-      <p class="lead">Autonomous 24/7 AI Music Radio network engineered for strict $0.00 cloud costs, rigorous Test-Driven Development (TDD), a 24/7 audio stream moving to Oracle Cloud Always Free (10 TB/month outbound), and multi-lane SemVer automation.</p>
+      <p class="lead">Autonomous 24/7 AI Music Radio network engineered for strict $0.00 cloud costs, rigorous Test-Driven Development (TDD), a 24/7 audio stream served from Oracle Cloud Always Free (10 TB/month outbound), and multi-lane SemVer automation.</p>
 
       <div class="quick-actions">
         <a href="https://promptfm.live" class="btn btn-primary" target="_blank" rel="noopener">🎧 Tune In Live (promptfm.live)</a>
@@ -260,8 +260,8 @@
         <div class="status-item"><span class="dot"></span> System API: <strong>/api/status (Live)</strong></div>
         <div class="status-item"><span class="dot"></span> Vercel Edge: <strong>Production Active</strong></div>
         <div class="status-item"><span class="dot"></span> Speed Insights: <strong><a href="https://vercel.com/alextrifan/promptfm/speed-insights" target="_blank" style="color:var(--accent); text-decoration:none;">Vercel RUM &amp; Web Vitals &rarr;</a></strong></div>
-        <div class="status-item"><span class="dot"></span> GCP Streamer: <strong>e2-micro ($0.00 Always Free)</strong></div>
-        <div class="status-item"><span class="dot"></span> Oracle Streamer: <strong>Ampere A1 ($0.00 Always Free, quota-capped)</strong></div>
+        <div class="status-item"><span class="dot"></span> GCP Streamer: <strong>e2-micro, stopped (retired)</strong></div>
+        <div class="status-item"><span class="dot"></span> Oracle Streamer: <strong>On air, AMD micro ($0.00 Always Free, quota-capped)</strong></div>
       </div>
 
       <!-- Oracle monitor banner -->
@@ -318,7 +318,7 @@ npm run promptfm -- vibe "late night coding synthwave"</pre>
         </div>
         <div class="card">
           <h3>Domain &amp; Zero-Egress DNS Audit</h3>
-          <p>Audit DNS zones, migrate Hostinger records, and check the <code>stream</code> record. A Cloudflare Tunnel does not remove GCP egress (GCP includes 1 GB/month), so the stream is moving to Oracle Cloud:</p>
+          <p>Audit DNS zones, migrate Hostinger records, and check the <code>stream</code> record. A Cloudflare Tunnel does not remove GCP egress (GCP includes 1 GB/month), so the stream moved to Oracle Cloud:</p>
           <pre>npm run promptfm -- dns status promptfm.live
 npm run promptfm -- dns diff stream.promptfm.live
 npm run promptfm -- dns validate promptfm.live</pre>
@@ -415,6 +415,7 @@ npm run test:mutate</pre>
         <div class="card">
           <h3>Zero-Cost Philosophy</h3>
           <p>Every architectural component must operate strictly within Always-Free tiers ($0.00/mo). No third-party SaaS subscriptions (Datadog, Sentry, AWS NAT) are permitted.</p>
+          <a href="https://github.com/PromptFM/promptfm/blob/main/docs/infra-overview.md" class="link" target="_blank" rel="noopener">Infrastructure diagram, runbook and alert emails &rarr;</a>
           <a href="https://github.com/PromptFM/promptfm/blob/main/docs/zero-cost-policy.md" class="link" target="_blank" rel="noopener">Read the $0 policy: Google Cloud, Vercel, Oracle &rarr;</a>
           <a href="https://github.com/PromptFM/promptfm/blob/main/docs/gcp-always-free-streamer.md" class="link" target="_blank" rel="noopener">Review $0 GCP Architecture Blueprint &rarr;</a>
         </div>
@@ -427,8 +428,8 @@ npm run test:mutate</pre>
       <div class="grid">
         <div class="card">
           <h3>Completed Milestones</h3>
-          <p>✅ <strong>24/7 Always-Free GCP Streamer:</strong> Compute Engine e2-micro with Liquidsoap &amp; Icecast 2.<br>
-             ✅ <strong>HTTPS Audio Stream:</strong> Caddy TLS on <code>stream.promptfm.live</code>. Moving from GCP to an Oracle Always Free VM (<code>docs/oracle-always-free-streamer.md</code>).<br>
+          <p>✅ <strong>24/7 Always-Free Streamer:</strong> Liquidsoap &amp; Icecast 2, first on a GCP e2-micro (now stopped), since 2026-11-09 on an Oracle Always Free AMD micro VM.<br>
+             ✅ <strong>HTTPS Audio Stream:</strong> Caddy TLS on <code>stream.promptfm.live</code>. Served by the Oracle VM (<code>docs/oracle-always-free-streamer.md</code>); switching hosts is <code>infra/converge-stream.sh</code> (see <code>docs/infra-overview.md</code>).<br>
              ✅ <strong>Multi-Lane SemVer &amp; Rollback:</strong> Independent Git release tags for code, infra, and SQL migrations.</p>
           <a href="https://github.com/PromptFM/promptfm/blob/main/ROADMAP.md" class="link" target="_blank" rel="noopener">Read Engineering Roadmap (ROADMAP.md) &rarr;</a>
         </div>
@@ -453,8 +454,8 @@ npm run test:mutate</pre>
               <tr><th>Provider</th><th>Resource &amp; Quota Guard</th><th>Monthly Cost</th></tr>
             </thead>
             <tbody>
-              <tr><td><strong>Google Cloud</strong></td><td>e2-micro VM + 30GB PD + 5GB GCS + Secret Manager (&le;6 active versions)</td><td>$0.00 (Always-Free)</td></tr>
-              <tr><td><strong>Oracle Cloud</strong></td><td>Ampere A1 VM (2 OCPU / 12 GB) + 10 TB/month outbound, quota policy + $1 budget (secret <code>promptfm-oci-credentials</code>)</td><td>$0.00 (Always Free)</td></tr>
+              <tr><td><strong>Google Cloud</strong></td><td>e2-micro VM (stopped) + 30GB PD + 5GB GCS + Secret Manager (&le;6 active versions)</td><td>$0.00 (Always-Free)</td></tr>
+              <tr><td><strong>Oracle Cloud</strong></td><td>AMD micro VM today (Arm A1, 2 OCPU / 12 GB, when capacity returns) + 10 TB/month outbound, quota policy + $1 budget (secret <code>promptfm-oci-credentials</code>)</td><td>$0.00 (Always Free)</td></tr>
               <tr><td><strong>Supabase</strong></td><td>PostgreSQL Database (&le;500MB DB, &le;5GB egress, pooled connection)</td><td>$0.00 (Free Tier)</td></tr>
               <tr><td><strong>Vercel</strong></td><td>Next.js Edge &amp; Flags (Production release-tag guarded)</td><td>$0.00 (Hobby)</td></tr>
               <tr><td><strong>Cloudflare</strong></td><td>Optional tunnel, DDoS protection (does not remove GCP VM egress)</td><td>$0.00 (Free Tier)</td></tr>

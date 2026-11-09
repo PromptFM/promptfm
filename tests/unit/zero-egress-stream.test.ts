@@ -85,16 +85,14 @@ describe('Zero-Egress Stream Architecture & Edge Protection (Issue #127)', () =>
   });
 
   describe('Terraform Firewall Rules (infra/terraform/main.tf)', () => {
-    it('disables allow-http-https from 0.0.0.0/0 when cloudflare_tunnel_enabled is true', () => {
+    it('opens allow-http-https from 0.0.0.0/0 only while the GCP VM serves the stream (streamer_vm_running)', () => {
       expect(fs.existsSync(terraformMainFile)).toBe(true);
       const tfContent = fs.readFileSync(terraformMainFile, 'utf8');
 
-      // The firewall rule must be gated by cloudflare_tunnel_enabled
-      expect(tfContent).toMatch(/count\s*=\s*var\.cloudflare_tunnel_enabled\s*\?\s*0\s*:\s*1/);
+      expect(tfContent).toMatch(/count\s*=\s*var\.streamer_vm_running\s*\?\s*1\s*:\s*0/);
       const allowWebBlock =
-        tfContent.split('resource "google_compute_firewall" "allow_web"')[1]?.split('}')[0] || '';
-      expect(allowWebBlock).toContain('count');
-      expect(allowWebBlock).toContain('var.cloudflare_tunnel_enabled');
+        tfContent.split('resource "google_compute_firewall" "allow_web"')[1]?.split('\n}\n')[0] || '';
+      expect(allowWebBlock).toContain('var.streamer_vm_running');
     });
   });
 

@@ -1,20 +1,24 @@
-name: 🏗️ Apply Terraform Changes
+name: 🏗️ Apply Infrastructure
 
+# Converges the infrastructure to the commit it runs on, including which host serves the stream
+# (infra/stream-host: oracle or gcp). Three ways to run it:
+#  - push a promptfm-infra/* tag that is on main (the normal release)
+#  - run it by hand and give a ref, for example promptfm-infra/0.2.0-abc1234, to switch the stream to that snapshot
+#  - the rollback workflow calls it with the target ref
+# A tag whose commit is not on main is not applied automatically: snapshot tags are applied by hand.
 on:
   workflow_dispatch:
     inputs:
-      auto_approve:
-        description: 'Auto approve terraform apply'
-        default: 'true'
+      ref:
+        description: 'Tag or commit to apply, for example promptfm-infra/0.2.0-abc1234. Empty applies the branch you run it on.'
         required: false
-      force_ansible:
-        description: 'Force Ansible execution regardless of change detection'
-        type: boolean
-        default: false
-      skip_ansible:
-        description: 'Skip Ansible execution entirely'
-        type: boolean
-        default: false
+        default: ''
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
+        default: ''
   push:
     tags:
       - 'promptfm-infra/*'
@@ -35,18 +39,44 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          ref: ${{ inputs.ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Decide whether to apply
+        id: guard
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = "push" ]; then
+            case "$GITHUB_REF_NAME" in
+              promptfm-infra/rollback-*)
+                echo "run=false" >> "$GITHUB_OUTPUT"
+                echo "::notice::Rollback tags only record a rollback. To switch back, run the Rollback Infrastructure workflow with target_ref."
+                exit 0
+                ;;
+            esac
+            git fetch --quiet origin main
+            if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+              echo "run=false" >> "$GITHUB_OUTPUT"
+              echo "::notice::This tag's commit is not on main, so it is not applied automatically. Run this workflow by hand with ref set to the tag to apply it."
+              exit 0
+            fi
+          fi
+          echo "run=true" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node.js 22
+        if: steps.guard.outputs.run == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: 'npm'
 
       - name: Install Dependencies
+        if: steps.guard.outputs.run == 'true'
         run: npm ci
 
       - name: Pull Secrets from Vercel (Single Source of Truth)
+        if: steps.guard.outputs.run == 'true'
         run: |
           if [ -n "$VERCEL_TOKEN" ]; then
             npx vercel env pull .env.infra.local --environment=production --yes
@@ -59,6 +89,7 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Prepare Infrastructure & Credentials (0-Cost Always-Free Tier)
+        if: steps.guard.outputs.run == 'true'
         run: npm run prepare-infra
         env:
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
@@ -66,11 +97,13 @@ jobs:
           DOMAIN_NAME: 'promptfm.live'
 
       - name: Setup Terraform
+        if: steps.guard.outputs.run == 'true'
         uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: 1.7.5
 
       - name: Configure GCP Service Account Credentials
+        if: steps.guard.outputs.run == 'true'
         run: |
           if [ -f "$HOME/.config/gcloud/promptfm-terraform-key.json" ] && grep -q '^{' "$HOME/.config/gcloud/promptfm-terraform-key.json"; then
             echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/.config/gcloud/promptfm-terraform-key.json" >> $GITHUB_ENV
@@ -91,48 +124,51 @@ jobs:
           fi
           gcloud config set project promptfm-radio-1793623670 || true
 
-      - name: Initialize Terraform (Free GCS Backend)
-        run: terraform -chdir=infra/terraform init
-
-      - name: Preview Terraform Plan
-        run: terraform -chdir=infra/terraform plan
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Apply Terraform Infrastructure
+      - name: Read the stream host from infra/stream-host
+        if: steps.guard.outputs.run == 'true'
         run: |
-          terraform -chdir=infra/terraform apply -auto-approve 2>&1 | tee /tmp/terraform-apply.log
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOST="$(tr -d '[:space:]' < infra/stream-host)"
+          echo "The stream is served from: $HOST"
+          # The GCP VM runs only while it serves the stream.
+          if [ "$HOST" = "gcp" ]; then
+            echo "TF_VAR_streamer_vm_running=true" >> "$GITHUB_ENV"
+          else
+            echo "TF_VAR_streamer_vm_running=false" >> "$GITHUB_ENV"
+          fi
 
       - name: Setup Ansible (Zero-Cost Configuration Management)
+        if: steps.guard.outputs.run == 'true'
         run: |
           if ! command -v ansible-playbook &>/dev/null; then
             sudo apt-get update -qq && sudo apt-get install -y -qq ansible
           fi
 
-      - name: Run Ansible Configuration via Zero-Cost IAP (If Needed)
-        run: |
-          FORCE_FLAG=""
-          if [ "${{ github.event.inputs.force_ansible }}" = "true" ]; then
-            FORCE_FLAG="--force"
-          fi
-          # The GCP VM is retired (the stream runs on Oracle). Redeploying the old stack there would start a second
-          # Liquidsoap, so Ansible is skipped unless force_ansible is ticked on a manual run.
-          SKIP_FLAG="--skip"
-          if [ "${{ github.event.inputs.force_ansible }}" = "true" ]; then
-            SKIP_FLAG=""
-          fi
-          npm run promptfm -- ansible $FORCE_FLAG $SKIP_FLAG --terraform-log /tmp/terraform-apply.log
+      - name: Initialize Terraform (Free GCS Backend)
+        if: steps.guard.outputs.run == 'true'
+        run: terraform -chdir=infra/terraform init
+
+      - name: Take the other host out of service first
+        if: steps.guard.outputs.run == 'true'
+        run: infra/converge-stream.sh quiesce
+
+      - name: Preview Terraform Plan
+        if: steps.guard.outputs.run == 'true'
+        run: terraform -chdir=infra/terraform plan
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
-          GCP_PROJECT_ID: 'promptfm-radio-1793623670'
 
-      - name: Apply Hostinger DNS Zone State ($0 Egress Enforcement)
-        run: npm run promptfm -- dns apply promptfm.live --state infra/dns/promptfm.live.state.json --force
+      - name: Apply Terraform Infrastructure
+        if: steps.guard.outputs.run == 'true'
+        run: terraform -chdir=infra/terraform apply -auto-approve
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Put the stream on the chosen host (containers, DNS, check)
+        if: steps.guard.outputs.run == 'true'
+        run: infra/converge-stream.sh serve
 
       - name: Tag and Record Infrastructure Release
+        if: github.event_name == 'workflow_dispatch' && inputs.ref == ''
         run: npm run promptfm -- tag infra
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

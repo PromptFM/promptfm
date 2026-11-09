@@ -1,18 +1,15 @@
-name: ⏪ Rollback Infrastructure (Terraform)
+name: ⏪ Rollback Infrastructure
 
+# Switches the infrastructure, including which host serves the stream, back to an earlier snapshot.
+# It applies the target tag with the same workflow as a normal release, so a rollback and a release
+# take the same path and nothing is repeated here. Example target_ref: promptfm-infra/0.2.0-abc1234
+# (snapshots from 0.2.0 on carry infra/converge-stream.sh; the 0.1.0 tag predates it and cannot be applied).
 on:
   workflow_dispatch:
     inputs:
-      rollback_ref:
-        description: 'Git SHA or Tag to rollback Terraform infrastructure to (e.g. be73865, promptfm-infra/0.2.0-be73865, or v0.1.0)'
+      target_ref:
+        description: 'Tag or commit to switch back to, for example promptfm-infra/0.2.0-abc1234'
         required: true
-      auto_approve:
-        description: 'Auto approve terraform apply'
-        default: 'true'
-        required: false
-  push:
-    tags:
-      - 'promptfm-infra/rollback-*'
 
 permissions:
   contents: write
@@ -25,9 +22,17 @@ concurrency:
 jobs:
   rollback-infra:
     name: rollback-infra
+    uses: ./.github/workflows/apply-terraform.yml
+    with:
+      ref: ${{ inputs.target_ref }}
+    secrets: inherit
+
+  record-rollback:
+    name: record-rollback
+    needs: rollback-infra
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code (Full History)
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -41,75 +46,8 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Resolve Target Ref & Rollback Tag
-        id: meta
-        run: |
-          node -e '
-            const fs = require("fs");
-            let target = process.env.INPUT_ROLLBACK_REF || "";
-            if (!target && process.env.GITHUB_REF_TYPE === "tag") {
-              const tag = process.env.GITHUB_REF_NAME;
-              target = tag.replace(/^promptfm-infra\/rollback-/, "");
-            }
-            if (!target) {
-              console.error("No target ref provided for infrastructure rollback.");
-              process.exit(1);
-            }
-            console.log(`Target Ref: ${target}`);
-            fs.appendFileSync(process.env.GITHUB_OUTPUT, `target_ref=${target}\n`);
-          '
-        env:
-          INPUT_ROLLBACK_REF: ${{ github.event.inputs.rollback_ref }}
-
-      - name: Checkout Rollback Target Infrastructure Code
-        run: |
-          echo "Checking out Terraform code at: ${{ steps.meta.outputs.target_ref }}"
-          git checkout "${{ steps.meta.outputs.target_ref }}" -- infra/terraform package.json scripts/
-
-      - name: Pull Secrets from Vercel (Single Source of Truth)
-        run: |
-          if [ -n "$VERCEL_TOKEN" ]; then
-            npx vercel env pull .env.infra.local --environment=production --yes
-          else
-            echo "ℹ️ VERCEL_TOKEN not provided, skipping Vercel env pull."
-          fi
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
-      - name: Prepare Infrastructure & Credentials
-        run: npm run prepare-infra
-        env:
-          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
-          GCP_PROJECT_ID: 'promptfm-radio-1793623670'
-          DOMAIN_NAME: 'promptfm.live'
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v4
-        with:
-          terraform_version: 1.7.5
-
-      - name: Configure GCP Service Account Credentials
-        run: |
-          if [ -f "$HOME/.config/gcloud/promptfm-terraform-key.json" ]; then
-            echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/.config/gcloud/promptfm-terraform-key.json" >> $GITHUB_ENV
-          elif [ -n "${{ secrets.GCP_SA_KEY }}" ]; then
-            echo "${{ secrets.GCP_SA_KEY }}" | base64 -d > /tmp/gcp-sa-key.json
-            echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-sa-key.json" >> $GITHUB_ENV
-          fi
-
-      - name: Initialize Terraform (Free GCS Backend)
-        run: terraform -chdir=infra/terraform init -reconfigure
-
-      - name: Preview Rollback Plan
-        run: terraform -chdir=infra/terraform plan
-
-      - name: Apply Rollback Infrastructure
-        run: terraform -chdir=infra/terraform apply -auto-approve
-
       - name: Tag and Record Infrastructure Rollback Release
-        run: npm run promptfm -- tag infra-rollback "${{ steps.meta.outputs.target_ref }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+          TARGET_REF: ${{ inputs.target_ref }}
+        run: npm run promptfm -- tag infra-rollback "$TARGET_REF"

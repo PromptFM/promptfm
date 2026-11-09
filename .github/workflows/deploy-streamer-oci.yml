@@ -3,8 +3,8 @@ name: 📻 Deploy Streamer (Oracle)
 on:
   workflow_dispatch:
     inputs:
-      go_live:
-        description: 'Go on air: run the real radio.liq. Leave off to stay in standby (loops the fallback, never calls the API).'
+      standby:
+        description: 'Put the streamer in standby: loops the fallback and never calls the API. Leave off to stay on air with radio.liq.'
         type: boolean
         default: false
 
@@ -50,10 +50,10 @@ jobs:
 
       - name: Deploy the streamer
         env:
-          GO_LIVE: ${{ inputs.go_live }}
+          STANDBY: ${{ inputs.standby }}
         run: |
           EXTRA=""
-          if [ "$GO_LIVE" = "true" ]; then
-            EXTRA="-e liquidsoap_script=radio.liq"
+          if [ "$STANDBY" = "true" ]; then
+            EXTRA="-e liquidsoap_script=radio-standby.liq"
           fi
           infra/ansible/deploy-oci.sh $EXTRA
