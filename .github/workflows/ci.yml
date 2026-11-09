@@ -180,7 +180,7 @@ jobs:
 
       - name: Cache Playwright Browsers
         id: playwright-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-browsers-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
@@ -190,7 +190,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Restore Next.js Build Cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .next/cache
           key: nextjs-build-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
@@ -245,7 +245,7 @@ jobs:
         run: npm ci
 
       - name: Restore Stryker Incremental Cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: reports/stryker-incremental.json
           key: stryker-incremental-${{ runner.os }}-${{ github.ref }}-${{ github.sha }}
