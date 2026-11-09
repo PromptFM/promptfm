@@ -64,6 +64,7 @@
     "autoprefixer": "^10.6.2",
     "eslint": "^10.14.0",
     "eslint-config-next": "^16.4.5",
+    "jiti": "^1.21.7",
     "pg": "^8.23.1",
     "postcss": "^8.5.32",
     "tailwindcss": "^4.3.4",
