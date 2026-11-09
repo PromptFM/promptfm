@@ -59,7 +59,7 @@ variable "boot_volume_gb" {
 }
 
 variable "ssh_pub_key_path" {
-  description = "Public key installed for the ubuntu user"
+  description = "Optional extra public key for the ubuntu user (a laptop key). The deploy key comes from the credentials secret."
   type        = string
   default     = "~/.ssh/google_compute_engine.pub"
 }
@@ -106,9 +106,9 @@ variable "availability_domain_index" {
 }
 
 variable "shape" {
-  description = "A1 (Ampere Arm, 2 OCPU / 12 GB, the target) or micro (AMD VM.Standard.E2.1.Micro, 1 GB, audio only). Both are Always Free."
+  description = "micro (AMD VM.Standard.E2.1.Micro, 1 GB, audio only) or A1 (Ampere Arm, 2 OCPU / 12 GB). Both are Always Free. The default is the shape that is deployed, so a plain plan or apply in CI never tries to replace the live VM. Change it when migrating to A1."
   type        = string
-  default     = "A1"
+  default     = "micro"
 
   validation {
     condition     = contains(["A1", "micro"], var.shape)

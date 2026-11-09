@@ -46,6 +46,11 @@ describe('Oracle Cloud streamer module (infra/terraform-oci)', () => {
       expect(read('infra/terraform-oci/cloud-init.yaml')).toContain('fallocate -l ${swap_gb}G /swapfile');
     });
 
+    it('defaults to the deployed shape, so a plain CI plan cannot try to replace the live VM', () => {
+      expect(variables).toMatch(/variable "shape"[\s\S]*?default\s*=\s*"micro"/);
+      expect(read('infra/terraform-oci/retry-apply.sh')).toContain('-var "shape=A1"');
+    });
+
     it('refuses to replace a live streamer when switching shapes', () => {
       expect(main).toContain('prevent_destroy = true');
     });
@@ -110,6 +115,63 @@ describe('Oracle Cloud streamer module (infra/terraform-oci)', () => {
 
     it('does not open Icecast (8000) publicly', () => {
       expect(ports).not.toContain(8000);
+    });
+  });
+
+  describe('works the same on a laptop and in CI', () => {
+    const main = read('infra/terraform-oci/main.tf');
+    const versions = read('infra/terraform-oci/versions.tf');
+
+    it('never reads a file from the home directory without checking it exists (CI runners have no ~/.ssh)', () => {
+      const reads = [...main.matchAll(/file\(pathexpand\(var\.ssh_pub_key_path\)\)/g)];
+      expect(reads.length).toBeGreaterThan(0);
+      expect(main).toContain('fileexists(pathexpand(var.ssh_pub_key_path))');
+      expect(main).not.toMatch(/ssh_authorized_keys\s*=\s*file\(/);
+    });
+
+    it('takes the SSH public key from the credentials secret, with the local key as an extra', () => {
+      expect(main).toContain('local.oci.ssh_public_key');
+      expect(main).toContain('ssh_authorized_keys');
+      expect(main).toMatch(/length\(local\.ssh_keys\)\s*>\s*0/);
+    });
+
+    it('ignores later SSH key edits, because OCI only applies them at first boot', () => {
+      expect(main).toContain('metadata["ssh_authorized_keys"]');
+    });
+
+    it('documents every key of the credentials secret', () => {
+      expect(versions).toContain('ssh_public_key');
+      expect(versions).toContain('ssh_private_key');
+    });
+
+    it('has one deploy script for laptop and CI that gets the key from Secret Manager and the host from Terraform state', () => {
+      const sh = read('infra/ansible/deploy-oci.sh');
+      expect(sh).toContain('gcloud secrets versions access latest');
+      expect(sh).toContain('promptfm-oci-credentials');
+      expect(sh).toContain('ssh_private_key');
+      expect(sh).toContain('terraform -chdir=../terraform-oci output -raw public_ip');
+      expect(sh).toContain('playbook-oci.yml');
+      expect(sh).toContain('trap');
+      expect(sh).not.toMatch(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/);
+    });
+
+    it('has a manual deploy workflow that stays in standby unless go_live is ticked', () => {
+      const wf = read('.github/workflows/deploy-streamer-oci.yml');
+      expect(wf).toContain('workflow_dispatch:');
+      expect(wf).not.toMatch(/^\s*push:/m);
+      expect(wf).not.toMatch(/^\s*schedule:/m);
+      expect(wf).toMatch(/go_live:\s*\n\s+description:[^\n]*\n\s+type: boolean\n\s+default: false/);
+      expect(wf).toContain('infra/ansible/deploy-oci.sh');
+      expect(wf).toContain('liquidsoap_script=radio.liq');
+      expect(wf).toMatch(/^ {2}deploy-streamer-oci:\n {4}name: deploy-streamer-oci$/m);
+      expect(wf).not.toMatch(/if:.*\bsecrets\./);
+    });
+
+    it('restarts Icecast and Liquidsoap when their config changes, because they do not reload it', () => {
+      const tasks = read('infra/ansible/roles/streamer/tasks/main.yml');
+      expect(tasks).toContain('docker-compose restart icecast');
+      expect(tasks).toContain('docker-compose restart liquidsoap');
+      expect(tasks).toMatch(/icecast_conf is changed/);
     });
   });
 

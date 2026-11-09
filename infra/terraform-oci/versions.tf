@@ -24,7 +24,8 @@ provider "google" {
 }
 
 # One JSON secret keeps this at a single Secret Manager version (6 are free).
-# Keys: user_ocid, tenancy_ocid, fingerprint, region, private_key, budget_alert_email (optional).
+# Keys: user_ocid, tenancy_ocid, fingerprint, region, private_key (Oracle API key),
+# ssh_public_key and ssh_private_key (deploy key for the VM), budget_alert_email (optional).
 data "google_secret_manager_secret_version" "oci" {
   secret = var.oci_credentials_secret
 }

@@ -11,6 +11,12 @@ locals {
 }
 
 locals {
+  # SSH keys for the ubuntu user: the deploy key from the credentials secret (works in CI) plus,
+  # on a laptop, the personal key if the file exists. OCI applies them at first boot only.
+  secret_ssh_key = try(trimspace(nonsensitive(local.oci.ssh_public_key)), "")
+  local_ssh_key  = fileexists(pathexpand(var.ssh_pub_key_path)) ? trimspace(file(pathexpand(var.ssh_pub_key_path))) : ""
+  ssh_keys       = compact(distinct([local.secret_ssh_key, local.local_ssh_key]))
+
   is_micro   = var.shape == "micro"
   shape_name = local.is_micro ? "VM.Standard.E2.1.Micro" : "VM.Standard.A1.Flex"
   ad_index   = local.is_micro ? var.micro_availability_domain_index : var.availability_domain_index
@@ -132,7 +138,7 @@ resource "oci_core_instance" "streamer" {
   }
 
   metadata = {
-    ssh_authorized_keys = file(pathexpand(var.ssh_pub_key_path))
+    ssh_authorized_keys = join("\n", local.ssh_keys)
     user_data           = base64encode(templatefile("${path.module}/cloud-init.yaml", { swap_gb = local.is_micro ? 2 : 0 }))
   }
 
@@ -142,12 +148,17 @@ resource "oci_core_instance" "streamer" {
     prevent_destroy = true
 
     precondition {
+      condition     = length(local.ssh_keys) > 0
+      error_message = "No SSH public key. Add ssh_public_key to the credentials secret, or point ssh_pub_key_path at a key file."
+    }
+
+    precondition {
       condition     = nonsensitive(local.oci.region) == local.home_region
       error_message = "Always Free A1 only exists in the home region (${local.home_region}). The credentials secret is set to ${nonsensitive(local.oci.region)}."
     }
 
     # A newer Ubuntu image must not recreate the VM and lose the streamer state.
-    ignore_changes = [source_details[0].source_id, metadata["user_data"]]
+    ignore_changes = [source_details[0].source_id, metadata["user_data"], metadata["ssh_authorized_keys"]]
   }
 }
 

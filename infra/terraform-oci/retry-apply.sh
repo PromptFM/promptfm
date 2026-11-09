@@ -27,7 +27,7 @@ for ((n = 1; n <= MAX_TRIES; n++)); do
     for ad in 0 1 2; do
       echo "[$(date -u +%H:%M:%S)] try $n: ${1} OCPU / ${2} GB, availability domain $ad"
       out="$(terraform apply -input=false -auto-approve -no-color \
-        -var "availability_domain_index=$ad" -var "ocpus=$1" -var "memory_gb=$2" 2>&1)"
+        -var "shape=A1" -var "availability_domain_index=$ad" -var "ocpus=$1" -var "memory_gb=$2" 2>&1)"
       if echo "$out" | grep -q "Out of host capacity"; then
         continue
       fi
