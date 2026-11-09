@@ -104,6 +104,16 @@ describe('Stream switch (GCP <-> Oracle)', () => {
       before(body, 'exit 1', 'dns apply');
     });
 
+    it('asks Hostinger what the stream record says after the change and fails if it is not the active IP', () => {
+      const body = fn('point_dns');
+      expect(body).toContain('developers.hostinger.com/api/dns/v1/zones/');
+      expect(body).toContain('Authorization: Bearer');
+      before(body, 'dns apply', 'developers.hostinger.com');
+      const after = body.slice(body.indexOf('developers.hostinger.com'));
+      expect(after).toContain('exit 1');
+      expect(after).toContain('"stream"');
+    });
+
     it('fails when the stream does not answer on the chosen host', () => {
       const body = fn('verify');
       expect(body).toContain('--resolve');
