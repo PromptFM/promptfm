@@ -505,7 +505,7 @@ jobs:
           npx jiti scripts/pr-guidance.ts
 
       - name: Post Guidance Comment to Pull Request
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           script: |

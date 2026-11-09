@@ -32,7 +32,7 @@ jobs:
     steps:
       - name: Verify Core Authorization and Resolve SHA
         id: check
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           script: |
@@ -142,7 +142,7 @@ jobs:
           echo "- **Budget Policy:** Protected under PromptFM \$0 Always-Free Tier" >> $GITHUB_STEP_SUMMARY
 
       - name: Comment Preview Link on PR
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           PREVIEW_URL: ${{ steps.vercel.outputs.preview_url }}
           COMMIT_SHA: ${{ needs.check-trigger.outputs.commit_sha }}
