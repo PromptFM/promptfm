@@ -2,7 +2,7 @@
 
 Everything runs on free tiers. This page shows the layout, what each system is used for, which commands still apply, how to switch the stream between Oracle and GCP, what to do when Oracle stops, and which alert emails to look for.
 
-> **Public web status.** `promptfm.live` is still the Oracle maintenance page. The OCI web release / candidate / cutover / retained-release rollback workflows are implemented in repo, but this issue branch does **not** prove an authorized live run against the public site yet. Manual Vercel preview links still exist for review.
+> **Public web status.** `promptfm.live` and `www.promptfm.live` now serve the live PromptFM app through the repo-owned OCI release / candidate / cutover path on Oracle. First live proof: GitHub Actions run `42833955213` cut over `promptfm/0.2.4-81e84d9` to `ghcr.io/promptfm/promptfm-web:0.2.4-81e84d9@sha256:e96f02ba2ef7937e8e73d461e4d30e7f5e2c6fdf04e9ddb0de834c8ea059fc98` and uploaded retained-release artifact `13773556576`. Manual Vercel preview links still exist for review. The rollback drill is still pending the next authorized release because the first OCI cutover had no previous retained release.
 
 - Costs and guardrails per provider: [zero-cost-policy.md](zero-cost-policy.md)
 - The Oracle host in detail: [oracle-always-free-streamer.md](oracle-always-free-streamer.md)
@@ -13,7 +13,7 @@ Everything runs on free tiers. This page shows the layout, what each system is u
 
 ```mermaid
 flowchart LR
-  L["Listeners"] -->|"HTTPS page and APIs"| V["PromptFM web app target<br/>OCI release/cutover path in repo<br/>public promptfm.live still maintenance page"]
+  L["Listeners"] -->|"HTTPS page and APIs"| V["PromptFM web app target<br/>live on OCI release/cutover path"]
   L -->|"HTTPS audio"| S["stream.promptfm.live<br/>A record, set by converge-stream.sh"]
 
   subgraph O["Oracle Cloud Always Free (us-ashburn-1): live stream host"]
@@ -64,7 +64,7 @@ flowchart LR
 | :--- | :--- | :--- |
 | **Oracle Cloud** (AMD micro VM, us-ashburn-1) | **Serves the live audio stream**: Caddy, Icecast, Liquidsoap. Terraform in `infra/terraform-oci`, deploy with Ansible | $0 (Always Free, quota-capped) |
 | **Google Cloud** project `promptfm-radio-1793623670` | Terraform **state** (GCS), **Secret Manager** (Oracle credentials and deploy key, database URL, Hostinger token), Monitoring/Logging/Trace dashboard, the budget alert. The streamer VM is **stopped**: a cold standby for the stream | $0 while the VM stays stopped |
-| **PromptFM web app path** | Full app target: web player, `/admin`, `/api/*`, bot webhooks, MCP, the daily news cron. In this branch the production release/cutover/rollback workflow is OCI-based; manual Vercel preview links still exist for review. Public `promptfm.live` stays on the Oracle maintenance page until an authorized cutover is run. | $0 target |
+| **PromptFM web app path** | Full app target: web player, `/admin`, `/api/*`, bot webhooks, MCP, the daily news cron. The production release/cutover/rollback workflow is OCI-based; manual Vercel preview links still exist for review. Public `promptfm.live` now serves the live app on Oracle, and the rollback drill still needs the next authorized release. | $0 target |
 | **Supabase** | Postgres database | $0 |
 | **Cloudflare R2** | Audio files and voice drops (free egress) | $0 |
 | **Hostinger** | Domain and DNS for `promptfm.live` (the `stream` record points at the active host) | domain bundle |
@@ -253,7 +253,7 @@ Both Oracle and GCP alerts go to `dev@promptfm.live` as well as your own address
 | **Confirm the two Oracle email subscriptions** (Gmail and `dev@`) | **You: pending** |
 | **Turn on Vercel usage notifications** | **You: not set by the repo** |
 | Merge PR #151, then make the `0.3.0` and `0.2.0` tags (section 4) | Pending the merge |
-| The workflows run end to end in GitHub | Not yet run there: they can only run after the merge. Do one switch drill after tagging |
+| The workflows run end to end in GitHub | Release/cutover proved in run `42833955213`; the rollback drill still needs the next authorized release because the first OCI cutover had no previous retained release |
 | Next.js upgrade for the 29 security findings | [#152](https://github.com/PromptFM/promptfm/issues/152) |
 | Watch micro VM CPU and idle-reclaim notices for the first week | Open |
 | YouTube and TikTok video feeds | Not deployed on either host |

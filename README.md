@@ -16,9 +16,9 @@
 
 **PromptFM** is an autonomous 24/7 AI-generated music radio platform and community chart. Featuring **5 live theme stations** (including After Dark 18+ Explicit with statutory legal age verification), continuous uninterrupted **100% pure music rotation**, real-time listener voting, and direct MP3/M4A creator uploads with automatic ID3 metadata and album art extraction.
 
-The public web restore is currently an **Oracle-hosted maintenance page** on `promptfm.live` and `www.promptfm.live`. In this branch, the production web deploy path is implemented as an OCI workflow (`.github/workflows/release.yml` → `.github/workflows/deploy-web-oci.yml` candidate gate/cutover, plus `.github/workflows/rollback.yml` for retained-release restore), but issue #193 does **not** include authorized proof that a live production cutover or rollback drill has been run on `promptfm.live` yet. The stream stays live at [`stream.promptfm.live`](https://stream.promptfm.live/stream.mp3).
+The public web app now runs on the repo-owned Oracle OCI path at `promptfm.live` and `www.promptfm.live`. The first authorized live cutover succeeded on 2026-11-10, and the retained-release rollback drill is still pending the next authorized release because that first OCI cutover had no previous OCI web release to restore. The stream stays live at [`stream.promptfm.live`](https://stream.promptfm.live/stream.mp3).
 
-Right now the public domain only guarantees the Oracle maintenance landing page and the live audio stream. Full web routes such as `/admin`, `/status`, `/api/*`, `/api/mcp`, and the legal/info pages return after an approved OCI cutover.
+Right now the public domain serves both the live PromptFM app and the live audio stream. Full web routes such as `/admin`, `/status`, `/api/*`, `/api/mcp`, and the legal/info pages are back on the Oracle OCI path.
 
 ---
 
@@ -35,7 +35,7 @@ PromptFM is engineered to operate strictly within 100% zero-cost cloud tiers. Us
 | **GCP Cloud Logging** | [Cloud Logging Console](https://console.cloud.google.com/logs/query?project=promptfm-radio-1793623670) | Real-time VM streamer logs, Liquidsoap transitions, Icecast access/error logs, and structured JSON stdout | **$0.00** (50GB/mo Free) |
 | **GCP Cloud Trace** | [Cloud Trace Overview](https://console.cloud.google.com/traces/overview?project=promptfm-radio-1793623670) | Distributed W3C trace latency across API requests, TTS synthesis spans, and Supabase RPC calls | **$0.00** (Free Tier) |
 | **Google AI Studio** | [Gemini AI Studio Dashboard](https://aistudio.google.com) | Gemini API free key quota usage (15 RPM / 1,500 requests/day free allowance) under `Gemini Project` (`gen-lang-client-0217883943`) | **$0.00** |
-| **Station Manager Studio** | `promptfm.live/admin` (returns with OCI app cutover) | On-air queue curation, community submission moderation, Discord/Telegram batch requests, manual DJ voice drops, channel management. Currently unavailable while the maintenance page is live. | **$0.00** |
+| **Station Manager Studio** | [`promptfm.live/admin`](https://promptfm.live/admin) | On-air queue curation, community submission moderation, Discord/Telegram batch requests, manual DJ voice drops, channel management. Live on the Oracle OCI app path. | **$0.00** |
 | **Icecast 2 Stream Admin** | [stream.promptfm.live:8000/admin](http://stream.promptfm.live:8000/admin/) | Direct Icecast mount points (`/stream.mp3`, `/cyberpunk.mp3`, `/chillout.mp3`, `/kids.mp3`, `/afterdark.mp3`), connected socket listeners, bitrate telemetry (served by the Oracle VM) | **$0.00** (Oracle Always Free) |
 | **Oracle Cloud Instances** | [Compute instances](https://cloud.oracle.com/compute/instances?region=us-ashburn-1) | Always Free streamer VM (AMD micro today, Arm A1 when capacity returns): state, shape, public IP | **$0.00 (Always Free)** |
 | **Oracle Metrics Explorer** | [Metrics Explorer](https://cloud.oracle.com/monitoring/metrics-explorer?region=us-ashburn-1) | Streamer CPU and memory (`oci_computeagent`) and outbound bytes (`oci_vcn` `VnicToNetworkBytes`) | **$0.00 (Always Free)** |
@@ -54,17 +54,17 @@ PromptFM is engineered to operate strictly within 100% zero-cost cloud tiers. Us
 
 Confirm the Oracle notification email once, or the two alerts won't arrive. Details: [docs/oracle-always-free-streamer.md](docs/oracle-always-free-streamer.md).
 
-### 🌐 Current public web restore state
+### 🌐 Current public web state
 - **`stream.promptfm.live`** is live on Oracle Cloud Always Free.
-- **`promptfm.live` and `www.promptfm.live`** are restored as a simple Oracle-hosted maintenance page so the public entrypoint stays up while the full app path moves off Vercel.
-- **Production web release and rollback workflows are implemented in repo on the OCI path**, but this issue branch does **not** prove an authorized live cutover or rollback run on the public site yet.
+- **`promptfm.live` and `www.promptfm.live`** serve the live Next.js app from the repo-owned OCI path on the Oracle host.
+- **The first authorized live OCI cutover is done**, and the retained-release rollback drill is still pending the next authorized release because that first OCI cutover had no previous retained OCI web release.
 - **Manual Vercel preview links still exist** for commit review, but they are no longer the documented production web release path in this branch.
 
 ---
 
 ## 🏗️ Architecture & Cloud Infrastructure
 
-PromptFM combines the main Next.js app codebase with an autonomous Oracle Always Free streamer host and Supabase PostgreSQL backend. The current public restore path is an Oracle-hosted maintenance page while the full app migration continues. The stream moved from GCP (1 GB/month free outbound, too little for audio) to Oracle Cloud Always Free (about 10 TB/month outbound free) on 2026-11-09; the GCP VM is stopped ([details](docs/oracle-always-free-streamer.md)):
+PromptFM combines the main Next.js app codebase with an autonomous Oracle Always Free streamer host and Supabase PostgreSQL backend. Public web and audio now run on Oracle Always Free: the stream directly on the host, and the web app through the repo-owned OCI release/cutover path. The stream moved from GCP (1 GB/month free outbound, too little for audio) to Oracle Cloud Always Free (about 10 TB/month outbound free) on 2026-11-09; the GCP VM is stopped ([details](docs/oracle-always-free-streamer.md)):
 
 ```
                                 [Listener Web / iPhone PWA]
@@ -74,14 +74,14 @@ PromptFM combines the main Next.js app codebase with an autonomous Oracle Always
                        ▼ HTTPS (Port 443)                          ▼ HTTPS
           ┌───────────────────────────┐               ┌───────────────────────────┐
           │   stream.promptfm.live    │               │ promptfm.live / www       │
-          │ (Oracle Always Free)      │               │ (Oracle maintenance page) │
+          │ (Oracle Always Free)      │               │ (OCI web app)             │
           └─────────────┬─────────────┘               └─────────────┬─────────────┘
                         │                                           │
          ┌──────────────┴───────────────────────────────────────────┴──────────────┐
-         │                    Oracle VM: Caddy + Icecast + Liquidsoap               │
+         │      Oracle VM: Caddy + Icecast + Liquidsoap + PromptFM web releases     │
          │                                                                          │
          │  - `stream.promptfm.live` -> Icecast / Liquidsoap                        │
-         │  - `promptfm.live`, `www.promptfm.live` -> static maintenance page       │
+         │  - `promptfm.live`, `www.promptfm.live` -> current OCI web release       │
          └──────────────────────────────────────┬───────────────────────────────────┘
                                                 │
                                  ┌──────────────┴──────────────┐
@@ -107,7 +107,7 @@ The complete streaming server infrastructure and Google Cloud Monitoring dashboa
 - **$0 guards:** Terraform validations, a tenancy quota policy that blocks everything except Always Free, a $1 budget email, and an alarm at 300 GB/day outbound.
 - **Credentials and state:** secret `promptfm-oci-credentials` in GCP Secret Manager; state in the same GCS bucket under `terraform/oci-state`.
 - **Apply:** the **Apply Terraform (Oracle streamer)** workflow (plan-only unless `apply` is ticked), or `infra/terraform-oci/retry-apply.sh` when Oracle reports `Out of host capacity`. See [docs/oracle-always-free-streamer.md](docs/oracle-always-free-streamer.md).
-- **Web deploy path in repo:** `.github/workflows/release.yml` and `.github/workflows/rollback.yml` both call `.github/workflows/deploy-web-oci.yml`, which builds the web image, deploys a candidate, gates on health/smoke checks, cuts over, and records retained-release metadata for rollback. This branch does **not** include authorized evidence of a live production cutover or rollback drill yet.
+- **Web deploy path in repo:** `.github/workflows/release.yml` and `.github/workflows/rollback.yml` both call `.github/workflows/deploy-web-oci.yml`, which builds the web image, deploys a candidate, gates on health/smoke checks, cuts over, and records retained-release metadata for rollback. The first authorized live cutover succeeded on 2026-11-10; the retained-release rollback drill still needs the next authorized release because the first OCI cutover had no previous retained release.
 
 ### 3. Ansible (`infra/ansible/`)
 - Installs Docker, Docker Compose, and Caddy reverse proxy.
@@ -154,7 +154,7 @@ make deploy
 
 ### 5. Google AdSense & IAB `ads.txt`
 - Verified publisher ID `ca-pub-7299057534028491`.
-- The `ads.txt` route at [`https://promptfm.live/ads.txt`](https://promptfm.live/ads.txt) is generated by [`src/lib/ads/adsense.ts`](src/lib/ads/adsense.ts) (**90.48% Stryker score**) and returns with the full OCI app cutover.
+- The `ads.txt` route at [`https://promptfm.live/ads.txt`](https://promptfm.live/ads.txt) is generated by [`src/lib/ads/adsense.ts`](src/lib/ads/adsense.ts) (**90.48% Stryker score**) and is live on the Oracle OCI app path.
 - Non-intrusive, dark-mode responsive AdSense display units.
 
 ---
@@ -250,7 +250,7 @@ NEXT_PUBLIC_ADSENSE_CLIENT_ID="ca-pub-7299057534028491"
 
 ## 📜 Legal & Compliance
 
-These public routes are part of the full app path and return after the OCI cutover completes:
+These public routes are part of the live OCI app path:
 - **Copyright & DMCA:** [`https://promptfm.live/copyright`](https://promptfm.live/copyright) & [`/dmca`](https://promptfm.live/dmca)
 - **Privacy Policy:** [`https://promptfm.live/privacy`](https://promptfm.live/privacy)
 - **Terms of Service:** [`https://promptfm.live/terms`](https://promptfm.live/terms)
@@ -295,10 +295,10 @@ PromptFM routes tracks strictly based on station guardrails and parental control
 
 ## 💬 Discord Bot & Interactions Webhook Integration Guide
 
-PromptFM supports native Discord Application Slash Commands and Button Interactions through a single serverless endpoint at `https://promptfm.live/api/bot/webhook` once the full web app is restored. While the Oracle maintenance page is live, this public webhook route is unavailable.
+PromptFM supports native Discord Application Slash Commands and Button Interactions through a single serverless endpoint at `https://promptfm.live/api/bot/webhook` on the live OCI app path.
 
 ### How to Connect Discord:
-1. **Discord Developer Portal (after full app restore):**
+1. **Discord Developer Portal:**
    - Go to [discord.com/developers/applications](https://discord.com/developers/applications) and select your Application.
    - In **General Information**, find **"Interactions Endpoint URL"**.
    - Enter `https://promptfm.live/api/bot/webhook` and click **Save Changes**.
@@ -336,8 +336,8 @@ npm run promptfm -- x post "Tune in live on PromptFM: DJ Neon is spinning the we
 npm run promptfm -- broadcast "Live broadcast update: Fresh AI synth tracks added!" --x
 ```
 
-### 2. Web Studio Admin Console (`/admin`, returns with the full app restore)
-- When the full app is back, navigate to **`https://promptfm.live/admin`** -> click the **Social Broadcast (X / Discord / Telegram)** tab.
+### 2. Web Studio Admin Console (`/admin`)
+- Navigate to **`https://promptfm.live/admin`** -> click the **Social Broadcast (X / Discord / Telegram)** tab.
 - Compose your message with a real-time 280-character countdown for X.
 - Toggle destinations: `[x] X (Twitter)`, `[x] Discord`, `[x] Telegram`.
 - Click **"Post Broadcast to Selected Networks"**.
@@ -367,7 +367,7 @@ All community submissions via `/submit` are saved with `status: 'pending'`. They
 
 ## 🤖 Model Context Protocol (MCP) & Community Bridges
 
-PromptFM exposes a streamable **Model Context Protocol (MCP)** server at [`https://promptfm.live/api/mcp`](https://promptfm.live/api/mcp) as part of the full app path. That endpoint is currently unavailable while `promptfm.live` serves the Oracle maintenance page.
+PromptFM exposes a streamable **Model Context Protocol (MCP)** server at [`https://promptfm.live/api/mcp`](https://promptfm.live/api/mcp) on the live OCI app path.
 
 - **Infrastructure overview (diagram, who does what, runbook, alert emails):** [`docs/infra-overview.md`](docs/infra-overview.md).
 - **$0 Policy (Google Cloud, Oracle, GitHub Actions):** [`docs/zero-cost-policy.md`](docs/zero-cost-policy.md) (what stops spending, what only alerts, and what to do when an alert fires).
@@ -391,18 +391,19 @@ PromptFM welcomes open community development, bug fixes, and feature proposals!
 - **Licensing:** Governed by the [`PromptFM Community Source-Available License (Version 1.0)`](LICENSE). You may inspect, fork, test, and contribute pull requests. You may **not** copy, extract, resell, or host competing radio/streaming clones.
 - **Review Board:** All pull requests require review and approval from the Board (**@atrifan**).
 - **GitHub Organization:** Community development is hosted under the `promptfm` organization.
-- **Production Deployments:** Routine merges to `main` still run CI quality checks only. Manual Vercel preview links still exist for review. The in-branch production web release and rollback path is OCI-based (`release.yml` / `deploy-web-oci.yml` / `rollback.yml`), but this issue branch does **not** include authorized proof of a live cutover or rollback drill on `promptfm.live`. Documentation updates still deploy via `gh-pages/<version>` to GitHub Pages.
+- **Production Deployments:** Routine merges to `main` still run CI quality checks only. Manual Vercel preview links still exist for review. The repo-owned production web release and rollback path is OCI-based (`release.yml` / `deploy-web-oci.yml` / `rollback.yml`). The first authorized live cutover is done; the retained-release rollback drill still needs the next authorized release because the first OCI cutover had no previous retained OCI release. Documentation updates still deploy via `gh-pages/<version>` to GitHub Pages.
 - **Security & Secret Sharing:** Never post secrets or API keys in PRs or issues. For new environment variables, use ephemeral links ([Password Pusher](https://pwpush.com)) shared directly with @atrifan.
 
 ---
 
 ## 🩺 System Status & Health Telemetry
 
-Current public status during the Oracle maintenance-page restore:
-- **Live public entrypoint:** [`https://www.promptfm.live`](https://www.promptfm.live) — Oracle-hosted maintenance page.
+Current public status on the Oracle OCI production path:
+- **Live public entrypoints:** [`https://promptfm.live`](https://promptfm.live) and [`https://www.promptfm.live`](https://www.promptfm.live) — live Next.js app via the Oracle OCI cutover path.
+- **Live web health:** `/admin` and `/status` return HTTP 200 HTML; `/api/status` returns HTTP 200 JSON.
 - **Live audio stream:** [`https://stream.promptfm.live/stream.mp3`](https://stream.promptfm.live/stream.mp3).
+- **Streamer health endpoint:** [`https://stream.promptfm.live/status-json.xsl`](https://stream.promptfm.live/status-json.xsl) remains HTTP 200 and still reports `Google Cloud Always Free (us-central1)` as the stream location.
 - **Operator telemetry:** Oracle Metrics Explorer, GCP Cloud Logging, GCP Trace, and GitHub Actions checks linked above.
-- **Planned return with full app cutover:** `/status`, `/api/status`, and the dynamic status badge.
 
 ---
 
@@ -413,7 +414,7 @@ PromptFM is an independent project. To maintain 100% legal compliance and operat
 | Allocation | Percentage | Purpose |
 | :--- | :--- | :--- |
 | **Radio & Music Royalties** | **35%** | Statutory licensing fees (ASCAP, BMI, SESAC, SoundExchange / StreamLicensing) to legally broadcast commercial licensed tracks alongside AI-generated music. |
-| **Cloud & Audio Streaming** | **25%** | 24/7 continuous Icecast audio streaming, the Oracle-hosted public web restore path, GCP-backed services, and audio object storage. |
+| **Cloud & Audio Streaming** | **25%** | 24/7 continuous Icecast audio streaming, the Oracle-hosted public web app path, GCP-backed services, and audio object storage. |
 | **Generative AI & Voice Compute** | **20%** | Gemini 1.5/2.0 API prompt tokens for real-time DJ banter scripting, weather/news synthesizers, and neural TTS voice generation credits. |
 | **Engineering & Development** | **15%** | Dedicated development time maintaining audio pipelines, listener bots, Discord & Telegram bridges, and mobile apps. |
 | **Maintainer Fuel (Coffee)** | **5%** | Espresso and coffee powering late-night bug triage, production monitoring, and community support. |
@@ -441,7 +442,7 @@ PromptFM maximizes observability without incurring third-party SaaS fees (no Dat
 
 To eliminate release bottlenecks and protect our free-tier compute budget:
 1. **Protected $0 Budget Policy:** Merges to `main` run CI verification (Vitest, Typecheck, Lint, Security) but do not auto-deploy the public site.
-2. **Oracle Restore First:** The current public entrypoint is the Oracle-hosted maintenance page, with the streamer kept safe in standby-aware workflows.
-3. **OCI Release Path Implemented in Repo:** `.github/workflows/release.yml` and `.github/workflows/rollback.yml` route the production web path through OCI candidate deploy, health/smoke gating, cutover, and retained-release rollback logic. Live authorized cutover proof is still pending in this issue branch.
+2. **Oracle-hosted Production Path:** The public entrypoint now runs through the OCI release/candidate/cutover workflow on the Oracle host, with the maintenance page kept as the failed-cutover fallback.
+3. **First Live OCI Cutover Is Proven:** `.github/workflows/release.yml` and `.github/workflows/rollback.yml` route the production web path through OCI candidate deploy, health/smoke gating, cutover, and retained-release rollback logic. The retained-release rollback drill still needs the next authorized release because the first successful OCI cutover had no previous retained release.
 4. **Documentation Releases:** Pushing a `gh-pages/<version>` tag (e.g. `gh-pages/v1.0.0`) deploys the documentation portal to GitHub Pages via [`.github/workflows/pages.yml`](.github/workflows/pages.yml).
 5. **Automated Changelog:** GitHub Release notes are automatically generated from commit history with zero manual release drafting friction.

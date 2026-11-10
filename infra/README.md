@@ -126,7 +126,7 @@ To protect against GCP VM network egress charges, direct public access from `0.0
 ## 3. DNS & Custom Domain Setup (`stream.promptfm.live`)
 
 PromptFM uses two dedicated hostnames:
-1. **`promptfm.live`**: Public production currently serves the Oracle-hosted maintenance page. The in-branch full web production path is OCI-based (`.github/workflows/release.yml`, `.github/workflows/deploy-web-oci.yml`, `.github/workflows/rollback.yml`); manual Vercel preview links still exist for review, but this branch does **not** prove an authorized live cutover yet.
+1. **`promptfm.live`**: Public production now serves the live OCI web app on the Oracle host. The repo-owned production path is `.github/workflows/release.yml` → `.github/workflows/deploy-web-oci.yml` → `.github/workflows/rollback.yml`; manual Vercel preview links still exist for review. The first live cutover is done, and the retained-release rollback drill still needs the next authorized release.
 2. **`stream.promptfm.live`**: An `A` record to the Oracle streamer (`129.80.56.27`, TTL 300). It used to be an `A` record to the retired GCP VM (`34.123.80.137`). Caddy on the Oracle VM serves TLS on 443 directly. The zero-egress rule is that `stream` must not point at the GCP VM; an `A` record to another host or a `CNAME` is compliant.
 
 ### Changing the DNS record (Hostinger)

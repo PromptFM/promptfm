@@ -32,11 +32,12 @@ describe('Admin Quick Navigation Badges in README.md', () => {
     expect(content).toMatch(/\[!\[.*TRACES_GCP.*\]\(.*\)\]\((https:\/\/console\.cloud\.google\.com\/traces[^)]+)\)/i);
   });
 
-  it('documents the current Oracle-hosted maintenance restore state', () => {
+  it('documents the current Oracle-hosted production web state', () => {
     const content = fs.readFileSync(readmePath, 'utf8');
-    expect(content).toContain('Oracle-hosted maintenance page');
+    expect(content).toMatch(/live PromptFM app|live Next\.js app|live OCI app/i);
     expect(content).toContain('stream.promptfm.live');
     expect(content).toMatch(/OCI workflow|OCI-based|production web deploy path/i);
+    expect(content).toMatch(/rollback drill.*next authorized release|retained-release rollback drill/i);
   });
 
   it('documents Oracle $0 guardrails and quota enforcement', () => {

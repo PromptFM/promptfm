@@ -10,7 +10,7 @@ PromptFM follows continuous delivery for the hosted platform ([promptfm.live](ht
 
 | Version / Branch | Supported | Notes |
 | :--- | :--- | :--- |
-| `main` (Latest) | :white_check_mark: Yes | Supported mainline branch. Public `promptfm.live` is currently an Oracle-hosted maintenance page; OCI production web release/rollback workflows are implemented in repo, but live cutover evidence is not asserted here. |
+| `main` (Latest) | :white_check_mark: Yes | Supported mainline branch. Public `promptfm.live` now serves the live app from the repo-owned OCI production path on Oracle; manual Vercel previews remain review-only, and the retained-release rollback drill still needs the next authorized release. |
 | `v0.1.x` | :white_check_mark: Yes | Current release series |
 | `< v0.1.0` | :x: No | Deprecated development prototypes |
 

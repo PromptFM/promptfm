@@ -645,7 +645,7 @@ Application release tags target the `production` GitHub environment (`https://pr
   6. Deploys a candidate, gates on `/api/healthz`, `/api/status`, `/admin`, `/status`, and `/api/radio/next?format=uri`, then cuts over
   7. Uploads retained-release metadata for rollback and stamps deployment status
 
-> **Proof boundary for issue #193:** these workflows are implemented in repo, but this branch does **not** itself prove that an authorized live production cutover or rollback drill has been run on `promptfm.live`.
+> **Live proof for issue #193:** GitHub Actions run [`42833955213`](https://github.com/PromptFM/promptfm/actions/runs/42833955213) on `issue193-live-81e84d9` created tag [`promptfm/0.2.4-81e84d9`](https://github.com/PromptFM/promptfm/releases/tag/promptfm/0.2.4-81e84d9), published `ghcr.io/promptfm/promptfm-web:0.2.4-81e84d9@sha256:e96f02ba2ef7937e8e73d461e4d30e7f5e2c6fdf04e9ddb0de834c8ea059fc98`, cut public traffic over, and uploaded `retained-release-metadata` artifact `13773556576` (`sha256:808f360a52ed0505dbfb7fd7db0132e11369f67bfaf7446700c81a8b68f84b6f`). The rollback drill is still pending the next authorized release because this first OCI cutover had no previous retained OCI web release to restore.
 
 #### 2. Documentation Portal Release Workflow
 Documentation updates deploy to GitHub Pages under the `github-pages` environment upon pushing a doc release tag:
@@ -716,7 +716,7 @@ PromptFM leverages automated GitHub Actions workflows to govern OCI web releases
 
 | Workflow | File | Trigger | Purpose |
 | :--- | :--- | :--- | :--- |
-| **🚀 Release PromptFM** | `.github/workflows/release.yml` | `workflow_dispatch` or push tag `promptfm/*` / `v*.*.*` | Verifies quality gate, tags and cuts release, creates the GitHub production deployment, calls `deploy-web-oci.yml`, and publishes release evidence. Implemented in repo; a live authorized cutover is still separate proof. |
+| **🚀 Release PromptFM** | `.github/workflows/release.yml` | `workflow_dispatch` or push tag `promptfm/*` / `v*.*.*` | Verifies quality gate, tags and cuts release, creates the GitHub production deployment, calls `deploy-web-oci.yml`, and publishes release evidence. Live cutover is proven; the retained-release rollback drill still needs the next authorized release. |
 | **🏗️ Apply Terraform Changes** | `.github/workflows/apply-terraform.yml` | `workflow_dispatch` or push tag `promptfm-infra/*` | Runs `npm run prepare-infra`, initializes free GCS state backend, applies Terraform, conditionally runs Ansible via zero-cost IAP tunneling ($0.00), and synchronizes Hostinger DNS. |
 | **🏗️ Apply Terraform (Oracle streamer)** | `.github/workflows/apply-terraform-oci.yml` | `workflow_dispatch` (`apply`) | Plans the Oracle Always Free streamer in `infra/terraform-oci` (state prefix `terraform/oci-state`); only applies when `apply` is ticked. Credentials come from `promptfm-oci-credentials`. |
 | **🔍 Create Preview Link in Vercel** | `.github/workflows/create-preview-link.yml` | `workflow_dispatch` (`commit_sha`) | On-demand manual Vercel preview deployment for a specific commit SHA without auto-triggering on PR approval. |
@@ -1128,7 +1128,6 @@ The automated PR Guidance Bot detects modified files and publishes information c
 - **Infrastructure & Secrets Card**: Emitted when `infra/**`, `group_vars/**`, or secret utilities change. Directs admins to the [Rotate Secret workflow](https://github.com/PromptFM/promptfm/actions/workflows/rotate-secrets.yml) for GCP Secret Manager credentials, and the [Update Secrets workflow](https://github.com/PromptFM/promptfm/actions/workflows/update-secrets.yml) for Vercel flags.
 - **SQL Migration Card**: Emitted when `supabase/migrations/*.sql` changes. Directs admins to the [Apply SQL Schema workflow](https://github.com/PromptFM/promptfm/actions/workflows/apply-sql-schema.yml).
 - **UI Preview Card**: Emitted when `src/app/**` or frontend components change. Informs maintainers on how to request an on-demand preview link (`/pr-link`).
-
 
 
 
