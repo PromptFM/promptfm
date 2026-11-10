@@ -38,6 +38,14 @@ describe('GitHub Actions Workflows Suite', () => {
       expect(content).toMatch(/cutover/i);
       expect(content).toMatch(/retained[_ -]release|previous[_ -]release/i);
     });
+
+    it('requires callers to grant id-token: write so GitHub can start the reusable workflow', () => {
+      for (const filename of ['release.yml', 'rollback.yml']) {
+        const content = readWorkflow(filename);
+        expect(content).toContain('uses: ./.github/workflows/deploy-web-oci.yml');
+        expect(content).toContain('id-token: write');
+      }
+    });
   });
 
   describe('Apply Infrastructure Workflow (apply-terraform.yml)', () => {
