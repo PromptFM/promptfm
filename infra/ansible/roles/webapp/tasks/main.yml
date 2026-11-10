@@ -63,6 +63,16 @@
     follow: false
   register: promptfm_web_current_release_link
 
+- name: Resolve the retained live release target before cutover
+  command:
+    argv:
+      - readlink
+      - -f
+      - "{{ promptfm_web_root }}/current"
+  register: promptfm_web_current_release_target
+  changed_when: false
+  when: promptfm_web_current_release_link.stat.exists | default(false)
+
 - name: Copy the maintenance fallback page for failed cutovers
   copy:
     src: "{{ playbook_dir }}/roles/streamer/files/maintenance/index.html"
@@ -139,9 +149,11 @@
     argv:
       - ln
       - -sfn
-      - "{{ promptfm_web_root }}/current"
+      - "{{ promptfm_web_current_release_target.stdout }}"
       - "{{ promptfm_web_root }}/previous"
-  when: promptfm_web_current_release_link.stat.exists | default(false)
+  when:
+    - promptfm_web_current_release_link.stat.exists | default(false)
+    - (promptfm_web_current_release_target.stdout | default('') | length) > 0
 
 - name: Switch current symlink to the healthy candidate release
   file:
@@ -164,3 +176,28 @@
     name: caddy
     state: reloaded
   when: promptfm_web_caddy_conf is changed
+
+- name: Discover OCI web release directories after cutover
+  find:
+    paths: "{{ promptfm_web_releases_dir }}"
+    file_type: directory
+    recurse: false
+  register: promptfm_web_release_directories
+
+- name: Protect the current and retained previous OCI web releases from prune
+  set_fact:
+    promptfm_web_protected_release_paths: >-
+      {{
+        (
+          [promptfm_web_releases_dir ~ '/' ~ promptfm_web_release_id]
+          + ([promptfm_web_current_release_target.stdout] if (promptfm_web_current_release_target.stdout | default('') | length) > 0 else [])
+        )
+        | unique
+      }}
+
+- name: Prune OCI web releases that are no longer retained for rollback
+  file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ promptfm_web_release_directories.files }}"
+  when: item.path not in promptfm_web_protected_release_paths

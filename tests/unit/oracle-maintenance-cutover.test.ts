@@ -54,6 +54,7 @@ describe('Oracle maintenance cutover support', () => {
     const webCaddy = fs.readFileSync(webCaddyPath, 'utf8');
     expect(webCaddy).toMatch(/previous[_ -]release|retained[_ -]release/i);
     expect(webCaddy).toMatch(/maintenance/i);
+    expect(webCaddy).toContain('@previous_failed');
   });
 
   it('gates web cutover on a candidate health probe before switching live traffic', () => {
@@ -67,5 +68,19 @@ describe('Oracle maintenance cutover support', () => {
     const webTasks = fs.readFileSync(webTasksPath, 'utf8');
     expect(webTasks).toContain('/api/healthz');
     expect(webTasks).toMatch(/cutover|switch/i);
+  });
+
+  it('retains the real live release target before pruning old release directories', () => {
+    const webTasksPath = path.join(rootDir, 'infra/ansible/roles/webapp/tasks/main.yml');
+    expect(fs.existsSync(webTasksPath)).toBe(true);
+
+    if (!fs.existsSync(webTasksPath)) {
+      return;
+    }
+
+    const webTasks = fs.readFileSync(webTasksPath, 'utf8');
+    expect(webTasks).toContain('readlink');
+    expect(webTasks).toContain('promptfm_web_current_release_target.stdout');
+    expect(webTasks).toMatch(/Prune OCI web releases/i);
   });
 });

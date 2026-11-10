@@ -49,12 +49,33 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           node <<'NODE'
-          const { execSync } = require('child_process');
+          const { execSync, execFileSync } = require('child_process');
           const fs = require('fs');
           const jiti = require('jiti')(__filename);
           const { formatRollbackTag, resolveGitHubToken } = jiti('./src/lib/infra/release-tag.ts');
 
           const rollbackRef = (process.env.ROLLBACK_REF || '').trim();
+          const isCommitSha = /^[0-9a-f]{7,40}$/i.test(rollbackRef);
+          const isReleaseTag = /^(promptfm\/[A-Za-z0-9._/-]+|v\d+\.\d+\.\d+(?:[-+][A-Za-z0-9._-]+)?)$/i.test(rollbackRef);
+
+          if (!isCommitSha && !isReleaseTag) {
+            throw new Error('Rollback ref must be an existing commit SHA or release tag.');
+          }
+
+          try {
+            if (isCommitSha) {
+              execFileSync('git', ['rev-parse', '-q', '--verify', `${rollbackRef}^{commit}`], {
+                stdio: 'pipe',
+              });
+            } else {
+              execFileSync('git', ['rev-parse', '-q', '--verify', `refs/tags/${rollbackRef}^{commit}`], {
+                stdio: 'pipe',
+              });
+            }
+          } catch {
+            throw new Error(`Unknown rollback ref: ${rollbackRef}`);
+          }
+
           const rollbackTag = formatRollbackTag(rollbackRef);
 
           let remoteUrl = '';

@@ -111,6 +111,8 @@ describe('GitHub Actions Workflows Suite', () => {
       expect(content).toContain('name: ⏪ Rollback PromptFM');
       expect(content).toContain('rollback_ref:');
       expect(content).toContain('formatRollbackTag');
+      expect(content).toContain('Rollback ref must be an existing commit SHA or release tag.');
+      expect(content).toContain('Unknown rollback ref');
       expect(content).toContain('resolveGitHubToken');
       expect(content).toContain('deploy-web-oci');
       expect(content).toMatch(/retained[_ -]release|previous[_ -]release/i);

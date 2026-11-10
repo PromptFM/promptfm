@@ -24,6 +24,13 @@
       response_header_timeout 10s
     }
   }
+
+  handle_errors {
+    @previous_failed expression {http.error.status_code} >= 500
+    handle @previous_failed {
+      import maintenance_fallback
+    }
+  }
 }
 
 (maintenance_fallback) {

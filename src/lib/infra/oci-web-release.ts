@@ -5,6 +5,14 @@ export interface OCIWebReleaseRecord {
   releasable?: boolean;
 }
 
+export function normalizeRetainedReleaseCount(retainedReleaseCount = 1): number {
+  if (!Number.isFinite(retainedReleaseCount)) {
+    return 1;
+  }
+
+  return Math.max(1, Math.floor(retainedReleaseCount));
+}
+
 function toEpoch(createdAt: string): number {
   const epoch = Date.parse(createdAt);
   return Number.isFinite(epoch) ? epoch : 0;
@@ -21,7 +29,7 @@ function sortReleases(releases: readonly OCIWebReleaseRecord[]): OCIWebReleaseRe
 export function getCurrentRelease(
   releases: readonly OCIWebReleaseRecord[],
 ): OCIWebReleaseRecord | undefined {
-  const currentRelease = releases.find((release) => release.active && isReleasable(release));
+  const currentRelease = sortReleases(releases).find((release) => release.active);
   if (currentRelease) {
     return currentRelease;
   }
@@ -44,6 +52,7 @@ export function planRetainedReleasePrune(
   retainedReleaseCount = 1,
 ): OCIWebReleaseRecord[] {
   const currentRelease = getCurrentRelease(releases);
+  const minimumRetainedPreviousReleaseCount = normalizeRetainedReleaseCount(retainedReleaseCount);
   const protectedReleaseIds = new Set<string>();
 
   if (currentRelease) {
@@ -52,7 +61,7 @@ export function planRetainedReleasePrune(
 
   const retainedPreviousReleases = sortReleases(releases)
     .filter((release) => isReleasable(release) && release.releaseId !== currentRelease?.releaseId)
-    .slice(0, Math.max(0, retainedReleaseCount));
+    .slice(0, minimumRetainedPreviousReleaseCount);
 
   for (const release of retainedPreviousReleases) {
     protectedReleaseIds.add(release.releaseId);
