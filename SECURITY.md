@@ -10,7 +10,7 @@ PromptFM follows continuous delivery for the hosted platform ([promptfm.live](ht
 
 | Version / Branch | Supported | Notes |
 | :--- | :--- | :--- |
-| `main` (Latest) | :white_check_mark: Yes | Production deployment on Vercel |
+| `main` (Latest) | :white_check_mark: Yes | Supported mainline branch. Public `promptfm.live` is currently an Oracle-hosted maintenance page; OCI production web release/rollback workflows are implemented in repo, but live cutover evidence is not asserted here. |
 | `v0.1.x` | :white_check_mark: Yes | Current release series |
 | `< v0.1.0` | :x: No | Deprecated development prototypes |
 
@@ -65,4 +65,3 @@ We consider security research conducted under this policy to be authorized and p
 - Do not access, modify, or exfiltrate listener or user data that does not belong to you.
 - Give us reasonable time to remediate the vulnerability before sharing details publicly.
 - Do not perform Denial of Service (DoS) attacks against our production streaming infrastructure or free-tier quotas.
-

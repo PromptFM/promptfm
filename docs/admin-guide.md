@@ -537,8 +537,9 @@ PromptFM is architected to operate **permanently within the $0/month free-tier b
 
 1. **Ignored Build Step (`scripts/vercel-budget-gate.sh`)**:
    Configured in `vercel.json` via `"ignoreCommand": "bash scripts/vercel-budget-gate.sh"`.
-   - **Production deployments are gated to release tags** (`promptfm/<version>` or `v*.*.*`). Routine merges to `main` are cancelled (exit code 0) to protect Vercel Fluid Active CPU budget.
-   - **Manual override**: Production deployments can be forced on `main` via `ENABLE_MAIN_PRODUCTION_DEPLOYS=true` or by tagging commit messages with `[deploy-prod]` or `[release]`.
+   - **Production web releases in this branch are OCI-based**, not Vercel-based: `.github/workflows/release.yml` and `.github/workflows/rollback.yml` call `.github/workflows/deploy-web-oci.yml` for candidate gating, cutover, and rollback metadata.
+   - **Routine merges to `main` still do not auto-deploy the public site.** The Vercel gate remains relevant for preview-budget control and any intentionally invoked Vercel builds.
+   - **Manual override**: Vercel builds can still be forced on `main` via `ENABLE_MAIN_PRODUCTION_DEPLOYS=true` or by tagging commit messages with `[deploy-prod]` or `[release]`, but that is **not** the documented production web release path for this branch.
    - **Documentation releases** (`gh-pages/<version>`) deploy strictly to GitHub Pages, bypassing Vercel entirely.
    - **Automated bot branches** (`dependabot/*`, `renovate/*`) are automatically cancelled (exit code 0).
    - **Forked pull requests** require explicit maintainer authorization before building previews.
@@ -618,10 +619,10 @@ Query the $0 budget status programmatically from any MCP-enabled client:
 
 ### E. Tag-Based Release Operations Runbook (Issue #123)
 
-To ensure PromptFM stays strictly within its $0 infrastructure footprint and avoids Vercel Fluid Active CPU quota exhaustion, the core team operates under a tag-based release standard.
+To ensure PromptFM stays strictly within its $0 infrastructure footprint, the core team operates under a tag-based release standard. In this branch, application release tags drive the OCI web deployment path in repo, while manual Vercel preview links remain a separate review tool.
 
 #### 1. App Production Release Workflow
-Production builds deploy exclusively to the `production` GitHub environment (`https://promptfm.live`) upon pushing an application release tag:
+Application release tags target the `production` GitHub environment (`https://promptfm.live`) through the OCI workflow chain implemented in repo:
 - **Supported Tag Patterns**: `promptfm/<version>` (e.g., `promptfm/v1.0.0` or `promptfm/0.1.0`) and semver `v*.*.*` (e.g., `v1.0.0`).
 - **Release Steps**:
   ```bash
@@ -639,9 +640,12 @@ Production builds deploy exclusively to the `production` GitHub environment (`ht
   1. `npm test` (unit and integration tests)
   2. `npm run typecheck` (strict TypeScript validation)
   3. Registers deployment in GitHub `production` environment
-  4. Triggers Vercel Production Build (via deploy hook or tag integration)
-  5. Probes live endpoint `https://promptfm.live/api/status`
-  6. Stamps deployment status with a verified active checkmark
+  4. Calls `.github/workflows/deploy-web-oci.yml`
+  5. Builds and publishes the OCI web image with Docker Buildx
+  6. Deploys a candidate, gates on `/api/healthz`, `/api/status`, `/admin`, `/status`, and `/api/radio/next?format=uri`, then cuts over
+  7. Uploads retained-release metadata for rollback and stamps deployment status
+
+> **Proof boundary for issue #193:** these workflows are implemented in repo, but this branch does **not** itself prove that an authorized live production cutover or rollback drill has been run on `promptfm.live`.
 
 #### 2. Documentation Portal Release Workflow
 Documentation updates deploy to GitHub Pages under the `github-pages` environment upon pushing a doc release tag:
@@ -654,7 +658,7 @@ Documentation updates deploy to GitHub Pages under the `github-pages` environmen
 - **Automated Workflow**: `.github/workflows/pages.yml` packages `docs/` and deploys to the `github-pages` environment without triggering Vercel builds or consuming Active CPU.
 
 #### 3. Emergency Deployments on `main`
-Routine merges to `main` are automatically skipped by `scripts/vercel-budget-gate.js` (`exitCode: 0`). If an emergency production deploy directly from `main` is required without creating a tag:
+Routine merges to `main` are automatically skipped by `scripts/vercel-budget-gate.js` (`exitCode: 0`). If an emergency Vercel build directly from `main` is required without creating a tag, the overrides below still work, but they are **not** the documented production web release path for this branch:
 - **Option A (Commit Message Tag)**: Include `[deploy-prod]` or `[release]` in the commit message:
   ```bash
   git commit -m "hotfix: critical security patch [deploy-prod]"
@@ -666,47 +670,20 @@ To prevent duplicate execution under live listener load:
 - **Single Now-Playing Calculation**: `/api/radio/now` resolves `getNowPlaying()` once and passes it directly to `getUpNext(channelSlug, 3, status)`, stopping duplicate Icecast probes and Supabase rank queries.
 - **Client-Side Telemetry Multiplexer (`src/lib/radio/telemetry-client.ts`)**: Coalesces concurrent in-flight requests and caches telemetry for 8 seconds. Dispatches `promptfm:radio-telemetry` CustomEvents so `AudioPlayer`, `UpNextSection`, and `LiveListenersBadge` share a single network stream rather than maintaining separate polling loops.
 
-#### 5. Vercel Deploy Hook & Webhook Infrastructure
+#### 5. OCI Candidate Cutover & Retained Rollback
 
-To connect GitHub Actions release tag events with Vercel without requiring full personal access tokens in CI, PromptFM uses a dedicated **Vercel Deploy Hook**:
+The production web path implemented in repo is shared by release and rollback workflows:
 
-- **Purpose**: Enables `.github/workflows/release.yml` to trigger an authenticated production build on `main` when a valid release tag (`promptfm/*` or `v*.*.*`) is pushed.
-- **Configuration Details**:
-  - **Project**: `alextrifan/promptfm` (`prj_n4NJ1yquHGMywU4WBacPbHoLKphL`)
-  - **Hook Name**: `promptfm-release`
-  - **Target Branch**: `main`
-  - **Deploy Hook ID**: `Jyx6wAqnF9`
-  - **Secret Location**: Stored as GitHub Actions repository secret `VERCEL_DEPLOY_HOOK`
-  - **Webhook URL**: `https://api.vercel.com/v1/integrations/deploy/prj_n4NJ1yquHGMywU4WBacPbHoLKphL/Jyx6wAqnF9`
-
-##### Managing Deploy Hooks via Vercel CLI
-```bash
-# 1. List configured deploy hooks
-vercel deploy-hooks ls
-
-# 2. Create a new deploy hook targeting main
-vercel deploy-hooks create promptfm-release --ref main
-
-# 3. Manually trigger a deployment via curl
-curl -X POST "$VERCEL_DEPLOY_HOOK"
-
-# 4. Remove a deploy hook by ID
-vercel deploy-hooks rm Jyx6wAqnF9
-```
-
-##### Managing Deploy Hooks via Vercel Web Dashboard
-1. Open [vercel.com/alextrifan/promptfm/settings/git](https://vercel.com/alextrifan/promptfm/settings/git).
-2. Scroll to the **Deploy Hooks** section.
-3. View, edit, or copy the hook URL.
-
-##### Rotating the Deploy Hook Secret
-If the hook URL is ever rotated:
-```bash
-# Update the GitHub Actions secret directly via gh CLI:
-echo "<NEW_DEPLOY_HOOK_URL>" | gh secret set VERCEL_DEPLOY_HOOK
-```
+- `.github/workflows/release.yml` prepares the release tag and GitHub deployment, then calls `.github/workflows/deploy-web-oci.yml`.
+- `.github/workflows/deploy-web-oci.yml` publishes a multi-arch image to `ghcr.io/<owner>/promptfm-web:<release_id>`.
+- `infra/ansible/deploy-web-oci.sh` deploys the candidate using `PROMPTFM_WEB_RELEASE_ID` and `PROMPTFM_WEB_IMAGE`.
+- Candidate smoke paths are defined by `PROMPTFM_WEB_CANDIDATE_SMOKE_PATHS_JSON`: `/api/healthz`, `/api/status`, `/admin`, `/status`, and `/api/radio/next?format=uri`.
+- After the candidate passes, the workflow completes cutover and uploads the `retained-release-metadata` artifact for rollback.
+- `.github/workflows/rollback.yml` reuses the same path with `deploy_reason=rollback-retained-release`, so rollback follows the same candidate gate before cutover.
 
 #### 6. Vercel Ignore Hook (`ignoreCommand` Pre-Build Budget Gate)
+
+This remains relevant for Vercel preview protection and any intentionally invoked Vercel builds; it is separate from the OCI production web release path above.
 
 Configured in `vercel.json` via `"ignoreCommand": "bash scripts/vercel-budget-gate.sh"`.
 
@@ -716,7 +693,7 @@ Configured in `vercel.json` via `"ignoreCommand": "bash scripts/vercel-budget-ga
   3. **Exit Code 0 (CANCEL/SKIP)**: Build is aborted immediately in 2–3s. Consumes **0 Fluid Active CPU minutes**.
      - Applied to: routine merges to `main`, preview PRs from unapproved forks, and non-application doc updates.
   4. **Exit Code 1 (PROCEED)**: Build continues through dependency install and Next.js compilation.
-     - Applied to: tags matching `promptfm/*` or `v*.*.*`, explicit `[deploy-prod]` commit markers, or maintainer approved previews `[preview]`.
+     - Applied to: tagged or override Vercel builds when intentionally invoked, or maintainer approved previews `[preview]`.
 
 ##### Verifying Ignore Hook Decisions Locally
 ```bash
@@ -733,18 +710,18 @@ VERCEL_ENV=production VERCEL_GIT_COMMIT_REF=promptfm/v1.0.0 node scripts/vercel-
 
 ## 15. GitHub Actions Workflows & Deployment Architecture
 
-PromptFM leverages automated GitHub Actions workflows to govern releases, Vercel deployments, Terraform cloud infrastructure, and secret management under the strict $0 Always-Free Tier policy.
+PromptFM leverages automated GitHub Actions workflows to govern OCI web releases, Vercel preview links, Terraform cloud infrastructure, and secret management under the strict $0 Always-Free Tier policy.
 
 ### A. Workflows Directory & Triggers
 
 | Workflow | File | Trigger | Purpose |
 | :--- | :--- | :--- | :--- |
-| **🚀 Release PromptFM** | `.github/workflows/release.yml` | `workflow_dispatch` or push tag `promptfm/*` / `v*.*.*` | Verifies quality gate, tags and cuts release, deploys to Vercel Production, stamps single Active GitHub Deployment with release tag, and creates GitHub Release. |
+| **🚀 Release PromptFM** | `.github/workflows/release.yml` | `workflow_dispatch` or push tag `promptfm/*` / `v*.*.*` | Verifies quality gate, tags and cuts release, creates the GitHub production deployment, calls `deploy-web-oci.yml`, and publishes release evidence. Implemented in repo; a live authorized cutover is still separate proof. |
 | **🏗️ Apply Terraform Changes** | `.github/workflows/apply-terraform.yml` | `workflow_dispatch` or push tag `promptfm-infra/*` | Runs `npm run prepare-infra`, initializes free GCS state backend, applies Terraform, conditionally runs Ansible via zero-cost IAP tunneling ($0.00), and synchronizes Hostinger DNS. |
 | **🏗️ Apply Terraform (Oracle streamer)** | `.github/workflows/apply-terraform-oci.yml` | `workflow_dispatch` (`apply`) | Plans the Oracle Always Free streamer in `infra/terraform-oci` (state prefix `terraform/oci-state`); only applies when `apply` is ticked. Credentials come from `promptfm-oci-credentials`. |
-| **🔍 Create Preview Link in Vercel** | `.github/workflows/create-preview-link.yml` | `workflow_dispatch` (`commit_sha`) | On-demand Vercel preview deployment for a specific commit SHA without auto-triggering on PR approval. |
+| **🔍 Create Preview Link in Vercel** | `.github/workflows/create-preview-link.yml` | `workflow_dispatch` (`commit_sha`) | On-demand manual Vercel preview deployment for a specific commit SHA without auto-triggering on PR approval. |
 | **🔐 Update Secrets in Vercel** | `.github/workflows/update-secrets.yml` | `workflow_dispatch` (`secret_key`, `secret_value`, `environments`) | Securely writes environment variables to Vercel with SecretShare runbook integration. |
-| **⏪ Rollback PromptFM** | `.github/workflows/rollback.yml` | `workflow_dispatch` (`rollback_ref`) | Rolls back production to a specified commit SHA or Tag, generating `promptfm/rollback-<sha>` or `promptfm/rollback-<version>`. |
+| **⏪ Rollback PromptFM** | `.github/workflows/rollback.yml` | `workflow_dispatch` (`rollback_ref`) | Restores a specified commit SHA or tag through the shared OCI deploy path, reusing candidate health checks and retained-release metadata before cutover. |
 | **📚 Release GitHub Pages** | `.github/workflows/pages.yml` | `workflow_dispatch` or push to `main` (`docs/**`) | Deploys documentation and architectural guides to GitHub Pages. |
 | **💬 PR Quality Gate & Bot** | `.github/workflows/ci.yml` (`pr-guidance-comment`) | `pull_request` (when quality checks pass) | Comments instructions: *"make an admin run the Make preview link workflow on the following sha: `<sha>`"* and posts action cards for Terraform/Ansible updates. |
 
@@ -819,7 +796,7 @@ To enable these workflows, configure the following secrets in GitHub (**Settings
 
 | Secret Name | Required By | Description / Source |
 | :--- | :--- | :--- |
-| `VERCEL_TOKEN` | Release, Preview, Rollback, Secrets | Personal or Team Access Token from [vercel.com/account/tokens](https://vercel.com/account/tokens). |
+| `VERCEL_TOKEN` | Preview Links, Secrets, optional Vercel CLI support workflows | Personal or Team Access Token from [vercel.com/account/tokens](https://vercel.com/account/tokens). |
 | `VERCEL_ORG_ID` | Vercel CLI Operations | Organization / Account ID from Project Settings ➔ General. |
 | `VERCEL_PROJECT_ID` | Vercel CLI Operations | Project ID from Project Settings ➔ General. |
 | `GCP_SA_KEY` | Terraform & Infra Prep | Base64-encoded Service Account JSON key with Compute Admin & Storage Object Admin permissions. |
@@ -830,8 +807,8 @@ To enable these workflows, configure the following secrets in GitHub (**Settings
 1. **Ignored Build Step**:
    - Set **Command** to: `bash scripts/vercel-budget-gate.sh`
    - This ensures automatic PR preview builds are skipped unless explicitly tagged with `[preview]`, saving Active CPU hours.
-2. **Deploy Hook (Optional)**:
-   - Create a deploy hook under **Settings ➔ Git ➔ Deploy Hooks** and save it as `VERCEL_DEPLOY_HOOK` in GitHub repository secrets if hook-based triggers are preferred.
+2. **Production hook status**:
+   - No Vercel deploy hook is required for the production web release path in this branch. Keep Vercel configured for preview links, environment variables, and usage notifications.
 
 ---
 
@@ -1151,7 +1128,6 @@ The automated PR Guidance Bot detects modified files and publishes information c
 - **Infrastructure & Secrets Card**: Emitted when `infra/**`, `group_vars/**`, or secret utilities change. Directs admins to the [Rotate Secret workflow](https://github.com/PromptFM/promptfm/actions/workflows/rotate-secrets.yml) for GCP Secret Manager credentials, and the [Update Secrets workflow](https://github.com/PromptFM/promptfm/actions/workflows/update-secrets.yml) for Vercel flags.
 - **SQL Migration Card**: Emitted when `supabase/migrations/*.sql` changes. Directs admins to the [Apply SQL Schema workflow](https://github.com/PromptFM/promptfm/actions/workflows/apply-sql-schema.yml).
 - **UI Preview Card**: Emitted when `src/app/**` or frontend components change. Informs maintainers on how to request an on-demand preview link (`/pr-link`).
-
 
 
 

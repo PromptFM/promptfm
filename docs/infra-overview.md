@@ -2,6 +2,8 @@
 
 Everything runs on free tiers. This page shows the layout, what each system is used for, which commands still apply, how to switch the stream between Oracle and GCP, what to do when Oracle stops, and which alert emails to look for.
 
+> **Public web status.** `promptfm.live` is still the Oracle maintenance page. The OCI web release / candidate / cutover / retained-release rollback workflows are implemented in repo, but this issue branch does **not** prove an authorized live run against the public site yet. Manual Vercel preview links still exist for review.
+
 - Costs and guardrails per provider: [zero-cost-policy.md](zero-cost-policy.md)
 - The Oracle host in detail: [oracle-always-free-streamer.md](oracle-always-free-streamer.md)
 
@@ -11,7 +13,7 @@ Everything runs on free tiers. This page shows the layout, what each system is u
 
 ```mermaid
 flowchart LR
-  L["Listeners"] -->|"HTTPS page and APIs"| V["promptfm.live<br/>Vercel Hobby<br/>Next.js app, admin, APIs, bots"]
+  L["Listeners"] -->|"HTTPS page and APIs"| V["PromptFM web app target<br/>OCI release/cutover path in repo<br/>public promptfm.live still maintenance page"]
   L -->|"HTTPS audio"| S["stream.promptfm.live<br/>A record, set by converge-stream.sh"]
 
   subgraph O["Oracle Cloud Always Free (us-ashburn-1): live stream host"]
@@ -62,7 +64,7 @@ flowchart LR
 | :--- | :--- | :--- |
 | **Oracle Cloud** (AMD micro VM, us-ashburn-1) | **Serves the live audio stream**: Caddy, Icecast, Liquidsoap. Terraform in `infra/terraform-oci`, deploy with Ansible | $0 (Always Free, quota-capped) |
 | **Google Cloud** project `promptfm-radio-1793623670` | Terraform **state** (GCS), **Secret Manager** (Oracle credentials and deploy key, database URL, Hostinger token), Monitoring/Logging/Trace dashboard, the budget alert. The streamer VM is **stopped**: a cold standby for the stream | $0 while the VM stays stopped |
-| **Vercel** (Hobby) | The Next.js app: web player, `/admin`, `/api/*`, bot webhooks, MCP, the daily news cron | $0 (deploy gate protects the free CPU hours) |
+| **PromptFM web app path** | Full app target: web player, `/admin`, `/api/*`, bot webhooks, MCP, the daily news cron. In this branch the production release/cutover/rollback workflow is OCI-based; manual Vercel preview links still exist for review. Public `promptfm.live` stays on the Oracle maintenance page until an authorized cutover is run. | $0 target |
 | **Supabase** | Postgres database | $0 |
 | **Cloudflare R2** | Audio files and voice drops (free egress) | $0 |
 | **Hostinger** | Domain and DNS for `promptfm.live` (the `stream` record points at the active host) | domain bundle |
@@ -78,7 +80,7 @@ The audio stream is the only thing that moves between Oracle and GCP. Everything
 
 | Command | Talks to | Works now? |
 | :--- | :--- | :--- |
-| `npm run promptfm -- now / next / queue / say / dj / news / weather / broadcast / ads / upload ...` | The app on Vercel, Supabase, R2 | Yes, unchanged |
+| `npm run promptfm -- now / next / queue / say / dj / news / weather / broadcast / ads / upload ...` | The app path in repo (OCI production workflow target; Vercel previews still available), Supabase, R2 | Yes, unchanged |
 | `npm run promptfm -- listen` | `stream.promptfm.live` | Yes, follows the DNS record |
 | `npm run promptfm -- dns status / diff / apply / snapshot` | Hostinger | Yes. `dns status --strict` now fails only if `stream` points at the GCP VM |
 | `npm run promptfm -- tag infra / infra-rollback` | Git tags | Yes, see section 4 |
