@@ -63,6 +63,12 @@
     follow: false
   register: promptfm_web_current_release_link
 
+- name: Check whether a retained previous release is already available for rollback
+  stat:
+    path: "{{ promptfm_web_root }}/previous"
+    follow: false
+  register: promptfm_web_previous_release_link
+
 - name: Resolve the retained live release target before cutover
   command:
     argv:
@@ -73,6 +79,58 @@
   changed_when: false
   when: promptfm_web_current_release_link.stat.exists | default(false)
 
+- name: Resolve the retained previous release target before refreshing rollback state
+  command:
+    argv:
+      - readlink
+      - -f
+      - "{{ promptfm_web_root }}/previous"
+  register: promptfm_web_previous_release_target
+  changed_when: false
+  when: promptfm_web_previous_release_link.stat.exists | default(false)
+
+- name: Resolve the host port that already serves the current release
+  command:
+    argv:
+      - python3
+      - -c
+      - |
+        import pathlib
+        import re
+        import sys
+
+        compose = pathlib.Path(sys.argv[1]).read_text()
+        container_port = re.escape(sys.argv[2])
+        match = re.search(rf'127\.0\.0\.1:(\d+):{container_port}', compose)
+        if not match:
+            raise SystemExit('current release host port not found')
+        print(match.group(1))
+      - "{{ promptfm_web_current_release_target.stdout }}/docker-compose.yml"
+      - "{{ promptfm_web_container_port | string }}"
+  register: promptfm_web_current_release_port_cmd
+  changed_when: false
+  when:
+    - promptfm_web_current_release_link.stat.exists | default(false)
+    - (promptfm_web_current_release_target.stdout | default('') | length) > 0
+
+- name: Select the inactive host port for the next candidate release
+  set_fact:
+    promptfm_web_current_release_port: >-
+      {{
+        (promptfm_web_current_release_port_cmd.stdout | default('') | trim)
+        if promptfm_web_current_release_link.stat.exists | default(false)
+        else (promptfm_web_live_port | string)
+      }}
+    promptfm_web_release_host_port: >-
+      {{
+        (promptfm_web_candidate_port | string)
+        if (
+          promptfm_web_current_release_link.stat.exists | default(false)
+          and (promptfm_web_current_release_port_cmd.stdout | default('') | trim) == (promptfm_web_live_port | string)
+        )
+        else (promptfm_web_live_port | string)
+      }}
+
 - name: Copy the maintenance fallback page for failed cutovers
   copy:
     src: "{{ playbook_dir }}/roles/streamer/files/maintenance/index.html"
@@ -80,6 +138,25 @@
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: '0644'
+
+- name: Check whether the older retained previous release still has a compose file
+  stat:
+    path: "{{ promptfm_web_previous_release_target.stdout }}/docker-compose.yml"
+  register: promptfm_web_previous_release_compose
+  when:
+    - promptfm_web_previous_release_link.stat.exists | default(false)
+    - (promptfm_web_previous_release_target.stdout | default('') | length) > 0
+    - (promptfm_web_previous_release_target.stdout | default('')) != (promptfm_web_current_release_target.stdout | default(''))
+
+- name: Stop the older retained previous release before reusing the inactive slot
+  command: docker compose down --remove-orphans
+  args:
+    chdir: "{{ promptfm_web_previous_release_target.stdout }}"
+  when:
+    - promptfm_web_previous_release_link.stat.exists | default(false)
+    - (promptfm_web_previous_release_target.stdout | default('') | length) > 0
+    - (promptfm_web_previous_release_target.stdout | default('')) != (promptfm_web_current_release_target.stdout | default(''))
+    - promptfm_web_previous_release_compose.stat.exists | default(false)
 
 - name: Render docker compose for the inactive candidate release
   template:
@@ -97,13 +174,13 @@
 - name: Wait for candidate web port to accept localhost traffic
   wait_for:
     host: 127.0.0.1
-    port: "{{ promptfm_web_candidate_port | int }}"
+    port: "{{ promptfm_web_release_host_port | int }}"
     delay: 2
     timeout: 60
 
 - name: Probe candidate /api/healthz before cutover switch
   uri:
-    url: "http://127.0.0.1:{{ promptfm_web_candidate_port }}/api/healthz"
+    url: "http://127.0.0.1:{{ promptfm_web_release_host_port }}/api/healthz"
     status_code: 200
     return_content: true
     timeout: 5
@@ -122,7 +199,7 @@
       - --location
       - --max-time
       - '20'
-      - "http://127.0.0.1:{{ promptfm_web_candidate_port }}{{ item }}"
+      - "http://127.0.0.1:{{ promptfm_web_release_host_port }}{{ item }}"
   loop: "{{ promptfm_web_candidate_smoke_paths }}"
   loop_control:
     label: "{{ item }}"
@@ -131,10 +208,10 @@
 
 - name: Record live and previous release upstreams for safe cutover
   set_fact:
-    promptfm_web_live_upstream: "127.0.0.1:{{ promptfm_web_candidate_port }}"
+    promptfm_web_live_upstream: "127.0.0.1:{{ promptfm_web_release_host_port }}"
     promptfm_web_previous_release_upstream: >-
       {{
-        '127.0.0.1:' ~ (promptfm_web_live_port | string)
+        '127.0.0.1:' ~ (promptfm_web_current_release_port | string)
         if promptfm_web_current_release_link.stat.exists | default(false)
         else ''
       }}

@@ -83,4 +83,20 @@ describe('Oracle maintenance cutover support', () => {
     expect(webTasks).toContain('promptfm_web_current_release_target.stdout');
     expect(webTasks).toMatch(/Prune OCI web releases/i);
   });
+
+  it('tracks the actual current live port so previous-release failover stays routable across cutovers', () => {
+    const webTasks = read('infra/ansible/roles/webapp/tasks/main.yml');
+    const webCompose = read('infra/ansible/roles/webapp/templates/docker-compose.yml.j2');
+    const webCaddy = read('infra/ansible/roles/webapp/templates/Caddyfile.web.j2');
+
+    expect(webTasks).toContain('Resolve the host port that already serves the current release');
+    expect(webTasks).toContain('Select the inactive host port for the next candidate release');
+    expect(webTasks).toContain('Stop the older retained previous release before reusing the inactive slot');
+    expect(webTasks).toContain('promptfm_web_current_release_port');
+    expect(webTasks).toContain('promptfm_web_release_host_port');
+    expect(webTasks).toContain("'127.0.0.1:' ~ (promptfm_web_current_release_port | string)");
+    expect(webCompose).toContain('127.0.0.1:{{ promptfm_web_release_host_port }}:{{ promptfm_web_container_port }}');
+    expect(webCaddy).toContain('reverse_proxy {{ promptfm_web_live_upstream }}');
+    expect(webCaddy).toContain('reverse_proxy {{ promptfm_web_previous_release_upstream }}');
+  });
 });
