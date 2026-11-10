@@ -18,10 +18,18 @@ describe('OCI web deploy and cutover path', () => {
 
   it('stages a candidate release behind Caddy before public cutover', () => {
     const tasks = mustRead('infra/ansible/roles/webapp/tasks/main.yml');
+    const workflow = mustRead('.github/workflows/deploy-web-oci.yml');
     expect(tasks).toMatch(/candidate/i);
     expect(tasks).toContain('/api/healthz');
     expect(tasks).toMatch(/cutover|switch/i);
     expect(tasks).toContain('docker compose restart caddy');
+    expect(tasks).toContain('Log the Oracle host into the OCI image registry before candidate startup');
+    expect(tasks).toContain('docker login');
+    expect(tasks).toContain("lookup('env', 'PROMPTFM_WEB_REGISTRY')");
+    expect(tasks).toContain("lookup('env', 'PROMPTFM_WEB_REGISTRY_USERNAME')");
+    expect(tasks).toContain("lookup('env', 'PROMPTFM_WEB_REGISTRY_TOKEN')");
+    expect(workflow).toContain('PROMPTFM_WEB_REGISTRY: ghcr.io');
+    expect(workflow).toContain('PROMPTFM_WEB_REGISTRY_USERNAME: ${{ github.actor }}');
     expect(tasks).not.toContain('Ensure Caddy service is running and enabled');
   });
 

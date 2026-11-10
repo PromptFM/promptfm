@@ -98,8 +98,13 @@ describe('Oracle maintenance cutover support', () => {
     expect(webTasks).toContain('promptfm_web_current_release_port');
     expect(webTasks).toContain('promptfm_web_release_host_port');
     expect(webTasks).toContain('promptfm_streamer_docker_network');
+    expect(webTasks).toContain('Log the Oracle host into the OCI image registry before candidate startup');
+    expect(webTasks).toContain('docker login');
     expect(webTasks).toContain('docker compose restart caddy');
     expect(webTasks).not.toContain('Ensure Caddy service is running and enabled');
+    expect(webTasks).toContain("lookup('env', 'PROMPTFM_WEB_REGISTRY')");
+    expect(webTasks).toContain("lookup('env', 'PROMPTFM_WEB_REGISTRY_USERNAME')");
+    expect(webTasks).toContain("lookup('env', 'PROMPTFM_WEB_REGISTRY_TOKEN')");
     expect(webCompose).toContain('127.0.0.1:{{ promptfm_web_release_host_port }}:{{ promptfm_web_container_port }}');
     expect(webCompose).toContain('name: {{ promptfm_streamer_docker_network }}');
     expect(webCaddy).toContain('reverse_proxy {{ promptfm_web_live_upstream }}');

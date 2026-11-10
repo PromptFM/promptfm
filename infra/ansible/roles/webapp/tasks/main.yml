@@ -39,6 +39,13 @@
     promptfm_web_image_ref: "{{ promptfm_web_image | default(lookup('env', 'PROMPTFM_WEB_IMAGE') | default('ghcr.io/promptfm/promptfm-web:latest', true), true) }}"
     promptfm_web_candidate_smoke_paths_json: "{{ promptfm_web_candidate_smoke_paths_json | default(lookup('env', 'PROMPTFM_WEB_CANDIDATE_SMOKE_PATHS_JSON') | default('', true), true) }}"
 
+- name: Resolve OCI image registry credentials for host pull
+  set_fact:
+    promptfm_web_registry: "{{ promptfm_web_registry | default(lookup('env', 'PROMPTFM_WEB_REGISTRY') | default('', true), true) }}"
+    promptfm_web_registry_username: "{{ promptfm_web_registry_username | default(lookup('env', 'PROMPTFM_WEB_REGISTRY_USERNAME') | default('', true), true) }}"
+    promptfm_web_registry_token: "{{ promptfm_web_registry_token | default(lookup('env', 'PROMPTFM_WEB_REGISTRY_TOKEN') | default('', true), true) }}"
+  no_log: true
+
 - name: Resolve pre-cutover candidate smoke paths
   set_fact:
     promptfm_web_candidate_smoke_paths: >-
@@ -207,6 +214,22 @@
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: '0644'
+
+- name: Log the Oracle host into the OCI image registry before candidate startup
+  shell: |
+    set -euo pipefail
+    printf '%s' "$PROMPTFM_WEB_REGISTRY_TOKEN" | docker login "$PROMPTFM_WEB_REGISTRY" --username "$PROMPTFM_WEB_REGISTRY_USERNAME" --password-stdin
+  args:
+    executable: /bin/bash
+  environment:
+    PROMPTFM_WEB_REGISTRY: "{{ promptfm_web_registry }}"
+    PROMPTFM_WEB_REGISTRY_USERNAME: "{{ promptfm_web_registry_username }}"
+    PROMPTFM_WEB_REGISTRY_TOKEN: "{{ promptfm_web_registry_token }}"
+  no_log: true
+  when:
+    - (promptfm_web_registry | default('') | length) > 0
+    - (promptfm_web_registry_username | default('') | length) > 0
+    - (promptfm_web_registry_token | default('') | length) > 0
 
 - name: Start candidate release before cutover
   command: docker compose up -d --remove-orphans

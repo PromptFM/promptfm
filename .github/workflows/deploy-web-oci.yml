@@ -368,6 +368,9 @@ jobs:
           PROMPTFM_WEB_RELEASE_ID: ${{ needs.prepare-oci-web.outputs.release_id }}
           PROMPTFM_WEB_IMAGE: ${{ needs.prepare-oci-web.outputs.image_ref }}
           PROMPTFM_WEB_CANDIDATE_SMOKE_PATHS_JSON: '["/api/healthz","/api/status","/admin","/status","/api/radio/next?format=uri"]'
+          PROMPTFM_WEB_REGISTRY: ghcr.io
+          PROMPTFM_WEB_REGISTRY_USERNAME: ${{ github.actor }}
+          PROMPTFM_WEB_REGISTRY_TOKEN: ${{ secrets.GH_PAT || github.token }}
         run: |
           chmod +x infra/ansible/deploy-web-oci.sh
           infra/ansible/deploy-web-oci.sh \
