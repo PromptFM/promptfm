@@ -36,6 +36,9 @@ describe('GitHub Actions Workflows Suite', () => {
       expect(content).toContain('tests/unit/oci-web-deploy.test.ts');
       expect(content).toContain('tests/unit/oci-web-release.test.ts');
       expect(content).toContain('docker buildx');
+      expect(content).toContain('build-oci-web-image (${{ matrix.platform }})');
+      expect(content).toContain('ubuntu-24.04-arm');
+      expect(content).toContain('docker buildx imagetools create');
       expect(content).toMatch(/linux\/amd64,linux\/arm64|linux\/arm64,linux\/amd64/);
       expect(content).toContain('/api/healthz');
       expect(content).toMatch(/cutover/i);
