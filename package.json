@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/start-standalone.cjs dev",
     "build": "next build",
     "docker:web:buildx": "docker buildx build --platform linux/amd64,linux/arm64 -f Dockerfile.web --tag promptfm-web:local .",
     "docker:web:push": "docker buildx build --platform linux/amd64,linux/arm64 -f Dockerfile.web --push --tag ${PROMPTFM_WEB_IMAGE:-ghcr.io/promptfm/promptfm-web}:${PROMPTFM_WEB_TAG:-latest} .",

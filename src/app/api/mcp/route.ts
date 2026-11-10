@@ -37,6 +37,7 @@ import {
   getStreamStatus,
   type StreamPlatform,
 } from '@/lib/streaming/rtmp-controller';
+import { getConfiguredStreamUrl } from '@/lib/audio/stream-config';
 import { getInfraBudgetPolicy } from '@/lib/infra/budget-gate';
 import type { ReportReason, ReportTargetType } from '@/types/database';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
@@ -894,7 +895,7 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
           rank: np.rank ?? null,
           total_approved_tracks: np.totalApprovedTracks ?? null,
           stream_listen_url: process.env.NEXT_PUBLIC_SITE_URL || 'https://promptfm.live',
-          audio_stream_url: process.env.NEXT_PUBLIC_STREAM_URL || 'https://stream.promptfm.live/stream.mp3',
+          audio_stream_url: getConfiguredStreamUrl(),
           active_dj: {
             id: np.activeDJ.id,
             name: np.activeDJ.name,

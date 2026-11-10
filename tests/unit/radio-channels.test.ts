@@ -1,7 +1,7 @@
 // tests/unit/radio-channels.test.ts
 // Unit tests for PromptFM Theme Radio Channels Service
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   getAllChannels,
   getChannelBySlug,
@@ -13,6 +13,11 @@ import {
 } from '@/lib/radio/channels';
 
 describe('Radio Channels Service', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
   describe('DEFAULT_CHANNEL_SLUG', () => {
     it('defaults to main', () => {
       expect(DEFAULT_CHANNEL_SLUG).toBe('main');
@@ -118,6 +123,15 @@ describe('Radio Channels Service', () => {
 
       const kidsUrl = getStreamUrlForChannel('kids');
       expect(kidsUrl).toBeTruthy();
+    });
+
+    it('builds channel URLs from NEXT_PUBLIC_STREAM_URL when local stream env is present', async () => {
+      vi.stubEnv('NEXT_PUBLIC_STREAM_URL', 'http://localhost:8000/stream.mp3');
+
+      const { getStreamUrlForChannel } = await import('@/lib/radio/channels');
+
+      expect(getStreamUrlForChannel('main')).toBe('http://localhost:8000/stream.mp3');
+      expect(getStreamUrlForChannel('chillout')).toBe('http://localhost:8000/stream.mp3?channel=chillout');
     });
   });
 });
