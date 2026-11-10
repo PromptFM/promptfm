@@ -9,7 +9,7 @@ const startStandalone = require('../../scripts/start-standalone.cjs') as {
   parseEnvFile: (content: string) => Record<string, string>;
   prepareStartupEnv: (options?: {
     cwd?: string;
-    env?: NodeJS.ProcessEnv;
+    env?: Partial<NodeJS.ProcessEnv>;
     probePort?: (host: string, port: number, timeoutMs?: number) => Promise<boolean>;
   }) => Promise<{
     env: NodeJS.ProcessEnv;
