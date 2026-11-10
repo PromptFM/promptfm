@@ -132,4 +132,36 @@ describe("Ansible streamer compose template (Oracle support)", () => {
       expect(liq).toMatch(/promptfm_api_url|PROMPTFM_API_URL|\{\{ .*promptfm_api_url.* \}\}/);
     });
   });
+
+  describe('OCI web cutover and callback origin expectations', () => {
+    it('adds a dedicated webapp role with a private candidate health gate before cutover', () => {
+      const webTasksPath = path.join(rootDir, 'infra/ansible/roles/webapp/tasks/main.yml');
+      expect(fs.existsSync(webTasksPath)).toBe(true);
+
+      if (!fs.existsSync(webTasksPath)) {
+        return;
+      }
+
+      const webTasks = fs.readFileSync(webTasksPath, 'utf8');
+      expect(webTasks).toContain('/api/healthz');
+      expect(webTasks).toMatch(/candidate/i);
+      expect(webTasks).toMatch(/cutover|switch/i);
+    });
+
+    it('keeps the streamer callback origin configurable instead of pointing promptfm_api_url at the public apex', () => {
+      const ociVarsBlock = inventory.split('[streamer_oci:vars]')[1]?.split('[streamer:vars]')[0] ?? '';
+      expect(ociVarsBlock).toContain('promptfm_api_url=');
+      expect(ociVarsBlock).not.toContain('promptfm_api_url=https://promptfm.live');
+    });
+
+    it('stops hard-coding apex callback URLs inside the Liquidsoap script', () => {
+      const liq = fs.readFileSync(
+        path.join(rootDir, 'infra/ansible/roles/streamer/templates/radio.liq.j2'),
+        'utf8',
+      );
+      expect(liq).not.toContain('https://promptfm.live/api/radio/started');
+      expect(liq).not.toContain('https://promptfm.live/api/radio/next');
+      expect(liq).toMatch(/promptfm_api_url|PROMPTFM_API_URL|\{\{ .*promptfm_api_url.* \}\}/);
+    });
+  });
 });

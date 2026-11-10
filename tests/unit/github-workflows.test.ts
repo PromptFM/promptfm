@@ -46,6 +46,11 @@ describe('GitHub Actions Workflows Suite', () => {
       expect(content).toContain('VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}');
       expect(content).toContain('VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}');
       expect(content).toContain('VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}');
+      expect(content).toContain('Resolve OCI web Supabase env for cutover');
+      expect(content).toContain('source .env.production.local');
+      expect(content).toContain('gcloud secrets versions access latest --secret=promptfm-database-url');
+      expect(content).toContain('gcloud secrets versions access latest --secret=promptfm-supabase-service-role-key');
+      expect(content).toContain('for key in NEXT_PUBLIC_SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do');
       expect(content).toContain('/api/healthz');
       expect(content).toMatch(/cutover/i);
       expect(content).toMatch(/retained[_ -]release|previous[_ -]release/i);

@@ -11,7 +11,9 @@ services:
       PORT: "{{ promptfm_web_container_port }}"
       PROMPTFM_STATUS_STREAM_URL: "{{ promptfm_web_status_stream_url }}"
       NEXT_PUBLIC_SUPABASE_URL: "{{ promptfm_web_supabase_url }}"
+{% if (promptfm_web_supabase_anon_key | default('') | length) > 0 %}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: "{{ promptfm_web_supabase_anon_key }}"
+{% endif %}
       SUPABASE_SERVICE_ROLE_KEY: "{{ promptfm_web_supabase_service_role_key }}"
     ports:
       - "127.0.0.1:{{ promptfm_web_release_host_port }}:{{ promptfm_web_container_port }}"

@@ -57,11 +57,10 @@
 - name: Fail when the OCI web deploy is missing required Supabase runtime env
   fail:
     msg: >-
-      OCI web deploy requires NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      and SUPABASE_SERVICE_ROLE_KEY in the deploy environment before cutover.
+      OCI web deploy requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY
+      in the deploy environment before cutover.
   when:
     - (promptfm_web_supabase_url | default('') | length) == 0
-      or (promptfm_web_supabase_anon_key | default('') | length) == 0
       or (promptfm_web_supabase_service_role_key | default('') | length) == 0
 
 - name: Resolve pre-cutover candidate smoke paths

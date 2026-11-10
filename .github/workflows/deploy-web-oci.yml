@@ -173,19 +173,6 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Pull live runtime env from Vercel for OCI web deploy
-        run: |
-          if [ -n "$VERCEL_TOKEN" ]; then
-            npx vercel env pull .env.production.local --environment=production --yes
-            grep -E '^(NEXT_PUBLIC_SUPABASE_URL|NEXT_PUBLIC_SUPABASE_ANON_KEY|SUPABASE_SERVICE_ROLE_KEY)=' .env.production.local >> "$GITHUB_ENV"
-          else
-            echo "ℹ️ VERCEL_TOKEN not provided, skipping Vercel env pull."
-          fi
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
       - name: Run OCI web CI and free-tier release gates
         id: free-tier-gates
         run: |
@@ -395,6 +382,61 @@ jobs:
           if ! command -v ansible-playbook &>/dev/null; then
             sudo apt-get update -qq
             sudo apt-get install -y -qq ansible
+          fi
+
+      - name: Resolve OCI web Supabase env for cutover
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          if [ -n "$VERCEL_TOKEN" ]; then
+            npx vercel env pull .env.production.local --environment=production --yes
+            set -a
+            source .env.production.local
+            set +a
+          else
+            echo "ℹ️ VERCEL_TOKEN not provided, continuing with existing environment."
+          fi
+
+          if [ -z "${NEXT_PUBLIC_SUPABASE_URL:-}" ] || [[ "${NEXT_PUBLIC_SUPABASE_URL}" == "[SENSITIVE"* ]] || [[ "${NEXT_PUBLIC_SUPABASE_URL}" == placeholder* ]]; then
+            DATABASE_URL="$(gcloud secrets versions access latest --secret=promptfm-database-url --project=promptfm-radio-1793623670)"
+            NEXT_PUBLIC_SUPABASE_URL="$(python3 - "$DATABASE_URL" <<'PY'
+import sys, urllib.parse
+
+database_url = sys.argv[1]
+parsed = urllib.parse.urlparse(database_url)
+username = urllib.parse.unquote(parsed.username or '')
+project_ref = username.split('.', 1)[1] if username.startswith('postgres.') else ''
+
+if not project_ref:
+    raise SystemExit('Could not derive Supabase project ref from promptfm-database-url')
+
+print(f'https://{project_ref}.supabase.co')
+PY
+            )"
+          fi
+
+          if [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ] || [[ "${SUPABASE_SERVICE_ROLE_KEY}" == "[SENSITIVE"* ]]; then
+            SUPABASE_SERVICE_ROLE_KEY="$(gcloud secrets versions access latest --secret=promptfm-supabase-service-role-key --project=promptfm-radio-1793623670)"
+          fi
+
+          echo "::add-mask::$SUPABASE_SERVICE_ROLE_KEY"
+
+          for key in NEXT_PUBLIC_SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
+            value="${!key:-}"
+            if [ -z "$value" ] || [[ "$value" == "[SENSITIVE"* ]] || [[ "$value" == placeholder* ]]; then
+              echo "::error::$key is required for OCI web cutover."
+              exit 1
+            fi
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+          done
+
+          anon_key="${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}"
+          if [ -n "$anon_key" ] && [[ "$anon_key" != "[SENSITIVE"* ]] && [[ "$anon_key" != placeholder* ]]; then
+            printf 'NEXT_PUBLIC_SUPABASE_ANON_KEY=%s\n' "$anon_key" >> "$GITHUB_ENV"
+          else
+            echo "ℹ️ NEXT_PUBLIC_SUPABASE_ANON_KEY unavailable from Vercel env pull; continuing with server-side Supabase access for OCI cutover."
           fi
 
       - name: Deploy candidate to Oracle and cut over after health gate
