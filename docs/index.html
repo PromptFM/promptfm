@@ -257,9 +257,9 @@
       <!-- Real-Time Status Pill Bar -->
       <div class="status-bar">
         <div class="status-item"><span class="dot"></span> Stream: <strong>stream.promptfm.live:443</strong></div>
-        <div class="status-item"><span class="dot"></span> System API: <strong>/api/status (Live)</strong></div>
-        <div class="status-item"><span class="dot"></span> Vercel Edge: <strong>Production Active</strong></div>
-        <div class="status-item"><span class="dot"></span> Speed Insights: <strong><a href="https://vercel.com/alextrifan/promptfm/speed-insights" target="_blank" style="color:var(--accent); text-decoration:none;">Vercel RUM &amp; Web Vitals &rarr;</a></strong></div>
+        <div class="status-item"><span class="dot"></span> System API: <strong>/api/status (returns on OCI cutover)</strong></div>
+        <div class="status-item"><span class="dot"></span> Public Web: <strong>Oracle maintenance page live</strong></div>
+        <div class="status-item"><span class="dot"></span> Speed Insights: <strong><a href="https://vercel.com/alextrifan/promptfm/speed-insights" target="_blank" style="color:var(--accent); text-decoration:none;">Vercel preview telemetry &amp; Web Vitals &rarr;</a></strong></div>
         <div class="status-item"><span class="dot"></span> GCP Streamer: <strong>e2-micro, stopped (retired)</strong></div>
         <div class="status-item"><span class="dot"></span> Oracle Streamer: <strong>On air, AMD micro ($0.00 Always Free, quota-capped)</strong></div>
       </div>
@@ -384,14 +384,14 @@ npm run promptfm -- tag sql-rollback &lt;version&gt;</pre>
           <p><a href="https://github.com/PromptFM/promptfm/blob/main/docs/oracle-always-free-streamer.md" class="link" target="_blank" rel="noopener">📘 How the $0 policy works &rarr;</a></p>
         </div>
         <div class="card">
-          <h3>Vercel &amp; Realtime Status Checks</h3>
-          <p>Monitor edge execution logs, web analytics, speed insights, and instant feature toggles:</p>
+          <h3>Vercel Previews &amp; Realtime Status</h3>
+          <p>Vercel remains useful for preview deploys, flags, and web telemetry while the public production web entrypoint is the Oracle maintenance page during the OCI migration:</p>
           <p><a href="https://vercel.com/alextrifan/promptfm/flags" class="link" target="_blank" rel="noopener">🚩 Vercel Feature Flags &amp; Kill-Switches Console &rarr;</a></p>
           <p><a href="https://vercel.com/alextrifan/promptfm/speed-insights" class="link" target="_blank" rel="noopener">⚡ Vercel Speed Insights (RUM &amp; Web Vitals) &rarr;</a></p>
           <p><a href="speed-insights.html" class="link">📈 Live CI Speed &amp; Performance Benchmarks Portal &rarr;</a></p>
           <p><a href="https://vercel.com/alextrifan/promptfm/analytics" class="link" target="_blank" rel="noopener">📊 Vercel Realtime Analytics &rarr;</a></p>
           <p><a href="https://vercel.com/alextrifan/promptfm/logs" class="link" target="_blank" rel="noopener">⚡ Vercel Function Runtime Logs &rarr;</a></p>
-          <p><a href="https://promptfm.live/api/status" class="link" target="_blank" rel="noopener">🩺 Live Status Endpoint: /api/status &rarr;</a></p>
+          <p><a href="https://promptfm.live/api/status" class="link" target="_blank" rel="noopener">🩺 App Status Endpoint: /api/status (returns on OCI cutover) &rarr;</a></p>
           <p><a href="http://stream.promptfm.live:8000/admin/" class="link" target="_blank" rel="noopener">📻 Icecast 2 Stream Mount Admin &rarr;</a></p>
         </div>
       </div>
