@@ -16,7 +16,7 @@
 
 **PromptFM** is an autonomous 24/7 AI-generated music radio platform and community chart. Featuring **5 live theme stations** (including After Dark 18+ Explicit with statutory legal age verification), continuous uninterrupted **100% pure music rotation**, real-time listener voting, and direct MP3/M4A creator uploads with automatic ID3 metadata and album art extraction.
 
-The public web app now runs on the repo-owned Oracle OCI path at `promptfm.live` and `www.promptfm.live`. The first authorized live cutover succeeded on 2026-11-10, and the retained-release rollback drill is still pending the next authorized release because that first OCI cutover had no previous OCI web release to restore. The stream stays live at [`stream.promptfm.live`](https://stream.promptfm.live/stream.mp3).
+The public web app now runs on the repo-owned Oracle OCI path at `promptfm.live` and `www.promptfm.live`. Issue #193 now has end-to-end live proof: release run `42833955213` cut over `promptfm/0.2.4-81e84d9`, rollback run `42858867447` restored `promptfm/rollback-0.2.4-81e84d9`, and forward redeploy run `42862562417` returned production to `promptfm/0.2.4-3a458a8`. The stream stayed live at [`stream.promptfm.live`](https://stream.promptfm.live/stream.mp3).
 
 Right now the public domain serves both the live PromptFM app and the live audio stream. Full web routes such as `/admin`, `/status`, `/api/*`, `/api/mcp`, and the legal/info pages are back on the Oracle OCI path.
 
@@ -57,7 +57,7 @@ Confirm the Oracle notification email once, or the two alerts won't arrive. Deta
 ### 🌐 Current public web state
 - **`stream.promptfm.live`** is live on Oracle Cloud Always Free.
 - **`promptfm.live` and `www.promptfm.live`** serve the live Next.js app from the repo-owned OCI path on the Oracle host.
-- **The first authorized live OCI cutover is done**, and the retained-release rollback drill is still pending the next authorized release because that first OCI cutover had no previous retained OCI web release.
+- **Release, rollback, and forward redeploy are proven** on the OCI path via runs `42833955213`, `42858867447`, and `42862562417`.
 - **Manual Vercel preview links still exist** for commit review, but they are no longer the documented production web release path in this branch.
 
 ---
@@ -107,7 +107,7 @@ The complete streaming server infrastructure and Google Cloud Monitoring dashboa
 - **$0 guards:** Terraform validations, a tenancy quota policy that blocks everything except Always Free, a $1 budget email, and an alarm at 300 GB/day outbound.
 - **Credentials and state:** secret `promptfm-oci-credentials` in GCP Secret Manager; state in the same GCS bucket under `terraform/oci-state`.
 - **Apply:** the **Apply Terraform (Oracle streamer)** workflow (plan-only unless `apply` is ticked), or `infra/terraform-oci/retry-apply.sh` when Oracle reports `Out of host capacity`. See [docs/oracle-always-free-streamer.md](docs/oracle-always-free-streamer.md).
-- **Web deploy path in repo:** `.github/workflows/release.yml` and `.github/workflows/rollback.yml` both call `.github/workflows/deploy-web-oci.yml`, which builds the web image, deploys a candidate, gates on health/smoke checks, cuts over, and records retained-release metadata for rollback. The first authorized live cutover succeeded on 2026-11-10; the retained-release rollback drill still needs the next authorized release because the first OCI cutover had no previous retained release.
+- **Web deploy path in repo:** `.github/workflows/release.yml` and `.github/workflows/rollback.yml` both call `.github/workflows/deploy-web-oci.yml`, which builds the web image, deploys a candidate, gates on health/smoke checks, cuts over, and records retained-release metadata for rollback. Release/cutover, rollback, and forward redeploy are proven in runs `42833955213`, `42858867447`, and `42862562417`.
 
 ### 3. Ansible (`infra/ansible/`)
 - Installs Docker, Docker Compose, and Caddy reverse proxy.
@@ -391,7 +391,7 @@ PromptFM welcomes open community development, bug fixes, and feature proposals!
 - **Licensing:** Governed by the [`PromptFM Community Source-Available License (Version 1.0)`](LICENSE). You may inspect, fork, test, and contribute pull requests. You may **not** copy, extract, resell, or host competing radio/streaming clones.
 - **Review Board:** All pull requests require review and approval from the Board (**@atrifan**).
 - **GitHub Organization:** Community development is hosted under the `promptfm` organization.
-- **Production Deployments:** Routine merges to `main` still run CI quality checks only. Manual Vercel preview links still exist for review. The repo-owned production web release and rollback path is OCI-based (`release.yml` / `deploy-web-oci.yml` / `rollback.yml`). The first authorized live cutover is done; the retained-release rollback drill still needs the next authorized release because the first OCI cutover had no previous retained OCI release. Documentation updates still deploy via `gh-pages/<version>` to GitHub Pages.
+- **Production Deployments:** Routine merges to `main` still run CI quality checks only. Manual Vercel preview links still exist for review. The repo-owned production web release and rollback path is OCI-based (`release.yml` / `deploy-web-oci.yml` / `rollback.yml`). Release/cutover, rollback, and forward redeploy are proven in runs `42833955213`, `42858867447`, and `42862562417`. Documentation updates still deploy via `gh-pages/<version>` to GitHub Pages.
 - **Security & Secret Sharing:** Never post secrets or API keys in PRs or issues. For new environment variables, use ephemeral links ([Password Pusher](https://pwpush.com)) shared directly with @atrifan.
 
 ---
@@ -400,7 +400,7 @@ PromptFM welcomes open community development, bug fixes, and feature proposals!
 
 Current public status on the Oracle OCI production path:
 - **Live public entrypoints:** [`https://promptfm.live`](https://promptfm.live) and [`https://www.promptfm.live`](https://www.promptfm.live) — live Next.js app via the Oracle OCI cutover path.
-- **Live web health:** `/admin` and `/status` return HTTP 200 HTML; `/api/status` returns HTTP 200 JSON.
+- **Live web health:** `/api/healthz` returns `{"status":"ok","ready":true,...}`; `/admin` and `/status` return HTTP 200 HTML; `/api/status` returns HTTP 200 JSON (`degraded_performance` until the deferred live `SUPABASE_URL` and `GEMINI_API_KEY` are wired).
 - **Live audio stream:** [`https://stream.promptfm.live/stream.mp3`](https://stream.promptfm.live/stream.mp3).
 - **Streamer health endpoint:** [`https://stream.promptfm.live/status-json.xsl`](https://stream.promptfm.live/status-json.xsl) remains HTTP 200 and still reports `Google Cloud Always Free (us-central1)` as the stream location.
 - **Operator telemetry:** Oracle Metrics Explorer, GCP Cloud Logging, GCP Trace, and GitHub Actions checks linked above.
@@ -443,6 +443,6 @@ PromptFM maximizes observability without incurring third-party SaaS fees (no Dat
 To eliminate release bottlenecks and protect our free-tier compute budget:
 1. **Protected $0 Budget Policy:** Merges to `main` run CI verification (Vitest, Typecheck, Lint, Security) but do not auto-deploy the public site.
 2. **Oracle-hosted Production Path:** The public entrypoint now runs through the OCI release/candidate/cutover workflow on the Oracle host, with the maintenance page kept as the failed-cutover fallback.
-3. **First Live OCI Cutover Is Proven:** `.github/workflows/release.yml` and `.github/workflows/rollback.yml` route the production web path through OCI candidate deploy, health/smoke gating, cutover, and retained-release rollback logic. The retained-release rollback drill still needs the next authorized release because the first successful OCI cutover had no previous retained release.
+3. **End-to-End OCI Release, Rollback, and Forward Redeploy Are Proven:** `.github/workflows/release.yml` and `.github/workflows/rollback.yml` route the production web path through OCI candidate deploy, health/smoke gating, cutover, and retained-release rollback logic. Runs `42833955213`, `42858867447`, and `42862562417` provide the live proof.
 4. **Documentation Releases:** Pushing a `gh-pages/<version>` tag (e.g. `gh-pages/v1.0.0`) deploys the documentation portal to GitHub Pages via [`.github/workflows/pages.yml`](.github/workflows/pages.yml).
 5. **Automated Changelog:** GitHub Release notes are automatically generated from commit history with zero manual release drafting friction.

@@ -2,7 +2,7 @@
 
 Everything runs on free tiers. This page shows the layout, what each system is used for, which commands still apply, how to switch the stream between Oracle and GCP, what to do when Oracle stops, and which alert emails to look for.
 
-> **Public web status.** `promptfm.live` and `www.promptfm.live` now serve the live PromptFM app through the repo-owned OCI release / candidate / cutover path on Oracle. First live proof: GitHub Actions run `42833955213` cut over `promptfm/0.2.4-81e84d9` to `ghcr.io/promptfm/promptfm-web:0.2.4-81e84d9@sha256:e96f02ba2ef7937e8e73d461e4d30e7f5e2c6fdf04e9ddb0de834c8ea059fc98` and uploaded retained-release artifact `13773556576`. Manual Vercel preview links still exist for review. The rollback drill is still pending the next authorized release because the first OCI cutover had no previous retained release.
+> **Public web status.** `promptfm.live` and `www.promptfm.live` now serve the live PromptFM app through the repo-owned OCI release / candidate / cutover path on Oracle. Release run `42833955213` cut over `promptfm/0.2.4-81e84d9` to `ghcr.io/promptfm/promptfm-web:0.2.4-81e84d9@sha256:e96f02ba2ef7937e8e73d461e4d30e7f5e2c6fdf04e9ddb0de834c8ea059fc98` and uploaded artifact `13773556576`; rollback run `42858867447` restored `promptfm/rollback-0.2.4-81e84d9` on `ghcr.io/promptfm/promptfm-web:rollback-0.2.4-81e84d9@sha256:e8aaeaf6032f94f7f0875a631beb3d34980f84282f2832634ca169dfa471a4d6` and uploaded artifact `13783184468`; forward redeploy run `42862562417` returned traffic to `promptfm/0.2.4-3a458a8` on `ghcr.io/promptfm/promptfm-web:0.2.4-3a458a8@sha256:236013215779c06a476319d9acd0718a84968ae23ef042d9c88058a0ef828a06` and uploaded artifact `13787040501`. Manual Vercel preview links still exist for review.
 
 - Costs and guardrails per provider: [zero-cost-policy.md](zero-cost-policy.md)
 - The Oracle host in detail: [oracle-always-free-streamer.md](oracle-always-free-streamer.md)
@@ -64,7 +64,7 @@ flowchart LR
 | :--- | :--- | :--- |
 | **Oracle Cloud** (AMD micro VM, us-ashburn-1) | **Serves the live audio stream**: Caddy, Icecast, Liquidsoap. Terraform in `infra/terraform-oci`, deploy with Ansible | $0 (Always Free, quota-capped) |
 | **Google Cloud** project `promptfm-radio-1793623670` | Terraform **state** (GCS), **Secret Manager** (Oracle credentials and deploy key, database URL, Hostinger token), Monitoring/Logging/Trace dashboard, the budget alert. The streamer VM is **stopped**: a cold standby for the stream | $0 while the VM stays stopped |
-| **PromptFM web app path** | Full app target: web player, `/admin`, `/api/*`, bot webhooks, MCP, the daily news cron. The production release/cutover/rollback workflow is OCI-based; manual Vercel preview links still exist for review. Public `promptfm.live` now serves the live app on Oracle, and the rollback drill still needs the next authorized release. | $0 target |
+| **PromptFM web app path** | Full app target: web player, `/admin`, `/api/*`, bot webhooks, MCP, the daily news cron. The production release/cutover/rollback workflow is OCI-based; manual Vercel preview links still exist for review. Public `promptfm.live` now serves the live app on Oracle, and release/rollback/forward redeploy are proven in runs `42833955213`, `42858867447`, and `42862562417`. | $0 target |
 | **Supabase** | Postgres database | $0 |
 | **Cloudflare R2** | Audio files and voice drops (free egress) | $0 |
 | **Hostinger** | Domain and DNS for `promptfm.live` (the `stream` record points at the active host) | domain bundle |
@@ -253,7 +253,7 @@ Both Oracle and GCP alerts go to `dev@promptfm.live` as well as your own address
 | **Confirm the two Oracle email subscriptions** (Gmail and `dev@`) | **You: pending** |
 | **Turn on Vercel usage notifications** | **You: not set by the repo** |
 | Merge PR #151, then make the `0.3.0` and `0.2.0` tags (section 4) | Pending the merge |
-| The workflows run end to end in GitHub | Release/cutover proved in run `42833955213`; the rollback drill still needs the next authorized release because the first OCI cutover had no previous retained release |
+| The workflows run end to end in GitHub | Release/cutover run `42833955213`, rollback run `42858867447`, and forward redeploy run `42862562417` all succeeded with retained-release artifacts |
 | Next.js upgrade for the 29 security findings | [#152](https://github.com/PromptFM/promptfm/issues/152) |
 | Watch micro VM CPU and idle-reclaim notices for the first week | Open |
 | YouTube and TikTok video feeds | Not deployed on either host |

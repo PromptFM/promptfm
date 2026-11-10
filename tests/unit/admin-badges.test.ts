@@ -37,7 +37,7 @@ describe('Admin Quick Navigation Badges in README.md', () => {
     expect(content).toMatch(/live PromptFM app|live Next\.js app|live OCI app/i);
     expect(content).toContain('stream.promptfm.live');
     expect(content).toMatch(/OCI workflow|OCI-based|production web deploy path/i);
-    expect(content).toMatch(/rollback drill.*next authorized release|retained-release rollback drill/i);
+    expect(content).toMatch(/release, rollback, and forward redeploy are proven|end-to-end live proof/i);
   });
 
   it('documents Oracle $0 guardrails and quota enforcement', () => {
