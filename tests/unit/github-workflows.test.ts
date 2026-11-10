@@ -17,7 +17,10 @@ describe('GitHub Actions Workflows Suite', () => {
       expect(content).toContain('workflow_dispatch:');
       expect(content).toContain('promptfm/*');
       expect(content).toContain('deploy-web-oci');
+      expect(content).toContain('node scripts/release-workflow-metadata.cjs');
       expect(content).toContain('free_tier_gate');
+      expect(content).not.toContain("node <<'NODE'");
+      expect(content).not.toContain("require('jiti')(__filename)");
       expect(content).not.toContain('npx vercel --prod');
     });
   });
@@ -124,13 +127,12 @@ describe('GitHub Actions Workflows Suite', () => {
       const content = readWorkflow('rollback.yml');
       expect(content).toContain('name: ⏪ Rollback PromptFM');
       expect(content).toContain('rollback_ref:');
-      expect(content).toContain('formatRollbackTag');
-      expect(content).toContain('Rollback ref must be an existing commit SHA or release tag.');
-      expect(content).toContain('Unknown rollback ref');
-      expect(content).toContain('resolveGitHubToken');
+      expect(content).toContain('node scripts/rollback-workflow-metadata.cjs');
       expect(content).toContain('deploy-web-oci');
       expect(content).toMatch(/retained[_ -]release|previous[_ -]release/i);
       expect(content).toContain('/api/healthz');
+      expect(content).not.toContain("node <<'NODE'");
+      expect(content).not.toContain("require('jiti')(__filename)");
       expect(content).not.toContain('npx vercel --prod');
     });
   });

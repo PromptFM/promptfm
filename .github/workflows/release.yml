@@ -66,39 +66,7 @@ jobs:
           INPUT_VERSION: ${{ github.event.inputs.version || '' }}
           INPUT_TARGET_COMMIT: ${{ github.event.inputs.target_commit || '' }}
           CURRENT_TAG: ${{ github.ref_name }}
-        run: |
-          node <<'NODE'
-          const fs = require('fs');
-          const jiti = require('jiti')(__filename);
-          const { formatReleaseTag } = jiti('./src/lib/infra/release-tag.ts');
-          const { execSync } = require('child_process');
-
-          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-          const currentTag = (process.env.CURRENT_TAG || '').trim();
-          const inputVersion = (process.env.INPUT_VERSION || '').trim();
-          const targetRef = (process.env.INPUT_TARGET_COMMIT || '').trim() || 'HEAD';
-          const targetSha = execSync(`git rev-parse ${targetRef}`, { encoding: 'utf8' }).trim();
-
-          let releaseTag = '';
-          if (/^(promptfm\/|v\d+\.\d+\.\d+)/.test(currentTag)) {
-            releaseTag = currentTag;
-          } else if (inputVersion.startsWith('promptfm/') || /^v\d+\.\d+\.\d+/.test(inputVersion)) {
-            releaseTag = inputVersion;
-          } else {
-            releaseTag = formatReleaseTag(inputVersion || pkg.version || '0.2.0', targetSha);
-          }
-
-          const releaseId = releaseTag
-            .replace(/^promptfm\//, '')
-            .replace(/[^A-Za-z0-9._-]+/g, '-')
-            .replace(/^-+|-+$/g, '')
-            .slice(0, 63) || `release-${targetSha.slice(0, 12)}`;
-
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `release_tag=${releaseTag}\n`);
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `release_ref=${releaseTag}\n`);
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `release_id=${releaseId}\n`);
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `target_sha=${targetSha}\n`);
-          NODE
+        run: node scripts/release-workflow-metadata.cjs
 
       - name: 🏷️ Push release tag for manual dispatch
         if: github.event_name == 'workflow_dispatch'

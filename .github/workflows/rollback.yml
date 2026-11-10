@@ -48,59 +48,7 @@ jobs:
           ROLLBACK_REF: ${{ inputs.rollback_ref }}
           GH_PAT: ${{ secrets.GH_PAT }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          node <<'NODE'
-          const { execSync, execFileSync } = require('child_process');
-          const fs = require('fs');
-          const jiti = require('jiti')(__filename);
-          const { formatRollbackTag, resolveGitHubToken } = jiti('./src/lib/infra/release-tag.ts');
-
-          const rollbackRef = (process.env.ROLLBACK_REF || '').trim();
-          const isCommitSha = /^[0-9a-f]{7,40}$/i.test(rollbackRef);
-          const isReleaseTag = /^(promptfm\/[A-Za-z0-9._/-]+|v\d+\.\d+\.\d+(?:[-+][A-Za-z0-9._-]+)?)$/i.test(rollbackRef);
-
-          if (!isCommitSha && !isReleaseTag) {
-            throw new Error('Rollback ref must be an existing commit SHA or release tag.');
-          }
-
-          try {
-            if (isCommitSha) {
-              execFileSync('git', ['rev-parse', '-q', '--verify', `${rollbackRef}^{commit}`], {
-                stdio: 'pipe',
-              });
-            } else {
-              execFileSync('git', ['rev-parse', '-q', '--verify', `refs/tags/${rollbackRef}^{commit}`], {
-                stdio: 'pipe',
-              });
-            }
-          } catch {
-            throw new Error(`Unknown rollback ref: ${rollbackRef}`);
-          }
-
-          const rollbackTag = formatRollbackTag(rollbackRef);
-
-          let remoteUrl = '';
-          try {
-            remoteUrl = execSync('git remote get-url origin', { encoding: 'utf8' }).trim();
-          } catch {
-            remoteUrl = '';
-          }
-
-          const token = resolveGitHubToken({
-            envToken: process.env.GH_PAT || process.env.GITHUB_TOKEN,
-            remoteUrl,
-          });
-
-          const releaseId = rollbackTag
-            .replace(/^promptfm\//, '')
-            .replace(/[^A-Za-z0-9._-]+/g, '-')
-            .replace(/^-+|-+$/g, '')
-            .slice(0, 63);
-
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `rollback_tag=${rollbackTag}\n`);
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `release_id=${releaseId}\n`);
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `has_token=${token ? 'true' : 'false'}\n`);
-          NODE
+        run: node scripts/rollback-workflow-metadata.cjs
 
       - name: Create and Push Rollback Tag
         env:
