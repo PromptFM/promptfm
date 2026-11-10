@@ -42,6 +42,10 @@ describe('GitHub Actions Workflows Suite', () => {
       expect(content).toContain('ubuntu-24.04-arm');
       expect(content).toContain('docker buildx imagetools create');
       expect(content).toMatch(/linux\/amd64,linux\/arm64|linux\/arm64,linux\/amd64/);
+      expect(content).toContain('npx vercel env pull .env.production.local --environment=production --yes');
+      expect(content).toContain('VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}');
+      expect(content).toContain('VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}');
+      expect(content).toContain('VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}');
       expect(content).toContain('/api/healthz');
       expect(content).toMatch(/cutover/i);
       expect(content).toMatch(/retained[_ -]release|previous[_ -]release/i);

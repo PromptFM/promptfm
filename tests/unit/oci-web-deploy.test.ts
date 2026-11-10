@@ -87,4 +87,22 @@ describe('OCI web deploy and cutover path', () => {
     expect(secondCutover).toBe(livePort);
     expect(new Set([firstCutover, rollbackFallback]).size).toBe(2);
   });
+
+  it('pulls live runtime env from Vercel and passes Supabase config into the OCI web container', () => {
+    const tasks = mustRead('infra/ansible/roles/webapp/tasks/main.yml');
+    const workflow = mustRead('.github/workflows/deploy-web-oci.yml');
+    const compose = mustRead('infra/ansible/roles/webapp/templates/docker-compose.yml.j2');
+
+    expect(workflow).toContain('npx vercel env pull');
+    expect(workflow).toContain('VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}');
+    expect(workflow).toContain('VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}');
+    expect(workflow).toContain('VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}');
+    expect(tasks).toContain("lookup('env', 'NEXT_PUBLIC_SUPABASE_URL')");
+    expect(tasks).toContain("lookup('env', 'NEXT_PUBLIC_SUPABASE_ANON_KEY')");
+    expect(tasks).toContain("lookup('env', 'SUPABASE_SERVICE_ROLE_KEY')");
+    expect(tasks).toContain('Fail when the OCI web deploy is missing required Supabase runtime env');
+    expect(compose).toContain('NEXT_PUBLIC_SUPABASE_URL: "{{ promptfm_web_supabase_url }}"');
+    expect(compose).toContain('NEXT_PUBLIC_SUPABASE_ANON_KEY: "{{ promptfm_web_supabase_anon_key }}"');
+    expect(compose).toContain('SUPABASE_SERVICE_ROLE_KEY: "{{ promptfm_web_supabase_service_role_key }}"');
+  });
 });

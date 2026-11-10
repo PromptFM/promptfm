@@ -52,6 +52,12 @@ on:
         required: false
       GH_PAT:
         required: false
+      VERCEL_TOKEN:
+        required: false
+      VERCEL_ORG_ID:
+        required: false
+      VERCEL_PROJECT_ID:
+        required: false
     outputs:
       release_id:
         description: 'Deployed OCI release ID'
@@ -166,6 +172,19 @@ jobs:
 
       - name: Install Dependencies
         run: npm ci
+
+      - name: Pull live runtime env from Vercel for OCI web deploy
+        run: |
+          if [ -n "$VERCEL_TOKEN" ]; then
+            npx vercel env pull .env.production.local --environment=production --yes
+            grep -E '^(NEXT_PUBLIC_SUPABASE_URL|NEXT_PUBLIC_SUPABASE_ANON_KEY|SUPABASE_SERVICE_ROLE_KEY)=' .env.production.local >> "$GITHUB_ENV"
+          else
+            echo "ℹ️ VERCEL_TOKEN not provided, skipping Vercel env pull."
+          fi
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Run OCI web CI and free-tier release gates
         id: free-tier-gates
