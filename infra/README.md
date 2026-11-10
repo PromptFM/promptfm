@@ -126,7 +126,7 @@ To protect against GCP VM network egress charges, direct public access from `0.0
 ## 3. DNS & Custom Domain Setup (`stream.promptfm.live`)
 
 PromptFM uses two dedicated hostnames:
-1. **`promptfm.live`**: Hosted on Vercel (Next.js web application, Admin Studio, community charts, and API endpoints).
+1. **`promptfm.live`**: Public production now serves the live OCI web app on the Oracle host. The repo-owned production path is `.github/workflows/release.yml` → `.github/workflows/deploy-web-oci.yml` → `.github/workflows/rollback.yml`; manual Vercel preview links still exist for review. Release/cutover, rollback, and forward redeploy are proven in runs `42833955213`, `42858867447`, and `42862562417`.
 2. **`stream.promptfm.live`**: An `A` record to the Oracle streamer (`129.80.56.27`, TTL 300). It used to be an `A` record to the retired GCP VM (`34.123.80.137`). Caddy on the Oracle VM serves TLS on 443 directly. The zero-egress rule is that `stream` must not point at the GCP VM; an `A` record to another host or a `CNAME` is compliant.
 
 ### Changing the DNS record (Hostinger)
@@ -346,4 +346,3 @@ The stream server, API quotas, and live audience telemetry are monitored through
 | **Icecast 2 Admin** | [stream.promptfm.live:8000/admin](http://stream.promptfm.live:8000/admin/) | Mountpoint listener sockets, bandwidth telemetry | **$0.00** |
 
 Provisioned via Terraform resource `google_monitoring_dashboard.telemetry_dashboard` from [`config/gcp-dashboard.json`](../config/gcp-dashboard.json).
-

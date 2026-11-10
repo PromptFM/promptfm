@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import * as fs from 'fs';
+import * as path from 'path';
 import {
   checkSystemHealth,
+  getStatusProbeStreamUrl,
   probeStreamEndpoint,
   probeAudioStreamer,
   runProbe,
@@ -103,6 +106,28 @@ describe('System Health Checker & Status Monitoring', () => {
     expect(report.status).toBe('major_outage');
     const streamer = report.services.find((s) => s.id === 'audio_streamer');
     expect(streamer?.status).toBe('outage');
+  });
+
+  it('prefers server-only PROMPTFM_STATUS_STREAM_URL for status probes without changing public stream defaults', () => {
+    const oldStatusStreamUrl = process.env.PROMPTFM_STATUS_STREAM_URL;
+    const oldPublicStreamUrl = process.env.NEXT_PUBLIC_STREAM_URL;
+
+    process.env.PROMPTFM_STATUS_STREAM_URL = 'http://icecast:8000/stream.mp3';
+    process.env.NEXT_PUBLIC_STREAM_URL = 'https://stream.promptfm.live/stream.mp3';
+
+    expect(getStatusProbeStreamUrl()).toBe('http://icecast:8000/stream.mp3');
+
+    if (oldStatusStreamUrl) {
+      process.env.PROMPTFM_STATUS_STREAM_URL = oldStatusStreamUrl;
+    } else {
+      delete process.env.PROMPTFM_STATUS_STREAM_URL;
+    }
+
+    if (oldPublicStreamUrl) {
+      process.env.NEXT_PUBLIC_STREAM_URL = oldPublicStreamUrl;
+    } else {
+      delete process.env.NEXT_PUBLIC_STREAM_URL;
+    }
   });
 
   describe('Audio Stream Probe (Icecast Range Header Probe)', () => {
@@ -714,6 +739,67 @@ describe('System Health Checker & Status Monitoring', () => {
       if (oldVitest) process.env.VITEST = oldVitest;
       (process.env as any).NODE_ENV = oldNodeEnv;
     });
+
+    it('uses PROMPTFM_STATUS_STREAM_URL for the real audio streamer probe when provided', async () => {
+      const oldVitest = process.env.VITEST;
+      const oldNodeEnv = process.env.NODE_ENV;
+      const oldStatusStreamUrl = process.env.PROMPTFM_STATUS_STREAM_URL;
+      const oldPublicStreamUrl = process.env.NEXT_PUBLIC_STREAM_URL;
+
+      delete process.env.VITEST;
+      (process.env as any).NODE_ENV = 'production';
+      process.env.PROMPTFM_STATUS_STREAM_URL = 'http://icecast:8000/stream.mp3';
+      process.env.NEXT_PUBLIC_STREAM_URL = 'https://stream.promptfm.live/stream.mp3';
+
+      const mockStatusJson = {
+        icestats: {
+          server_id: 'Icecast 2.4.4',
+          source: { listenurl: 'http://icecast:8000/stream.mp3', bitrate: 128 },
+        },
+      };
+
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => mockStatusJson,
+      } as unknown as Response);
+
+      const report = await checkSystemHealth({
+        mockCheckers: {
+          database: async () => ({ status: 'operational', latencyMs: 10 }),
+          aiDjEngine: async () => ({ status: 'operational', latencyMs: 10 }),
+          edgeDelivery: async () => ({ status: 'operational', latencyMs: 10 }),
+          communityBridge: async () => ({ status: 'operational', latencyMs: 10 }),
+        },
+      });
+
+      const streamer = report.services.find((s) => s.id === 'audio_streamer');
+      expect(streamer?.status).toBe('operational');
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'http://icecast:8000/status-json.xsl',
+        expect.objectContaining({ method: 'GET' })
+      );
+
+      if (oldVitest) process.env.VITEST = oldVitest;
+      (process.env as any).NODE_ENV = oldNodeEnv;
+
+      if (oldStatusStreamUrl) {
+        process.env.PROMPTFM_STATUS_STREAM_URL = oldStatusStreamUrl;
+      } else {
+        delete process.env.PROMPTFM_STATUS_STREAM_URL;
+      }
+
+      if (oldPublicStreamUrl) {
+        process.env.NEXT_PUBLIC_STREAM_URL = oldPublicStreamUrl;
+      } else {
+        delete process.env.NEXT_PUBLIC_STREAM_URL;
+      }
+    });
+  });
+
+  describe('OCI deploy readiness contract', () => {
+    it('keeps deploy readiness separate from the full status report via the dedicated /api/healthz route', () => {
+      expect(fs.existsSync(path.resolve(__dirname, '../../src/app/api/healthz/route.ts'))).toBe(true);
+    });
   });
 });
-

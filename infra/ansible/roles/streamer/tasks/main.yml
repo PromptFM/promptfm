@@ -45,8 +45,9 @@
 
 - name: Deploy Liquidsoap radio script
   register: radio_script
-  copy:
-    src: "{{ playbook_dir }}/../../deploy/streamer/radio.liq"
+  # Mirrors {{ playbook_dir }}/../../deploy/streamer/radio.liq, with only the callback origin templated per host.
+  template:
+    src: "{{ 'radio.liq' ~ '.j2' }}"
     dest: "{{ app_dir }}/radio.liq"
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"

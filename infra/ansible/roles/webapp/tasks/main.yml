@@ -1,0 +1,353 @@
+---
+
+- name: Update apt cache and install OCI web deploy packages
+  apt:
+    name:
+      - docker.io
+      - docker-compose-v2
+      - curl
+    state: present
+    update_cache: yes
+
+- name: Ensure Docker service is running and enabled
+  systemd:
+    name: docker
+    state: started
+    enabled: yes
+
+- name: Gather service facts so Oracle web cutover can avoid conflicting system edge proxies
+  service_facts:
+
+- name: Stop and disable system Caddy when present on Oracle
+  systemd:
+    name: caddy
+    state: stopped
+    enabled: no
+  when: "'caddy.service' in ansible_facts.services"
+
+- name: Resolve web release directories for candidate-first deploys
+  set_fact:
+    promptfm_web_root: "{{ app_dir | default('/opt/promptfm/web') }}"
+    promptfm_web_releases_dir: "{{ (app_dir | default('/opt/promptfm/web')) ~ '/releases' }}"
+    promptfm_web_shared_dir: "{{ (app_dir | default('/opt/promptfm/web')) ~ '/shared' }}"
+    promptfm_streamer_app_dir: "{{ promptfm_streamer_app_dir | default('/opt/promptfm/streamer') }}"
+    promptfm_streamer_docker_network: "{{ promptfm_streamer_docker_network | default((promptfm_streamer_app_dir | default('/opt/promptfm/streamer') | basename) ~ '_default') }}"
+    promptfm_web_release_id: "{{ promptfm_web_release_id | default(lookup('env', 'PROMPTFM_WEB_RELEASE_ID') | default('candidate', true), true) }}"
+    promptfm_web_candidate_port: "{{ promptfm_web_candidate_port | default(3001) }}"
+    promptfm_web_live_port: "{{ promptfm_web_live_port | default(3000) }}"
+    promptfm_web_container_port: "{{ promptfm_web_container_port | default(3000) }}"
+    promptfm_web_image_ref: "{{ promptfm_web_image | default(lookup('env', 'PROMPTFM_WEB_IMAGE') | default('ghcr.io/promptfm/promptfm-web:latest', true), true) }}"
+    promptfm_web_candidate_smoke_paths_json: "{{ promptfm_web_candidate_smoke_paths_json | default(lookup('env', 'PROMPTFM_WEB_CANDIDATE_SMOKE_PATHS_JSON') | default('', true), true) }}"
+    promptfm_web_status_stream_url: "{{ promptfm_web_status_stream_url | default(lookup('env', 'PROMPTFM_WEB_STATUS_STREAM_URL') | default('http://icecast:8000/stream.mp3', true), true) }}"
+
+- name: Resolve OCI image registry credentials for host pull
+  set_fact:
+    promptfm_web_registry: "{{ promptfm_web_registry | default(lookup('env', 'PROMPTFM_WEB_REGISTRY') | default('', true), true) }}"
+    promptfm_web_registry_username: "{{ promptfm_web_registry_username | default(lookup('env', 'PROMPTFM_WEB_REGISTRY_USERNAME') | default('', true), true) }}"
+    promptfm_web_registry_token: "{{ promptfm_web_registry_token | default(lookup('env', 'PROMPTFM_WEB_REGISTRY_TOKEN') | default('', true), true) }}"
+  no_log: true
+
+- name: Resolve pre-cutover candidate smoke paths
+  set_fact:
+    promptfm_web_candidate_smoke_paths: >-
+      {{
+        (promptfm_web_candidate_smoke_paths_json | from_json)
+        if (promptfm_web_candidate_smoke_paths_json | length) > 0
+        else ['/api/healthz', '/api/status', '/admin', '/status', '/api/radio/next?format=uri']
+      }}
+
+- name: Create OCI web root, retained release, and maintenance directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+  loop:
+    - "{{ promptfm_web_root }}"
+    - "{{ promptfm_web_releases_dir }}"
+    - "{{ promptfm_web_shared_dir }}"
+    - "{{ promptfm_web_shared_dir }}/maintenance"
+    - "{{ promptfm_web_releases_dir }}/{{ promptfm_web_release_id }}"
+
+- name: Verify the shared Oracle edge-proxy compose file exists before web cutover
+  stat:
+    path: "{{ promptfm_streamer_app_dir }}/docker-compose.yml"
+  register: promptfm_streamer_compose
+
+- name: Fail when the Oracle streamer edge proxy is not installed yet
+  fail:
+    msg: >-
+      Expected the Oracle streamer edge proxy at {{ promptfm_streamer_app_dir }}/docker-compose.yml
+      before running the OCI web cutover workflow.
+  when: not (promptfm_streamer_compose.stat.exists | default(false))
+
+- name: Verify the shared Oracle edge Docker network exists for web cutover
+  command:
+    argv:
+      - docker
+      - network
+      - inspect
+      - "{{ promptfm_streamer_docker_network }}"
+  changed_when: false
+
+- name: Ensure the Dockerized Oracle edge proxy has the maintenance page available for web fallback
+  file:
+    path: "{{ promptfm_streamer_app_dir }}/maintenance"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+
+- name: Copy the maintenance page into the Oracle edge-proxy app directory
+  copy:
+    src: "{{ playbook_dir }}/roles/streamer/files/maintenance/index.html"
+    dest: "{{ promptfm_streamer_app_dir }}/maintenance/index.html"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+
+- name: Check whether a current release is already serving traffic
+  stat:
+    path: "{{ promptfm_web_root }}/current"
+    follow: false
+  register: promptfm_web_current_release_link
+
+- name: Check whether a retained previous release is already available for rollback
+  stat:
+    path: "{{ promptfm_web_root }}/previous"
+    follow: false
+  register: promptfm_web_previous_release_link
+
+- name: Resolve the retained live release target before cutover
+  command:
+    argv:
+      - readlink
+      - -f
+      - "{{ promptfm_web_root }}/current"
+  register: promptfm_web_current_release_target
+  changed_when: false
+  when: promptfm_web_current_release_link.stat.exists | default(false)
+
+- name: Resolve the retained previous release target before refreshing rollback state
+  command:
+    argv:
+      - readlink
+      - -f
+      - "{{ promptfm_web_root }}/previous"
+  register: promptfm_web_previous_release_target
+  changed_when: false
+  when: promptfm_web_previous_release_link.stat.exists | default(false)
+
+- name: Resolve the host port that already serves the current release
+  command:
+    argv:
+      - python3
+      - -c
+      - |
+        import pathlib
+        import re
+        import sys
+
+        compose = pathlib.Path(sys.argv[1]).read_text()
+        container_port = re.escape(sys.argv[2])
+        match = re.search(rf'127\.0\.0\.1:(\d+):{container_port}', compose)
+        if not match:
+            raise SystemExit('current release host port not found')
+        print(match.group(1))
+      - "{{ promptfm_web_current_release_target.stdout }}/docker-compose.yml"
+      - "{{ promptfm_web_container_port | string }}"
+  register: promptfm_web_current_release_port_cmd
+  changed_when: false
+  when:
+    - promptfm_web_current_release_link.stat.exists | default(false)
+    - (promptfm_web_current_release_target.stdout | default('') | length) > 0
+
+- name: Select the inactive host port for the next candidate release
+  set_fact:
+    promptfm_web_current_release_port: >-
+      {{
+        (promptfm_web_current_release_port_cmd.stdout | default('') | trim)
+        if promptfm_web_current_release_link.stat.exists | default(false)
+        else (promptfm_web_live_port | string)
+      }}
+    promptfm_web_release_host_port: >-
+      {{
+        (promptfm_web_candidate_port | string)
+        if (
+          promptfm_web_current_release_link.stat.exists | default(false)
+          and (promptfm_web_current_release_port_cmd.stdout | default('') | trim) == (promptfm_web_live_port | string)
+        )
+        else (promptfm_web_live_port | string)
+      }}
+
+- name: Copy the maintenance fallback page for failed cutovers
+  copy:
+    src: "{{ playbook_dir }}/roles/streamer/files/maintenance/index.html"
+    dest: "{{ promptfm_web_shared_dir }}/maintenance/index.html"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+
+- name: Check whether the older retained previous release still has a compose file
+  stat:
+    path: "{{ promptfm_web_previous_release_target.stdout }}/docker-compose.yml"
+  register: promptfm_web_previous_release_compose
+  when:
+    - promptfm_web_previous_release_link.stat.exists | default(false)
+    - (promptfm_web_previous_release_target.stdout | default('') | length) > 0
+    - (promptfm_web_previous_release_target.stdout | default('')) != (promptfm_web_current_release_target.stdout | default(''))
+
+- name: Stop the older retained previous release before reusing the inactive slot
+  command: docker compose down --remove-orphans
+  args:
+    chdir: "{{ promptfm_web_previous_release_target.stdout }}"
+  when:
+    - promptfm_web_previous_release_link.stat.exists | default(false)
+    - (promptfm_web_previous_release_target.stdout | default('') | length) > 0
+    - (promptfm_web_previous_release_target.stdout | default('')) != (promptfm_web_current_release_target.stdout | default(''))
+    - promptfm_web_previous_release_compose.stat.exists | default(false)
+
+- name: Render docker compose for the inactive candidate release
+  template:
+    src: docker-compose.yml.j2
+    dest: "{{ promptfm_web_releases_dir }}/{{ promptfm_web_release_id }}/docker-compose.yml"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+
+- name: Log the Oracle host into the OCI image registry before candidate startup
+  shell: |
+    set -euo pipefail
+    printf '%s' "$PROMPTFM_WEB_REGISTRY_TOKEN" | docker login "$PROMPTFM_WEB_REGISTRY" --username "$PROMPTFM_WEB_REGISTRY_USERNAME" --password-stdin
+  args:
+    executable: /bin/bash
+  environment:
+    PROMPTFM_WEB_REGISTRY: "{{ promptfm_web_registry }}"
+    PROMPTFM_WEB_REGISTRY_USERNAME: "{{ promptfm_web_registry_username }}"
+    PROMPTFM_WEB_REGISTRY_TOKEN: "{{ promptfm_web_registry_token }}"
+  no_log: true
+  when:
+    - (promptfm_web_registry | default('') | length) > 0
+    - (promptfm_web_registry_username | default('') | length) > 0
+    - (promptfm_web_registry_token | default('') | length) > 0
+
+- name: Start candidate release before cutover
+  command: docker compose up -d --remove-orphans
+  args:
+    chdir: "{{ promptfm_web_releases_dir }}/{{ promptfm_web_release_id }}"
+
+- name: Wait for candidate web port to accept localhost traffic
+  wait_for:
+    host: 127.0.0.1
+    port: "{{ promptfm_web_release_host_port | int }}"
+    delay: 2
+    timeout: 60
+
+- name: Probe candidate /api/healthz before cutover switch
+  uri:
+    url: "http://127.0.0.1:{{ promptfm_web_release_host_port }}/api/healthz"
+    status_code: 200
+    return_content: true
+    timeout: 5
+  register: promptfm_web_candidate_health
+  retries: 12
+  delay: 5
+  until: promptfm_web_candidate_health.status == 200
+
+- name: Curl pre-cutover candidate smoke paths before public cutover
+  command:
+    argv:
+      - curl
+      - --fail
+      - --silent
+      - --show-error
+      - --location
+      - --max-time
+      - '20'
+      - "http://127.0.0.1:{{ promptfm_web_release_host_port }}{{ item }}"
+  loop: "{{ promptfm_web_candidate_smoke_paths }}"
+  loop_control:
+    label: "{{ item }}"
+  register: promptfm_web_candidate_smoke
+  changed_when: false
+
+- name: Record live and previous release upstreams for safe cutover
+  set_fact:
+    promptfm_web_live_upstream: "promptfm-web-{{ promptfm_web_release_id }}:{{ promptfm_web_container_port }}"
+    promptfm_web_previous_release_upstream: >-
+      {{
+        'promptfm-web-' ~ (promptfm_web_current_release_target.stdout | basename) ~ ':' ~ (promptfm_web_container_port | string)
+        if promptfm_web_current_release_link.stat.exists | default(false)
+        else ''
+      }}
+
+- name: Move the previous release symlink aside before cutover
+  file:
+    path: "{{ promptfm_web_root }}/previous"
+    state: absent
+
+- name: Retain the live release as the previous release during cutover
+  command:
+    argv:
+      - ln
+      - -sfn
+      - "{{ promptfm_web_current_release_target.stdout }}"
+      - "{{ promptfm_web_root }}/previous"
+  when:
+    - promptfm_web_current_release_link.stat.exists | default(false)
+    - (promptfm_web_current_release_target.stdout | default('') | length) > 0
+
+- name: Switch current symlink to the healthy candidate release
+  file:
+    src: "{{ promptfm_web_releases_dir }}/{{ promptfm_web_release_id }}"
+    dest: "{{ promptfm_web_root }}/current"
+    state: link
+    force: true
+
+- name: Render Caddy cutover config with previous release or maintenance fallback
+  register: promptfm_web_caddy_conf
+  template:
+    src: Caddyfile.web.j2
+    dest: "{{ promptfm_streamer_app_dir }}/Caddyfile"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+
+- name: Validate the Dockerized Oracle edge Caddy config before restart
+  command: docker compose run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile
+  args:
+    chdir: "{{ promptfm_streamer_app_dir }}"
+  changed_when: false
+  when: promptfm_web_caddy_conf is changed
+
+- name: Restart the Dockerized Oracle edge proxy after web cutover switch
+  command: docker compose restart caddy
+  args:
+    chdir: "{{ promptfm_streamer_app_dir }}"
+  when: promptfm_web_caddy_conf is changed
+
+- name: Discover OCI web release directories after cutover
+  find:
+    paths: "{{ promptfm_web_releases_dir }}"
+    file_type: directory
+    recurse: false
+  register: promptfm_web_release_directories
+
+- name: Protect the current and retained previous OCI web releases from prune
+  set_fact:
+    promptfm_web_protected_release_paths: >-
+      {{
+        (
+          [promptfm_web_releases_dir ~ '/' ~ promptfm_web_release_id]
+          + ([promptfm_web_current_release_target.stdout] if (promptfm_web_current_release_target.stdout | default('') | length) > 0 else [])
+        )
+        | unique
+      }}
+
+- name: Prune OCI web releases that are no longer retained for rollback
+  file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ promptfm_web_release_directories.files }}"
+  when: item.path not in promptfm_web_protected_release_paths

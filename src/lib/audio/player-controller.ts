@@ -2,9 +2,11 @@
 // Robust HTML5 Audio stream controller for 24/7 Icecast live streams.
 // Prevents reconnection loops on user pause/stop and cleanly unloads network buffers.
 
-export type PlayerState = 'idle' | 'loading' | 'playing' | 'error';
+import { DEFAULT_STREAM_URL } from './stream-config';
 
-export const DEFAULT_STREAM_URL = 'https://stream.promptfm.live/stream.mp3';
+export { DEFAULT_STREAM_URL };
+
+export type PlayerState = 'idle' | 'loading' | 'playing' | 'error';
 export const MAX_RECONNECT_ATTEMPTS = 5;
 export const BASE_RECONNECT_DELAY_MS = 2000;
 

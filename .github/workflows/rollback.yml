@@ -4,17 +4,28 @@ on:
   workflow_dispatch:
     inputs:
       rollback_ref:
-        description: 'Git SHA or Tag to rollback to (e.g. be73865, promptfm/0.1.0-be73865, or v0.1.0)'
+        description: 'Git SHA or release tag to restore (for example be73865, promptfm/0.1.0-be73865, or v0.1.0)'
         required: true
 
 permissions:
   contents: write
   deployments: write
+  id-token: write
+  packages: write
+
+concurrency:
+  group: rollback-promptfm
+  cancel-in-progress: false
 
 jobs:
-  rollback:
-    name: rollback
+  prepare-rollback:
+    name: 🏷️ Prepare rollback tag and deployment
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      rollback_tag: ${{ steps.meta.outputs.rollback_tag }}
+      release_id: ${{ steps.meta.outputs.release_id }}
+      deployment_id: ${{ steps.deployment.outputs.deployment_id }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
@@ -37,106 +48,99 @@ jobs:
           ROLLBACK_REF: ${{ inputs.rollback_ref }}
           GH_PAT: ${{ secrets.GH_PAT }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          node -e '
-            const fs = require("fs");
-            const { execSync } = require("child_process");
-            
-            function formatRollbackTag(targetRef) {
-              const trimmed = (targetRef || "").trim();
-              if (!trimmed) throw new Error("Rollback reference cannot be empty");
-              if (/^[0-9a-f]{7,40}$/i.test(trimmed)) return `promptfm/rollback-${trimmed.slice(0, 7)}`;
-              let version = trimmed.replace(/^promptfm\//i, "").replace(/^v/i, "");
-              return `promptfm/rollback-${version}`;
-            }
-
-            function resolveGitHubToken(options) {
-              if (options?.envToken?.trim()) return options.envToken.trim();
-              if (options?.remoteUrl) {
-                const match = options.remoteUrl.match(/https:\/\/(?:[^:@/]+:)?([a-zA-Z0-9_]{10,})@github\.com/);
-                if (match?.[1]) return match[1];
-              }
-              return process.env.GH_PAT || process.env.GITHUB_TOKEN || null;
-            }
-            
-            const targetRef = process.env.ROLLBACK_REF;
-            const rollbackTag = formatRollbackTag(targetRef);
-            console.log(`Computed Rollback Tag: ${rollbackTag}`);
-            
-            let remoteUrl = "";
-            try {
-              remoteUrl = execSync("git remote get-url origin", { encoding: "utf8" }).trim();
-            } catch {}
-            
-            const token = resolveGitHubToken({
-              envToken: process.env.GH_PAT || process.env.GITHUB_TOKEN,
-              remoteUrl,
-            });
-            
-            fs.appendFileSync(process.env.GITHUB_OUTPUT, `rollback_tag=${rollbackTag}\n`);
-            if (token) {
-              console.log("Resolved GitHub authentication token.");
-              fs.appendFileSync(process.env.GITHUB_OUTPUT, `has_token=true\n`);
-            } else {
-              console.log("No token extracted; falling back to runner credentials.");
-              fs.appendFileSync(process.env.GITHUB_OUTPUT, `has_token=false\n`);
-            }
-          '
-
-      - name: Checkout Rollback Target Ref
-        run: |
-          echo "Checking out rollback target: ${{ inputs.rollback_ref }}"
-          git checkout "${{ inputs.rollback_ref }}"
+        run: node scripts/rollback-workflow-metadata.cjs
 
       - name: Create and Push Rollback Tag
-        id: push_tag
         env:
           ROLLBACK_TAG: ${{ steps.meta.outputs.rollback_tag }}
+          ROLLBACK_REF: ${{ inputs.rollback_ref }}
         run: |
-          echo "Creating tag: $ROLLBACK_TAG"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "$ROLLBACK_TAG" -m "Rollback deployment to ${{ inputs.rollback_ref }}"
-          git push origin "$ROLLBACK_TAG"
-
-      - name: Deploy Rollback Target to Vercel (Production)
-        id: vercel
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-          VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
-        run: |
-          if [ -n "$VERCEL_TOKEN" ]; then
-            echo "Deploying rolled back commit to Vercel Production..."
-            PROD_URL=$(npx vercel --prod --yes --token="$VERCEL_TOKEN")
-            echo "Vercel Production URL: $PROD_URL"
-            echo "prod_url=$PROD_URL" >> $GITHUB_OUTPUT
-          elif [ -n "$VERCEL_DEPLOY_HOOK" ]; then
-            echo "Triggering Vercel Production Deploy Hook for rollback..."
-            curl -s -X POST "$VERCEL_DEPLOY_HOOK"
-            echo "prod_url=https://promptfm.live" >> $GITHUB_OUTPUT
+          if git rev-parse -q --verify "refs/tags/$ROLLBACK_TAG" >/dev/null; then
+            echo "Rollback tag $ROLLBACK_TAG already exists on remote, proceeding."
           else
-            echo "Vercel will auto-deploy the rollback tag via Git integration."
-            echo "prod_url=https://promptfm.live" >> $GITHUB_OUTPUT
+            git tag -a "$ROLLBACK_TAG" "$ROLLBACK_REF" -m "Rollback deployment to $ROLLBACK_REF"
+            git push origin "$ROLLBACK_TAG"
           fi
+
+      - name: 🌐 Create GitHub Deployment (Production)
+        id: deployment
+        uses: chrnorm/deployment-action@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          environment: production
+          description: 'PromptFM OCI rollback deployment using retained-release metadata'
+          ref: ${{ steps.meta.outputs.rollback_tag }}
+
+  # Shared OCI restore path: deploy-web-oci.yml owns the candidate /api/healthz gate,
+  # cutover, and retained-release metadata instead of any Vercel production redeploy.
+  deploy-web-oci:
+    name: deploy-web-oci
+    needs: prepare-rollback
+    uses: ./.github/workflows/deploy-web-oci.yml
+    with:
+      ref: ${{ inputs.rollback_ref }}
+      deploy_tooling_ref: ${{ github.sha }}
+      release_tag: ${{ needs.prepare-rollback.outputs.rollback_tag }}
+      release_id: ${{ needs.prepare-rollback.outputs.release_id }}
+      rollback_ref: ${{ inputs.rollback_ref }}
+      deploy_reason: rollback-retained-release
+      image_platforms: linux/amd64,linux/arm64
+      health_check_path: /api/healthz
+      status_check_path: /api/status
+      candidate_smoke_paths_json: '["/api/healthz","/admin","/status","/api/radio/next?format=uri"]'
+      retained_release_count: '1'
+    secrets: inherit
+
+  publish-rollback:
+    name: 🧾 Publish rollback evidence
+    needs:
+      - prepare-rollback
+      - deploy-web-oci
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: always()
+    steps:
+      - name: ✅ Stamp Rollback Success
+        if: needs.deploy-web-oci.result == 'success' && needs.prepare-rollback.outputs.deployment_id != ''
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          deployment-id: ${{ needs.prepare-rollback.outputs.deployment_id }}
+          state: success
+          environment-url: https://promptfm.live
+          description: 'OCI rollback finished after retained-release /api/healthz verification'
+
+      - name: ❌ Stamp Rollback Failure
+        if: needs.deploy-web-oci.result != 'success' && needs.prepare-rollback.outputs.deployment_id != ''
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          deployment-id: ${{ needs.prepare-rollback.outputs.deployment_id }}
+          state: failure
+          environment-url: https://promptfm.live
+          description: 'OCI rollback failed before cutover completed'
 
       - name: Post Step Summary
         run: |
-          echo "### ⏪ Rollback Deployment Executed" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Target Ref:** \`${{ inputs.rollback_ref }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Rollback Tag:** \`${{ steps.meta.outputs.rollback_tag }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Production Status:** Deployed to Vercel Production" >> $GITHUB_STEP_SUMMARY
+          echo "### ⏪ OCI rollback" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Target Ref:** \`${{ inputs.rollback_ref }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Rollback Tag:** \`${{ needs.prepare-rollback.outputs.rollback_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Restored image:** \`${{ needs.deploy-web-oci.outputs.image_ref }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Image digest:** \`${{ needs.deploy-web-oci.outputs.image_digest }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Candidate readiness gate:** \`${{ needs.deploy-web-oci.outputs.healthz_url }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Retained previous release:** \`${{ needs.deploy-web-oci.outputs.previous_release }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Retained release metadata artifact:** \`${{ needs.deploy-web-oci.outputs.retained_release_metadata }}\`" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Create GitHub Release for Rollback
+        if: needs.deploy-web-oci.result == 'success'
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ steps.meta.outputs.rollback_tag }}
-          name: "Rollback ${{ steps.meta.outputs.rollback_tag }}"
+          tag_name: ${{ needs.prepare-rollback.outputs.rollback_tag }}
+          name: Rollback ${{ needs.prepare-rollback.outputs.rollback_tag }}
           generate_release_notes: true
           draft: false
           prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
-

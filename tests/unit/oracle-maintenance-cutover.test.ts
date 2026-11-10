@@ -42,4 +42,83 @@ describe('Oracle maintenance cutover support', () => {
     expect(tasks).toContain('docker compose restart caddy');
     expect(tasks).toMatch(/when: caddy_conf is changed/);
   });
+
+  it('adds a dedicated webapp cutover template that can leave the previous release or maintenance page serving traffic', () => {
+    const webCaddyPath = path.join(rootDir, 'infra/ansible/roles/webapp/templates/Caddyfile.web.j2');
+    expect(fs.existsSync(webCaddyPath)).toBe(true);
+
+    if (!fs.existsSync(webCaddyPath)) {
+      return;
+    }
+
+    const webCaddy = fs.readFileSync(webCaddyPath, 'utf8');
+    const previousReleaseBlock = webCaddy.split('(previous_release) {')[1]?.split('(maintenance_fallback) {')[0] ?? '';
+    expect(webCaddy).toMatch(/previous[_ -]release|retained[_ -]release/i);
+    expect(webCaddy).toMatch(/maintenance/i);
+    expect(webCaddy).toContain('@previous_failed');
+    expect(previousReleaseBlock).toContain('handle_response @previous_failed');
+    expect(previousReleaseBlock).not.toContain('handle_errors');
+    expect(webCaddy).toContain('/srv/maintenance');
+    expect(webCaddy).toContain('try_files {path} /index.html');
+    expect(webCaddy).toContain('stream.promptfm.live');
+    expect(webCaddy).toContain('reverse_proxy icecast:8000');
+  });
+
+  it('gates web cutover on a candidate health probe before switching live traffic', () => {
+    const webTasksPath = path.join(rootDir, 'infra/ansible/roles/webapp/tasks/main.yml');
+    expect(fs.existsSync(webTasksPath)).toBe(true);
+
+    if (!fs.existsSync(webTasksPath)) {
+      return;
+    }
+
+    const webTasks = fs.readFileSync(webTasksPath, 'utf8');
+    expect(webTasks).toContain('/api/healthz');
+    expect(webTasks).toMatch(/cutover|switch/i);
+  });
+
+  it('retains the real live release target before pruning old release directories', () => {
+    const webTasksPath = path.join(rootDir, 'infra/ansible/roles/webapp/tasks/main.yml');
+    expect(fs.existsSync(webTasksPath)).toBe(true);
+
+    if (!fs.existsSync(webTasksPath)) {
+      return;
+    }
+
+    const webTasks = fs.readFileSync(webTasksPath, 'utf8');
+    expect(webTasks).toContain('readlink');
+    expect(webTasks).toContain('promptfm_web_current_release_target.stdout');
+    expect(webTasks).toMatch(/Prune OCI web releases/i);
+  });
+
+  it('tracks the actual current live port so previous-release failover stays routable across cutovers', () => {
+    const webTasks = read('infra/ansible/roles/webapp/tasks/main.yml');
+    const webCompose = read('infra/ansible/roles/webapp/templates/docker-compose.yml.j2');
+    const webCaddy = read('infra/ansible/roles/webapp/templates/Caddyfile.web.j2');
+
+    expect(webTasks).toContain('Resolve the host port that already serves the current release');
+    expect(webTasks).toContain('Select the inactive host port for the next candidate release');
+    expect(webTasks).toContain('Stop the older retained previous release before reusing the inactive slot');
+    expect(webTasks).toContain('promptfm_web_current_release_port');
+    expect(webTasks).toContain('promptfm_web_release_host_port');
+    expect(webTasks).toContain('promptfm_streamer_docker_network');
+    expect(webTasks).toContain('promptfm_web_status_stream_url');
+    expect(webTasks).toContain('Log the Oracle host into the OCI image registry before candidate startup');
+    expect(webTasks).toContain('docker login');
+    expect(webTasks).toContain('Validate the Dockerized Oracle edge Caddy config before restart');
+    expect(webTasks).toContain('docker compose run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile');
+    expect(webTasks).toContain('docker compose restart caddy');
+    expect(webTasks).not.toContain('Ensure Caddy service is running and enabled');
+    expect(webTasks).toContain("lookup('env', 'PROMPTFM_WEB_REGISTRY')");
+    expect(webTasks).toContain("lookup('env', 'PROMPTFM_WEB_REGISTRY_USERNAME')");
+    expect(webTasks).toContain("lookup('env', 'PROMPTFM_WEB_REGISTRY_TOKEN')");
+    expect(webTasks).toContain("lookup('env', 'PROMPTFM_WEB_STATUS_STREAM_URL')");
+    expect(webCompose).toContain('PROMPTFM_STATUS_STREAM_URL: "{{ promptfm_web_status_stream_url }}"');
+    expect(webCompose).toContain('127.0.0.1:{{ promptfm_web_release_host_port }}:{{ promptfm_web_container_port }}');
+    expect(webCompose).toContain('name: {{ promptfm_streamer_docker_network }}');
+    expect(webCaddy).toContain('reverse_proxy {{ promptfm_web_live_upstream }}');
+    expect(webCaddy).toContain('reverse_proxy {{ promptfm_web_previous_release_upstream }}');
+    expect(webCaddy).toContain('stream.promptfm.live');
+    expect(webCaddy).toContain('reverse_proxy icecast:8000');
+  });
 });

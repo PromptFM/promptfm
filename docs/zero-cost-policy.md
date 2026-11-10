@@ -59,7 +59,7 @@ Dashboards: [Console](https://console.cloud.google.com/?project=promptfm-radio-1
 
 Vercel Hobby is free, with **4 hours/month of Fluid Active CPU**. Guardrails in the repo (details in [admin-guide.md](admin-guide.md), section 7):
 
-- **Deploy gate** (`scripts/vercel-budget-gate.js`, set in `vercel.json` as `ignoreCommand`): production builds only for release tags (`promptfm/<version>` or `v*.*.*`); routine merges to `main` are cancelled. Preview builds are off by default and opt-in with `[preview]` in the commit message. Bot branches and forked PRs are skipped or need approval.
+- **Deploy gate** (`scripts/vercel-budget-gate.js`, set in `vercel.json` as `ignoreCommand`): now mainly protects Vercel preview and optional manual Vercel build usage. Routine merges to `main` are cancelled. Preview builds are off by default and opt-in with `[preview]` in the commit message. Bot branches and forked PRs are skipped or need approval. The documented production web release path in this branch is OCI-based, not Vercel-based.
 - **Caching and polling**: Edge CDN caching on the public radio endpoints, and client polling pauses in background tabs.
 - **CI minutes**: GitHub Actions concurrency groups, path detection and Playwright browser caching keep the 2,000 free minutes.
 

@@ -1,0 +1,66 @@
+{
+  admin off
+}
+
+(live_release) {
+  reverse_proxy {{ promptfm_web_live_upstream }} {
+    health_uri /api/healthz
+    health_interval 10s
+    health_timeout 5s
+    transport http {
+      dial_timeout 5s
+      response_header_timeout 10s
+    }
+  }
+}
+
+(previous_release) {
+  reverse_proxy {{ promptfm_web_previous_release_upstream }} {
+    health_uri /api/healthz
+    health_interval 10s
+    health_timeout 5s
+    transport http {
+      dial_timeout 5s
+      response_header_timeout 10s
+    }
+
+    @previous_failed status 500 502 503 504
+    handle_response @previous_failed {
+      import maintenance_fallback
+    }
+  }
+}
+
+(maintenance_fallback) {
+  root * /srv/maintenance
+  try_files {path} /index.html
+  file_server
+}
+
+promptfm.live, www.promptfm.live {
+  encode zstd gzip
+
+  handle_errors {
+    @candidate_failed expression {http.error.status_code} >= 500
+    handle @candidate_failed {
+{% if promptfm_web_previous_release_upstream | default('') | length > 0 %}
+      import previous_release
+{% else %}
+      import maintenance_fallback
+{% endif %}
+    }
+  }
+
+  import live_release
+}
+
+stream.promptfm.live {
+  header Access-Control-Allow-Origin *
+  header Access-Control-Allow-Methods "GET, OPTIONS, HEAD"
+  header Access-Control-Allow-Headers "*"
+
+  reverse_proxy icecast:8000 {
+    header_up Host {host}
+    header_up X-Real-IP {remote_host}
+  }
+}

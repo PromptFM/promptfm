@@ -20,6 +20,16 @@ describe('Local Development & Isolation Configuration', () => {
     // Must contain developer simulation flags
     expect(content).toContain('DEV_FALLBACK_SIMULATION=true');
     expect(content).toContain('NEXT_PUBLIC_STREAM_URL=http://localhost:8000/stream.mp3');
+    expect(content).toContain('NEXT_PUBLIC_R2_PUBLIC_URL=http://localhost:9000/promptfm-audio');
+    expect(content).toContain('NEXT_PUBLIC_SUPABASE_URL=http://localhost:54322');
+  });
+
+  it('documents localhost services as optional examples rather than required shell exports', () => {
+    const content = fs.readFileSync(envExamplePath, 'utf-8');
+
+    expect(content).toContain('If Docker is not running');
+    expect(content).toContain('player falls back to the hosted stream automatically');
+    expect(content).toContain('local startup wrappers ignore');
   });
 
   it('provides a docker-compose.local.yml file defining icecast, liquidsoap, postgres and minio', () => {

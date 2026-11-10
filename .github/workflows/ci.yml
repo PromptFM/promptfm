@@ -74,7 +74,7 @@ jobs:
                   HAS_SQL=true
                   HAS_CORE=true
                   ;;
-                infra/*|.github/workflows/ci.yml)
+                infra/*|.github/workflows/ci.yml|.github/workflows/release.yml|.github/workflows/deploy-web-oci.yml)
                   DOC_ONLY=false
                   HAS_INFRA=true
                   ;;
@@ -355,11 +355,13 @@ jobs:
         run: |
           env -u ANSIBLE_VAULT_PASSWORD_FILE ansible-playbook -i infra/ansible/inventory.ini infra/ansible/playbook.yml --syntax-check
           env -u ANSIBLE_VAULT_PASSWORD_FILE ansible-playbook -i infra/ansible/inventory.ini infra/ansible/hostinger-playbook.yml --syntax-check
+          env -u ANSIBLE_VAULT_PASSWORD_FILE ansible-playbook -i infra/ansible/inventory.ini infra/ansible/playbook-web-oci.yml --syntax-check
 
       - name: Ansible Dry Run Task Verification
         run: |
           echo "Running Ansible playbook dry-run task verification..."
           env -u ANSIBLE_VAULT_PASSWORD_FILE ansible-playbook -i infra/ansible/inventory.ini infra/ansible/playbook.yml --list-tasks
+          env -u ANSIBLE_VAULT_PASSWORD_FILE ansible-playbook -i infra/ansible/inventory.ini infra/ansible/playbook-web-oci.yml --list-tasks
           if [ -n "$GCP_SSH_KEY" ]; then
             mkdir -p ~/.ssh
             echo "$GCP_SSH_KEY" > ~/.ssh/google_compute_engine
@@ -550,4 +552,3 @@ jobs:
               });
               console.log(`Posted new PR guidance comment on PR #${prNumber}`);
             }
-

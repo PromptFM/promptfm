@@ -2,7 +2,7 @@
 // PromptFM Official Live Theme Radio Channels Service
 // Manages stream channels, active DJ assignments, vibes, and parental ratings.
 
-import { DEFAULT_STREAM_URL } from '../audio/player-controller';
+import { buildStreamUrlForChannel } from '../audio/stream-config';
 
 export interface RadioChannel {
   slug: string;
@@ -43,7 +43,7 @@ export const OFFICIAL_CHANNELS: readonly RadioChannel[] = [
     minAge: 0,
     requiresAgeGate: false,
     allowExplicitAllDay: false,
-    streamUrl: DEFAULT_STREAM_URL,
+    streamUrl: buildStreamUrlForChannel('main'),
     isActive: true,
     enabled: true,
   },
@@ -62,7 +62,7 @@ export const OFFICIAL_CHANNELS: readonly RadioChannel[] = [
     minAge: 0,
     requiresAgeGate: false,
     allowExplicitAllDay: false,
-    streamUrl: `${DEFAULT_STREAM_URL}?channel=cyberpunk`,
+    streamUrl: buildStreamUrlForChannel('cyberpunk'),
     isActive: false,
     enabled: false,
   },
@@ -81,7 +81,7 @@ export const OFFICIAL_CHANNELS: readonly RadioChannel[] = [
     minAge: 0,
     requiresAgeGate: false,
     allowExplicitAllDay: false,
-    streamUrl: `${DEFAULT_STREAM_URL}?channel=chillout`,
+    streamUrl: buildStreamUrlForChannel('chillout'),
     isActive: false,
     enabled: false,
   },
@@ -100,7 +100,7 @@ export const OFFICIAL_CHANNELS: readonly RadioChannel[] = [
     minAge: 0,
     requiresAgeGate: false,
     allowExplicitAllDay: false,
-    streamUrl: `${DEFAULT_STREAM_URL}?channel=kids`,
+    streamUrl: buildStreamUrlForChannel('kids'),
     isActive: false,
     enabled: false,
   },
@@ -120,7 +120,7 @@ export const OFFICIAL_CHANNELS: readonly RadioChannel[] = [
     requiresAgeGate: true,
     allowExplicitAllDay: true,
     ageGateDisclaimer: 'LEGAL AGE CONFIRMATION & CONSENT: This channel broadcasts uncensored audio containing adult language, profanity, and mature themes 24 hours a day. By proceeding, you certify under penalty of law that you are at least 18 years of age (or the legal age of majority in your jurisdiction), understand the adult nature of the programming, and affirmatively consent to receiving explicit broadcast content. If you are under 18, please select a Family Safe channel.',
-    streamUrl: `${DEFAULT_STREAM_URL}?channel=afterdark`,
+    streamUrl: buildStreamUrlForChannel('afterdark'),
     isActive: false,
     enabled: false,
   },

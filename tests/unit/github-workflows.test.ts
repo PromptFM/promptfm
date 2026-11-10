@@ -12,11 +12,47 @@ describe('GitHub Actions Workflows Suite', () => {
   };
 
   describe('Release PromptFM Workflow (release.yml)', () => {
-    it('exists and includes workflow_dispatch and promptfm/* tag trigger', () => {
+    it('exists, keeps the release tag triggers, and routes production deploys through the OCI web path', () => {
       const content = readWorkflow('release.yml');
       expect(content).toContain('workflow_dispatch:');
       expect(content).toContain('promptfm/*');
-      expect(content).toContain('npx vercel --prod');
+      expect(content).toContain('deploy-web-oci');
+      expect(content).toContain('node scripts/release-workflow-metadata.cjs');
+      expect(content).toContain('free_tier_gate');
+      expect(content).not.toContain("node <<'NODE'");
+      expect(content).not.toContain("require('jiti')(__filename)");
+      expect(content).not.toContain('npx vercel --prod');
+    });
+  });
+
+  describe('Deploy OCI Web Workflow (deploy-web-oci.yml)', () => {
+    it('exists as a reusable workflow and owns build, health gate, cutover, and release retention steps', () => {
+      const content = readWorkflow('deploy-web-oci.yml');
+      expect(content).toContain('workflow_call:');
+      expect(content).toContain('workflow_dispatch:');
+      expect(content).toContain('deploy_tooling_ref:');
+      expect(content).toContain('candidate_smoke_paths_json:');
+      expect(content).toContain('Run OCI web CI and free-tier release gates');
+      expect(content).toContain('tests/unit/oci-terraform.test.ts');
+      expect(content).toContain('tests/unit/oci-web-build.test.ts');
+      expect(content).toContain('tests/unit/oci-web-deploy.test.ts');
+      expect(content).toContain('tests/unit/oci-web-release.test.ts');
+      expect(content).toContain('docker buildx');
+      expect(content).toContain('build-oci-web-image (${{ matrix.platform }})');
+      expect(content).toContain('ubuntu-24.04-arm');
+      expect(content).toContain('docker buildx imagetools create');
+      expect(content).toMatch(/linux\/amd64,linux\/arm64|linux\/arm64,linux\/amd64/);
+      expect(content).toContain('/api/healthz');
+      expect(content).toMatch(/cutover/i);
+      expect(content).toMatch(/retained[_ -]release|previous[_ -]release/i);
+    });
+
+    it('requires callers to grant id-token: write so GitHub can start the reusable workflow', () => {
+      for (const filename of ['release.yml', 'rollback.yml']) {
+        const content = readWorkflow(filename);
+        expect(content).toContain('uses: ./.github/workflows/deploy-web-oci.yml');
+        expect(content).toContain('id-token: write');
+      }
     });
   });
 
@@ -92,13 +128,19 @@ describe('GitHub Actions Workflows Suite', () => {
   });
 
   describe('Rollback Workflow (rollback.yml)', () => {
-    it('exists and creates promptfm/rollback-* tag from commit sha or tag', () => {
+    it('exists, creates promptfm/rollback-* tags, and restores a retained OCI release instead of redeploying Vercel', () => {
       const content = readWorkflow('rollback.yml');
       expect(content).toContain('name: ⏪ Rollback PromptFM');
       expect(content).toContain('rollback_ref:');
-      expect(content).toContain('formatRollbackTag');
-      expect(content).toContain('resolveGitHubToken');
-      expect(content).toContain('npx vercel --prod');
+      expect(content).toContain('node scripts/rollback-workflow-metadata.cjs');
+      expect(content).toContain('deploy-web-oci');
+      expect(content).toContain('deploy_tooling_ref: ${{ github.sha }}');
+      expect(content).toContain("candidate_smoke_paths_json: '[\"/api/healthz\",\"/admin\",\"/status\",\"/api/radio/next?format=uri\"]'");
+      expect(content).toMatch(/retained[_ -]release|previous[_ -]release/i);
+      expect(content).toContain('/api/healthz');
+      expect(content).not.toContain("node <<'NODE'");
+      expect(content).not.toContain("require('jiti')(__filename)");
+      expect(content).not.toContain('npx vercel --prod');
     });
   });
 
@@ -187,6 +229,14 @@ describe('GitHub Actions Workflows Suite', () => {
       expect(content).toContain('dns status promptfm.live --strict');
     });
 
+    it('treats OCI release workflow edits as infra changes and validates the OCI web playbook', () => {
+      const content = readWorkflow('ci.yml');
+      expect(content).toContain('.github/workflows/release.yml');
+      expect(content).toContain('.github/workflows/deploy-web-oci.yml');
+      expect(content).toContain('infra/ansible/playbook-web-oci.yml --syntax-check');
+      expect(content).toContain('infra/ansible/playbook-web-oci.yml --list-tasks');
+    });
+
     it('validates and checks Terraform live state vs configuration when infra changes', () => {
       const content = readWorkflow('ci.yml');
       expect(content).toContain('terraform-lint-validate:');
@@ -240,4 +290,3 @@ describe('GitHub Actions Workflows Suite', () => {
     });
   });
 });
-

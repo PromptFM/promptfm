@@ -31,7 +31,6 @@ import AgeGateModal from '@/components/AgeGateModal';
 import {
   createStreamPlayerController,
   StreamPlayerController,
-  DEFAULT_STREAM_URL,
   PlayerState,
 } from '@/lib/audio/player-controller';
 import {

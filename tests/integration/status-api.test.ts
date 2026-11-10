@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { GET } from '@/app/api/status/route';
 import { NextRequest } from 'next/server';
+import * as fs from 'fs';
+import * as path from 'path';
 
 describe('GET /api/status API Integration', () => {
   it('returns HTTP 200 with JSON health report', async () => {
@@ -58,5 +60,14 @@ describe('GET /api/status API Integration', () => {
     expect(body).toContain('#e05d44');
 
     spy.mockRestore();
+  });
+
+  it('keeps /api/status as the richer smoke endpoint alongside a dedicated /api/healthz readiness route', async () => {
+    const response = await GET(new NextRequest('http://localhost:3000/api/status'));
+    const data = await response.json();
+
+    expect(Array.isArray(data.services)).toBe(true);
+    expect(data.services.length).toBeGreaterThan(1);
+    expect(fs.existsSync(path.resolve(__dirname, '../../src/app/api/healthz/route.ts'))).toBe(true);
   });
 });

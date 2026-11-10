@@ -9,9 +9,11 @@ describe('Infrastructure overview doc (docs/infra-overview.md)', () => {
 
   it('has the infrastructure diagram and the alert flow as Mermaid', () => {
     expect(doc.match(/```mermaid/g)?.length).toBeGreaterThanOrEqual(2);
-    for (const node of ['Oracle Cloud Always Free', 'Vercel Hobby', 'Cloudflare R2', 'Supabase', 'Hostinger', 'Resend', 'Secret Manager']) {
+    for (const node of ['Oracle Cloud Always Free', 'PromptFM web app target', 'Cloudflare R2', 'Supabase', 'Hostinger', 'Resend', 'Secret Manager']) {
       expect(doc).toContain(node);
     }
+
+    expect(doc).toContain('Vercel usage notifications');
   });
 
   it('says which system is used for what, and which commands still apply', () => {
