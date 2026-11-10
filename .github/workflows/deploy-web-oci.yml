@@ -1,0 +1,294 @@
+name: 🚢 Deploy Web OCI
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
+        default: ''
+      release_tag:
+        type: string
+        required: false
+        default: ''
+      release_id:
+        type: string
+        required: false
+        default: ''
+      rollback_ref:
+        type: string
+        required: false
+        default: ''
+      deploy_reason:
+        type: string
+        required: false
+        default: release-cutover
+      image_platforms:
+        type: string
+        required: false
+        default: linux/amd64,linux/arm64
+      health_check_path:
+        type: string
+        required: false
+        default: /api/healthz
+      status_check_path:
+        type: string
+        required: false
+        default: /api/status
+      retained_release_count:
+        type: string
+        required: false
+        default: '1'
+    secrets:
+      GCP_SA_KEY:
+        required: false
+      GH_PAT:
+        required: false
+    outputs:
+      release_id:
+        description: 'Deployed OCI release ID'
+        value: ${{ jobs.deploy-web-oci.outputs.release_id }}
+      image_ref:
+        description: 'Published OCI image reference'
+        value: ${{ jobs.deploy-web-oci.outputs.image_ref }}
+      image_digest:
+        description: 'Published OCI image digest'
+        value: ${{ jobs.deploy-web-oci.outputs.image_digest }}
+      healthz_url:
+        description: 'Health gate URL used for cutover'
+        value: ${{ jobs.deploy-web-oci.outputs.healthz_url }}
+      status_url:
+        description: 'Status URL used for post-cutover smoke'
+        value: ${{ jobs.deploy-web-oci.outputs.status_url }}
+      previous_release:
+        description: 'Retained previous release reference'
+        value: ${{ jobs.deploy-web-oci.outputs.previous_release }}
+      retained_release_metadata:
+        description: 'Artifact name for retained release metadata'
+        value: ${{ jobs.deploy-web-oci.outputs.retained_release_metadata }}
+      deploy_result:
+        description: 'Outcome summary for build, health gate, and cutover'
+        value: ${{ jobs.deploy-web-oci.outputs.deploy_result }}
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref to deploy to OCI'
+        required: false
+        default: ''
+      release_tag:
+        description: 'Logical release tag for summaries and metadata'
+        required: false
+        default: ''
+      release_id:
+        description: 'Override release ID used on the Oracle host'
+        required: false
+        default: ''
+      rollback_ref:
+        description: 'Rollback target ref if this is restoring a retained release'
+        required: false
+        default: ''
+      deploy_reason:
+        description: 'Reason for deployment (release-cutover or rollback-retained-release)'
+        required: false
+        default: release-cutover
+      image_platforms:
+        description: 'docker buildx platforms'
+        required: false
+        default: linux/amd64,linux/arm64
+      health_check_path:
+        description: 'Candidate readiness path'
+        required: false
+        default: /api/healthz
+      status_check_path:
+        description: 'Post-cutover smoke path'
+        required: false
+        default: /api/status
+      retained_release_count:
+        description: 'How many prior releases to retain for rollback'
+        required: false
+        default: '1'
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+concurrency:
+  group: deploy-web-oci
+  cancel-in-progress: false
+
+jobs:
+  deploy-web-oci:
+    name: deploy-web-oci
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      release_id: ${{ steps.metadata.outputs.release_id }}
+      image_ref: ${{ steps.metadata.outputs.image_ref }}
+      image_digest: ${{ steps.image-digest.outputs.image_digest }}
+      healthz_url: ${{ steps.metadata.outputs.healthz_url }}
+      status_url: ${{ steps.metadata.outputs.status_url }}
+      previous_release: ${{ steps.metadata.outputs.previous_release }}
+      retained_release_metadata: ${{ steps.metadata.outputs.retained_release_metadata }}
+      deploy_result: ${{ steps.deploy-result.outputs.deploy_result }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.7.5
+
+      - name: Configure GCP Service Account Credentials
+        run: |
+          if [ -z "${{ secrets.GCP_SA_KEY }}" ]; then
+            echo "::error::GCP_SA_KEY secret is required for deploy-web-oci."
+            exit 1
+          fi
+          if echo "${{ secrets.GCP_SA_KEY }}" | grep -q '^{' ; then
+            echo "${{ secrets.GCP_SA_KEY }}" > /tmp/gcp-sa-key.json
+          else
+            echo "${{ secrets.GCP_SA_KEY }}" | base64 -d > /tmp/gcp-sa-key.json
+          fi
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-sa-key.json" >> "$GITHUB_ENV"
+          gcloud auth activate-service-account --key-file=/tmp/gcp-sa-key.json --project=promptfm-radio-1793623670
+
+      - name: Install Ansible
+        run: |
+          if ! command -v ansible-playbook &>/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ansible
+          fi
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GH_PAT || github.token }}
+
+      - name: Resolve OCI release metadata
+        id: metadata
+        env:
+          INPUT_RELEASE_ID: ${{ inputs.release_id }}
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
+          INPUT_ROLLBACK_REF: ${{ inputs.rollback_ref }}
+          INPUT_HEALTH_CHECK_PATH: ${{ inputs.health_check_path }}
+          INPUT_STATUS_CHECK_PATH: ${{ inputs.status_check_path }}
+          INPUT_RETAINED_RELEASE_COUNT: ${{ inputs.retained_release_count }}
+        run: |
+          OWNER_LOWER="${GITHUB_REPOSITORY_OWNER,,}"
+          SOURCE_REF="${INPUT_RELEASE_TAG:-${INPUT_ROLLBACK_REF:-$(git rev-parse --short=12 HEAD)}}"
+          if [ -n "$INPUT_RELEASE_ID" ]; then
+            RELEASE_ID="$INPUT_RELEASE_ID"
+          else
+            RELEASE_ID="$(printf '%s' "$SOURCE_REF" | sed 's#^promptfm/##' | tr '/:@ ' '-' | tr -cd '[:alnum:]._-' | cut -c1-63)"
+          fi
+          if [ -z "$RELEASE_ID" ]; then
+            RELEASE_ID="release-$(git rev-parse --short=12 HEAD)"
+          fi
+          IMAGE_REF="ghcr.io/$OWNER_LOWER/promptfm-web:$RELEASE_ID"
+          HEALTHZ_URL="https://promptfm.live$INPUT_HEALTH_CHECK_PATH"
+          STATUS_URL="https://promptfm.live$INPUT_STATUS_CHECK_PATH"
+          PREVIOUS_RELEASE="${INPUT_ROLLBACK_REF:-retained-release}"
+          RETAINED_RELEASE_METADATA="retained-release-metadata"
+          echo "release_id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
+          echo "image_ref=$IMAGE_REF" >> "$GITHUB_OUTPUT"
+          echo "healthz_url=$HEALTHZ_URL" >> "$GITHUB_OUTPUT"
+          echo "status_url=$STATUS_URL" >> "$GITHUB_OUTPUT"
+          echo "previous_release=$PREVIOUS_RELEASE" >> "$GITHUB_OUTPUT"
+          echo "retained_release_metadata=$RETAINED_RELEASE_METADATA" >> "$GITHUB_OUTPUT"
+
+      - name: Build and publish OCI web image with docker buildx
+        env:
+          IMAGE_REF: ${{ steps.metadata.outputs.image_ref }}
+          IMAGE_PLATFORMS: ${{ inputs.image_platforms }}
+        run: |
+          docker buildx build \
+            --platform "$IMAGE_PLATFORMS" \
+            --file Dockerfile.web \
+            --tag "$IMAGE_REF" \
+            --push \
+            .
+
+      - name: Capture published image digest
+        id: image-digest
+        env:
+          IMAGE_REF: ${{ steps.metadata.outputs.image_ref }}
+        run: |
+          DIGEST="$(docker buildx imagetools inspect "$IMAGE_REF" | awk '/Digest:/ { print $2; exit }')"
+          if [ -z "$DIGEST" ]; then
+            DIGEST="unresolved"
+          fi
+          echo "image_digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy candidate to Oracle and cut over after health gate
+        env:
+          PROMPTFM_WEB_RELEASE_ID: ${{ steps.metadata.outputs.release_id }}
+          PROMPTFM_WEB_IMAGE: ${{ steps.metadata.outputs.image_ref }}
+        run: |
+          chmod +x infra/ansible/deploy-web-oci.sh
+          infra/ansible/deploy-web-oci.sh \
+            -e "promptfm_web_release_id=$PROMPTFM_WEB_RELEASE_ID" \
+            -e "promptfm_web_image=$PROMPTFM_WEB_IMAGE"
+
+      - name: Verify live health after OCI cutover
+        env:
+          HEALTHZ_URL: ${{ steps.metadata.outputs.healthz_url }}
+          STATUS_URL: ${{ steps.metadata.outputs.status_url }}
+        run: |
+          curl --fail --silent --show-error --max-time 15 "$HEALTHZ_URL" > /tmp/healthz.json
+          curl --fail --silent --show-error --max-time 20 "$STATUS_URL" > /tmp/status.json
+
+      - name: Record retained-release metadata for rollback
+        env:
+          RELEASE_ID: ${{ steps.metadata.outputs.release_id }}
+          IMAGE_REF: ${{ steps.metadata.outputs.image_ref }}
+          IMAGE_DIGEST: ${{ steps.image-digest.outputs.image_digest }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          DEPLOY_REASON: ${{ inputs.deploy_reason }}
+          ROLLBACK_REF: ${{ inputs.rollback_ref }}
+          PREVIOUS_RELEASE: ${{ steps.metadata.outputs.previous_release }}
+          RETAINED_RELEASE_COUNT: ${{ inputs.retained_release_count }}
+        run: |
+          cat > retained-release-metadata.json <<JSON
+          {
+            "releaseId": "$RELEASE_ID",
+            "releaseTag": "$RELEASE_TAG",
+            "imageRef": "$IMAGE_REF",
+            "imageDigest": "$IMAGE_DIGEST",
+            "deployReason": "$DEPLOY_REASON",
+            "rollbackRef": "$ROLLBACK_REF",
+            "currentRelease": "$RELEASE_ID",
+            "previousRelease": "$PREVIOUS_RELEASE",
+            "retainedReleaseCount": "$RETAINED_RELEASE_COUNT"
+          }
+          JSON
+
+      - name: Upload retained-release metadata artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: retained-release-metadata
+          path: retained-release-metadata.json
+          if-no-files-found: error
+
+      - name: Summarize deploy result
+        id: deploy-result
+        run: |
+          echo "deploy_result=success: docker buildx image published, /api/healthz gate passed, cutover completed" >> "$GITHUB_OUTPUT"

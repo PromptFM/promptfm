@@ -1,4 +1,4 @@
-name: 🚀 Automatic Release & Vercel Production Gate
+name: 🚀 Release PromptFM via OCI Web Deploy
 
 on:
   push:
@@ -8,17 +8,18 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Semantic Version (defaults to package.json version if blank, e.g. 0.2.0 or promptfm/v0.2.0)'
+        description: 'Semantic version to tag and deploy (defaults to package.json version if blank)'
         required: false
         default: ''
       target_commit:
-        description: 'Target Git SHA or branch to cut release from (defaults to HEAD)'
+        description: 'Target Git SHA or ref to release (defaults to HEAD on the checked out ref)'
         required: false
         default: ''
 
 permissions:
   contents: write
   deployments: write
+  packages: write
   statuses: write
   pull-requests: write
 
@@ -27,9 +28,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: 📦 Package, Release & Stamp Vercel Deployment
+  prepare-release:
+    name: 📦 Prepare OCI release metadata
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+      release_ref: ${{ steps.meta.outputs.release_ref }}
+      release_id: ${{ steps.meta.outputs.release_id }}
+      target_sha: ${{ steps.meta.outputs.target_sha }}
+      deployment_id: ${{ steps.deployment.outputs.deployment_id }}
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v7
@@ -51,47 +59,59 @@ jobs:
           npm test
           npm run typecheck
 
-      - name: 🏷️ Resolve Release Tag & Metadata
+      - name: 🏷️ Resolve release tag, ref, and OCI metadata
         id: meta
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version || '' }}
+          INPUT_TARGET_COMMIT: ${{ github.event.inputs.target_commit || '' }}
+          CURRENT_TAG: ${{ github.ref_name }}
         run: |
-          node -e '
-            const fs = require("fs");
-            const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
-            
-            const currentTag = "${{ github.ref_name }}";
-            const inputVersion = ("${{ github.event.inputs.version }}" || "").trim();
-            const targetCommit = ("${{ github.event.inputs.target_commit }}" || "").trim();
-            const sha = targetCommit || process.env.GITHUB_SHA || "HEAD";
-            
-            let releaseTag = "";
-            if (currentTag && (currentTag.startsWith("promptfm/") || currentTag.startsWith("v"))) {
-              releaseTag = currentTag;
-            } else if (inputVersion) {
-              releaseTag = inputVersion.startsWith("promptfm/") || inputVersion.startsWith("v")
-                ? inputVersion
-                : "promptfm/v" + inputVersion;
-            } else {
-              const version = pkg.version || "0.2.0";
-              releaseTag = "promptfm/v" + version;
-            }
-            
-            console.log(`Resolved Release Tag: ${releaseTag}`);
-            fs.appendFileSync(process.env.GITHUB_OUTPUT, `tag=${releaseTag}\n`);
-          '
-          echo "commit_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          node <<'NODE'
+          const fs = require('fs');
+          const jiti = require('jiti')(__filename);
+          const { formatReleaseTag } = jiti('./src/lib/infra/release-tag.ts');
+          const { execSync } = require('child_process');
 
-      - name: 🏷️ Push Release Tag (if manual trigger and not already tagged)
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const currentTag = (process.env.CURRENT_TAG || '').trim();
+          const inputVersion = (process.env.INPUT_VERSION || '').trim();
+          const targetRef = (process.env.INPUT_TARGET_COMMIT || '').trim() || 'HEAD';
+          const targetSha = execSync(`git rev-parse ${targetRef}`, { encoding: 'utf8' }).trim();
+
+          let releaseTag = '';
+          if (/^(promptfm\/|v\d+\.\d+\.\d+)/.test(currentTag)) {
+            releaseTag = currentTag;
+          } else if (inputVersion.startsWith('promptfm/') || /^v\d+\.\d+\.\d+/.test(inputVersion)) {
+            releaseTag = inputVersion;
+          } else {
+            releaseTag = formatReleaseTag(inputVersion || pkg.version || '0.2.0', targetSha);
+          }
+
+          const releaseId = releaseTag
+            .replace(/^promptfm\//, '')
+            .replace(/[^A-Za-z0-9._-]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+            .slice(0, 63) || `release-${targetSha.slice(0, 12)}`;
+
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `release_tag=${releaseTag}\n`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `release_ref=${releaseTag}\n`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `release_id=${releaseId}\n`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `target_sha=${targetSha}\n`);
+          NODE
+
+      - name: 🏷️ Push release tag for manual dispatch
         if: github.event_name == 'workflow_dispatch'
+        env:
+          RELEASE_TAG: ${{ steps.meta.outputs.release_tag }}
+          TARGET_SHA: ${{ steps.meta.outputs.target_sha }}
         run: |
-          TAG="${{ steps.meta.outputs.tag }}"
-          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
-            echo "Tag $TAG already exists on remote, proceeding."
+          if git rev-parse -q --verify "refs/tags/$RELEASE_TAG" >/dev/null; then
+            echo "Tag $RELEASE_TAG already exists on remote, proceeding."
           else
-            echo "Tagging HEAD with: $TAG"
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git tag -a "$TAG" -m "Release $TAG"
-            git push origin "$TAG"
+            git tag -a "$RELEASE_TAG" "$TARGET_SHA" -m "Release $RELEASE_TAG"
+            git push origin "$RELEASE_TAG"
           fi
 
       - name: 🌐 Create GitHub Deployment (Production)
@@ -99,68 +119,74 @@ jobs:
         uses: chrnorm/deployment-action@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          environment: 'production'
-          description: 'PromptFM Live 24/7 Radio Station Production Deployment'
-          ref: ${{ steps.meta.outputs.tag }}
+          environment: production
+          description: 'PromptFM OCI production deployment with candidate cutover'
+          ref: ${{ steps.meta.outputs.release_tag }}
 
-      - name: 🚀 Verify / Trigger Vercel Production Build
-        id: vercel
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-          VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
-        run: |
-          if [ -n "$VERCEL_TOKEN" ]; then
-            echo "Deploying to Vercel Production via Vercel CLI..."
-            PROD_URL=$(npx vercel --prod --yes --token="$VERCEL_TOKEN")
-            echo "Vercel Production URL: $PROD_URL"
-            echo "target_url=$PROD_URL" >> $GITHUB_OUTPUT
-          elif [ -n "$VERCEL_DEPLOY_HOOK" ]; then
-            echo "Triggering Vercel Production Deploy Hook..."
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$VERCEL_DEPLOY_HOOK")
-            echo "Vercel deploy hook HTTP status: $HTTP_STATUS"
-            if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
-              echo "Deploy hook triggered successfully."
-            else
-              echo "Deploy hook returned non-2xx status ($HTTP_STATUS), proceeding with git integration verification."
-            fi
-            echo "target_url=https://promptfm.live" >> $GITHUB_OUTPUT
-          else
-            echo "Vercel auto-deploys via GitHub Git Integration on release tags/main under $0 budget policy."
-            echo "target_url=https://promptfm.live" >> $GITHUB_OUTPUT
-          fi
+  # deploy-web-oci.yml owns docker buildx build --platform linux/amd64,linux/arm64,
+  # candidate /api/healthz gating, cutover, and retained-release metadata for rollback.
+  deploy-web-oci:
+    name: deploy-web-oci
+    needs: prepare-release
+    uses: ./.github/workflows/deploy-web-oci.yml
+    with:
+      ref: ${{ needs.prepare-release.outputs.release_ref }}
+      release_tag: ${{ needs.prepare-release.outputs.release_tag }}
+      release_id: ${{ needs.prepare-release.outputs.release_id }}
+      deploy_reason: release-cutover
+      image_platforms: linux/amd64,linux/arm64
+      health_check_path: /api/healthz
+      status_check_path: /api/status
+      retained_release_count: '1'
+    secrets: inherit
 
-      - name: 🩺 Verify Production Station Endpoint
-        id: health_check
-        run: |
-          echo "Probing production station endpoint..."
-          HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "https://promptfm.live/api/status" || echo "000")
-          echo "Production health check status: $HEALTH_STATUS"
-
-      - name: ✅ Stamp Deployment Checkmark as Active
-        if: success()
+  publish-release:
+    name: 📝 Publish release evidence
+    needs:
+      - prepare-release
+      - deploy-web-oci
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: always()
+    steps:
+      - name: ✅ Stamp Deployment Success
+        if: needs.deploy-web-oci.result == 'success' && needs.prepare-release.outputs.deployment_id != ''
         uses: chrnorm/deployment-status@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          deployment-id: ${{ steps.deployment.outputs.deployment_id }}
-          state: 'success'
-          environment-url: 'https://promptfm.live'
-          description: 'Verified on Vercel Production ($0 Infra Path)'
+          deployment-id: ${{ needs.prepare-release.outputs.deployment_id }}
+          state: success
+          environment-url: https://promptfm.live
+          description: 'OCI cutover finished after candidate /api/healthz gate'
 
-      - name: ❌ Stamp Deployment Failure (if build failed)
-        if: failure() && steps.deployment.outputs.deployment_id != ''
+      - name: ❌ Stamp Deployment Failure
+        if: needs.deploy-web-oci.result != 'success' && needs.prepare-release.outputs.deployment_id != ''
         uses: chrnorm/deployment-status@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          deployment-id: ${{ steps.deployment.outputs.deployment_id }}
-          state: 'failure'
+          deployment-id: ${{ needs.prepare-release.outputs.deployment_id }}
+          state: failure
+          environment-url: https://promptfm.live
+          description: 'OCI deploy or cutover failed before completion'
+
+      - name: 🧾 Write release summary
+        run: |
+          echo "### 🚀 OCI web release" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Release tag:** \`${{ needs.prepare-release.outputs.release_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Release ref:** \`${{ needs.prepare-release.outputs.release_ref }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Image:** \`${{ needs.deploy-web-oci.outputs.image_ref }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Image digest:** \`${{ needs.deploy-web-oci.outputs.image_digest }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Candidate health gate:** \`${{ needs.deploy-web-oci.outputs.healthz_url }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Cutover result:** \`${{ needs.deploy-web-oci.outputs.deploy_result }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Retained previous release:** \`${{ needs.deploy-web-oci.outputs.previous_release }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Retained release metadata artifact:** \`${{ needs.deploy-web-oci.outputs.retained_release_metadata }}\`" >> "$GITHUB_STEP_SUMMARY"
 
       - name: 📝 Publish GitHub Release & Changelog
+        if: needs.deploy-web-oci.result == 'success'
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ steps.meta.outputs.tag }}
-          name: "PromptFM ${{ steps.meta.outputs.tag }}"
+          tag_name: ${{ needs.prepare-release.outputs.release_tag }}
+          name: PromptFM ${{ needs.prepare-release.outputs.release_tag }}
           generate_release_notes: true
           draft: false
           prerelease: false
