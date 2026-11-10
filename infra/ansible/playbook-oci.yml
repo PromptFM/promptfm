@@ -9,6 +9,7 @@
   become: true
   vars:
     app_dir: "/opt/promptfm/streamer"
+    promptfm_streamer_manage_caddy_config: false
 
   roles:
     - streamer

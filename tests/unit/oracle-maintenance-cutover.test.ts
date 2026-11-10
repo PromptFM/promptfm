@@ -40,7 +40,15 @@ describe('Oracle maintenance cutover support', () => {
     const tasks = read('infra/ansible/roles/streamer/tasks/main.yml');
     expect(tasks).toContain('register: caddy_conf');
     expect(tasks).toContain('docker compose restart caddy');
-    expect(tasks).toMatch(/when: caddy_conf is changed/);
+    expect(tasks).toContain('promptfm_streamer_manage_caddy_config');
+    expect(tasks).toContain('streamer_caddyfile_stat.stat.exists');
+    expect(tasks).toMatch(/when: caddy_conf is defined and caddy_conf is changed/);
+  });
+
+  it('lets the Oracle streamer bootstrap Caddy once, but not overwrite the shared edge after web cutover', () => {
+    const tasks = read('infra/ansible/roles/streamer/tasks/main.yml');
+    expect(tasks).toContain('Check whether the streamer Caddyfile already exists');
+    expect(tasks).toContain('promptfm_streamer_manage_caddy_config | default(true) or not streamer_caddyfile_stat.stat.exists');
   });
 
   it('adds a dedicated webapp cutover template that can leave the previous release or maintenance page serving traffic', () => {

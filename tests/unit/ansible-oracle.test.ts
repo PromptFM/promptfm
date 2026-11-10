@@ -94,6 +94,11 @@ describe("Ansible streamer compose template (Oracle support)", () => {
       expect(block).not.toMatch(/^liquidsoap_script=radio-standby\.liq/m);
       expect(read('infra/ansible/playbook-oci.yml')).toContain('hosts: streamer_oci');
     });
+
+    it('keeps Oracle streamer redeploys from taking ownership of the shared Caddyfile', () => {
+      const playbook = read('infra/ansible/playbook-oci.yml');
+      expect(playbook).toContain('promptfm_streamer_manage_caddy_config: false');
+    });
   });
 
   describe('OCI web cutover and callback origin expectations', () => {

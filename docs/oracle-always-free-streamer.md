@@ -135,6 +135,8 @@ cd infra/ansible
 
 The Oracle host is in the `[streamer_oci]` group of `inventory.ini` (`caddy_bind_address=0.0.0.0`, `liquidsoap_script=radio.liq`). `terraform output ansible_inventory_line` gives the host line.
 
+On Oracle, `playbook-oci.yml` manages the audio stack only. The live `promptfm.live` edge config is owned by the OCI web cutover path, so streamer redeploys must not rewrite `/opt/promptfm/streamer/Caddyfile` after web cutover is in place.
+
 **Standby matters.** Liquidsoap asks the live API for the next track and reports every track start. Two streamers on air at once would consume the queue twice and double every Discord and Telegram "now playing" post. Standby is `deploy/streamer/radio-standby.liq`, which loops the fallback track and never calls the API. Use it on the Oracle host whenever the GCP host is on air, for example during a rollback.
 
 The existing `scripts/run-ansible-iap.ts` runner goes through GCP IAP and only works for the GCP host. Use plain SSH for the Oracle one.
