@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import * as fs from 'fs';
+import * as path from 'path';
 import {
   formatReleaseTag,
   formatRollbackTag,
@@ -14,6 +16,8 @@ import {
   getLatestReleaseVersion,
   suggestNextVersion,
 } from '@/lib/infra/release-tag';
+
+const rootDir = path.resolve(__dirname, '../..');
 
 describe('Release and Rollback Tag Formatter', () => {
   describe('formatReleaseTag', () => {
@@ -67,6 +71,10 @@ describe('Release and Rollback Tag Formatter', () => {
     it('throws error if target ref is empty', () => {
       expect(() => formatRollbackTag('')).toThrow('Rollback reference cannot be empty');
       expect(() => formatRollbackTag('   ')).toThrow('Rollback reference cannot be empty');
+    });
+
+    it('keeps OCI rollback selection backed by a dedicated retained-release helper module', () => {
+      expect(fs.existsSync(path.join(rootDir, 'src/lib/infra/oci-web-release.ts'))).toBe(true);
     });
   });
 

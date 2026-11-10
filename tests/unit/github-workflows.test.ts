@@ -12,11 +12,25 @@ describe('GitHub Actions Workflows Suite', () => {
   };
 
   describe('Release PromptFM Workflow (release.yml)', () => {
-    it('exists and includes workflow_dispatch and promptfm/* tag trigger', () => {
+    it('exists, keeps the release tag triggers, and routes production deploys through the OCI web path', () => {
       const content = readWorkflow('release.yml');
       expect(content).toContain('workflow_dispatch:');
       expect(content).toContain('promptfm/*');
-      expect(content).toContain('npx vercel --prod');
+      expect(content).toContain('deploy-web-oci');
+      expect(content).not.toContain('npx vercel --prod');
+    });
+  });
+
+  describe('Deploy OCI Web Workflow (deploy-web-oci.yml)', () => {
+    it('exists as a reusable workflow and owns build, health gate, cutover, and release retention steps', () => {
+      const content = readWorkflow('deploy-web-oci.yml');
+      expect(content).toContain('workflow_call:');
+      expect(content).toContain('workflow_dispatch:');
+      expect(content).toContain('docker buildx');
+      expect(content).toMatch(/linux\/amd64,linux\/arm64|linux\/arm64,linux\/amd64/);
+      expect(content).toContain('/api/healthz');
+      expect(content).toMatch(/cutover/i);
+      expect(content).toMatch(/retained[_ -]release|previous[_ -]release/i);
     });
   });
 
@@ -92,13 +106,16 @@ describe('GitHub Actions Workflows Suite', () => {
   });
 
   describe('Rollback Workflow (rollback.yml)', () => {
-    it('exists and creates promptfm/rollback-* tag from commit sha or tag', () => {
+    it('exists, creates promptfm/rollback-* tags, and restores a retained OCI release instead of redeploying Vercel', () => {
       const content = readWorkflow('rollback.yml');
       expect(content).toContain('name: ⏪ Rollback PromptFM');
       expect(content).toContain('rollback_ref:');
       expect(content).toContain('formatRollbackTag');
       expect(content).toContain('resolveGitHubToken');
-      expect(content).toContain('npx vercel --prod');
+      expect(content).toContain('deploy-web-oci');
+      expect(content).toMatch(/retained[_ -]release|previous[_ -]release/i);
+      expect(content).toContain('/api/healthz');
+      expect(content).not.toContain('npx vercel --prod');
     });
   });
 
@@ -240,4 +257,3 @@ describe('GitHub Actions Workflows Suite', () => {
     });
   });
 });
-

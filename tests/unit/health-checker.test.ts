@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import * as fs from 'fs';
+import * as path from 'path';
 import {
   checkSystemHealth,
   probeStreamEndpoint,
@@ -715,5 +717,10 @@ describe('System Health Checker & Status Monitoring', () => {
       (process.env as any).NODE_ENV = oldNodeEnv;
     });
   });
-});
 
+  describe('OCI deploy readiness contract', () => {
+    it('keeps deploy readiness separate from the full status report via the dedicated /api/healthz route', () => {
+      expect(fs.existsSync(path.resolve(__dirname, '../../src/app/api/healthz/route.ts'))).toBe(true);
+    });
+  });
+});

@@ -42,4 +42,30 @@ describe('Oracle maintenance cutover support', () => {
     expect(tasks).toContain('docker compose restart caddy');
     expect(tasks).toMatch(/when: caddy_conf is changed/);
   });
+
+  it('adds a dedicated webapp cutover template that can leave the previous release or maintenance page serving traffic', () => {
+    const webCaddyPath = path.join(rootDir, 'infra/ansible/roles/webapp/templates/Caddyfile.web.j2');
+    expect(fs.existsSync(webCaddyPath)).toBe(true);
+
+    if (!fs.existsSync(webCaddyPath)) {
+      return;
+    }
+
+    const webCaddy = fs.readFileSync(webCaddyPath, 'utf8');
+    expect(webCaddy).toMatch(/previous[_ -]release|retained[_ -]release/i);
+    expect(webCaddy).toMatch(/maintenance/i);
+  });
+
+  it('gates web cutover on a candidate health probe before switching live traffic', () => {
+    const webTasksPath = path.join(rootDir, 'infra/ansible/roles/webapp/tasks/main.yml');
+    expect(fs.existsSync(webTasksPath)).toBe(true);
+
+    if (!fs.existsSync(webTasksPath)) {
+      return;
+    }
+
+    const webTasks = fs.readFileSync(webTasksPath, 'utf8');
+    expect(webTasks).toContain('/api/healthz');
+    expect(webTasks).toMatch(/cutover|switch/i);
+  });
 });
