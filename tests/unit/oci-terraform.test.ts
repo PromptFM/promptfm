@@ -151,6 +151,7 @@ describe('Oracle Cloud streamer module (infra/terraform-oci)', () => {
       expect(sh).toContain('ssh_private_key');
       expect(sh).toContain('terraform -chdir=../terraform-oci output -raw public_ip');
       expect(sh).toContain('playbook-oci.yml');
+      expect(sh).toContain('env -u ANSIBLE_VAULT_PASSWORD_FILE ansible-playbook');
       expect(sh).toContain('trap');
       expect(sh).not.toMatch(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/);
     });

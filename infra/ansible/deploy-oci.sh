@@ -26,5 +26,5 @@ terraform -chdir=../terraform-oci init -input=false >/dev/null
 IP="$(terraform -chdir=../terraform-oci output -raw public_ip)"
 
 ANSIBLE_CONFIG="$PWD/ansible.cfg" ANSIBLE_HOST_KEY_CHECKING=False \
-  ansible-playbook playbook-oci.yml \
+  env -u ANSIBLE_VAULT_PASSWORD_FILE ansible-playbook playbook-oci.yml \
   -e "ansible_host=$IP" -e "ansible_ssh_private_key_file=$KEY" "$@"

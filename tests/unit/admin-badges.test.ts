@@ -21,10 +21,9 @@ describe('Admin Quick Navigation Badges in README.md', () => {
     expect(content).toMatch(/\[!\[.*DASHBOARDS_GCP.*\]\(.*\)\]\((https:\/\/console\.cloud\.google\.com\/monitoring\/dashboards[^)]+)\)/i);
   });
 
-  it('contains clickable badge for DASHBOARDS_VERCEL linking to Vercel Analytics / Dashboard', () => {
+  it('contains clickable badge for DASHBOARDS_ORACLE linking to Oracle Metrics Explorer', () => {
     const content = fs.readFileSync(readmePath, 'utf8');
-    // Must contain badge for DASHBOARDS_VERCEL
-    expect(content).toMatch(/\[!\[.*DASHBOARDS_VERCEL.*\]\(.*\)\]\((https:\/\/vercel\.com\/alextrifan\/promptfm[^)]+)\)/i);
+    expect(content).toMatch(/\[!\[.*DASHBOARDS_ORACLE.*\]\(.*\)\]\((https:\/\/cloud\.oracle\.com\/monitoring\/metrics-explorer[^)]+)\)/i);
   });
 
   it('contains clickable badge for TRACES_GCP linking to GCP Cloud Trace', () => {
@@ -33,35 +32,18 @@ describe('Admin Quick Navigation Badges in README.md', () => {
     expect(content).toMatch(/\[!\[.*TRACES_GCP.*\]\(.*\)\]\((https:\/\/console\.cloud\.google\.com\/traces[^)]+)\)/i);
   });
 
-  it('contains clickable badge for LOGS_VERCEL linking to Vercel Runtime Logs', () => {
+  it('documents the current Oracle-hosted maintenance restore state', () => {
     const content = fs.readFileSync(readmePath, 'utf8');
-    // Must contain badge for LOGS_VERCEL
-    expect(content).toMatch(/\[!\[.*LOGS_VERCEL.*\]\(.*\)\]\((https:\/\/vercel\.com\/alextrifan\/promptfm\/logs[^)]*)\)/i);
+    expect(content).toContain('Oracle-hosted maintenance page');
+    expect(content).toContain('stream.promptfm.live');
+    expect(content).toMatch(/OCI app migration|OCI deploy path/i);
   });
 
-  it('contains clickable badge for FLAGS_VERCEL linking to Vercel Feature Flags Console', () => {
+  it('documents Oracle $0 guardrails and quota enforcement', () => {
     const content = fs.readFileSync(readmePath, 'utf8');
-    // Must contain badge for FLAGS_VERCEL
-    expect(content).toMatch(/\[!\[.*FLAGS_VERCEL.*\]\(.*\)\]\((https:\/\/vercel\.com\/alextrifan\/promptfm\/flags[^)]*)\)/i);
-  });
-
-  it('contains Vercel Feature Flags entry in Operational Dashboards table and Admin Docs', () => {
-    const content = fs.readFileSync(readmePath, 'utf8');
-    expect(content).toContain('https://vercel.com/alextrifan/promptfm/flags');
-    expect(content).toMatch(/Vercel.*Flags/i);
-    expect(content).toMatch(/kill-switch|kill switch|feature flag/i);
-  });
-
-  it('contains clickable badge for SPEED_INSIGHTS_VERCEL linking to Vercel Speed Insights', () => {
-    const content = fs.readFileSync(readmePath, 'utf8');
-    expect(content).toMatch(/\[!\[.*SPEED_INSIGHTS.*\]\(.*\)\]\((https:\/\/vercel\.com\/alextrifan\/promptfm\/speed-insights[^)]*)\)/i);
-  });
-
-  it('contains Vercel Speed Insights entry in Operational Dashboards table', () => {
-    const content = fs.readFileSync(readmePath, 'utf8');
-    expect(content).toContain('https://vercel.com/alextrifan/promptfm/speed-insights');
-    expect(content).toMatch(/Speed Insights/i);
-    expect(content).toMatch(/Core Web Vitals|RUM/i);
+    expect(content).toContain('### $0 guardrails on Oracle');
+    expect(content).toContain('promptfm-always-free-only');
+    expect(content).toMatch(/quota policy/i);
   });
 
   it('contains Vercel Speed Insights quick link in Admin page', () => {
@@ -86,10 +68,10 @@ describe('Admin Quick Navigation Badges in README.md', () => {
     }
   });
 
-  it('contains resilient Production and Status badges without fragile shields.io parameters', () => {
+  it('contains resilient Production and System Status badges matching the current restore state', () => {
     const content = fs.readFileSync(readmePath, 'utf8');
     expect(content).toMatch(/\[!\[.*Production.*\]\(.*\)\]\(https:\/\/promptfm\.live\)/i);
-    expect(content).toMatch(/\[!\[.*Status.*\]\(.*\)\]\(https:\/\/promptfm\.live\/status\)/i);
+    expect(content).toContain('status-degraded.svg');
+    expect(content).toMatch(/\[!\[.*System Status.*\]\(.*\)\]\(https:\/\/github\.com\/PromptFM\/promptfm\/issues\/191\)/i);
   });
 });
-

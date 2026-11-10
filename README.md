@@ -1,8 +1,7 @@
 # 📻 PromptFM — 24/7 AI Music Radio & Creator Community
 
 [![Production](./public/badges/production.svg)](https://promptfm.live)
-[![Deployed on Vercel](./public/badges/deployed-on-vercel.svg)](https://vercel.com/alextrifan/promptfm)
-[![System Status](./public/badges/status-operational.svg)](https://promptfm.live/status)
+[![System Status](./public/badges/status-degraded.svg)](https://github.com/PromptFM/promptfm/issues/191)
 [![CI Quality & Security Gate](https://github.com/PromptFM/promptfm/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/PromptFM/promptfm/actions/workflows/ci.yml)
 [![Tests](./public/badges/tests.svg)](https://github.com/PromptFM/promptfm)
 [![Mutation Score](./public/badges/mutation.svg)](https://github.com/PromptFM/promptfm)
@@ -10,16 +9,16 @@
 [![Oracle Always Free](./public/badges/oracle-always-free.svg)](https://cloud.oracle.com/compute/instances?region=us-ashburn-1)
 [![Oracle Quota](./public/badges/oracle-quota-cap.svg)](https://cloud.oracle.com/quotas)
 [![LOGS](./public/badges/logs-cloud-logging.svg)](https://console.cloud.google.com/logs/query?project=promptfm-radio-1793623670)
-[![LOGS_VERCEL](./public/badges/logs-vercel.svg)](https://vercel.com/alextrifan/promptfm/logs)
-[![FLAGS_VERCEL](./public/badges/flags-vercel.svg)](https://vercel.com/alextrifan/promptfm/flags)
 [![DASHBOARDS_GCP](./public/badges/dashboards-gcp.svg)](https://console.cloud.google.com/monitoring/dashboards/builder/ce33f584-e48f-407a-b2e7-1d1fa9e990ff?project=promptfm-radio-1793623670)
 [![DASHBOARDS_ORACLE](./public/badges/dashboards-oracle.svg)](https://cloud.oracle.com/monitoring/metrics-explorer?region=us-ashburn-1)
-[![DASHBOARDS_VERCEL](./public/badges/dashboards-vercel.svg)](https://vercel.com/alextrifan/promptfm/analytics)
-[![SPEED_INSIGHTS_VERCEL](./public/badges/speed-insights-vercel.svg)](https://vercel.com/alextrifan/promptfm/speed-insights)
 [![TRACES_GCP](./public/badges/traces-gcp.svg)](https://console.cloud.google.com/traces/overview?project=promptfm-radio-1793623670)
 [![License](./public/badges/license.svg)](LICENSE)
 
 **PromptFM** is an autonomous 24/7 AI-generated music radio platform and community chart. Featuring **5 live theme stations** (including After Dark 18+ Explicit with statutory legal age verification), continuous uninterrupted **100% pure music rotation**, real-time listener voting, and direct MP3/M4A creator uploads with automatic ID3 metadata and album art extraction.
+
+The public web restore is currently an **Oracle-hosted maintenance page** on `promptfm.live` and `www.promptfm.live` while the full app, admin, APIs, and zero-downtime OCI deploy path are moved off the paused Vercel production route. The stream stays live at [`stream.promptfm.live`](https://stream.promptfm.live/stream.mp3).
+
+Right now the public domain only guarantees the Oracle maintenance landing page and the live audio stream. Full web routes such as `/admin`, `/status`, `/api/*`, `/api/mcp`, and the legal/info pages return when the OCI app migration is complete.
 
 ---
 
@@ -35,12 +34,8 @@ PromptFM is engineered to operate strictly within 100% zero-cost cloud tiers. Us
 | **GCP Cloud Monitoring** | [PromptFM 0-Cost Telemetry Dashboard](https://console.cloud.google.com/monitoring/dashboards/builder/ce33f584-e48f-407a-b2e7-1d1fa9e990ff?project=promptfm-radio-1793623670) | Gemini 3.5 Flash requests & quotas, Gemini 2.5 Flash TTS synthesis latencies, Cloud Storage operations, service uptime | **$0.00** (Free Tier) |
 | **GCP Cloud Logging** | [Cloud Logging Console](https://console.cloud.google.com/logs/query?project=promptfm-radio-1793623670) | Real-time VM streamer logs, Liquidsoap transitions, Icecast access/error logs, and structured JSON stdout | **$0.00** (50GB/mo Free) |
 | **GCP Cloud Trace** | [Cloud Trace Overview](https://console.cloud.google.com/traces/overview?project=promptfm-radio-1793623670) | Distributed W3C trace latency across API requests, TTS synthesis spans, and Supabase RPC calls | **$0.00** (Free Tier) |
-| **Vercel Web Analytics** | [Vercel Realtime Analytics](https://vercel.com/alextrifan/promptfm/analytics) | Live visitors online, real-time listener telemetry, page views, iOS Safari homescreen users, referral sources, Core Web Vitals | **$0.00** (Hobby Plan) |
-| **Vercel Speed Insights** | [Vercel Speed Insights](https://vercel.com/alextrifan/promptfm/speed-insights) | Real User Monitoring (RUM), Core Web Vitals (LCP, FID, CLS, INP, TTFB) by route and device score | **$0.00** (Included) |
-| **Vercel Runtime Logs** | [Vercel Function Logs](https://vercel.com/alextrifan/promptfm/logs) | Real-time edge and serverless execution logs, API route latencies, and streaming errors | **$0.00** (Included) |
-| **Vercel Feature Flags** | [Vercel Flags Console](https://vercel.com/alextrifan/promptfm/flags) | Real-time feature flags, emergency kill-switches, AI DJ monologue prompt experiments, and canary channel rollouts | **$0.00** (Included) |
 | **Google AI Studio** | [Gemini AI Studio Dashboard](https://aistudio.google.com) | Gemini API free key quota usage (15 RPM / 1,500 requests/day free allowance) under `Gemini Project` (`gen-lang-client-0217883943`) | **$0.00** |
-| **Station Manager Studio** | [promptfm.live/admin](https://promptfm.live/admin) | On-air queue curation, community submission moderation, Discord/Telegram batch requests, manual DJ voice drops, channel management | **$0.00** |
+| **Station Manager Studio** | `promptfm.live/admin` (returns with OCI app cutover) | On-air queue curation, community submission moderation, Discord/Telegram batch requests, manual DJ voice drops, channel management. Currently unavailable while the maintenance page is live. | **$0.00** |
 | **Icecast 2 Stream Admin** | [stream.promptfm.live:8000/admin](http://stream.promptfm.live:8000/admin/) | Direct Icecast mount points (`/stream.mp3`, `/cyberpunk.mp3`, `/chillout.mp3`, `/kids.mp3`, `/afterdark.mp3`), connected socket listeners, bitrate telemetry (served by the Oracle VM) | **$0.00** (Oracle Always Free) |
 | **Oracle Cloud Instances** | [Compute instances](https://cloud.oracle.com/compute/instances?region=us-ashburn-1) | Always Free streamer VM (AMD micro today, Arm A1 when capacity returns): state, shape, public IP | **$0.00 (Always Free)** |
 | **Oracle Metrics Explorer** | [Metrics Explorer](https://cloud.oracle.com/monitoring/metrics-explorer?region=us-ashburn-1) | Streamer CPU and memory (`oci_computeagent`) and outbound bytes (`oci_vcn` `VnicToNetworkBytes`) | **$0.00 (Always Free)** |
@@ -59,18 +54,16 @@ PromptFM is engineered to operate strictly within 100% zero-cost cloud tiers. Us
 
 Confirm the Oracle notification email once, or the two alerts won't arrive. Details: [docs/oracle-always-free-streamer.md](docs/oracle-always-free-streamer.md).
 
-### 🚩 Vercel Feature Flags & Real-Time Kill-Switches
-Station administrators can manage production feature flags, rollout canary channels, toggle experimental Gemini AI DJ prompts, or trigger emergency kill-switches instantly without deploying code or redeploying edge containers:
-- **Direct Admin Console**: [https://vercel.com/alextrifan/promptfm/flags](https://vercel.com/alextrifan/promptfm/flags)
-- **Instant Kill-Switches**: Instantly halt creator audio uploads, voting APIs, or live stream feeders during upstream provider outages with 0 latency.
-- **AI DJ Monologue Experimentation**: Dynamically route traffic between Gemini 3.5 Flash prompt variations to evaluate conversational pacing and engagement.
-- **Zero-Downtime Canary Channels**: Toggle access to experimental theme stations (e.g. Ambient Synthwave, Lo-Fi Study Beats) for select cohorts before general release.
+### 🌐 Current public web restore state
+- **`stream.promptfm.live`** is live on Oracle Cloud Always Free.
+- **`promptfm.live` and `www.promptfm.live`** are restored as a simple Oracle-hosted maintenance page so the public entrypoint stays up while the full app path moves off Vercel.
+- **Full app, admin, API, release, rollback, and observability migration** are still in progress on the OCI/GCP path.
 
 ---
 
 ## 🏗️ Architecture & Cloud Infrastructure
 
-PromptFM combines a **Next.js 14 App Router** frontend/API with an autonomous Always-Free Streamer VM and Supabase PostgreSQL backend. The stream moved from GCP (1 GB/month free outbound, too little for audio) to Oracle Cloud Always Free (about 10 TB/month outbound free) on 2026-11-09; the GCP VM is stopped ([details](docs/oracle-always-free-streamer.md)):
+PromptFM combines the main Next.js app codebase with an autonomous Oracle Always Free streamer host and Supabase PostgreSQL backend. The current public restore path is an Oracle-hosted maintenance page while the full app migration continues. The stream moved from GCP (1 GB/month free outbound, too little for audio) to Oracle Cloud Always Free (about 10 TB/month outbound free) on 2026-11-09; the GCP VM is stopped ([details](docs/oracle-always-free-streamer.md)):
 
 ```
                                 [Listener Web / iPhone PWA]
@@ -79,21 +72,21 @@ PromptFM combines a **Next.js 14 App Router** frontend/API with an autonomous Al
                        │                                           │
                        ▼ HTTPS (Port 443)                          ▼ HTTPS
           ┌───────────────────────────┐               ┌───────────────────────────┐
-          │   stream.promptfm.live    │               │       promptfm.live       │
-          │ (Oracle Always Free)     │               │   (Vercel Edge Network)   │
+          │   stream.promptfm.live    │               │ promptfm.live / www       │
+          │ (Oracle Always Free)      │               │ (Oracle maintenance page) │
           └─────────────┬─────────────┘               └─────────────┬─────────────┘
                         │                                           │
-         ┌──────────────┴──────────────┐             ┌──────────────┴──────────────┐
-         │ Caddy 2 Reverse Proxy (SSL) │             │ Next.js 14 Serverless APIs  │
-         │  ├── Icecast 2.4.4 Server   │             │  ├── /api/radio/now         │
-         │  └── Liquidsoap 2.2.5 Cross ├──Queries───►│  ├── /api/radio/next        │
-         └─────────────────────────────┘   Stream    │  └── /api/admin/*           │
-                                                     └──────────────┬──────────────┘
-                                                                    │
-                                                     ┌──────────────┴──────────────┐
-                                                     │  Gemini 3.5 & 2.5 Flash TTS │
-                                                     │  Supabase DB & Cloudflare R2│
-                                                     └─────────────────────────────┘
+         ┌──────────────┴───────────────────────────────────────────┴──────────────┐
+         │                    Oracle VM: Caddy + Icecast + Liquidsoap               │
+         │                                                                          │
+         │  - `stream.promptfm.live` -> Icecast / Liquidsoap                        │
+         │  - `promptfm.live`, `www.promptfm.live` -> static maintenance page       │
+         └──────────────────────────────────────┬───────────────────────────────────┘
+                                                │
+                                 ┌──────────────┴──────────────┐
+                                 │  Gemini 3.5 & 2.5 Flash TTS │
+                                 │  Supabase DB & Cloudflare R2│
+                                 └─────────────────────────────┘
 ```
 
 ---
@@ -159,7 +152,7 @@ make deploy
 
 ### 5. Google AdSense & IAB `ads.txt`
 - Verified publisher ID `ca-pub-7299057534028491`.
-- Live IAB-compliant `ads.txt` route at [`https://promptfm.live/ads.txt`](https://promptfm.live/ads.txt) generated by [`src/lib/ads/adsense.ts`](src/lib/ads/adsense.ts) (**90.48% Stryker score**).
+- The `ads.txt` route at [`https://promptfm.live/ads.txt`](https://promptfm.live/ads.txt) is generated by [`src/lib/ads/adsense.ts`](src/lib/ads/adsense.ts) (**90.48% Stryker score**) and returns with the full OCI app cutover.
 - Non-intrusive, dark-mode responsive AdSense display units.
 
 ---
@@ -255,6 +248,7 @@ NEXT_PUBLIC_ADSENSE_CLIENT_ID="ca-pub-7299057534028491"
 
 ## 📜 Legal & Compliance
 
+These public routes are part of the full app path and return after the OCI cutover completes:
 - **Copyright & DMCA:** [`https://promptfm.live/copyright`](https://promptfm.live/copyright) & [`/dmca`](https://promptfm.live/dmca)
 - **Privacy Policy:** [`https://promptfm.live/privacy`](https://promptfm.live/privacy)
 - **Terms of Service:** [`https://promptfm.live/terms`](https://promptfm.live/terms)
@@ -299,10 +293,10 @@ PromptFM routes tracks strictly based on station guardrails and parental control
 
 ## 💬 Discord Bot & Interactions Webhook Integration Guide
 
-PromptFM supports native Discord Application Slash Commands and Button Interactions through a single serverless endpoint at `https://promptfm.live/api/bot/webhook`.
+PromptFM supports native Discord Application Slash Commands and Button Interactions through a single serverless endpoint at `https://promptfm.live/api/bot/webhook` once the full web app is restored. While the Oracle maintenance page is live, this public webhook route is unavailable.
 
 ### How to Connect Discord:
-1. **Discord Developer Portal:**
+1. **Discord Developer Portal (after full app restore):**
    - Go to [discord.com/developers/applications](https://discord.com/developers/applications) and select your Application.
    - In **General Information**, find **"Interactions Endpoint URL"**.
    - Enter `https://promptfm.live/api/bot/webhook` and click **Save Changes**.
@@ -340,8 +334,8 @@ npm run promptfm -- x post "Tune in live on PromptFM: DJ Neon is spinning the we
 npm run promptfm -- broadcast "Live broadcast update: Fresh AI synth tracks added!" --x
 ```
 
-### 2. Web Studio Admin Console (`/admin`)
-- Navigate to **`https://promptfm.live/admin`** -> click the **Social Broadcast (X / Discord / Telegram)** tab.
+### 2. Web Studio Admin Console (`/admin`, returns with the full app restore)
+- When the full app is back, navigate to **`https://promptfm.live/admin`** -> click the **Social Broadcast (X / Discord / Telegram)** tab.
 - Compose your message with a real-time 280-character countdown for X.
 - Toggle destinations: `[x] X (Twitter)`, `[x] Discord`, `[x] Telegram`.
 - Click **"Post Broadcast to Selected Networks"**.
@@ -365,18 +359,18 @@ AI agents (Cursor, Claude Desktop, Antigravity, Windsurf) can publish broadcasts
 > **Zero-Cost & Dev Fallback Mode:** When X API credentials (`X_API_KEY`, `X_ACCESS_TOKEN`, or `X_BEARER_TOKEN`) are not yet present in `.env.local`, PromptFM automatically provides a clean simulated log (`[X:DevFallback]`), allowing full end-to-end testing with $0 cloud cost. Simply add your keys to go live on production!
 
 ### 3. Station Gatekeeper Review
-All community submissions via `/submit` are saved with `status: 'pending'`. They never enter the active radio airplay rotation until a station admin reviews the audio preview, ID3 metadata, embedded lyrics, and AI safety badges in `/admin` and clicks **Approve for Airplay**.
+All community submissions via `/submit` are saved with `status: 'pending'`. They never enter the active radio airplay rotation until a station admin reviews the audio preview, ID3 metadata, embedded lyrics, and AI safety badges in the admin UI and clicks **Approve for Airplay**.
 
 ---
 
 ## 🤖 Model Context Protocol (MCP) & Community Bridges
 
-PromptFM exposes a streamable **Model Context Protocol (MCP)** server at [`https://promptfm.live/api/mcp`](https://promptfm.live/api/mcp) supporting both Public Listener Mode and Station Admin Mode.
+PromptFM exposes a streamable **Model Context Protocol (MCP)** server at [`https://promptfm.live/api/mcp`](https://promptfm.live/api/mcp) as part of the full app path. That endpoint is currently unavailable while `promptfm.live` serves the Oracle maintenance page.
 
 - **Infrastructure overview (diagram, who does what, runbook, alert emails):** [`docs/infra-overview.md`](docs/infra-overview.md).
-- **$0 Policy (Google Cloud, Vercel, Oracle):** [`docs/zero-cost-policy.md`](docs/zero-cost-policy.md) (what stops spending, what only alerts, and what to do when an alert fires).
+- **$0 Policy (Google Cloud, Oracle, GitHub Actions):** [`docs/zero-cost-policy.md`](docs/zero-cost-policy.md) (what stops spending, what only alerts, and what to do when an alert fires).
 - **Listener Commands & Schedule Guide:** [`docs/listener-guide.md`](docs/listener-guide.md) (Discord & Telegram prompts, clock wheels, and queueing).
-- **MCP Integration Guide:** [`docs/mcp-integration-guide.md`](file:///Users/trifan/DEVELOPMENT/promptfm/docs/mcp-integration-guide.md) (Claude Desktop, Cursor, Antigravity, Windsurf).
+- **MCP Integration Guide:** [`docs/mcp-integration-guide.md`](docs/mcp-integration-guide.md) (Claude Desktop, Cursor, Antigravity, Windsurf).
 - **Public Tools:** Natural language vibe search (`promptfm_search_tracks_by_vibe`), chart rankings, live DJ status, song requests, and safety reporting.
 - **Admin Tools (`ADMIN_API_KEY`):** Moderation review, voice drop generation, live broadcast alerts, sponsor injection, and channel provisioning.
 - **Discord Community:** [`https://discord.gg/promptfm`](https://discord.gg/promptfm) (Now Playing updates, live DJ transcripts, 1-click voting).
@@ -395,18 +389,18 @@ PromptFM welcomes open community development, bug fixes, and feature proposals!
 - **Licensing:** Governed by the [`PromptFM Community Source-Available License (Version 1.0)`](LICENSE). You may inspect, fork, test, and contribute pull requests. You may **not** copy, extract, resell, or host competing radio/streaming clones.
 - **Review Board:** All pull requests require review and approval from the Board (**@atrifan**).
 - **GitHub Organization:** Community development is hosted under the `promptfm` organization.
-- **Tag-Triggered Deployments:** To protect our $0 infrastructure budget and prevent burning Vercel Fluid Active CPU, routine merges to `main` run CI quality checks but do NOT auto-deploy to production. Production deployments are triggered exclusively via release tags (`promptfm/<version>` or `v*.*.*`) targeting the `production` environment on Vercel. Documentation updates deploy via `gh-pages/<version>` to GitHub Pages.
+- **Production Deployments:** Routine merges to `main` still run CI quality checks only. The public restore currently uses the Oracle maintenance page, and the full OCI release and rollback path is still being moved off Vercel. Documentation updates still deploy via `gh-pages/<version>` to GitHub Pages.
 - **Security & Secret Sharing:** Never post secrets or API keys in PRs or issues. For new environment variables, use ephemeral links ([Password Pusher](https://pwpush.com)) shared directly with @atrifan.
 
 ---
 
 ## 🩺 System Status & Health Telemetry
 
-PromptFM features real-time operational health checks probing all 5 core station systems:
-- **Live Status Webpage:** [`https://promptfm.live/status`](https://promptfm.live/status) — Interactive status dashboard with real-time response latency metrics (ms) and 30-day uptime percentage.
-- **Health Check JSON API:** `GET https://promptfm.live/api/status` — Returns machine-readable JSON status report (`operational`, `degraded`, `outage`) with edge-caching (`s-maxage=10`).
-- **Dynamic Shields.io Badge:** `GET https://promptfm.live/api/status?format=badge` — Generates a live SVG badge for GitHub readmes and external dashboards.
-- **Automated Uptime Actions:** [`.github/workflows/uptime.yml`](.github/workflows/uptime.yml) executes a 30-minute health probe workflow completely free on the GitHub Actions public repository tier.
+Current public status during the Oracle maintenance-page restore:
+- **Live public entrypoint:** [`https://www.promptfm.live`](https://www.promptfm.live) — Oracle-hosted maintenance page.
+- **Live audio stream:** [`https://stream.promptfm.live/stream.mp3`](https://stream.promptfm.live/stream.mp3).
+- **Operator telemetry:** Oracle Metrics Explorer, GCP Cloud Logging, GCP Trace, and GitHub Actions checks linked above.
+- **Planned return with full app cutover:** `/status`, `/api/status`, and the dynamic status badge.
 
 ---
 
@@ -417,7 +411,7 @@ PromptFM is an independent project. To maintain 100% legal compliance and operat
 | Allocation | Percentage | Purpose |
 | :--- | :--- | :--- |
 | **Radio & Music Royalties** | **35%** | Statutory licensing fees (ASCAP, BMI, SESAC, SoundExchange / StreamLicensing) to legally broadcast commercial licensed tracks alongside AI-generated music. |
-| **Cloud & Audio Streaming** | **25%** | 24/7 continuous Icecast audio streaming servers, GCP Cloud Run compute, audio object storage, and Vercel edge delivery. |
+| **Cloud & Audio Streaming** | **25%** | 24/7 continuous Icecast audio streaming, the Oracle-hosted public web restore path, GCP-backed services, and audio object storage. |
 | **Generative AI & Voice Compute** | **20%** | Gemini 1.5/2.0 API prompt tokens for real-time DJ banter scripting, weather/news synthesizers, and neural TTS voice generation credits. |
 | **Engineering & Development** | **15%** | Dedicated development time maintaining audio pipelines, listener bots, Discord & Telegram bridges, and mobile apps. |
 | **Maintainer Fuel (Coffee)** | **5%** | Espresso and coffee powering late-night bug triage, production monitoring, and community support. |
@@ -436,7 +430,6 @@ PromptFM is an independent project. To maintain 100% legal compliance and operat
 
 PromptFM maximizes observability without incurring third-party SaaS fees (no Datadog or Splunk bills):
 - **Google Cloud Logging (50 GB/month FREE):** Ingests single-line JSON logs emitted to stdout/stderr. Automatically indexes `severity`, `logging.googleapis.com/trace`, `httpRequest`, and `serviceContext` attributes.
-- **Vercel Runtime Logs ($0 Hobby / Pro):** Streams real-time function execution logs in the Vercel dashboard. Parsed as structured JSON attributes directly from stdout.
 - **W3C Distributed Tracing:** All incoming requests are assigned or inherit a 32-hex `traceId` and 16-hex `spanId` (via `traceparent`, `x-request-id`, or `x-cloud-trace-context`). Propagated across Next.js APIs, Icecast streamer, and AI generation calls for instant end-to-end trace correlation.
 - **Isomorphic Logger:** Accessible via [`src/lib/telemetry/logger.ts`](src/lib/telemetry/logger.ts) supporting `logger.info()`, `logger.warn()`, `logger.error()`, and contextual child loggers `logger.child({ traceId, component })`.
 
@@ -445,14 +438,8 @@ PromptFM maximizes observability without incurring third-party SaaS fees (no Dat
 ## 🚀 Zero-Friction Release Automation & Tag-Based Deployment Gate
 
 To eliminate release bottlenecks and protect our free-tier compute budget:
-1. **Protected $0 Budget Policy:** Merges to `main` run CI verification (Vitest, Typecheck, Lint, Security) but do NOT auto-deploy to Vercel production. This preserves Vercel's included 4 hours/month Fluid Active CPU.
-2. **Pre-Build Ignore Hook (`scripts/vercel-budget-gate.js`):** Enforces Vercel's `ignoreCommand` to cancel untagged `main` builds in 2–3s with exit code `0` (0 active CPU seconds consumed).
-3. **Automated Production Release Tags:** Pushing a semantic release tag (e.g. `git tag promptfm/v1.0.0 && git push origin promptfm/v1.0.0` or `v1.0.0`) triggers [`.github/workflows/release.yml`](.github/workflows/release.yml).
-4. **Vercel Deploy Hook Integration:** Tag releases trigger Vercel's production deployment using the `promptfm-release` deploy hook (stored securely in GitHub Actions as `VERCEL_DEPLOY_HOOK`).
-5. **GitHub Deployment Status (Checkmark!):** The workflow packages the release, executes the quality gate (Vitest + Typecheck), triggers/verifies Vercel production deployment, and stamps the Git tag with an official green checkmark (`Environment: production – Active`).
-6. **Documentation Releases:** Pushing a `gh-pages/<version>` tag (e.g. `gh-pages/v1.0.0`) deploys the documentation portal to GitHub Pages via [`.github/workflows/pages.yml`](.github/workflows/pages.yml).
-7. **Automated Changelog:** GitHub Release notes are automatically generated from commit history with zero manual release drafting friction.
-8. **Operational Runbook:** See [Station Admin Guide — Section E](docs/admin-guide.md#e-tag-based-release-operations-runbook-issue-123) for deploy hook CLI management and emergency override procedures.
-
-
-
+1. **Protected $0 Budget Policy:** Merges to `main` run CI verification (Vitest, Typecheck, Lint, Security) but do not auto-deploy the public site.
+2. **Oracle Restore First:** The current public entrypoint is the Oracle-hosted maintenance page, with the streamer kept safe in standby-aware workflows.
+3. **OCI Release Path In Progress:** The full app release, rollback, secret, observability, and docs migration is being moved off Vercel onto the OCI/GCP path.
+4. **Documentation Releases:** Pushing a `gh-pages/<version>` tag (e.g. `gh-pages/v1.0.0`) deploys the documentation portal to GitHub Pages via [`.github/workflows/pages.yml`](.github/workflows/pages.yml).
+5. **Automated Changelog:** GitHub Release notes are automatically generated from commit history with zero manual release drafting friction.
