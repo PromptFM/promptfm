@@ -6,7 +6,6 @@
       - docker.io
       - docker-compose-v2
       - curl
-      - caddy
     state: present
     update_cache: yes
 
@@ -16,17 +15,23 @@
     state: started
     enabled: yes
 
-- name: Ensure Caddy service is running and enabled
+- name: Gather service facts so Oracle web cutover can avoid conflicting system edge proxies
+  service_facts:
+
+- name: Stop and disable system Caddy when present on Oracle
   systemd:
     name: caddy
-    state: started
-    enabled: yes
+    state: stopped
+    enabled: no
+  when: "'caddy.service' in ansible_facts.services"
 
 - name: Resolve web release directories for candidate-first deploys
   set_fact:
     promptfm_web_root: "{{ app_dir | default('/opt/promptfm/web') }}"
     promptfm_web_releases_dir: "{{ (app_dir | default('/opt/promptfm/web')) ~ '/releases' }}"
     promptfm_web_shared_dir: "{{ (app_dir | default('/opt/promptfm/web')) ~ '/shared' }}"
+    promptfm_streamer_app_dir: "{{ promptfm_streamer_app_dir | default('/opt/promptfm/streamer') }}"
+    promptfm_streamer_docker_network: "{{ promptfm_streamer_docker_network | default((promptfm_streamer_app_dir | default('/opt/promptfm/streamer') | basename) ~ '_default') }}"
     promptfm_web_release_id: "{{ promptfm_web_release_id | default(lookup('env', 'PROMPTFM_WEB_RELEASE_ID') | default('candidate', true), true) }}"
     promptfm_web_candidate_port: "{{ promptfm_web_candidate_port | default(3001) }}"
     promptfm_web_live_port: "{{ promptfm_web_live_port | default(3000) }}"
@@ -56,6 +61,43 @@
     - "{{ promptfm_web_shared_dir }}"
     - "{{ promptfm_web_shared_dir }}/maintenance"
     - "{{ promptfm_web_releases_dir }}/{{ promptfm_web_release_id }}"
+
+- name: Verify the shared Oracle edge-proxy compose file exists before web cutover
+  stat:
+    path: "{{ promptfm_streamer_app_dir }}/docker-compose.yml"
+  register: promptfm_streamer_compose
+
+- name: Fail when the Oracle streamer edge proxy is not installed yet
+  fail:
+    msg: >-
+      Expected the Oracle streamer edge proxy at {{ promptfm_streamer_app_dir }}/docker-compose.yml
+      before running the OCI web cutover workflow.
+  when: not (promptfm_streamer_compose.stat.exists | default(false))
+
+- name: Verify the shared Oracle edge Docker network exists for web cutover
+  command:
+    argv:
+      - docker
+      - network
+      - inspect
+      - "{{ promptfm_streamer_docker_network }}"
+  changed_when: false
+
+- name: Ensure the Dockerized Oracle edge proxy has the maintenance page available for web fallback
+  file:
+    path: "{{ promptfm_streamer_app_dir }}/maintenance"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+
+- name: Copy the maintenance page into the Oracle edge-proxy app directory
+  copy:
+    src: "{{ playbook_dir }}/roles/streamer/files/maintenance/index.html"
+    dest: "{{ promptfm_streamer_app_dir }}/maintenance/index.html"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
 
 - name: Check whether a current release is already serving traffic
   stat:
@@ -208,10 +250,10 @@
 
 - name: Record live and previous release upstreams for safe cutover
   set_fact:
-    promptfm_web_live_upstream: "127.0.0.1:{{ promptfm_web_release_host_port }}"
+    promptfm_web_live_upstream: "promptfm-web-{{ promptfm_web_release_id }}:{{ promptfm_web_container_port }}"
     promptfm_web_previous_release_upstream: >-
       {{
-        '127.0.0.1:' ~ (promptfm_web_current_release_port | string)
+        'promptfm-web-' ~ (promptfm_web_current_release_target.stdout | basename) ~ ':' ~ (promptfm_web_container_port | string)
         if promptfm_web_current_release_link.stat.exists | default(false)
         else ''
       }}
@@ -243,15 +285,15 @@
   register: promptfm_web_caddy_conf
   template:
     src: Caddyfile.web.j2
-    dest: /etc/caddy/Caddyfile
-    owner: root
-    group: root
+    dest: "{{ promptfm_streamer_app_dir }}/Caddyfile"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
     mode: '0644'
 
-- name: Reload Caddy after web cutover switch
-  systemd:
-    name: caddy
-    state: reloaded
+- name: Restart the Dockerized Oracle edge proxy after web cutover switch
+  command: docker compose restart caddy
+  args:
+    chdir: "{{ promptfm_streamer_app_dir }}"
   when: promptfm_web_caddy_conf is changed
 
 - name: Discover OCI web release directories after cutover

@@ -55,6 +55,9 @@ describe('Oracle maintenance cutover support', () => {
     expect(webCaddy).toMatch(/previous[_ -]release|retained[_ -]release/i);
     expect(webCaddy).toMatch(/maintenance/i);
     expect(webCaddy).toContain('@previous_failed');
+    expect(webCaddy).toContain('/srv/maintenance');
+    expect(webCaddy).toContain('stream.promptfm.live');
+    expect(webCaddy).toContain('reverse_proxy icecast:8000');
   });
 
   it('gates web cutover on a candidate health probe before switching live traffic', () => {
@@ -94,9 +97,14 @@ describe('Oracle maintenance cutover support', () => {
     expect(webTasks).toContain('Stop the older retained previous release before reusing the inactive slot');
     expect(webTasks).toContain('promptfm_web_current_release_port');
     expect(webTasks).toContain('promptfm_web_release_host_port');
-    expect(webTasks).toContain("'127.0.0.1:' ~ (promptfm_web_current_release_port | string)");
+    expect(webTasks).toContain('promptfm_streamer_docker_network');
+    expect(webTasks).toContain('docker compose restart caddy');
+    expect(webTasks).not.toContain('Ensure Caddy service is running and enabled');
     expect(webCompose).toContain('127.0.0.1:{{ promptfm_web_release_host_port }}:{{ promptfm_web_container_port }}');
+    expect(webCompose).toContain('name: {{ promptfm_streamer_docker_network }}');
     expect(webCaddy).toContain('reverse_proxy {{ promptfm_web_live_upstream }}');
     expect(webCaddy).toContain('reverse_proxy {{ promptfm_web_previous_release_upstream }}');
+    expect(webCaddy).toContain('stream.promptfm.live');
+    expect(webCaddy).toContain('reverse_proxy icecast:8000');
   });
 });

@@ -11,3 +11,10 @@ services:
       PORT: "{{ promptfm_web_container_port }}"
     ports:
       - "127.0.0.1:{{ promptfm_web_release_host_port }}:{{ promptfm_web_container_port }}"
+    networks:
+      - oracle_edge
+
+networks:
+  oracle_edge:
+    external: true
+    name: {{ promptfm_streamer_docker_network }}

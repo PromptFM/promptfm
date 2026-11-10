@@ -21,12 +21,15 @@ describe('OCI web deploy and cutover path', () => {
     expect(tasks).toMatch(/candidate/i);
     expect(tasks).toContain('/api/healthz');
     expect(tasks).toMatch(/cutover|switch/i);
+    expect(tasks).toContain('docker compose restart caddy');
+    expect(tasks).not.toContain('Ensure Caddy service is running and enabled');
   });
 
   it('keeps a retained previous release or maintenance fallback available if the candidate fails', () => {
     const caddyfile = mustRead('infra/ansible/roles/webapp/templates/Caddyfile.web.j2');
     expect(caddyfile).toMatch(/previous[_ -]release|retained[_ -]release/i);
     expect(caddyfile).toMatch(/maintenance/i);
+    expect(caddyfile).toContain('/srv/maintenance');
   });
 
   it('rotates between distinct live and candidate host ports so current and previous releases can coexist', () => {
@@ -40,10 +43,16 @@ describe('OCI web deploy and cutover path', () => {
     expect(tasks).toContain('Stop the older retained previous release before reusing the inactive slot');
     expect(tasks).toContain('promptfm_web_release_host_port');
     expect(tasks).toContain('promptfm_web_current_release_port');
-    expect(tasks).toContain("'127.0.0.1:' ~ (promptfm_web_current_release_port | string)");
+    expect(tasks).toContain('promptfm_streamer_docker_network');
+    expect(tasks).toContain('promptfm_streamer_app_dir');
+    expect(tasks).toContain("'promptfm-web-' ~ (promptfm_web_current_release_target.stdout | basename)");
     expect(compose).toContain('127.0.0.1:{{ promptfm_web_release_host_port }}:{{ promptfm_web_container_port }}');
+    expect(compose).toContain('external: true');
+    expect(compose).toContain('name: {{ promptfm_streamer_docker_network }}');
     expect(caddyfile).toContain('reverse_proxy {{ promptfm_web_live_upstream }}');
     expect(caddyfile).toContain('reverse_proxy {{ promptfm_web_previous_release_upstream }}');
+    expect(caddyfile).toContain('stream.promptfm.live');
+    expect(caddyfile).toContain('reverse_proxy icecast:8000');
 
     const livePort = '3000';
     const candidatePort = '3001';
