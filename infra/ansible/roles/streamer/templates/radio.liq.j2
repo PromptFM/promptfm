@@ -1,0 +1,69 @@
+{% set promptfm_api_origin = promptfm_api_url | default('http://promptfm-web.internal:3000', true) | trim | regex_replace('/+$', '') %}
+# /etc/liquidsoap/radio.liq
+# PromptFM 24/7 Dynamic Radio Stream Engine
+# Connects to PromptFM /api/radio/next to query upcoming tracks and DJ drops,
+# downloads R2/Supabase MP3s, crossfades, and streams 128 kbps MP3 to Icecast.
+# Synchronizes track transitions via native HTTP requests and ICY metadata.
+
+# Settings
+settings.log.stdout.set(true)
+settings.log.level.set(3)
+
+# 1. On-Air Transition Hook: Notifies PromptFM when each track airs
+def on_airplay_start(meta) =
+  let item_id = meta["promptfm_id"]
+  let title = meta["title"]
+  let artist = meta["artist"]
+  print(">>> [AIRPLAY TRANSITION] #{title} by #{artist} (ID: #{item_id})")
+  if item_id != "" then
+    try
+      ignore(http.get("{{ promptfm_api_origin }}/api/radio/started?channel=main&item_id=" ^ item_id))
+    catch _ do
+      ()
+    end
+  end
+end
+
+# 2. Fallback ambient audio loop in case of API or network disconnect
+emergency_fallback = mksafe(single("annotate:title=\"PromptFM Ambient AI Anthem\",artist=\"PromptFM Core\",promptfm_id=\"demo-fallback\":/etc/liquidsoap/fallback.mp3"))
+
+# 3. Dynamic track fetcher from PromptFM API with annotate metadata
+def get_next_promptfm_track() =
+  result = try
+    http.get("{{ promptfm_api_origin }}/api/radio/next?format=annotate")
+  catch _ do
+    ""
+  end
+  uri = string.trim(result)
+  target = if uri == "" then
+    "annotate:title=\"PromptFM Ambient AI Anthem\",artist=\"PromptFM Core\",promptfm_id=\"demo-fallback\":/etc/liquidsoap/fallback.mp3"
+  else
+    uri
+  end
+  request.create(target)
+end
+
+# Request dynamic stream with crossfade
+dynamic_stream = request.dynamic(get_next_promptfm_track)
+
+# 4. Crossfade between tracks (1.5s smooth transition)
+stream = crossfade(duration=1.5, dynamic_stream)
+
+# Fallback safely if dynamic stream fails, and attach on_track to final on-air broadcast
+radio = fallback(track_sensitive=false, [stream, emergency_fallback])
+radio = source.on_track(radio, on_airplay_start)
+
+# 5. Stream to Icecast with explicit UTF-8 metadata encoding
+output.icecast(
+  %mp3(bitrate=128, samplerate=44100),
+  host="icecast",
+  port=8000,
+  password="promptfm_source_2026",
+  mount="/stream.mp3",
+  encoding="UTF-8",
+  name="PromptFM — 24/7 AI Generated Music Radio",
+  description="Continuous generative beats, AI DJ monologues, and community-curated music.",
+  url="https://promptfm.live",
+  genre="AI Music / Electronic / Ambient",
+  radio
+)

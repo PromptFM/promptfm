@@ -5,6 +5,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET } from '@/app/api/radio/next/route';
 import * as rotation from '@/lib/dj/rotation';
+import * as fs from 'fs';
+import * as path from 'path';
 
 describe('GET /api/radio/next API Integration', () => {
   const mockTrack: rotation.AirplayItem = {
@@ -87,5 +89,15 @@ describe('GET /api/radio/next API Integration', () => {
     expect(res.status).toBe(500);
     const json = await res.json();
     expect(json.error).toBe('Rotation failed');
+  });
+
+  it('keeps the Liquidsoap next-track callback origin configurable instead of hard-coding the public apex', () => {
+    const liq = fs.readFileSync(
+      path.resolve(__dirname, '../../infra/ansible/roles/streamer/templates/radio.liq.j2'),
+      'utf8',
+    );
+
+    expect(liq).not.toContain('https://promptfm.live/api/radio/next');
+    expect(liq).toMatch(/promptfm_api_url|PROMPTFM_API_URL|\{\{ .*promptfm_api_url.* \}\}/);
   });
 });

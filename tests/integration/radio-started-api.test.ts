@@ -4,6 +4,8 @@ import { NextRequest } from 'next/server';
 import { POST, GET } from '@/app/api/radio/started/route';
 import { broadcastToCommunity } from '@/lib/chat/bridge';
 import { resetAirplayDedupeCache } from '@/lib/dj/rotation';
+import * as fs from 'fs';
+import * as path from 'path';
 
 vi.mock('@/lib/supabase/server', () => {
   const createChain = () => {
@@ -164,5 +166,15 @@ describe('Liquidsoap /api/radio/started API Endpoint', () => {
     const res = await POST(req);
     expect(res.status).toBe(200);
     expect(broadcastToCommunity).not.toHaveBeenCalled();
+  });
+
+  it('keeps the on-air started callback origin configurable instead of hard-coding the public apex', () => {
+    const liq = fs.readFileSync(
+      path.resolve(__dirname, '../../infra/ansible/roles/streamer/templates/radio.liq.j2'),
+      'utf8',
+    );
+
+    expect(liq).not.toContain('https://promptfm.live/api/radio/started');
+    expect(liq).toMatch(/promptfm_api_url|PROMPTFM_API_URL|\{\{ .*promptfm_api_url.* \}\}/);
   });
 });
