@@ -401,20 +401,7 @@ jobs:
 
           if [ -z "${NEXT_PUBLIC_SUPABASE_URL:-}" ] || [[ "${NEXT_PUBLIC_SUPABASE_URL}" == "[SENSITIVE"* ]] || [[ "${NEXT_PUBLIC_SUPABASE_URL}" == placeholder* ]]; then
             DATABASE_URL="$(gcloud secrets versions access latest --secret=promptfm-database-url --project=promptfm-radio-1793623670)"
-            NEXT_PUBLIC_SUPABASE_URL="$(python3 - "$DATABASE_URL" <<'PY'
-import sys, urllib.parse
-
-database_url = sys.argv[1]
-parsed = urllib.parse.urlparse(database_url)
-username = urllib.parse.unquote(parsed.username or '')
-project_ref = username.split('.', 1)[1] if username.startswith('postgres.') else ''
-
-if not project_ref:
-    raise SystemExit('Could not derive Supabase project ref from promptfm-database-url')
-
-print(f'https://{project_ref}.supabase.co')
-PY
-            )"
+            NEXT_PUBLIC_SUPABASE_URL="$(printf '%s\n' "$DATABASE_URL" | sed -E 's#^[^:]+://postgres\.([^:]+):.*#https://\1.supabase.co#')"
           fi
 
           if [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ] || [[ "${SUPABASE_SERVICE_ROLE_KEY}" == "[SENSITIVE"* ]]; then
