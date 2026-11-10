@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "docker:web:buildx": "docker buildx build --platform linux/amd64,linux/arm64 -f Dockerfile.web --tag promptfm-web:local .",
+    "docker:web:push": "docker buildx build --platform linux/amd64,linux/arm64 -f Dockerfile.web --push --tag ${PROMPTFM_WEB_IMAGE:-ghcr.io/promptfm/promptfm-web}:${PROMPTFM_WEB_TAG:-latest} .",
     "start": "next start",
     "lint": "eslint .",
     "lint:sql": "jiti scripts/lint-sql.ts",
