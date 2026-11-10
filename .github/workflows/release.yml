@@ -176,6 +176,7 @@ jobs:
           echo "- **Release ref:** \`${{ needs.prepare-release.outputs.release_ref }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Image:** \`${{ needs.deploy-web-oci.outputs.image_ref }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Image digest:** \`${{ needs.deploy-web-oci.outputs.image_digest }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Free-tier gate:** \`${{ needs.deploy-web-oci.outputs.free_tier_gate }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Candidate health gate:** \`${{ needs.deploy-web-oci.outputs.healthz_url }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Cutover result:** \`${{ needs.deploy-web-oci.outputs.deploy_result }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Retained previous release:** \`${{ needs.deploy-web-oci.outputs.previous_release }}\`" >> "$GITHUB_STEP_SUMMARY"

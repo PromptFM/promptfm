@@ -7,7 +7,7 @@ import {
   normalizeRetainedReleaseCount,
   planRetainedReleasePrune,
   type OCIWebReleaseRecord,
-} from '../../src/lib/infra/oci-web-release';
+} from '@/lib/infra/oci-web-release';
 
 describe('OCI web release retention helper', () => {
   const rootDir = path.resolve(__dirname, '../..');
@@ -37,6 +37,63 @@ describe('OCI web release retention helper', () => {
     expect(content).toMatch(/current.*release|release.*current/i);
     expect(content).toMatch(/previous.*release|release.*previous/i);
     expect(content).toMatch(/prune|retain/i);
+  });
+
+  it('prefers the active releasable release as current', () => {
+    const releases = [
+      release('older', '2026-11-01T10:00:00.000Z'),
+      release('active-now', '2026-11-03T10:00:00.000Z', { active: true }),
+      release('newer-inactive', '2026-11-04T10:00:00.000Z'),
+    ];
+
+    expect(getCurrentRelease(releases)?.releaseId).toBe('active-now');
+  });
+
+  it('falls back to the newest releasable release when no active release exists', () => {
+    const releases = [
+      release('newest-bad', '2026-11-05T10:00:00.000Z', { releasable: false }),
+      release('candidate', '2026-11-04T10:00:00.000Z'),
+      release('older', '2026-11-03T10:00:00.000Z'),
+    ];
+
+    expect(getCurrentRelease(releases)?.releaseId).toBe('candidate');
+  });
+
+  it('selects the newest releasable non-current release as previous', () => {
+    const releases = [
+      release('current', '2026-11-05T10:00:00.000Z', { active: true }),
+      release('bad-previous', '2026-11-04T10:00:00.000Z', { releasable: false }),
+      release('previous', '2026-11-03T10:00:00.000Z'),
+      release('oldest', '2026-11-02T10:00:00.000Z'),
+    ];
+
+    expect(getPreviousRelease(releases)?.releaseId).toBe('previous');
+  });
+
+  it('prunes only releases outside the current plus retained previous window', () => {
+    const releases = [
+      release('current', '2026-11-05T10:00:00.000Z', { active: true }),
+      release('retain-me', '2026-11-04T10:00:00.000Z'),
+      release('prune-me', '2026-11-03T10:00:00.000Z'),
+      release('not-releasable', '2026-11-02T10:00:00.000Z', { releasable: false }),
+    ];
+
+    expect(planRetainedReleasePrune(releases, 1).map((entry) => entry.releaseId)).toEqual([
+      'prune-me',
+      'not-releasable',
+    ]);
+  });
+
+  it('still retains one previous release when asked to retain zero', () => {
+    const releases = [
+      release('current', '2026-11-05T10:00:00.000Z', { active: true }),
+      release('previous', '2026-11-04T10:00:00.000Z'),
+      release('older', '2026-11-03T10:00:00.000Z'),
+    ];
+
+    expect(planRetainedReleasePrune(releases, 0).map((entry) => entry.releaseId)).toEqual([
+      'older',
+    ]);
   });
 
   it('treats the active release as current even when it is not releasable, so prune protection cannot delete it', () => {

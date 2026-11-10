@@ -66,6 +66,9 @@ on:
       retained_release_metadata:
         description: 'Artifact name for retained release metadata'
         value: ${{ jobs.deploy-web-oci.outputs.retained_release_metadata }}
+      free_tier_gate:
+        description: 'Outcome of executable OCI free-tier release gates'
+        value: ${{ jobs.deploy-web-oci.outputs.free_tier_gate }}
       deploy_result:
         description: 'Outcome summary for build, health gate, and cutover'
         value: ${{ jobs.deploy-web-oci.outputs.deploy_result }}
@@ -130,6 +133,7 @@ jobs:
       status_url: ${{ steps.metadata.outputs.status_url }}
       previous_release: ${{ steps.metadata.outputs.previous_release }}
       retained_release_metadata: ${{ steps.metadata.outputs.retained_release_metadata }}
+      free_tier_gate: ${{ steps.free-tier-gates.outputs.free_tier_gate }}
       deploy_result: ${{ steps.deploy-result.outputs.deploy_result }}
     steps:
       - name: Checkout Code
@@ -146,6 +150,17 @@ jobs:
 
       - name: Install Dependencies
         run: npm ci
+
+      - name: Run OCI web CI and free-tier release gates
+        id: free-tier-gates
+        run: |
+          npx vitest run \
+            tests/unit/github-workflows.test.ts \
+            tests/unit/oci-web-build.test.ts \
+            tests/unit/oci-web-deploy.test.ts \
+            tests/unit/oci-web-release.test.ts \
+            tests/unit/oci-terraform.test.ts
+          echo "free_tier_gate=passed: OCI workflow wiring, retained release helper, quota/budget/alarm resources, and public port bounds verified" >> "$GITHUB_OUTPUT"
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4

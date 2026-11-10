@@ -17,6 +17,7 @@ describe('GitHub Actions Workflows Suite', () => {
       expect(content).toContain('workflow_dispatch:');
       expect(content).toContain('promptfm/*');
       expect(content).toContain('deploy-web-oci');
+      expect(content).toContain('free_tier_gate');
       expect(content).not.toContain('npx vercel --prod');
     });
   });
@@ -26,6 +27,11 @@ describe('GitHub Actions Workflows Suite', () => {
       const content = readWorkflow('deploy-web-oci.yml');
       expect(content).toContain('workflow_call:');
       expect(content).toContain('workflow_dispatch:');
+      expect(content).toContain('Run OCI web CI and free-tier release gates');
+      expect(content).toContain('tests/unit/oci-terraform.test.ts');
+      expect(content).toContain('tests/unit/oci-web-build.test.ts');
+      expect(content).toContain('tests/unit/oci-web-deploy.test.ts');
+      expect(content).toContain('tests/unit/oci-web-release.test.ts');
       expect(content).toContain('docker buildx');
       expect(content).toMatch(/linux\/amd64,linux\/arm64|linux\/arm64,linux\/amd64/);
       expect(content).toContain('/api/healthz');
@@ -204,6 +210,14 @@ describe('GitHub Actions Workflows Suite', () => {
     it('audits DNS zones and alerts on direct VM IP leaks or missing edge proxies', () => {
       const content = readWorkflow('ci.yml');
       expect(content).toContain('dns status promptfm.live --strict');
+    });
+
+    it('treats OCI release workflow edits as infra changes and validates the OCI web playbook', () => {
+      const content = readWorkflow('ci.yml');
+      expect(content).toContain('.github/workflows/release.yml');
+      expect(content).toContain('.github/workflows/deploy-web-oci.yml');
+      expect(content).toContain('infra/ansible/playbook-web-oci.yml --syntax-check');
+      expect(content).toContain('infra/ansible/playbook-web-oci.yml --list-tasks');
     });
 
     it('validates and checks Terraform live state vs configuration when infra changes', () => {

@@ -22,6 +22,7 @@ describe('Release workflow (.github/workflows/release.yml)', () => {
     const content = fs.readFileSync(workflowPath, 'utf8');
 
     expect(content).toContain('deploy-web-oci');
+    expect(content).toContain('free_tier_gate');
     expect(content).not.toContain('npx vercel --prod');
     expect(content).not.toContain('VERCEL_DEPLOY_HOOK');
   });
