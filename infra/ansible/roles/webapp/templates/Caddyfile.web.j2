@@ -1,0 +1,49 @@
+{
+  admin off
+}
+
+(live_release) {
+  reverse_proxy {{ promptfm_web_live_upstream }} {
+    health_uri /api/healthz
+    health_interval 10s
+    health_timeout 5s
+    transport http {
+      dial_timeout 5s
+      response_header_timeout 10s
+    }
+  }
+}
+
+(previous_release) {
+  reverse_proxy {{ promptfm_web_previous_release_upstream }} {
+    health_uri /api/healthz
+    health_interval 10s
+    health_timeout 5s
+    transport http {
+      dial_timeout 5s
+      response_header_timeout 10s
+    }
+  }
+}
+
+(maintenance_fallback) {
+  root * {{ promptfm_web_shared_dir }}/maintenance
+  file_server
+}
+
+promptfm.live, www.promptfm.live {
+  encode zstd gzip
+
+  handle_errors {
+    @candidate_failed expression {http.error.status_code} >= 500
+    handle @candidate_failed {
+{% if promptfm_web_previous_release_upstream | default('') | length > 0 %}
+      import previous_release
+{% else %}
+      import maintenance_fallback
+{% endif %}
+    }
+  }
+
+  import live_release
+}

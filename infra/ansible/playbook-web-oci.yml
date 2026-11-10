@@ -1,0 +1,13 @@
+---
+# infra/ansible/playbook-web-oci.yml
+# Deploys the OCI web app onto the Oracle host using the same shell -> playbook
+# -> role shape as the existing streamer deploy path.
+
+- name: Configure PromptFM web app on Oracle Always Free
+  hosts: streamer_oci
+  become: true
+  vars:
+    app_dir: "/opt/promptfm/web"
+
+  roles:
+    - webapp

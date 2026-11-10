@@ -1,0 +1,139 @@
+---
+
+- name: Update apt cache and install OCI web deploy packages
+  apt:
+    name:
+      - docker.io
+      - docker-compose-v2
+      - curl
+      - caddy
+    state: present
+    update_cache: yes
+
+- name: Ensure Docker service is running and enabled
+  systemd:
+    name: docker
+    state: started
+    enabled: yes
+
+- name: Ensure Caddy service is running and enabled
+  systemd:
+    name: caddy
+    state: started
+    enabled: yes
+
+- name: Resolve web release directories for candidate-first deploys
+  set_fact:
+    promptfm_web_root: "{{ app_dir | default('/opt/promptfm/web') }}"
+    promptfm_web_releases_dir: "{{ (app_dir | default('/opt/promptfm/web')) ~ '/releases' }}"
+    promptfm_web_shared_dir: "{{ (app_dir | default('/opt/promptfm/web')) ~ '/shared' }}"
+    promptfm_web_release_id: "{{ promptfm_web_release_id | default(lookup('env', 'PROMPTFM_WEB_RELEASE_ID') | default('candidate', true), true) }}"
+    promptfm_web_candidate_port: "{{ promptfm_web_candidate_port | default(3001) }}"
+    promptfm_web_live_port: "{{ promptfm_web_live_port | default(3000) }}"
+    promptfm_web_container_port: "{{ promptfm_web_container_port | default(3000) }}"
+    promptfm_web_image_ref: "{{ promptfm_web_image | default(lookup('env', 'PROMPTFM_WEB_IMAGE') | default('ghcr.io/promptfm/promptfm-web:latest', true), true) }}"
+
+- name: Create OCI web root, retained release, and maintenance directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+  loop:
+    - "{{ promptfm_web_root }}"
+    - "{{ promptfm_web_releases_dir }}"
+    - "{{ promptfm_web_shared_dir }}"
+    - "{{ promptfm_web_shared_dir }}/maintenance"
+    - "{{ promptfm_web_releases_dir }}/{{ promptfm_web_release_id }}"
+
+- name: Check whether a current release is already serving traffic
+  stat:
+    path: "{{ promptfm_web_root }}/current"
+    follow: false
+  register: promptfm_web_current_release_link
+
+- name: Copy the maintenance fallback page for failed cutovers
+  copy:
+    src: "{{ playbook_dir }}/roles/streamer/files/maintenance/index.html"
+    dest: "{{ promptfm_web_shared_dir }}/maintenance/index.html"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+
+- name: Render docker compose for the inactive candidate release
+  template:
+    src: docker-compose.yml.j2
+    dest: "{{ promptfm_web_releases_dir }}/{{ promptfm_web_release_id }}/docker-compose.yml"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+
+- name: Start candidate release before cutover
+  command: docker compose up -d --remove-orphans
+  args:
+    chdir: "{{ promptfm_web_releases_dir }}/{{ promptfm_web_release_id }}"
+
+- name: Wait for candidate web port to accept localhost traffic
+  wait_for:
+    host: 127.0.0.1
+    port: "{{ promptfm_web_candidate_port | int }}"
+    delay: 2
+    timeout: 60
+
+- name: Probe candidate /api/healthz before cutover switch
+  uri:
+    url: "http://127.0.0.1:{{ promptfm_web_candidate_port }}/api/healthz"
+    status_code: 200
+    return_content: true
+    timeout: 5
+  register: promptfm_web_candidate_health
+  retries: 12
+  delay: 5
+  until: promptfm_web_candidate_health.status == 200
+
+- name: Record live and previous release upstreams for safe cutover
+  set_fact:
+    promptfm_web_live_upstream: "127.0.0.1:{{ promptfm_web_candidate_port }}"
+    promptfm_web_previous_release_upstream: >-
+      {{
+        '127.0.0.1:' ~ (promptfm_web_live_port | string)
+        if promptfm_web_current_release_link.stat.exists | default(false)
+        else ''
+      }}
+
+- name: Move the previous release symlink aside before cutover
+  file:
+    path: "{{ promptfm_web_root }}/previous"
+    state: absent
+
+- name: Retain the live release as the previous release during cutover
+  command:
+    argv:
+      - ln
+      - -sfn
+      - "{{ promptfm_web_root }}/current"
+      - "{{ promptfm_web_root }}/previous"
+  when: promptfm_web_current_release_link.stat.exists | default(false)
+
+- name: Switch current symlink to the healthy candidate release
+  file:
+    src: "{{ promptfm_web_releases_dir }}/{{ promptfm_web_release_id }}"
+    dest: "{{ promptfm_web_root }}/current"
+    state: link
+    force: true
+
+- name: Render Caddy cutover config with previous release or maintenance fallback
+  register: promptfm_web_caddy_conf
+  template:
+    src: Caddyfile.web.j2
+    dest: /etc/caddy/Caddyfile
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Reload Caddy after web cutover switch
+  systemd:
+    name: caddy
+    state: reloaded
+  when: promptfm_web_caddy_conf is changed

@@ -1,0 +1,13 @@
+version: "3.9"
+
+services:
+  web:
+    image: {{ promptfm_web_image_ref }}
+    container_name: promptfm-web-{{ promptfm_web_release_id }}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: "{{ promptfm_web_container_port }}"
+    ports:
+      - "127.0.0.1:{{ promptfm_web_candidate_port }}:{{ promptfm_web_container_port }}"
