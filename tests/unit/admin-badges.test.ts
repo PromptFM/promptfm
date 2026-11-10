@@ -36,7 +36,7 @@ describe('Admin Quick Navigation Badges in README.md', () => {
     const content = fs.readFileSync(readmePath, 'utf8');
     expect(content).toContain('Oracle-hosted maintenance page');
     expect(content).toContain('stream.promptfm.live');
-    expect(content).toMatch(/OCI app migration|OCI deploy path/i);
+    expect(content).toMatch(/OCI workflow|OCI-based|production web deploy path/i);
   });
 
   it('documents Oracle $0 guardrails and quota enforcement', () => {
