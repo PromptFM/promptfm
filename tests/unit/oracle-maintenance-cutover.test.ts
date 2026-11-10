@@ -52,10 +52,14 @@ describe('Oracle maintenance cutover support', () => {
     }
 
     const webCaddy = fs.readFileSync(webCaddyPath, 'utf8');
+    const previousReleaseBlock = webCaddy.split('(previous_release) {')[1]?.split('(maintenance_fallback) {')[0] ?? '';
     expect(webCaddy).toMatch(/previous[_ -]release|retained[_ -]release/i);
     expect(webCaddy).toMatch(/maintenance/i);
     expect(webCaddy).toContain('@previous_failed');
+    expect(previousReleaseBlock).toContain('handle_response @previous_failed');
+    expect(previousReleaseBlock).not.toContain('handle_errors');
     expect(webCaddy).toContain('/srv/maintenance');
+    expect(webCaddy).toContain('try_files {path} /index.html');
     expect(webCaddy).toContain('stream.promptfm.live');
     expect(webCaddy).toContain('reverse_proxy icecast:8000');
   });
@@ -98,13 +102,18 @@ describe('Oracle maintenance cutover support', () => {
     expect(webTasks).toContain('promptfm_web_current_release_port');
     expect(webTasks).toContain('promptfm_web_release_host_port');
     expect(webTasks).toContain('promptfm_streamer_docker_network');
+    expect(webTasks).toContain('promptfm_web_status_stream_url');
     expect(webTasks).toContain('Log the Oracle host into the OCI image registry before candidate startup');
     expect(webTasks).toContain('docker login');
+    expect(webTasks).toContain('Validate the Dockerized Oracle edge Caddy config before restart');
+    expect(webTasks).toContain('docker compose run --rm --no-deps caddy validate --config /etc/caddy/Caddyfile');
     expect(webTasks).toContain('docker compose restart caddy');
     expect(webTasks).not.toContain('Ensure Caddy service is running and enabled');
     expect(webTasks).toContain("lookup('env', 'PROMPTFM_WEB_REGISTRY')");
     expect(webTasks).toContain("lookup('env', 'PROMPTFM_WEB_REGISTRY_USERNAME')");
     expect(webTasks).toContain("lookup('env', 'PROMPTFM_WEB_REGISTRY_TOKEN')");
+    expect(webTasks).toContain("lookup('env', 'PROMPTFM_WEB_STATUS_STREAM_URL')");
+    expect(webCompose).toContain('PROMPTFM_STATUS_STREAM_URL: "{{ promptfm_web_status_stream_url }}"');
     expect(webCompose).toContain('127.0.0.1:{{ promptfm_web_release_host_port }}:{{ promptfm_web_container_port }}');
     expect(webCompose).toContain('name: {{ promptfm_streamer_docker_network }}');
     expect(webCaddy).toContain('reverse_proxy {{ promptfm_web_live_upstream }}');

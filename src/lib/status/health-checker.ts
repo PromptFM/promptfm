@@ -40,6 +40,19 @@ export interface HealthCheckOptions {
 }
 
 /**
+ * Resolves the server-side stream URL used by /api/status health probes.
+ * OCI candidates can override this to probe internal Icecast without changing
+ * the public listener-facing stream URL.
+ */
+export function getStatusProbeStreamUrl(): string {
+  return (
+    process.env.PROMPTFM_STATUS_STREAM_URL?.trim() ||
+    process.env.NEXT_PUBLIC_STREAM_URL?.trim() ||
+    DEFAULT_STREAM_URL
+  );
+}
+
+/**
  * Executes a single probe with latency timing and timeout protection.
  */
 export async function runProbe(
@@ -148,7 +161,7 @@ export async function checkSystemHealth(
           // In test or local-dev fallback simulation, treat as operational
           return;
         }
-        const streamUrl = process.env.NEXT_PUBLIC_STREAM_URL || DEFAULT_STREAM_URL;
+        const streamUrl = getStatusProbeStreamUrl();
         await probeAudioStreamer(streamUrl, timeout);
       }, timeout);
 

@@ -22,6 +22,8 @@ describe('OCI web deploy and cutover path', () => {
     expect(tasks).toMatch(/candidate/i);
     expect(tasks).toContain('/api/healthz');
     expect(tasks).toMatch(/cutover|switch/i);
+    expect(tasks).toContain('Validate the Dockerized Oracle edge Caddy config before restart');
+    expect(tasks).toContain('docker compose run --rm --no-deps caddy validate --config /etc/caddy/Caddyfile');
     expect(tasks).toContain('docker compose restart caddy');
     expect(tasks).toContain('Log the Oracle host into the OCI image registry before candidate startup');
     expect(tasks).toContain('docker login');
@@ -35,9 +37,15 @@ describe('OCI web deploy and cutover path', () => {
 
   it('keeps a retained previous release or maintenance fallback available if the candidate fails', () => {
     const caddyfile = mustRead('infra/ansible/roles/webapp/templates/Caddyfile.web.j2');
+    const previousReleaseBlock = caddyfile.split('(previous_release) {')[1]?.split('(maintenance_fallback) {')[0] ?? '';
+
     expect(caddyfile).toMatch(/previous[_ -]release|retained[_ -]release/i);
     expect(caddyfile).toMatch(/maintenance/i);
+    expect(caddyfile).toContain('@previous_failed');
+    expect(previousReleaseBlock).toContain('handle_response @previous_failed');
+    expect(previousReleaseBlock).not.toContain('handle_errors');
     expect(caddyfile).toContain('/srv/maintenance');
+    expect(caddyfile).toContain('try_files {path} /index.html');
   });
 
   it('rotates between distinct live and candidate host ports so current and previous releases can coexist', () => {
@@ -53,7 +61,10 @@ describe('OCI web deploy and cutover path', () => {
     expect(tasks).toContain('promptfm_web_current_release_port');
     expect(tasks).toContain('promptfm_streamer_docker_network');
     expect(tasks).toContain('promptfm_streamer_app_dir');
+    expect(tasks).toContain('promptfm_web_status_stream_url');
+    expect(tasks).toContain("lookup('env', 'PROMPTFM_WEB_STATUS_STREAM_URL')");
     expect(tasks).toContain("'promptfm-web-' ~ (promptfm_web_current_release_target.stdout | basename)");
+    expect(compose).toContain('PROMPTFM_STATUS_STREAM_URL: "{{ promptfm_web_status_stream_url }}"');
     expect(compose).toContain('127.0.0.1:{{ promptfm_web_release_host_port }}:{{ promptfm_web_container_port }}');
     expect(compose).toContain('external: true');
     expect(compose).toContain('name: {{ promptfm_streamer_docker_network }}');

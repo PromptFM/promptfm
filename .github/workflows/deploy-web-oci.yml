@@ -7,6 +7,10 @@ on:
         type: string
         required: false
         default: ''
+      deploy_tooling_ref:
+        type: string
+        required: false
+        default: ''
       release_tag:
         type: string
         required: false
@@ -35,6 +39,10 @@ on:
         type: string
         required: false
         default: /api/status
+      candidate_smoke_paths_json:
+        type: string
+        required: false
+        default: '["/api/healthz","/api/status","/admin","/status","/api/radio/next?format=uri"]'
       retained_release_count:
         type: string
         required: false
@@ -78,6 +86,10 @@ on:
         description: 'Git ref to deploy to OCI'
         required: false
         default: ''
+      deploy_tooling_ref:
+        description: 'Git ref containing deploy workflow and OCI cutover tooling (defaults to ref)'
+        required: false
+        default: ''
       release_tag:
         description: 'Logical release tag for summaries and metadata'
         required: false
@@ -106,6 +118,10 @@ on:
         description: 'Post-cutover smoke path'
         required: false
         default: /api/status
+      candidate_smoke_paths_json:
+        description: 'JSON array of pre-cutover candidate smoke paths'
+        required: false
+        default: '["/api/healthz","/api/status","/admin","/status","/api/radio/next?format=uri"]'
       retained_release_count:
         description: 'How many prior releases to retain for rollback'
         required: false
@@ -139,7 +155,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.ref || github.ref }}
+          ref: ${{ inputs.deploy_tooling_ref || inputs.ref || github.ref }}
           fetch-depth: 0
 
       - name: Setup Node.js 22
@@ -333,7 +349,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.ref || github.ref }}
+          ref: ${{ inputs.deploy_tooling_ref || inputs.ref || github.ref }}
           fetch-depth: 0
 
       - name: Setup Terraform
@@ -367,7 +383,7 @@ jobs:
         env:
           PROMPTFM_WEB_RELEASE_ID: ${{ needs.prepare-oci-web.outputs.release_id }}
           PROMPTFM_WEB_IMAGE: ${{ needs.prepare-oci-web.outputs.image_ref }}
-          PROMPTFM_WEB_CANDIDATE_SMOKE_PATHS_JSON: '["/api/healthz","/api/status","/admin","/status","/api/radio/next?format=uri"]'
+          PROMPTFM_WEB_CANDIDATE_SMOKE_PATHS_JSON: ${{ inputs.candidate_smoke_paths_json }}
           PROMPTFM_WEB_REGISTRY: ghcr.io
           PROMPTFM_WEB_REGISTRY_USERNAME: ${{ github.actor }}
           PROMPTFM_WEB_REGISTRY_TOKEN: ${{ secrets.GH_PAT || github.token }}
@@ -430,7 +446,7 @@ jobs:
           elif [ "$VERIFY_LIVE_HEALTH_OUTCOME" != "success" ]; then
             RESULT="failed: post-cutover /api/healthz or /api/status verification failed"
           else
-            RESULT="success: native linux/amd64 + linux/arm64 images published, candidate curls passed for /api/healthz /api/status /admin /status /api/radio/next?format=uri, cutover completed"
+            RESULT="success: native linux/amd64 + linux/arm64 images published, configured pre-cutover candidate curls passed, cutover completed"
           fi
           echo "deploy_result=$RESULT" >> "$GITHUB_OUTPUT"
 
@@ -462,7 +478,7 @@ jobs:
             elif [ "$CUTOVER_RESULT" != "success" ]; then
               DEPLOY_RESULT="failed: Oracle candidate deploy or cutover failed after image publish"
             else
-              DEPLOY_RESULT="success: native linux/amd64 + linux/arm64 images published, candidate curls passed for /api/healthz /api/status /admin /status /api/radio/next?format=uri, cutover completed"
+              DEPLOY_RESULT="success: native linux/amd64 + linux/arm64 images published, configured pre-cutover candidate curls passed, cutover completed"
             fi
           fi
           echo "deploy_result=$DEPLOY_RESULT" >> "$GITHUB_OUTPUT"

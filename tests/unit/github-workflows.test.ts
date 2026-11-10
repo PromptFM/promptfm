@@ -30,6 +30,8 @@ describe('GitHub Actions Workflows Suite', () => {
       const content = readWorkflow('deploy-web-oci.yml');
       expect(content).toContain('workflow_call:');
       expect(content).toContain('workflow_dispatch:');
+      expect(content).toContain('deploy_tooling_ref:');
+      expect(content).toContain('candidate_smoke_paths_json:');
       expect(content).toContain('Run OCI web CI and free-tier release gates');
       expect(content).toContain('tests/unit/oci-terraform.test.ts');
       expect(content).toContain('tests/unit/oci-web-build.test.ts');
@@ -132,6 +134,8 @@ describe('GitHub Actions Workflows Suite', () => {
       expect(content).toContain('rollback_ref:');
       expect(content).toContain('node scripts/rollback-workflow-metadata.cjs');
       expect(content).toContain('deploy-web-oci');
+      expect(content).toContain('deploy_tooling_ref: ${{ github.sha }}');
+      expect(content).toContain("candidate_smoke_paths_json: '[\"/api/healthz\",\"/admin\",\"/status\",\"/api/radio/next?format=uri\"]'");
       expect(content).toMatch(/retained[_ -]release|previous[_ -]release/i);
       expect(content).toContain('/api/healthz');
       expect(content).not.toContain("node <<'NODE'");

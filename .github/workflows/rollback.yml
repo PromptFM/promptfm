@@ -81,6 +81,7 @@ jobs:
     uses: ./.github/workflows/deploy-web-oci.yml
     with:
       ref: ${{ inputs.rollback_ref }}
+      deploy_tooling_ref: ${{ github.sha }}
       release_tag: ${{ needs.prepare-rollback.outputs.rollback_tag }}
       release_id: ${{ needs.prepare-rollback.outputs.release_id }}
       rollback_ref: ${{ inputs.rollback_ref }}
@@ -88,6 +89,7 @@ jobs:
       image_platforms: linux/amd64,linux/arm64
       health_check_path: /api/healthz
       status_check_path: /api/status
+      candidate_smoke_paths_json: '["/api/healthz","/admin","/status","/api/radio/next?format=uri"]'
       retained_release_count: '1'
     secrets: inherit
 

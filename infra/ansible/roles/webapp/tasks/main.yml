@@ -38,6 +38,7 @@
     promptfm_web_container_port: "{{ promptfm_web_container_port | default(3000) }}"
     promptfm_web_image_ref: "{{ promptfm_web_image | default(lookup('env', 'PROMPTFM_WEB_IMAGE') | default('ghcr.io/promptfm/promptfm-web:latest', true), true) }}"
     promptfm_web_candidate_smoke_paths_json: "{{ promptfm_web_candidate_smoke_paths_json | default(lookup('env', 'PROMPTFM_WEB_CANDIDATE_SMOKE_PATHS_JSON') | default('', true), true) }}"
+    promptfm_web_status_stream_url: "{{ promptfm_web_status_stream_url | default(lookup('env', 'PROMPTFM_WEB_STATUS_STREAM_URL') | default('http://icecast:8000/stream.mp3', true), true) }}"
 
 - name: Resolve OCI image registry credentials for host pull
   set_fact:
@@ -312,6 +313,13 @@
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: '0644'
+
+- name: Validate the Dockerized Oracle edge Caddy config before restart
+  command: docker compose run --rm --no-deps caddy validate --config /etc/caddy/Caddyfile
+  args:
+    chdir: "{{ promptfm_streamer_app_dir }}"
+  changed_when: false
+  when: promptfm_web_caddy_conf is changed
 
 - name: Restart the Dockerized Oracle edge proxy after web cutover switch
   command: docker compose restart caddy

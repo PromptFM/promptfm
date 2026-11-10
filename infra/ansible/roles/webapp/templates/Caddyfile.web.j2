@@ -23,11 +23,9 @@
       dial_timeout 5s
       response_header_timeout 10s
     }
-  }
 
-  handle_errors {
-    @previous_failed expression {http.error.status_code} >= 500
-    handle @previous_failed {
+    @previous_failed status 500 502 503 504
+    handle_response @previous_failed {
       import maintenance_fallback
     }
   }
@@ -35,6 +33,7 @@
 
 (maintenance_fallback) {
   root * /srv/maintenance
+  try_files {path} /index.html
   file_server
 }
 
