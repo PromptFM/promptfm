@@ -32,6 +32,16 @@
     promptfm_web_live_port: "{{ promptfm_web_live_port | default(3000) }}"
     promptfm_web_container_port: "{{ promptfm_web_container_port | default(3000) }}"
     promptfm_web_image_ref: "{{ promptfm_web_image | default(lookup('env', 'PROMPTFM_WEB_IMAGE') | default('ghcr.io/promptfm/promptfm-web:latest', true), true) }}"
+    promptfm_web_candidate_smoke_paths_json: "{{ promptfm_web_candidate_smoke_paths_json | default(lookup('env', 'PROMPTFM_WEB_CANDIDATE_SMOKE_PATHS_JSON') | default('', true), true) }}"
+
+- name: Resolve pre-cutover candidate smoke paths
+  set_fact:
+    promptfm_web_candidate_smoke_paths: >-
+      {{
+        (promptfm_web_candidate_smoke_paths_json | from_json)
+        if (promptfm_web_candidate_smoke_paths_json | length) > 0
+        else ['/api/healthz', '/api/status', '/admin', '/status', '/api/radio/next?format=uri']
+      }}
 
 - name: Create OCI web root, retained release, and maintenance directories
   file:
@@ -91,6 +101,23 @@
   retries: 12
   delay: 5
   until: promptfm_web_candidate_health.status == 200
+
+- name: Curl pre-cutover candidate smoke paths before public cutover
+  command:
+    argv:
+      - curl
+      - --fail
+      - --silent
+      - --show-error
+      - --location
+      - --max-time
+      - '20'
+      - "http://127.0.0.1:{{ promptfm_web_candidate_port }}{{ item }}"
+  loop: "{{ promptfm_web_candidate_smoke_paths }}"
+  loop_control:
+    label: "{{ item }}"
+  register: promptfm_web_candidate_smoke
+  changed_when: false
 
 - name: Record live and previous release upstreams for safe cutover
   set_fact:

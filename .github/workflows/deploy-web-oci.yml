@@ -242,6 +242,7 @@ jobs:
         env:
           PROMPTFM_WEB_RELEASE_ID: ${{ steps.metadata.outputs.release_id }}
           PROMPTFM_WEB_IMAGE: ${{ steps.metadata.outputs.image_ref }}
+          PROMPTFM_WEB_CANDIDATE_SMOKE_PATHS_JSON: '["/api/healthz","/api/status","/admin","/status","/api/radio/next?format=uri"]'
         run: |
           chmod +x infra/ansible/deploy-web-oci.sh
           infra/ansible/deploy-web-oci.sh \
@@ -291,4 +292,4 @@ jobs:
       - name: Summarize deploy result
         id: deploy-result
         run: |
-          echo "deploy_result=success: docker buildx image published, /api/healthz gate passed, cutover completed" >> "$GITHUB_OUTPUT"
+          echo "deploy_result=success: docker buildx image published, candidate curls passed for /api/healthz /api/status /admin /status /api/radio/next?format=uri, cutover completed" >> "$GITHUB_OUTPUT"
