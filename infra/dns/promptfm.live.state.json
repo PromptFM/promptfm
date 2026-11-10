@@ -1,6 +1,6 @@
 {
   "domain": "promptfm.live",
-  "updatedAt": "2026-11-09T00:13:19.000Z",
+  "updatedAt": "2026-11-10T07:57:45.835054Z",
   "version": 1,
   "zone": [
     {
@@ -18,12 +18,12 @@
       "name": "www",
       "records": [
         {
-          "content": "17b314bad0a79a1d.vercel-dns-017.com.",
+          "content": "129.80.56.27",
           "is_disabled": false
         }
       ],
       "ttl": 300,
-      "type": "CNAME"
+      "type": "A"
     },
     {
       "name": "stream",
@@ -114,11 +114,7 @@
       "name": "@",
       "records": [
         {
-          "content": "216.198.79.1",
-          "is_disabled": false
-        },
-        {
-          "content": "64.29.17.1",
+          "content": "129.80.56.27",
           "is_disabled": false
         }
       ],

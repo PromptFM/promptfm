@@ -26,6 +26,14 @@
     group: "{{ ansible_user }}"
     mode: '0755'
 
+- name: Create PromptFM maintenance page directory
+  file:
+    path: "{{ app_dir }}/maintenance"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+
 - name: Deploy Icecast 2 configuration (deploy/streamer is the single source of truth)
   register: icecast_conf
   copy:
@@ -53,7 +61,16 @@
     group: "{{ ansible_user }}"
     mode: '0644'
 
+- name: Deploy PromptFM maintenance page
+  copy:
+    src: maintenance/index.html
+    dest: "{{ app_dir }}/maintenance/index.html"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+
 - name: Deploy Caddy reverse proxy configuration
+  register: caddy_conf
   template:
     src: Caddyfile.j2
     dest: "{{ app_dir }}/Caddyfile"
@@ -98,6 +115,12 @@
     chdir: "{{ app_dir }}"
   when: radio_script is changed or standby_script is changed
 
+- name: Restart Caddy when its config changed
+  command: docker compose restart caddy
+  args:
+    chdir: "{{ app_dir }}"
+  when: caddy_conf is changed
+
 - name: Wait for Icecast port 8000 to become available
   wait_for:
     port: "{{ icecast_port | default(8000) }}"
@@ -121,4 +144,3 @@
       - "📈 Vercel Web Analytics ($0 Tier): https://vercel.com/alextrifan/promptfm/analytics"
       - "📻 Live Web Radio: https://promptfm.live"
       - "🎙️ Station Manager Studio: https://promptfm.live/admin"
-
