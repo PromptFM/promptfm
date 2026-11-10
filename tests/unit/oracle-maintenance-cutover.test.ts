@@ -106,7 +106,7 @@ describe('Oracle maintenance cutover support', () => {
     expect(webTasks).toContain('Log the Oracle host into the OCI image registry before candidate startup');
     expect(webTasks).toContain('docker login');
     expect(webTasks).toContain('Validate the Dockerized Oracle edge Caddy config before restart');
-    expect(webTasks).toContain('docker compose run --rm --no-deps caddy validate --config /etc/caddy/Caddyfile');
+    expect(webTasks).toContain('docker compose run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile');
     expect(webTasks).toContain('docker compose restart caddy');
     expect(webTasks).not.toContain('Ensure Caddy service is running and enabled');
     expect(webTasks).toContain("lookup('env', 'PROMPTFM_WEB_REGISTRY')");

@@ -23,7 +23,7 @@ describe('OCI web deploy and cutover path', () => {
     expect(tasks).toContain('/api/healthz');
     expect(tasks).toMatch(/cutover|switch/i);
     expect(tasks).toContain('Validate the Dockerized Oracle edge Caddy config before restart');
-    expect(tasks).toContain('docker compose run --rm --no-deps caddy validate --config /etc/caddy/Caddyfile');
+    expect(tasks).toContain('docker compose run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile');
     expect(tasks).toContain('docker compose restart caddy');
     expect(tasks).toContain('Log the Oracle host into the OCI image registry before candidate startup');
     expect(tasks).toContain('docker login');

@@ -315,7 +315,7 @@
     mode: '0644'
 
 - name: Validate the Dockerized Oracle edge Caddy config before restart
-  command: docker compose run --rm --no-deps caddy validate --config /etc/caddy/Caddyfile
+  command: docker compose run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile
   args:
     chdir: "{{ promptfm_streamer_app_dir }}"
   changed_when: false
