@@ -50,6 +50,7 @@ describe('OCI web deploy and cutover path', () => {
       ansibleArgs: path.join(tmpDir, 'ansible-args.log'),
       ociEnv: path.join(tmpDir, 'oci-runtime-env.json'),
       registryEnv: path.join(tmpDir, 'registry-env.json'),
+      deployMetadataEnv: path.join(tmpDir, 'deploy-metadata-env.json'),
     };
 
     write(
@@ -126,6 +127,11 @@ exit 1
       `#!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >> "$TEST_GIT_LOG"
+if [ "$1" = "-C" ] && [ "$3" = "rev-parse" ] && [ "$4" = "--short=12" ] && [ "$5" = "HEAD" ]; then
+  printf '%s' "\${TEST_GIT_HEAD_SHA:-123456789abc}"
+  exit 0
+fi
+
 if [ "\${TEST_GIT_REMOTE_URL:-}" != '' ] && [ "$1" = "-C" ] && [ "$3" = "remote" ] && [ "$4" = "get-url" ] && [ "$5" = "origin" ]; then
   printf '%s' "$TEST_GIT_REMOTE_URL"
   exit 0
@@ -149,6 +155,17 @@ json.dump(
         "PROMPTFM_WEB_REGISTRY": os.environ.get("PROMPTFM_WEB_REGISTRY", ""),
         "PROMPTFM_WEB_REGISTRY_USERNAME": os.environ.get("PROMPTFM_WEB_REGISTRY_USERNAME", ""),
         "PROMPTFM_WEB_REGISTRY_TOKEN": os.environ.get("PROMPTFM_WEB_REGISTRY_TOKEN", ""),
+    },
+    os.sys.stdout,
+    separators=(",", ":"),
+)
+PY
+python3 - <<'PY' > "$TEST_DEPLOY_METADATA_ENV"
+import json, os
+json.dump(
+    {
+        "PROMPTFM_WEB_RELEASE_ID": os.environ.get("PROMPTFM_WEB_RELEASE_ID", ""),
+        "PROMPTFM_WEB_IMAGE": os.environ.get("PROMPTFM_WEB_IMAGE", ""),
     },
     os.sys.stdout,
     separators=(",", ":"),
@@ -276,6 +293,13 @@ PY
     expect(script).toContain('PROMPTFM_WEB_REGISTRY="${PROMPTFM_WEB_REGISTRY:-ghcr.io}"');
     expect(script).toContain('GH_PAT:-${GITHUB_TOKEN:-}');
     expect(script).toContain('git -C "$REPO_ROOT" remote get-url origin');
+    expect(script).toContain('git -C "$REPO_ROOT" rev-parse --short=12 HEAD');
+    expect(script).toContain('source_ref="${PROMPTFM_WEB_RELEASE_TAG:-${PROMPTFM_WEB_ROLLBACK_REF:-}}"');
+    expect(script).toContain('if [ -z "$source_ref" ]; then');
+    expect(script).toContain('sed \'s#^promptfm/##\'');
+    expect(script).toContain('export PROMPTFM_WEB_RELEASE_ID="$release_id"');
+    expect(script).toContain('export PROMPTFM_WEB_IMAGE="${PROMPTFM_WEB_REGISTRY:-ghcr.io}/$owner_lower/promptfm-web:${PROMPTFM_WEB_RELEASE_ID}"');
+    expect(script).toContain('capture_cli_extra_var_overrides "$@"');
     expect(script).toContain('npx vercel env pull .env.production.local --environment=production --yes');
     expect(script).toContain('Vercel env pull failed, continuing with the GCP bundle secret and existing environment.');
     expect(script).toContain('VERCEL_TOKEN not provided, continuing with the GCP bundle secret and existing environment.');
@@ -321,6 +345,7 @@ PY
         TEST_ANSIBLE_ARGS: fixture.logs.ansibleArgs,
         TEST_OCI_ENV: fixture.logs.ociEnv,
         TEST_REGISTRY_ENV: fixture.logs.registryEnv,
+        TEST_DEPLOY_METADATA_ENV: fixture.logs.deployMetadataEnv,
         GOOGLE_APPLICATION_CREDENTIALS: '',
         VERCEL_TOKEN: 'test-vercel-token',
         VERCEL_ORG_ID: 'test-org',
@@ -335,6 +360,9 @@ PY
     const npxLog = fs.readFileSync(fixture.logs.npx, 'utf8');
     const ansibleArgs = fs.readFileSync(fixture.logs.ansibleArgs, 'utf8');
     const registryEnv = JSON.parse(fs.readFileSync(fixture.logs.registryEnv, 'utf8')) as Record<string, string>;
+    const deployMetadataEnv = JSON.parse(
+      fs.readFileSync(fixture.logs.deployMetadataEnv, 'utf8'),
+    ) as Record<string, string>;
 
     expect(fs.existsSync(fixture.pulledEnvFile)).toBe(true);
     expect(npxLog).toContain('vercel env pull .env.production.local --environment=production --yes');
@@ -345,6 +373,10 @@ PY
     expect(terraformLog).toContain('-chdir=../terraform-oci output -raw public_ip');
     expect(ansibleArgs).toContain('playbook-web-oci.yml');
     expect(ansibleArgs).toContain('promptfm_web_release_id=test-release');
+    expect(deployMetadataEnv).toEqual({
+      PROMPTFM_WEB_RELEASE_ID: 'test-release',
+      PROMPTFM_WEB_IMAGE: 'ghcr.io/promptfm/promptfm-web:test-release',
+    });
     expect(registryEnv).toEqual({
       PROMPTFM_WEB_REGISTRY: 'ghcr.io',
       PROMPTFM_WEB_REGISTRY_USERNAME: '',
@@ -374,6 +406,7 @@ PY
         TEST_ANSIBLE_ARGS: fixture.logs.ansibleArgs,
         TEST_OCI_ENV: fixture.logs.ociEnv,
         TEST_REGISTRY_ENV: fixture.logs.registryEnv,
+        TEST_DEPLOY_METADATA_ENV: fixture.logs.deployMetadataEnv,
         VERCEL_TOKEN: 'test-vercel-token',
         OCI_WEB_RUNTIME_ENV_JSON: JSON.stringify({ FROM_CI: '1' }),
       },
@@ -411,7 +444,10 @@ PY
         TEST_ANSIBLE_ARGS: fixture.logs.ansibleArgs,
         TEST_OCI_ENV: fixture.logs.ociEnv,
         TEST_REGISTRY_ENV: fixture.logs.registryEnv,
+        TEST_DEPLOY_METADATA_ENV: fixture.logs.deployMetadataEnv,
         OCI_WEB_RUNTIME_ENV_JSON: JSON.stringify({ FROM_CI: '1' }),
+        PROMPTFM_WEB_RELEASE_ID: 'local-dev-release',
+        GITHUB_REPOSITORY_OWNER: 'PromptFM',
         GITHUB_ACTOR: 'local-dev-user',
         GH_PAT: 'ghp_localToken1234567890',
       },
@@ -443,6 +479,7 @@ PY
         TEST_ANSIBLE_ARGS: fixture.logs.ansibleArgs,
         TEST_OCI_ENV: fixture.logs.ociEnv,
         TEST_REGISTRY_ENV: fixture.logs.registryEnv,
+        TEST_DEPLOY_METADATA_ENV: fixture.logs.deployMetadataEnv,
         TEST_GIT_REMOTE_URL: 'https://atrifan:ghp_remoteToken1234567890@github.com/PromptFM/promptfm.git',
         OCI_WEB_RUNTIME_ENV_JSON: JSON.stringify({ FROM_CI: '1' }),
       },
@@ -477,7 +514,10 @@ PY
         TEST_ANSIBLE_ARGS: fixture.logs.ansibleArgs,
         TEST_OCI_ENV: fixture.logs.ociEnv,
         TEST_REGISTRY_ENV: fixture.logs.registryEnv,
+        TEST_DEPLOY_METADATA_ENV: fixture.logs.deployMetadataEnv,
         OCI_WEB_RUNTIME_ENV_JSON: JSON.stringify({ FROM_CI: '1' }),
+        PROMPTFM_WEB_RELEASE_ID: 'ci-release-id',
+        PROMPTFM_WEB_IMAGE: 'ghcr.io/promptfm/promptfm-web:ci-release-id',
         PROMPTFM_WEB_REGISTRY: 'registry.internal.example',
         PROMPTFM_WEB_REGISTRY_USERNAME: 'ci-user',
         PROMPTFM_WEB_REGISTRY_TOKEN: 'ci-token',
@@ -491,6 +531,117 @@ PY
       PROMPTFM_WEB_REGISTRY: 'registry.internal.example',
       PROMPTFM_WEB_REGISTRY_USERNAME: 'ci-user',
       PROMPTFM_WEB_REGISTRY_TOKEN: 'ci-token',
+    });
+    expect(fs.existsSync(fixture.logs.git)).toBe(false);
+  });
+
+  it('derives CI-style local release metadata defaults when no deploy image args are provided', () => {
+    const fixture = createDeployScriptFixture();
+
+    execFileSync('bash', [fixture.scriptPath], {
+      cwd: fixture.tmpDir,
+      encoding: 'utf8',
+      env: {
+        PATH: `${fixture.binDir}:${process.env.PATH ?? ''}`,
+        TEST_GCLOUD_LOG: fixture.logs.gcloud,
+        TEST_TERRAFORM_LOG: fixture.logs.terraform,
+        TEST_NPX_LOG: fixture.logs.npx,
+        TEST_GIT_LOG: fixture.logs.git,
+        TEST_ANSIBLE_ARGS: fixture.logs.ansibleArgs,
+        TEST_OCI_ENV: fixture.logs.ociEnv,
+        TEST_REGISTRY_ENV: fixture.logs.registryEnv,
+        TEST_DEPLOY_METADATA_ENV: fixture.logs.deployMetadataEnv,
+        TEST_GIT_HEAD_SHA: 'abc123def456',
+        TEST_GIT_REMOTE_URL: 'git@github.com:PromptFM/promptfm.git',
+        OCI_WEB_RUNTIME_ENV_JSON: JSON.stringify({ FROM_CI: '1' }),
+      },
+      stdio: 'pipe',
+    });
+
+    const deployMetadataEnv = JSON.parse(
+      fs.readFileSync(fixture.logs.deployMetadataEnv, 'utf8'),
+    ) as Record<string, string>;
+    const gitLog = fs.readFileSync(fixture.logs.git, 'utf8');
+    const ansibleArgs = fs.readFileSync(fixture.logs.ansibleArgs, 'utf8');
+
+    expect(deployMetadataEnv).toEqual({
+      PROMPTFM_WEB_RELEASE_ID: 'abc123def456',
+      PROMPTFM_WEB_IMAGE: 'ghcr.io/promptfm/promptfm-web:abc123def456',
+    });
+    expect(ansibleArgs).not.toContain('promptfm_web_release_id=');
+    expect(ansibleArgs).not.toContain('promptfm_web_image=');
+    expect(gitLog).toContain('rev-parse --short=12 HEAD');
+    expect(gitLog).toContain('remote get-url origin');
+  });
+
+  it('derives the image from a local release tag while preserving explicit env overrides', () => {
+    const fixture = createDeployScriptFixture();
+
+    execFileSync('bash', [fixture.scriptPath], {
+      cwd: fixture.tmpDir,
+      encoding: 'utf8',
+      env: {
+        PATH: `${fixture.binDir}:${process.env.PATH ?? ''}`,
+        TEST_GCLOUD_LOG: fixture.logs.gcloud,
+        TEST_TERRAFORM_LOG: fixture.logs.terraform,
+        TEST_NPX_LOG: fixture.logs.npx,
+        TEST_GIT_LOG: fixture.logs.git,
+        TEST_ANSIBLE_ARGS: fixture.logs.ansibleArgs,
+        TEST_OCI_ENV: fixture.logs.ociEnv,
+        TEST_REGISTRY_ENV: fixture.logs.registryEnv,
+        TEST_DEPLOY_METADATA_ENV: fixture.logs.deployMetadataEnv,
+        TEST_GIT_HEAD_SHA: 'fff111222333',
+        PROMPTFM_WEB_RELEASE_TAG: 'promptfm/release:2026-11-11 demo',
+        GITHUB_REPOSITORY_OWNER: 'PromptFM',
+        GITHUB_ACTOR: 'local-dev-user',
+        GH_PAT: 'ghp_localToken1234567890',
+        OCI_WEB_RUNTIME_ENV_JSON: JSON.stringify({ FROM_CI: '1' }),
+      },
+      stdio: 'pipe',
+    });
+
+    const deployMetadataEnv = JSON.parse(
+      fs.readFileSync(fixture.logs.deployMetadataEnv, 'utf8'),
+    ) as Record<string, string>;
+    expect(deployMetadataEnv).toEqual({
+      PROMPTFM_WEB_RELEASE_ID: 'release-2026-11-11-demo',
+      PROMPTFM_WEB_IMAGE: 'ghcr.io/promptfm/promptfm-web:release-2026-11-11-demo',
+    });
+    expect(fs.existsSync(fixture.logs.git)).toBe(false);
+  });
+
+  it('keeps CI-provided release metadata unchanged when already set', () => {
+    const fixture = createDeployScriptFixture();
+
+    execFileSync('bash', [fixture.scriptPath], {
+      cwd: fixture.tmpDir,
+      encoding: 'utf8',
+      env: {
+        PATH: `${fixture.binDir}:${process.env.PATH ?? ''}`,
+        TEST_GCLOUD_LOG: fixture.logs.gcloud,
+        TEST_TERRAFORM_LOG: fixture.logs.terraform,
+        TEST_NPX_LOG: fixture.logs.npx,
+        TEST_GIT_LOG: fixture.logs.git,
+        TEST_ANSIBLE_ARGS: fixture.logs.ansibleArgs,
+        TEST_OCI_ENV: fixture.logs.ociEnv,
+        TEST_REGISTRY_ENV: fixture.logs.registryEnv,
+        TEST_DEPLOY_METADATA_ENV: fixture.logs.deployMetadataEnv,
+        OCI_WEB_RUNTIME_ENV_JSON: JSON.stringify({ FROM_CI: '1' }),
+        PROMPTFM_WEB_RELEASE_ID: 'ci-release-id',
+        PROMPTFM_WEB_IMAGE: 'ghcr.io/custom-owner/promptfm-web:ci-release-id',
+        GITHUB_ACTOR: 'local-dev-user',
+        GH_PAT: 'ghp_localToken1234567890',
+      },
+      stdio: 'pipe',
+    });
+
+    const deployMetadataEnv = JSON.parse(
+      fs.readFileSync(fixture.logs.deployMetadataEnv, 'utf8'),
+    ) as Record<string, string>;
+
+    expect(deployMetadataEnv).toEqual({
+      PROMPTFM_WEB_RELEASE_ID: 'ci-release-id',
+      PROMPTFM_WEB_IMAGE: 'ghcr.io/custom-owner/promptfm-web:ci-release-id',
     });
     expect(fs.existsSync(fixture.logs.git)).toBe(false);
   });
