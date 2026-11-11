@@ -210,6 +210,7 @@ jobs:
         env:
           CI: "true"
           NODE_ENV: production
+          ADMIN_API_KEY: promptfm-local-dev-key
           NEXT_PUBLIC_SUPABASE_URL: https://mock-supabase.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: mock-anon-key
           SUPABASE_SERVICE_ROLE_KEY: mock-service-role-key
