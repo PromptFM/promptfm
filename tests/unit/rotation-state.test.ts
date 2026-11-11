@@ -1,9 +1,11 @@
 // tests/unit/rotation-state.test.ts
 // Unit tests for Now Playing state persistence and vote synchronization
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { castVoteForTrack } from '@/lib/chat/bridge';
 import { updateCurrentAirplayUpvotes, getNowPlaying, getUpNext } from '@/lib/dj/rotation';
+
+const originalFetch = globalThis.fetch;
 
 vi.mock('@/lib/supabase/server', () => {
   return {
@@ -141,6 +143,18 @@ vi.mock('@/lib/supabase/server', () => {
 });
 
 describe('Now Playing & Vote State Synchronization', () => {
+  beforeEach(() => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => ({}),
+    } as unknown as Response);
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
   it('retrieves persistent active airplay track from station_state without returning demo fallback', async () => {
     const status = await getNowPlaying('main');
 
@@ -175,4 +189,3 @@ describe('Now Playing & Vote State Synchronization', () => {
     expect(ids).toContain('track-102');
   });
 });
-

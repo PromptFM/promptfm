@@ -17,6 +17,49 @@ describe('MCP Admin Tools Integration', () => {
     }) as unknown as typeof fetch;
   });
 
+  it('keeps admin MCP tools locked in production when ADMIN_API_KEY is unset', async () => {
+    const mutableEnv = process.env as Record<string, string | undefined>;
+    const originalAdminKey = process.env.ADMIN_API_KEY;
+    const originalNodeEnv = mutableEnv.NODE_ENV;
+
+    delete process.env.ADMIN_API_KEY;
+    mutableEnv.NODE_ENV = 'production';
+
+    try {
+      const req = new NextRequest('http://localhost:3000/api/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'req-mcp-admin-locked',
+          method: 'tools/call',
+          params: {
+            name: 'promptfm_admin_list_channels',
+            arguments: {},
+          },
+        }),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.result.isError).toBe(true);
+      expect(json.result.content[0].text).toContain('Unauthorized');
+    } finally {
+      if (originalAdminKey !== undefined) {
+        process.env.ADMIN_API_KEY = originalAdminKey;
+      } else {
+        delete process.env.ADMIN_API_KEY;
+      }
+
+      if (originalNodeEnv !== undefined) {
+        mutableEnv.NODE_ENV = originalNodeEnv;
+      } else {
+        delete mutableEnv.NODE_ENV;
+      }
+    }
+  });
+
   it('resolves a report via promptfm_admin_resolve_report tool', async () => {
     const rep = await submitContentReport({
       target_type: 'track',
@@ -420,4 +463,3 @@ describe('MCP Admin Tools Integration', () => {
     expect(data.policy.vercelMaxActiveCpuHoursHobby).toBe(4);
   });
 });
-

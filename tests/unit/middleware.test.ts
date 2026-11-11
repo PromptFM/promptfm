@@ -8,10 +8,13 @@ import { middleware, config } from '@/middleware';
 const TEST_SECRET = 'shared-admin-secret-456';
 
 describe('Next.js Middleware Guard (src/middleware.ts)', () => {
+  const mutableEnv = process.env as Record<string, string | undefined>;
   const originalEnv = process.env.ADMIN_API_KEY;
+  const originalNodeEnv = mutableEnv.NODE_ENV;
 
   beforeEach(() => {
     process.env.ADMIN_API_KEY = TEST_SECRET;
+    mutableEnv.NODE_ENV = 'test';
   });
 
   afterEach(() => {
@@ -19,6 +22,12 @@ describe('Next.js Middleware Guard (src/middleware.ts)', () => {
       process.env.ADMIN_API_KEY = originalEnv;
     } else {
       delete process.env.ADMIN_API_KEY;
+    }
+
+    if (originalNodeEnv !== undefined) {
+      mutableEnv.NODE_ENV = originalNodeEnv;
+    } else {
+      delete mutableEnv.NODE_ENV;
     }
   });
 
@@ -112,6 +121,32 @@ describe('Next.js Middleware Guard (src/middleware.ts)', () => {
 
   it('does not falsely block paths like /api/admin-public (proper boundary check)', () => {
     const req = new NextRequest('http://localhost:3000/api/admin-public');
+    const res = middleware(req);
+
+    expect(res.status).toBe(200);
+  });
+
+  it('blocks unauthenticated admin requests in production when ADMIN_API_KEY is unset', async () => {
+    mutableEnv.NODE_ENV = 'production';
+    delete process.env.ADMIN_API_KEY;
+
+    const req = new NextRequest('http://localhost:3000/api/admin/reports');
+    const res = middleware(req);
+
+    expect(res.status).toBe(401);
+    const json = await res.json();
+    expect(json.error).toBe('Unauthorized');
+  });
+
+  it('lets likely Supabase session-backed admin requests reach route handlers in production', () => {
+    mutableEnv.NODE_ENV = 'production';
+    delete process.env.ADMIN_API_KEY;
+
+    const req = new NextRequest('http://localhost:3000/api/admin/reports', {
+      headers: {
+        cookie: 'sb-local-auth-token=mock-session-cookie',
+      },
+    });
     const res = middleware(req);
 
     expect(res.status).toBe(200);

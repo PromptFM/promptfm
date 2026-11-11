@@ -130,6 +130,28 @@ describe('System Health Checker & Status Monitoring', () => {
     }
   });
 
+  it('trims configured stream URLs before returning the probe target', () => {
+    const oldStatusStreamUrl = process.env.PROMPTFM_STATUS_STREAM_URL;
+    const oldPublicStreamUrl = process.env.NEXT_PUBLIC_STREAM_URL;
+
+    process.env.PROMPTFM_STATUS_STREAM_URL = '  http://icecast:8000/stream.mp3  ';
+    process.env.NEXT_PUBLIC_STREAM_URL = '  https://stream.promptfm.live/stream.mp3  ';
+
+    expect(getStatusProbeStreamUrl()).toBe('http://icecast:8000/stream.mp3');
+
+    if (oldStatusStreamUrl) {
+      process.env.PROMPTFM_STATUS_STREAM_URL = oldStatusStreamUrl;
+    } else {
+      delete process.env.PROMPTFM_STATUS_STREAM_URL;
+    }
+
+    if (oldPublicStreamUrl) {
+      process.env.NEXT_PUBLIC_STREAM_URL = oldPublicStreamUrl;
+    } else {
+      delete process.env.NEXT_PUBLIC_STREAM_URL;
+    }
+  });
+
   describe('Audio Stream Probe (Icecast Range Header Probe)', () => {
     it('uses GET with Range: bytes=0-1 to avoid Icecast HEAD 400 rejection', async () => {
       let capturedMethod = '';
@@ -194,6 +216,16 @@ describe('System Health Checker & Status Monitoring', () => {
       } as unknown as Response);
 
       await expect(probeStreamEndpoint('https://stream.promptfm.live/stream.mp3')).rejects.toThrow('HTTP 400');
+    });
+
+    it('throws when the stream response has no cancelable body and the probe status is bad', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        body: undefined,
+      } as unknown as Response);
+
+      await expect(probeStreamEndpoint('https://stream.promptfm.live/stream.mp3')).rejects.toThrow('HTTP 500');
     });
   });
 
@@ -341,6 +373,27 @@ describe('System Health Checker & Status Monitoring', () => {
       expect(mockCancel).toHaveBeenCalled();
     });
 
+    it('falls back to Range probe when status-json returns HTTP 200 but invalid JSON', async () => {
+      const mockCancel = vi.fn().mockResolvedValue(undefined);
+
+      vi.spyOn(globalThis, 'fetch')
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => {
+            throw new Error('invalid json');
+          },
+        } as unknown as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          body: { cancel: mockCancel },
+        } as unknown as Response);
+
+      await expect(probeAudioStreamer('https://stream.promptfm.live/stream.mp3')).resolves.toBeUndefined();
+      expect(mockCancel).toHaveBeenCalled();
+    });
+
     it('throws error when /status-json.xsl has no active source and fallback also fails', async () => {
       vi.spyOn(globalThis, 'fetch')
         .mockResolvedValueOnce({
@@ -403,6 +456,26 @@ describe('System Health Checker & Status Monitoring', () => {
       expect(result.error).toBeUndefined();
     });
 
+    it('treats latency exactly at the degraded threshold as operational', async () => {
+      vi.useFakeTimers();
+
+      const probePromise = runProbe(
+        () =>
+          new Promise<void>((resolve) => {
+            setTimeout(resolve, 3000);
+          }),
+        5000,
+        3000
+      );
+
+      await vi.advanceTimersByTimeAsync(3000);
+      const result = await probePromise;
+      vi.useRealTimers();
+
+      expect(result.status).toBe('operational');
+      expect(result.error).toBeUndefined();
+    });
+
     it('returns outage status when probe throws immediate Error', async () => {
       const result = await runProbe(async () => {
         throw new Error('Connection refused: port 8000');
@@ -424,7 +497,6 @@ describe('System Health Checker & Status Monitoring', () => {
 
   describe('checkSystemHealth Options, Status Derivations & Uptime Calculations', () => {
     it('honors custom timeoutMs option when provided', async () => {
-      let passedTimeout = 0;
       const report = await checkSystemHealth({
         timeoutMs: 4321,
         mockCheckers: {
@@ -437,6 +509,56 @@ describe('System Health Checker & Status Monitoring', () => {
       });
 
       expect(report.status).toBe('all_operational');
+    });
+
+    it('treats missing Gemini key as operational outside production', async () => {
+      const oldNodeEnv = process.env.NODE_ENV;
+      const oldKey = process.env.GEMINI_API_KEY;
+
+      (process.env as any).NODE_ENV = 'development';
+      delete process.env.GEMINI_API_KEY;
+
+      const report = await checkSystemHealth({
+        mockCheckers: {
+          audioStreamer: async () => ({ status: 'operational', latencyMs: 10 }),
+          database: async () => ({ status: 'operational', latencyMs: 10 }),
+          edgeDelivery: async () => ({ status: 'operational', latencyMs: 10 }),
+          communityBridge: async () => ({ status: 'operational', latencyMs: 10 }),
+        },
+      });
+
+      const ai = report.services.find((s) => s.id === 'ai_dj_engine');
+      expect(ai?.status).toBe('operational');
+      expect(ai?.configurationIssue).toBeUndefined();
+
+      (process.env as any).NODE_ENV = oldNodeEnv;
+      if (oldKey) process.env.GEMINI_API_KEY = oldKey;
+      else delete process.env.GEMINI_API_KEY;
+    });
+
+    it('treats missing Discord webhook as operational outside production', async () => {
+      const oldNodeEnv = process.env.NODE_ENV;
+      const oldHook = process.env.DISCORD_WEBHOOK_URL;
+
+      (process.env as any).NODE_ENV = 'development';
+      delete process.env.DISCORD_WEBHOOK_URL;
+
+      const report = await checkSystemHealth({
+        mockCheckers: {
+          audioStreamer: async () => ({ status: 'operational', latencyMs: 10 }),
+          database: async () => ({ status: 'operational', latencyMs: 10 }),
+          aiDjEngine: async () => ({ status: 'operational', latencyMs: 10 }),
+          edgeDelivery: async () => ({ status: 'operational', latencyMs: 10 }),
+        },
+      });
+
+      const bridge = report.services.find((s) => s.id === 'community_bridge');
+      expect(bridge?.status).toBe('operational');
+      expect(bridge?.configurationIssue).toBeUndefined();
+
+      (process.env as any).NODE_ENV = oldNodeEnv;
+      if (oldHook) process.env.DISCORD_WEBHOOK_URL = oldHook;
+      else delete process.env.DISCORD_WEBHOOK_URL;
     });
 
     it('reports degraded_performance when database is in outage but audioStreamer is operational', async () => {
@@ -651,7 +773,7 @@ describe('System Health Checker & Status Monitoring', () => {
       else delete process.env.GEMINI_API_KEY;
     });
 
-    it('flags AI DJ as outage in production when GEMINI_API_KEY is missing', async () => {
+    it('reports AI DJ as not_configured in production when GEMINI_API_KEY is missing', async () => {
       const oldNodeEnv = process.env.NODE_ENV;
       const oldKey = process.env.GEMINI_API_KEY;
 
@@ -667,15 +789,18 @@ describe('System Health Checker & Status Monitoring', () => {
         },
       });
 
-      const ai = report.services.find((s) => s.id === 'ai_dj_engine');
-      expect(ai?.status).toBe('outage');
-      expect(ai?.error).toContain('GEMINI_API_KEY not configured');
+    const ai = report.services.find((s) => s.id === 'ai_dj_engine');
+    expect(report.status).toBe('all_operational');
+    expect(ai?.status).toBe('not_configured');
+    expect(ai?.configurationIssue).toBe('missing_runtime_secret');
+    expect(ai?.error).toContain('GEMINI_API_KEY not configured');
+    expect(report.uptimePercentage).toBe(99.98);
 
       (process.env as any).NODE_ENV = oldNodeEnv;
       if (oldKey) process.env.GEMINI_API_KEY = oldKey;
     });
 
-    it('flags community bridge as outage in production when DISCORD_WEBHOOK_URL is missing', async () => {
+    it('reports community bridge as not_configured in production when DISCORD_WEBHOOK_URL is missing', async () => {
       const oldNodeEnv = process.env.NODE_ENV;
       const oldHook = process.env.DISCORD_WEBHOOK_URL;
 
@@ -691,11 +816,48 @@ describe('System Health Checker & Status Monitoring', () => {
         },
       });
 
+    const bridge = report.services.find((s) => s.id === 'community_bridge');
+    expect(report.status).toBe('all_operational');
+    expect(bridge?.status).toBe('not_configured');
+    expect(bridge?.configurationIssue).toBe('missing_runtime_secret');
+    expect(bridge?.error).toContain('DISCORD_WEBHOOK_URL not configured');
+    expect(report.uptimePercentage).toBe(99.98);
+
+      (process.env as any).NODE_ENV = oldNodeEnv;
+      if (oldHook) process.env.DISCORD_WEBHOOK_URL = oldHook;
+    });
+
+    it('keeps the public aggregate status operational when optional AI and community integrations are both unconfigured', async () => {
+      const oldNodeEnv = process.env.NODE_ENV;
+      const oldKey = process.env.GEMINI_API_KEY;
+      const oldHook = process.env.DISCORD_WEBHOOK_URL;
+
+      (process.env as any).NODE_ENV = 'production';
+      delete process.env.GEMINI_API_KEY;
+      delete process.env.DISCORD_WEBHOOK_URL;
+
+      const report = await checkSystemHealth({
+        mockCheckers: {
+          audioStreamer: async () => ({ status: 'operational', latencyMs: 10 }),
+          database: async () => ({ status: 'operational', latencyMs: 10 }),
+          edgeDelivery: async () => ({ status: 'operational', latencyMs: 10 }),
+        },
+      });
+
+      const ai = report.services.find((s) => s.id === 'ai_dj_engine');
       const bridge = report.services.find((s) => s.id === 'community_bridge');
-      expect(bridge?.status).toBe('outage');
+
+      expect(report.status).toBe('all_operational');
+      expect(report.uptimePercentage).toBe(99.98);
+      expect(ai?.status).toBe('not_configured');
+      expect(bridge?.status).toBe('not_configured');
+      expect(ai?.configurationIssue).toBe('missing_runtime_secret');
+      expect(bridge?.configurationIssue).toBe('missing_runtime_secret');
+      expect(ai?.error).toContain('GEMINI_API_KEY not configured');
       expect(bridge?.error).toContain('DISCORD_WEBHOOK_URL not configured');
 
       (process.env as any).NODE_ENV = oldNodeEnv;
+      if (oldKey) process.env.GEMINI_API_KEY = oldKey;
       if (oldHook) process.env.DISCORD_WEBHOOK_URL = oldHook;
     });
 

@@ -2,7 +2,7 @@
 // Unit tests for Issue #110: Keep listener queue integrity when duplicate requests match the same track
 // and when prefetch consumes queued songs early.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   getUpNext,
   getNextAirplayItem,
@@ -40,6 +40,7 @@ interface MockQueueRow {
 let mockQueueRows: MockQueueRow[] = [];
 let mockStationState: Record<string, { channel_slug: string; airplay_item: AirplayItem; started_at: string }> = {};
 let mockFallbackTracks: any[] = [];
+const originalFetch = globalThis.fetch;
 
 vi.mock('@/lib/supabase/server', () => {
   return {
@@ -273,6 +274,15 @@ describe('Listener Queue Integrity & Prefetch Synchronicity (Issue #110)', () =>
     mockFallbackTracks = [];
     clearPendingAirplayItems();
     resetChannelAirplayItems();
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => ({}),
+    } as unknown as Response);
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
   });
 
   describe('Queue Deduplication & Identity (getUpNext)', () => {

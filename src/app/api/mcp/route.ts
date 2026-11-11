@@ -39,6 +39,7 @@ import {
 } from '@/lib/streaming/rtmp-controller';
 import { getConfiguredStreamUrl } from '@/lib/audio/stream-config';
 import { getInfraBudgetPolicy } from '@/lib/infra/budget-gate';
+import { canBypassUnconfiguredAdminAuth, hasValidAdminApiKey } from '@/lib/auth/admin-auth';
 import type { ReportReason, ReportTargetType } from '@/types/database';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
@@ -594,18 +595,7 @@ const ADMIN_MCP_TOOLS = [
 ];
 
 function isAuthorizedAdmin(req: NextRequest): boolean {
-  const adminKey = process.env.ADMIN_API_KEY;
-  if (!adminKey) return true; // Default allow in local dev if not configured
-
-  const authHeader = req.headers.get('authorization');
-  const xAdminKey = req.headers.get('x-admin-key');
-  const urlKey = req.nextUrl.searchParams.get('key');
-
-  return (
-    authHeader === `Bearer ${adminKey}` ||
-    xAdminKey === adminKey ||
-    urlKey === adminKey
-  );
+  return hasValidAdminApiKey(req) || canBypassUnconfiguredAdminAuth();
 }
 
 // ── JSON-RPC 2.0 Handler ─────────────────────────────────────────────────────

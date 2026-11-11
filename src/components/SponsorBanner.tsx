@@ -6,10 +6,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Sparkles, ExternalLink, X } from 'lucide-react';
-import {
-  DEFAULT_SPONSOR_CAMPAIGNS,
-  SponsorBanner as SponsorBannerType,
-} from '@/lib/ads/banner-service';
+import { DEFAULT_SPONSOR_CAMPAIGNS } from '@/lib/ads/banner-service';
 
 interface SponsorBannerProps {
   placement?: 'header_ribbon' | 'in_feed';
@@ -64,18 +61,18 @@ export default function SponsorBanner({
       role="complementary"
       aria-label="Sponsor Announcement"
     >
-      <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2.5 sm:gap-4">
+      <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center sm:items-start justify-between gap-2.5 sm:gap-4">
         {/* Left: Badge & Description */}
-        <div className="flex items-center gap-2.5 min-w-0 text-center sm:text-left flex-wrap sm:flex-nowrap justify-center sm:justify-start">
+        <div className="flex min-w-0 flex-wrap items-center justify-center gap-2.5 text-center sm:flex-1 sm:flex-nowrap sm:justify-start sm:text-left">
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 uppercase tracking-wider flex items-center gap-1">
               <Sparkles className="w-2.5 h-2.5 text-emerald-400" />
               {banner.badge || 'Sponsored'}
             </span>
-            <span className="font-bold text-white text-xs">{banner.sponsor}:</span>
+            <span className="font-bold text-white text-xs">{`${banner.sponsor}:`}</span>
           </div>
-          <p className="text-zinc-300 text-xs truncate max-w-xl">
-            {banner.title} &mdash; <span className="text-zinc-400 hidden md:inline">{banner.description}</span>
+          <p className="basis-full min-w-0 text-xs leading-relaxed text-zinc-300 whitespace-normal break-words sm:basis-auto sm:flex-1">
+            {banner.title} &mdash; <span className="text-zinc-400">{banner.description}</span>
           </p>
         </div>
 
@@ -104,4 +101,3 @@ export default function SponsorBanner({
     </div>
   );
 }
-

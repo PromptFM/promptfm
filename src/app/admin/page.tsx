@@ -414,8 +414,9 @@ export default function AdminDashboard() {
         .filter(Boolean);
 
       // If configured, verify user email is in the allowlist; otherwise allow in dev
-      const authorized =
-        allowedEmails.length === 0 || allowedEmails.includes((currentUser.email || '').toLowerCase());
+      const authorized = allowedEmails.length > 0
+        ? allowedEmails.includes((currentUser.email || '').toLowerCase())
+        : process.env.NODE_ENV !== 'production';
 
       setIsAdmin(authorized);
       setAuthChecking(false);
@@ -423,7 +424,7 @@ export default function AdminDashboard() {
       if (authorized) {
         refreshData();
       } else {
-        setLoading(false);
+      setLoading(false);
       }
     }
 
@@ -688,23 +689,16 @@ export default function AdminDashboard() {
     const desc = channelForm.description.trim();
 
     try {
-      const res = await fetch('/api/mcp', {
+      const res = await fetch('/api/admin/channels', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: `admin-ui-${Date.now()}`,
-          method: 'tools/call',
-          params: {
-            name: 'promptfm_admin_create_channel',
-            arguments: {
-              slug,
-              name,
-              description: desc,
-              dj_id: channelForm.djId,
-              is_18_plus: channelForm.is18Plus,
-            },
-          },
+          action: 'create',
+          slug,
+          name,
+          description: desc,
+          djId: channelForm.djId,
+          is18Plus: channelForm.is18Plus,
         }),
       });
 
@@ -725,20 +719,13 @@ export default function AdminDashboard() {
   const handleToggleChannelStatus = async (slug: string, nextStatus: boolean) => {
     setActionLoadingId(`channel-status-${slug}`);
     try {
-      const res = await fetch('/api/mcp', {
+      const res = await fetch('/api/admin/channels', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: `admin-ui-toggle-${Date.now()}`,
-          method: 'tools/call',
-          params: {
-            name: 'promptfm_admin_set_channel_status',
-            arguments: {
-              slug,
-              is_active: nextStatus,
-            },
-          },
+          action: 'set_status',
+          slug,
+          isActive: nextStatus,
         }),
       });
 
@@ -2389,4 +2376,3 @@ export default function AdminDashboard() {
     </main>
   );
 }
-

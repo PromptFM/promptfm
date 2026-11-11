@@ -29,6 +29,10 @@ export default async function StatusPage() {
 
   const isHealthy = health.status === 'all_operational';
   const isDegraded = health.status === 'degraded_performance';
+  const hasUnconfiguredServices = health.services.some((service) => service.status === 'not_configured');
+  const hasRuntimeSecretRegression = health.services.some(
+    (service) => service.configurationIssue === 'missing_runtime_secret'
+  );
 
   return (
     <main className="min-h-screen bg-neutral-950 text-neutral-100 px-4 py-12 md:py-20 font-sans">
@@ -90,7 +94,11 @@ export default async function StatusPage() {
                   : 'Major Service Outage Detected'}
               </h2>
               <p className="text-xs md:text-sm text-neutral-400">
-                Continuous 24/7 radio broadcast with automated real-time health checks.
+                {isHealthy && hasRuntimeSecretRegression
+                  ? 'Core broadcast services are healthy. Some optional integrations are unavailable because expected runtime secrets are missing in this deployment.'
+                  : isHealthy && hasUnconfiguredServices
+                  ? 'Core broadcast services are healthy. Some optional integrations are intentionally not enabled in this runtime.'
+                  : 'Continuous 24/7 radio broadcast with automated real-time health checks.'}
               </p>
             </div>
           </div>
@@ -117,6 +125,14 @@ export default async function StatusPage() {
             {health.services.map((service) => {
               const serviceHealthy = service.status === 'operational';
               const serviceDegraded = service.status === 'degraded';
+              const serviceUnconfigured = service.status === 'not_configured';
+              const serviceHasMissingRuntimeSecret =
+                service.configurationIssue === 'missing_runtime_secret';
+              const serviceStatusLabel = serviceUnconfigured
+                ? serviceHasMissingRuntimeSecret
+                  ? 'runtime secret missing'
+                  : 'not configured'
+                : service.status;
 
               return (
                 <div
@@ -131,6 +147,10 @@ export default async function StatusPage() {
                             ? 'bg-emerald-500'
                             : serviceDegraded
                             ? 'bg-amber-500'
+                            : serviceUnconfigured
+                            ? serviceHasMissingRuntimeSecret
+                              ? 'bg-amber-500'
+                              : 'bg-neutral-500'
                             : 'bg-red-500'
                         }`}
                       />
@@ -140,8 +160,21 @@ export default async function StatusPage() {
                     </div>
                     <p className="text-xs text-neutral-400 pl-5.5">{service.description}</p>
                     {service.error && (
-                      <p className="text-xs text-red-400 pl-5.5 font-mono">
-                        Error: {service.error}
+                      <p
+                        className={`text-xs pl-5.5 font-mono ${
+                          serviceUnconfigured
+                            ? serviceHasMissingRuntimeSecret
+                              ? 'text-amber-400'
+                              : 'text-neutral-500'
+                            : 'text-red-400'
+                        }`}
+                      >
+                        {serviceUnconfigured
+                          ? serviceHasMissingRuntimeSecret
+                            ? 'Runtime configuration regression: '
+                            : 'Optional integration: '
+                          : 'Error: '}
+                        {service.error}
                       </p>
                     )}
                   </div>
@@ -156,10 +189,14 @@ export default async function StatusPage() {
                           ? 'bg-emerald-500/10 text-emerald-400'
                           : serviceDegraded
                           ? 'bg-amber-500/10 text-amber-400'
+                          : serviceUnconfigured
+                          ? serviceHasMissingRuntimeSecret
+                            ? 'bg-amber-500/10 text-amber-400'
+                            : 'bg-neutral-500/10 text-neutral-400'
                           : 'bg-red-500/10 text-red-400'
                       }`}
                     >
-                      {service.status}
+                      {serviceStatusLabel}
                     </span>
                   </div>
                 </div>
@@ -346,4 +383,3 @@ export default async function StatusPage() {
     </main>
   );
 }
-

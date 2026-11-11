@@ -1,7 +1,7 @@
 # 📻 PromptFM — 24/7 AI Music Radio & Creator Community
 
 [![Production](./public/badges/production.svg)](https://promptfm.live)
-[![System Status](./public/badges/status-degraded.svg)](https://github.com/PromptFM/promptfm/issues/191)
+[![System Status](https://promptfm.live/api/status?format=svg)](https://promptfm.live/status)
 [![CI Quality & Security Gate](https://github.com/PromptFM/promptfm/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/PromptFM/promptfm/actions/workflows/ci.yml)
 [![Tests](./public/badges/tests.svg)](https://github.com/PromptFM/promptfm)
 [![Mutation Score](./public/badges/mutation.svg)](https://github.com/PromptFM/promptfm)
@@ -400,7 +400,7 @@ PromptFM welcomes open community development, bug fixes, and feature proposals!
 
 Current public status on the Oracle OCI production path:
 - **Live public entrypoints:** [`https://promptfm.live`](https://promptfm.live) and [`https://www.promptfm.live`](https://www.promptfm.live) — live Next.js app via the Oracle OCI cutover path.
-- **Live web health:** `/api/healthz` returns `{"status":"ok","ready":true,...}`; `/admin` and `/status` return HTTP 200 HTML; `/api/status` returns HTTP 200 JSON (`degraded_performance` until the deferred live `SUPABASE_URL` and `GEMINI_API_KEY` are wired).
+- **Live web health:** `/api/healthz` returns `{"status":"ok","ready":true,...}`; `/admin` and `/status` return HTTP 200 HTML; `/api/status` returns HTTP 200 JSON and keeps aggregate status tied to the public broadcast surface. Optional integrations such as Gemini and the Discord bridge can report `not_configured` until their runtime secrets are wired without flipping the public site to degraded.
 - **Live audio stream:** [`https://stream.promptfm.live/stream.mp3`](https://stream.promptfm.live/stream.mp3).
 - **Streamer health endpoint:** [`https://stream.promptfm.live/status-json.xsl`](https://stream.promptfm.live/status-json.xsl) remains HTTP 200 and still reports `Google Cloud Always Free (us-central1)` as the stream location.
 - **Operator telemetry:** Oracle Metrics Explorer, GCP Cloud Logging, GCP Trace, and GitHub Actions checks linked above.

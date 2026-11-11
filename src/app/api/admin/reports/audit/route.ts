@@ -3,12 +3,12 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auditContentReports } from '@/lib/safety/reports';
-import { isAdminAuthorized } from '@/lib/auth/admin-auth';
+import { isAdminAuthorized } from '@/lib/auth/admin-route-auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  if (!isAdminAuthorized(req)) {
+  if (!(await isAdminAuthorized(req))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

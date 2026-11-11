@@ -2,8 +2,18 @@ import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 
+type NonInfraAppEnvManifest = {
+  gcpBundleSecretName: string;
+  runtimeKeys: string[];
+  requiredRuntimeKeys: string[];
+  staticRuntimeEnv: Record<string, string>;
+};
+
 describe('OCI web deploy and cutover path', () => {
   const rootDir = path.resolve(__dirname, '../..');
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(rootDir, 'config/non-infra-app-env.json'), 'utf8'),
+  ) as NonInfraAppEnvManifest;
 
   const mustRead = (rel: string) => {
     const fullPath = path.join(rootDir, rel);
@@ -88,27 +98,41 @@ describe('OCI web deploy and cutover path', () => {
     expect(new Set([firstCutover, rollbackFallback]).size).toBe(2);
   });
 
-  it('resolves Supabase runtime env for OCI cutover and passes the backend-required config into the web container', () => {
+  it('resolves required OCI web app env and passes the production app config into the web container', () => {
     const tasks = mustRead('infra/ansible/roles/webapp/tasks/main.yml');
     const workflow = mustRead('.github/workflows/deploy-web-oci.yml');
     const compose = mustRead('infra/ansible/roles/webapp/templates/docker-compose.yml.j2');
+    const resolver = mustRead('scripts/resolve-oci-web-env.cjs');
 
     expect(workflow).toContain('npx vercel env pull');
     expect(workflow).toContain('VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}');
     expect(workflow).toContain('VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}');
     expect(workflow).toContain('VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}');
-    expect(workflow).toContain('source .env.production.local');
-    expect(workflow).toContain('gcloud secrets versions access latest --secret=promptfm-database-url');
-    expect(workflow).toContain('gcloud secrets versions access latest --secret=promptfm-supabase-service-role-key');
+    expect(workflow).toContain('.env.production.local');
+    expect(workflow).toContain('node scripts/resolve-oci-web-env.cjs --print-bundle-secret-name');
+    expect(workflow).toContain('gcloud secrets versions access latest --secret="$BUNDLE_SECRET_NAME"');
+    expect(workflow).not.toContain(`gcloud secrets versions access latest --secret=${manifest.gcpBundleSecretName}`);
     expect(workflow).toContain('continuing with existing environment');
-    expect(workflow).toContain('for key in NEXT_PUBLIC_SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do');
-    expect(tasks).toContain("lookup('env', 'NEXT_PUBLIC_SUPABASE_URL')");
-    expect(tasks).toContain("lookup('env', 'NEXT_PUBLIC_SUPABASE_ANON_KEY')");
-    expect(tasks).toContain("lookup('env', 'SUPABASE_SERVICE_ROLE_KEY')");
-    expect(tasks).toContain('Fail when the OCI web deploy is missing required Supabase runtime env');
-    expect(compose).toContain('NEXT_PUBLIC_SUPABASE_URL: "{{ promptfm_web_supabase_url }}"');
-    expect(compose).toContain('{% if (promptfm_web_supabase_anon_key | default(\'\') | length) > 0 %}');
-    expect(compose).toContain('NEXT_PUBLIC_SUPABASE_ANON_KEY: "{{ promptfm_web_supabase_anon_key }}"');
-    expect(compose).toContain('SUPABASE_SERVICE_ROLE_KEY: "{{ promptfm_web_supabase_service_role_key }}"');
+    expect(workflow).toContain('node scripts/resolve-oci-web-env.cjs');
+    expect(tasks).toContain("lookup('env', 'OCI_WEB_RUNTIME_ENV_JSON')");
+    expect(tasks).toContain('OCI web deploy requires');
+    expect(tasks).toContain('promptfm_web_runtime_env_with_defaults');
+    expect(tasks).toContain('promptfm_web_container_environment');
+    expect(tasks).toContain('promptfm_web_runtime_env');
+    expect(tasks).toContain('| combine(');
+    for (const key of manifest.requiredRuntimeKeys) {
+      expect(tasks).toContain(`promptfm_web_runtime_env_with_defaults.${key}`);
+    }
+    expect(compose).toContain('NODE_ENV: production');
+    expect(compose).toContain('HOSTNAME: 0.0.0.0');
+    expect(compose).toContain('PORT: "{{ promptfm_web_container_port }}"');
+    expect(compose).toContain('PROMPTFM_STATUS_STREAM_URL: "{{ promptfm_web_status_stream_url }}"');
+    expect(compose).toContain('{% for key, value in promptfm_web_container_environment | dictsort %}');
+    expect(compose).toContain('{{ key }}: {{ value | to_json }}');
+    expect(resolver).toContain('for (const key of manifest.runtimeKeys)');
+    expect(resolver).toContain('runtimeEnv[key] = value;');
+    for (const key of Object.keys(manifest.staticRuntimeEnv)) {
+      expect(tasks).toContain(`'${key}': promptfm_web_runtime_env.${key}`);
+    }
   });
 });

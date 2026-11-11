@@ -1,22 +1,45 @@
 // src/lib/auth/admin-auth.ts
-// Shared authentication guard helper for admin endpoints and middleware
+// Shared admin auth utilities safe to use in route handlers, middleware, and client-adjacent code.
 
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 
-/**
- * Validates whether the incoming request is authorized as an administrator.
- *
- * Supports:
- * - Authorization: Bearer <ADMIN_API_KEY>
- * - x-admin-key: <ADMIN_API_KEY>
- * - ?key=<ADMIN_API_KEY>
- *
- * In local development, if ADMIN_API_KEY is unset or empty, requests are allowed by default.
- */
-export function isAdminAuthorized(req: NextRequest | Request): boolean {
-  const adminKey = process.env.ADMIN_API_KEY;
+type RequestLike = NextRequest | Request;
+
+const SUPABASE_SESSION_COOKIE_PATTERN = /(?:^|;\s*)sb-[^=;]+-auth-token(?:\.\d+)?=/;
+
+export function isProductionEnvironment(): boolean {
+  return process.env.NODE_ENV === 'production';
+}
+
+export function getConfiguredAdminEmails(): string[] {
+  return (process.env.NEXT_PUBLIC_ADMIN_EMAILS || '')
+    .split(',')
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export function isAdminEmailAuthorized(email?: string | null): boolean {
+  const allowedEmails = getConfiguredAdminEmails();
+  if (allowedEmails.length === 0) {
+    return !isProductionEnvironment();
+  }
+
+  const normalizedEmail = email?.trim().toLowerCase();
+  return Boolean(normalizedEmail && allowedEmails.includes(normalizedEmail));
+}
+
+export function hasConfiguredAdminApiKey(): boolean {
+  return Boolean(process.env.ADMIN_API_KEY?.trim());
+}
+
+export function canBypassUnconfiguredAdminAuth(): boolean {
+  return !hasConfiguredAdminApiKey() && !isProductionEnvironment();
+}
+
+export function hasValidAdminApiKey(req: RequestLike): boolean {
+  const adminKey = process.env.ADMIN_API_KEY?.trim();
   if (!adminKey) {
-    return true; // Default allow in local dev when unconfigured
+    return false;
   }
 
   const authHeader = req.headers.get('authorization');
@@ -36,5 +59,18 @@ export function isAdminAuthorized(req: NextRequest | Request): boolean {
     authHeader === `Bearer ${adminKey}` ||
     xAdminKey === adminKey ||
     queryKey === adminKey
+  );
+}
+
+export function hasLikelySupabaseSessionCookie(req: RequestLike): boolean {
+  const cookieHeader = req.headers.get('cookie');
+  return Boolean(cookieHeader && SUPABASE_SESSION_COOKIE_PATTERN.test(cookieHeader));
+}
+
+export function shouldAllowAdminRequestThroughMiddleware(req: RequestLike): boolean {
+  return (
+    hasValidAdminApiKey(req) ||
+    hasLikelySupabaseSessionCookie(req) ||
+    canBypassUnconfiguredAdminAuth()
   );
 }
