@@ -184,6 +184,25 @@ PY
     };
   };
 
+  type DeployScriptFixture = ReturnType<typeof createDeployScriptFixture>;
+
+  const buildDeployScriptEnv = (
+    fixture: DeployScriptFixture,
+    overrides: Record<string, string>,
+  ): NodeJS.ProcessEnv => ({
+    NODE_ENV: process.env.NODE_ENV ?? 'test',
+    PATH: `${fixture.binDir}:${process.env.PATH ?? ''}`,
+    TEST_GCLOUD_LOG: fixture.logs.gcloud,
+    TEST_TERRAFORM_LOG: fixture.logs.terraform,
+    TEST_NPX_LOG: fixture.logs.npx,
+    TEST_GIT_LOG: fixture.logs.git,
+    TEST_ANSIBLE_ARGS: fixture.logs.ansibleArgs,
+    TEST_OCI_ENV: fixture.logs.ociEnv,
+    TEST_REGISTRY_ENV: fixture.logs.registryEnv,
+    TEST_DEPLOY_METADATA_ENV: fixture.logs.deployMetadataEnv,
+    ...overrides,
+  });
+
   afterEach(() => {
     while (tmpDirs.length > 0) {
       const tmpDir = tmpDirs.pop();
@@ -336,21 +355,12 @@ PY
     execFileSync('bash', [fixture.scriptPath, '-e', 'promptfm_web_release_id=test-release'], {
       cwd: fixture.tmpDir,
       encoding: 'utf8',
-      env: {
-        PATH: `${fixture.binDir}:${process.env.PATH ?? ''}`,
-        TEST_GCLOUD_LOG: fixture.logs.gcloud,
-        TEST_TERRAFORM_LOG: fixture.logs.terraform,
-        TEST_NPX_LOG: fixture.logs.npx,
-        TEST_GIT_LOG: fixture.logs.git,
-        TEST_ANSIBLE_ARGS: fixture.logs.ansibleArgs,
-        TEST_OCI_ENV: fixture.logs.ociEnv,
-        TEST_REGISTRY_ENV: fixture.logs.registryEnv,
-        TEST_DEPLOY_METADATA_ENV: fixture.logs.deployMetadataEnv,
+      env: buildDeployScriptEnv(fixture, {
         GOOGLE_APPLICATION_CREDENTIALS: '',
         VERCEL_TOKEN: 'test-vercel-token',
         VERCEL_ORG_ID: 'test-org',
         VERCEL_PROJECT_ID: 'test-project',
-      },
+      }),
       stdio: 'pipe',
     });
 
@@ -397,19 +407,10 @@ PY
     execFileSync('bash', [fixture.scriptPath], {
       cwd: fixture.tmpDir,
       encoding: 'utf8',
-      env: {
-        PATH: `${fixture.binDir}:${process.env.PATH ?? ''}`,
-        TEST_GCLOUD_LOG: fixture.logs.gcloud,
-        TEST_TERRAFORM_LOG: fixture.logs.terraform,
-        TEST_NPX_LOG: fixture.logs.npx,
-        TEST_GIT_LOG: fixture.logs.git,
-        TEST_ANSIBLE_ARGS: fixture.logs.ansibleArgs,
-        TEST_OCI_ENV: fixture.logs.ociEnv,
-        TEST_REGISTRY_ENV: fixture.logs.registryEnv,
-        TEST_DEPLOY_METADATA_ENV: fixture.logs.deployMetadataEnv,
+      env: buildDeployScriptEnv(fixture, {
         VERCEL_TOKEN: 'test-vercel-token',
         OCI_WEB_RUNTIME_ENV_JSON: JSON.stringify({ FROM_CI: '1' }),
-      },
+      }),
       stdio: 'pipe',
     });
 
@@ -435,22 +436,13 @@ PY
     execFileSync('bash', [fixture.scriptPath], {
       cwd: fixture.tmpDir,
       encoding: 'utf8',
-      env: {
-        PATH: `${fixture.binDir}:${process.env.PATH ?? ''}`,
-        TEST_GCLOUD_LOG: fixture.logs.gcloud,
-        TEST_TERRAFORM_LOG: fixture.logs.terraform,
-        TEST_NPX_LOG: fixture.logs.npx,
-        TEST_GIT_LOG: fixture.logs.git,
-        TEST_ANSIBLE_ARGS: fixture.logs.ansibleArgs,
-        TEST_OCI_ENV: fixture.logs.ociEnv,
-        TEST_REGISTRY_ENV: fixture.logs.registryEnv,
-        TEST_DEPLOY_METADATA_ENV: fixture.logs.deployMetadataEnv,
+      env: buildDeployScriptEnv(fixture, {
         OCI_WEB_RUNTIME_ENV_JSON: JSON.stringify({ FROM_CI: '1' }),
         PROMPTFM_WEB_RELEASE_ID: 'local-dev-release',
         GITHUB_REPOSITORY_OWNER: 'PromptFM',
         GITHUB_ACTOR: 'local-dev-user',
         GH_PAT: 'ghp_localToken1234567890',
-      },
+      }),
       stdio: 'pipe',
     });
 
@@ -470,19 +462,10 @@ PY
     execFileSync('bash', [fixture.scriptPath], {
       cwd: fixture.tmpDir,
       encoding: 'utf8',
-      env: {
-        PATH: `${fixture.binDir}:${process.env.PATH ?? ''}`,
-        TEST_GCLOUD_LOG: fixture.logs.gcloud,
-        TEST_TERRAFORM_LOG: fixture.logs.terraform,
-        TEST_NPX_LOG: fixture.logs.npx,
-        TEST_GIT_LOG: fixture.logs.git,
-        TEST_ANSIBLE_ARGS: fixture.logs.ansibleArgs,
-        TEST_OCI_ENV: fixture.logs.ociEnv,
-        TEST_REGISTRY_ENV: fixture.logs.registryEnv,
-        TEST_DEPLOY_METADATA_ENV: fixture.logs.deployMetadataEnv,
+      env: buildDeployScriptEnv(fixture, {
         TEST_GIT_REMOTE_URL: 'https://atrifan:ghp_remoteToken1234567890@github.com/PromptFM/promptfm.git',
         OCI_WEB_RUNTIME_ENV_JSON: JSON.stringify({ FROM_CI: '1' }),
-      },
+      }),
       stdio: 'pipe',
     });
 
@@ -505,23 +488,14 @@ PY
     execFileSync('bash', [fixture.scriptPath], {
       cwd: fixture.tmpDir,
       encoding: 'utf8',
-      env: {
-        PATH: `${fixture.binDir}:${process.env.PATH ?? ''}`,
-        TEST_GCLOUD_LOG: fixture.logs.gcloud,
-        TEST_TERRAFORM_LOG: fixture.logs.terraform,
-        TEST_NPX_LOG: fixture.logs.npx,
-        TEST_GIT_LOG: fixture.logs.git,
-        TEST_ANSIBLE_ARGS: fixture.logs.ansibleArgs,
-        TEST_OCI_ENV: fixture.logs.ociEnv,
-        TEST_REGISTRY_ENV: fixture.logs.registryEnv,
-        TEST_DEPLOY_METADATA_ENV: fixture.logs.deployMetadataEnv,
+      env: buildDeployScriptEnv(fixture, {
         OCI_WEB_RUNTIME_ENV_JSON: JSON.stringify({ FROM_CI: '1' }),
         PROMPTFM_WEB_RELEASE_ID: 'ci-release-id',
         PROMPTFM_WEB_IMAGE: 'ghcr.io/promptfm/promptfm-web:ci-release-id',
         PROMPTFM_WEB_REGISTRY: 'registry.internal.example',
         PROMPTFM_WEB_REGISTRY_USERNAME: 'ci-user',
         PROMPTFM_WEB_REGISTRY_TOKEN: 'ci-token',
-      },
+      }),
       stdio: 'pipe',
     });
 
@@ -541,20 +515,11 @@ PY
     execFileSync('bash', [fixture.scriptPath], {
       cwd: fixture.tmpDir,
       encoding: 'utf8',
-      env: {
-        PATH: `${fixture.binDir}:${process.env.PATH ?? ''}`,
-        TEST_GCLOUD_LOG: fixture.logs.gcloud,
-        TEST_TERRAFORM_LOG: fixture.logs.terraform,
-        TEST_NPX_LOG: fixture.logs.npx,
-        TEST_GIT_LOG: fixture.logs.git,
-        TEST_ANSIBLE_ARGS: fixture.logs.ansibleArgs,
-        TEST_OCI_ENV: fixture.logs.ociEnv,
-        TEST_REGISTRY_ENV: fixture.logs.registryEnv,
-        TEST_DEPLOY_METADATA_ENV: fixture.logs.deployMetadataEnv,
+      env: buildDeployScriptEnv(fixture, {
         TEST_GIT_HEAD_SHA: 'abc123def456',
         TEST_GIT_REMOTE_URL: 'git@github.com:PromptFM/promptfm.git',
         OCI_WEB_RUNTIME_ENV_JSON: JSON.stringify({ FROM_CI: '1' }),
-      },
+      }),
       stdio: 'pipe',
     });
 
@@ -580,23 +545,14 @@ PY
     execFileSync('bash', [fixture.scriptPath], {
       cwd: fixture.tmpDir,
       encoding: 'utf8',
-      env: {
-        PATH: `${fixture.binDir}:${process.env.PATH ?? ''}`,
-        TEST_GCLOUD_LOG: fixture.logs.gcloud,
-        TEST_TERRAFORM_LOG: fixture.logs.terraform,
-        TEST_NPX_LOG: fixture.logs.npx,
-        TEST_GIT_LOG: fixture.logs.git,
-        TEST_ANSIBLE_ARGS: fixture.logs.ansibleArgs,
-        TEST_OCI_ENV: fixture.logs.ociEnv,
-        TEST_REGISTRY_ENV: fixture.logs.registryEnv,
-        TEST_DEPLOY_METADATA_ENV: fixture.logs.deployMetadataEnv,
+      env: buildDeployScriptEnv(fixture, {
         TEST_GIT_HEAD_SHA: 'fff111222333',
         PROMPTFM_WEB_RELEASE_TAG: 'promptfm/release:2026-11-11 demo',
         GITHUB_REPOSITORY_OWNER: 'PromptFM',
         GITHUB_ACTOR: 'local-dev-user',
         GH_PAT: 'ghp_localToken1234567890',
         OCI_WEB_RUNTIME_ENV_JSON: JSON.stringify({ FROM_CI: '1' }),
-      },
+      }),
       stdio: 'pipe',
     });
 
@@ -616,22 +572,13 @@ PY
     execFileSync('bash', [fixture.scriptPath], {
       cwd: fixture.tmpDir,
       encoding: 'utf8',
-      env: {
-        PATH: `${fixture.binDir}:${process.env.PATH ?? ''}`,
-        TEST_GCLOUD_LOG: fixture.logs.gcloud,
-        TEST_TERRAFORM_LOG: fixture.logs.terraform,
-        TEST_NPX_LOG: fixture.logs.npx,
-        TEST_GIT_LOG: fixture.logs.git,
-        TEST_ANSIBLE_ARGS: fixture.logs.ansibleArgs,
-        TEST_OCI_ENV: fixture.logs.ociEnv,
-        TEST_REGISTRY_ENV: fixture.logs.registryEnv,
-        TEST_DEPLOY_METADATA_ENV: fixture.logs.deployMetadataEnv,
+      env: buildDeployScriptEnv(fixture, {
         OCI_WEB_RUNTIME_ENV_JSON: JSON.stringify({ FROM_CI: '1' }),
         PROMPTFM_WEB_RELEASE_ID: 'ci-release-id',
         PROMPTFM_WEB_IMAGE: 'ghcr.io/custom-owner/promptfm-web:ci-release-id',
         GITHUB_ACTOR: 'local-dev-user',
         GH_PAT: 'ghp_localToken1234567890',
-      },
+      }),
       stdio: 'pipe',
     });
 
