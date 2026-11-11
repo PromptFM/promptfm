@@ -46,8 +46,10 @@ describe('OCI web deploy and cutover path', () => {
       gcloud: path.join(tmpDir, 'gcloud.log'),
       terraform: path.join(tmpDir, 'terraform.log'),
       npx: path.join(tmpDir, 'npx.log'),
+      git: path.join(tmpDir, 'git.log'),
       ansibleArgs: path.join(tmpDir, 'ansible-args.log'),
       ociEnv: path.join(tmpDir, 'oci-runtime-env.json'),
+      registryEnv: path.join(tmpDir, 'registry-env.json'),
     };
 
     write(
@@ -120,11 +122,38 @@ exit 1
     );
 
     write(
+      'bin/git',
+      `#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$TEST_GIT_LOG"
+if [ "\${TEST_GIT_REMOTE_URL:-}" != '' ] && [ "$1" = "-C" ] && [ "$3" = "remote" ] && [ "$4" = "get-url" ] && [ "$5" = "origin" ]; then
+  printf '%s' "$TEST_GIT_REMOTE_URL"
+  exit 0
+fi
+
+exit 1
+`,
+      0o755,
+    );
+
+    write(
       'bin/ansible-playbook',
       `#!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" > "$TEST_ANSIBLE_ARGS"
 printf '%s' "\${OCI_WEB_RUNTIME_ENV_JSON:-}" > "$TEST_OCI_ENV"
+python3 - <<'PY' > "$TEST_REGISTRY_ENV"
+import json, os
+json.dump(
+    {
+        "PROMPTFM_WEB_REGISTRY": os.environ.get("PROMPTFM_WEB_REGISTRY", ""),
+        "PROMPTFM_WEB_REGISTRY_USERNAME": os.environ.get("PROMPTFM_WEB_REGISTRY_USERNAME", ""),
+        "PROMPTFM_WEB_REGISTRY_TOKEN": os.environ.get("PROMPTFM_WEB_REGISTRY_TOKEN", ""),
+    },
+    os.sys.stdout,
+    separators=(",", ":"),
+)
+PY
 `,
       0o755,
     );
@@ -244,6 +273,9 @@ printf '%s' "\${OCI_WEB_RUNTIME_ENV_JSON:-}" > "$TEST_OCI_ENV"
     expect(script).toContain('if [ -z "${OCI_WEB_RUNTIME_ENV_JSON:-}" ]; then');
     expect(script).toContain('REPO_ROOT="$(cd ../.. && pwd)"');
     expect(script).toContain('PULLED_ENV_FILE="$REPO_ROOT/.env.production.local"');
+    expect(script).toContain('PROMPTFM_WEB_REGISTRY="${PROMPTFM_WEB_REGISTRY:-ghcr.io}"');
+    expect(script).toContain('GH_PAT:-${GITHUB_TOKEN:-}');
+    expect(script).toContain('git -C "$REPO_ROOT" remote get-url origin');
     expect(script).toContain('npx vercel env pull .env.production.local --environment=production --yes');
     expect(script).toContain('Vercel env pull failed, continuing with the GCP bundle secret and existing environment.');
     expect(script).toContain('VERCEL_TOKEN not provided, continuing with the GCP bundle secret and existing environment.');
@@ -285,8 +317,10 @@ printf '%s' "\${OCI_WEB_RUNTIME_ENV_JSON:-}" > "$TEST_OCI_ENV"
         TEST_GCLOUD_LOG: fixture.logs.gcloud,
         TEST_TERRAFORM_LOG: fixture.logs.terraform,
         TEST_NPX_LOG: fixture.logs.npx,
+        TEST_GIT_LOG: fixture.logs.git,
         TEST_ANSIBLE_ARGS: fixture.logs.ansibleArgs,
         TEST_OCI_ENV: fixture.logs.ociEnv,
+        TEST_REGISTRY_ENV: fixture.logs.registryEnv,
         GOOGLE_APPLICATION_CREDENTIALS: '',
         VERCEL_TOKEN: 'test-vercel-token',
         VERCEL_ORG_ID: 'test-org',
@@ -300,6 +334,7 @@ printf '%s' "\${OCI_WEB_RUNTIME_ENV_JSON:-}" > "$TEST_OCI_ENV"
     const terraformLog = fs.readFileSync(fixture.logs.terraform, 'utf8');
     const npxLog = fs.readFileSync(fixture.logs.npx, 'utf8');
     const ansibleArgs = fs.readFileSync(fixture.logs.ansibleArgs, 'utf8');
+    const registryEnv = JSON.parse(fs.readFileSync(fixture.logs.registryEnv, 'utf8')) as Record<string, string>;
 
     expect(fs.existsSync(fixture.pulledEnvFile)).toBe(true);
     expect(npxLog).toContain('vercel env pull .env.production.local --environment=production --yes');
@@ -310,6 +345,11 @@ printf '%s' "\${OCI_WEB_RUNTIME_ENV_JSON:-}" > "$TEST_OCI_ENV"
     expect(terraformLog).toContain('-chdir=../terraform-oci output -raw public_ip');
     expect(ansibleArgs).toContain('playbook-web-oci.yml');
     expect(ansibleArgs).toContain('promptfm_web_release_id=test-release');
+    expect(registryEnv).toEqual({
+      PROMPTFM_WEB_REGISTRY: 'ghcr.io',
+      PROMPTFM_WEB_REGISTRY_USERNAME: '',
+      PROMPTFM_WEB_REGISTRY_TOKEN: '',
+    });
     expect(runtimeEnv.NEXT_PUBLIC_SUPABASE_URL).toBe('https://pulled.supabase.co');
     expect(runtimeEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY).toBe('pulled-anon-key');
     expect(runtimeEnv.SUPABASE_SERVICE_ROLE_KEY).toBe('pulled-service-role-key');
@@ -330,8 +370,10 @@ printf '%s' "\${OCI_WEB_RUNTIME_ENV_JSON:-}" > "$TEST_OCI_ENV"
         TEST_GCLOUD_LOG: fixture.logs.gcloud,
         TEST_TERRAFORM_LOG: fixture.logs.terraform,
         TEST_NPX_LOG: fixture.logs.npx,
+        TEST_GIT_LOG: fixture.logs.git,
         TEST_ANSIBLE_ARGS: fixture.logs.ansibleArgs,
         TEST_OCI_ENV: fixture.logs.ociEnv,
+        TEST_REGISTRY_ENV: fixture.logs.registryEnv,
         VERCEL_TOKEN: 'test-vercel-token',
         OCI_WEB_RUNTIME_ENV_JSON: JSON.stringify({ FROM_CI: '1' }),
       },
@@ -340,11 +382,116 @@ printf '%s' "\${OCI_WEB_RUNTIME_ENV_JSON:-}" > "$TEST_OCI_ENV"
 
     const runtimeEnv = JSON.parse(fs.readFileSync(fixture.logs.ociEnv, 'utf8')) as Record<string, string>;
     const gcloudLog = fs.readFileSync(fixture.logs.gcloud, 'utf8');
+    const registryEnv = JSON.parse(fs.readFileSync(fixture.logs.registryEnv, 'utf8')) as Record<string, string>;
 
     expect(runtimeEnv).toEqual({ FROM_CI: '1' });
     expect(fs.existsSync(fixture.pulledEnvFile)).toBe(false);
     expect(fs.existsSync(fixture.logs.npx)).toBe(false);
     expect(gcloudLog).toContain('secrets versions access latest --secret=promptfm-oci-credentials --project=promptfm-radio-1793623670');
     expect(gcloudLog).not.toContain('promptfm-web-app-env');
+    expect(registryEnv).toEqual({
+      PROMPTFM_WEB_REGISTRY: 'ghcr.io',
+      PROMPTFM_WEB_REGISTRY_USERNAME: '',
+      PROMPTFM_WEB_REGISTRY_TOKEN: '',
+    });
+  });
+
+  it('derives GHCR auth from local GitHub env defaults without overriding explicit registry env', () => {
+    const fixture = createDeployScriptFixture();
+
+    execFileSync('bash', [fixture.scriptPath], {
+      cwd: fixture.tmpDir,
+      encoding: 'utf8',
+      env: {
+        PATH: `${fixture.binDir}:${process.env.PATH ?? ''}`,
+        TEST_GCLOUD_LOG: fixture.logs.gcloud,
+        TEST_TERRAFORM_LOG: fixture.logs.terraform,
+        TEST_NPX_LOG: fixture.logs.npx,
+        TEST_GIT_LOG: fixture.logs.git,
+        TEST_ANSIBLE_ARGS: fixture.logs.ansibleArgs,
+        TEST_OCI_ENV: fixture.logs.ociEnv,
+        TEST_REGISTRY_ENV: fixture.logs.registryEnv,
+        OCI_WEB_RUNTIME_ENV_JSON: JSON.stringify({ FROM_CI: '1' }),
+        GITHUB_ACTOR: 'local-dev-user',
+        GH_PAT: 'ghp_localToken1234567890',
+      },
+      stdio: 'pipe',
+    });
+
+    const registryEnv = JSON.parse(fs.readFileSync(fixture.logs.registryEnv, 'utf8')) as Record<string, string>;
+
+    expect(registryEnv).toEqual({
+      PROMPTFM_WEB_REGISTRY: 'ghcr.io',
+      PROMPTFM_WEB_REGISTRY_USERNAME: 'local-dev-user',
+      PROMPTFM_WEB_REGISTRY_TOKEN: 'ghp_localToken1234567890',
+    });
+    expect(fs.existsSync(fixture.logs.git)).toBe(false);
+  });
+
+  it('falls back to the origin remote credentials for missing local GHCR auth', () => {
+    const fixture = createDeployScriptFixture();
+
+    execFileSync('bash', [fixture.scriptPath], {
+      cwd: fixture.tmpDir,
+      encoding: 'utf8',
+      env: {
+        PATH: `${fixture.binDir}:${process.env.PATH ?? ''}`,
+        TEST_GCLOUD_LOG: fixture.logs.gcloud,
+        TEST_TERRAFORM_LOG: fixture.logs.terraform,
+        TEST_NPX_LOG: fixture.logs.npx,
+        TEST_GIT_LOG: fixture.logs.git,
+        TEST_ANSIBLE_ARGS: fixture.logs.ansibleArgs,
+        TEST_OCI_ENV: fixture.logs.ociEnv,
+        TEST_REGISTRY_ENV: fixture.logs.registryEnv,
+        TEST_GIT_REMOTE_URL: 'https://atrifan:ghp_remoteToken1234567890@github.com/PromptFM/promptfm.git',
+        OCI_WEB_RUNTIME_ENV_JSON: JSON.stringify({ FROM_CI: '1' }),
+      },
+      stdio: 'pipe',
+    });
+
+    const registryEnv = JSON.parse(fs.readFileSync(fixture.logs.registryEnv, 'utf8')) as Record<string, string>;
+    const gitLog = fs.readFileSync(fixture.logs.git, 'utf8');
+
+    expect(gitLog).toContain('-C');
+    expect(gitLog).toContain('remote get-url origin');
+    expect(gitLog).not.toContain('ghp_remoteToken1234567890');
+    expect(registryEnv).toEqual({
+      PROMPTFM_WEB_REGISTRY: 'ghcr.io',
+      PROMPTFM_WEB_REGISTRY_USERNAME: 'atrifan',
+      PROMPTFM_WEB_REGISTRY_TOKEN: 'ghp_remoteToken1234567890',
+    });
+  });
+
+  it('keeps CI-provided registry env unchanged', () => {
+    const fixture = createDeployScriptFixture();
+
+    execFileSync('bash', [fixture.scriptPath], {
+      cwd: fixture.tmpDir,
+      encoding: 'utf8',
+      env: {
+        PATH: `${fixture.binDir}:${process.env.PATH ?? ''}`,
+        TEST_GCLOUD_LOG: fixture.logs.gcloud,
+        TEST_TERRAFORM_LOG: fixture.logs.terraform,
+        TEST_NPX_LOG: fixture.logs.npx,
+        TEST_GIT_LOG: fixture.logs.git,
+        TEST_ANSIBLE_ARGS: fixture.logs.ansibleArgs,
+        TEST_OCI_ENV: fixture.logs.ociEnv,
+        TEST_REGISTRY_ENV: fixture.logs.registryEnv,
+        OCI_WEB_RUNTIME_ENV_JSON: JSON.stringify({ FROM_CI: '1' }),
+        PROMPTFM_WEB_REGISTRY: 'registry.internal.example',
+        PROMPTFM_WEB_REGISTRY_USERNAME: 'ci-user',
+        PROMPTFM_WEB_REGISTRY_TOKEN: 'ci-token',
+      },
+      stdio: 'pipe',
+    });
+
+    const registryEnv = JSON.parse(fs.readFileSync(fixture.logs.registryEnv, 'utf8')) as Record<string, string>;
+
+    expect(registryEnv).toEqual({
+      PROMPTFM_WEB_REGISTRY: 'registry.internal.example',
+      PROMPTFM_WEB_REGISTRY_USERNAME: 'ci-user',
+      PROMPTFM_WEB_REGISTRY_TOKEN: 'ci-token',
+    });
+    expect(fs.existsSync(fixture.logs.git)).toBe(false);
   });
 });

@@ -11,6 +11,95 @@ PULLED_ENV_FILE="$REPO_ROOT/.env.production.local"
 SECRET="${OCI_SECRET:-promptfm-oci-credentials}"
 PROJECT="${GCP_PROJECT_ID:-promptfm-radio-1793623670}"
 
+looks_like_github_token() {
+  case "${1:-}" in
+    ghp_*|gho_*|ghu_*|ghs_*|ghr_*|github_pat_*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+resolve_git_origin_url() {
+  git -C "$REPO_ROOT" remote get-url origin 2>/dev/null || true
+}
+
+extract_origin_registry_username() {
+  local remote_url="${1:-}"
+  local auth_segment=""
+  local username=""
+
+  case "$remote_url" in
+    https://*@github.com/*)
+      auth_segment="${remote_url#https://}"
+      auth_segment="${auth_segment%%@github.com/*}"
+      if [[ "$auth_segment" == *:* ]]; then
+        username="${auth_segment%%:*}"
+        case "$username" in
+          x-access-token|oauth2) username="" ;;
+        esac
+      fi
+      ;;
+  esac
+
+  printf '%s' "$username"
+}
+
+extract_origin_registry_token() {
+  local remote_url="${1:-}"
+  local auth_segment=""
+  local token=""
+
+  case "$remote_url" in
+    https://*@github.com/*)
+      auth_segment="${remote_url#https://}"
+      auth_segment="${auth_segment%%@github.com/*}"
+      if [[ "$auth_segment" == *:* ]]; then
+        token="${auth_segment#*:}"
+      elif looks_like_github_token "$auth_segment"; then
+        token="$auth_segment"
+      fi
+      ;;
+  esac
+
+  printf '%s' "$token"
+}
+
+resolve_registry_auth_defaults() {
+  export PROMPTFM_WEB_REGISTRY="${PROMPTFM_WEB_REGISTRY:-ghcr.io}"
+
+  if [ -n "${PROMPTFM_WEB_REGISTRY_USERNAME:-}" ] && [ -n "${PROMPTFM_WEB_REGISTRY_TOKEN:-}" ]; then
+    return
+  fi
+
+  local origin_url=""
+  if [ -z "${PROMPTFM_WEB_REGISTRY_USERNAME:-}" ]; then
+    local registry_username="${GITHUB_ACTOR:-${GITHUB_USER:-}}"
+    if [ -z "$registry_username" ]; then
+      if [ -z "$origin_url" ]; then
+        origin_url="$(resolve_git_origin_url)"
+      fi
+      registry_username="$(extract_origin_registry_username "$origin_url")"
+    fi
+    if [ -n "$registry_username" ]; then
+      export PROMPTFM_WEB_REGISTRY_USERNAME="$registry_username"
+    fi
+  fi
+
+  if [ -z "${PROMPTFM_WEB_REGISTRY_TOKEN:-}" ]; then
+    local registry_token="${GH_PAT:-${GITHUB_TOKEN:-}}"
+    if [ -z "$registry_token" ]; then
+      if [ -z "$origin_url" ]; then
+        origin_url="$(resolve_git_origin_url)"
+      fi
+      registry_token="$(extract_origin_registry_token "$origin_url")"
+    fi
+    if [ -n "$registry_token" ]; then
+      export PROMPTFM_WEB_REGISTRY_TOKEN="$registry_token"
+    fi
+  fi
+}
+
+resolve_registry_auth_defaults
+
 if [ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]; then
   GOOGLE_OAUTH_ACCESS_TOKEN="$(gcloud auth print-access-token)"
   export GOOGLE_OAUTH_ACCESS_TOKEN
