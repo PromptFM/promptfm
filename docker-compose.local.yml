@@ -18,6 +18,7 @@ services:
   # 1. Icecast 2 Streaming Audio Server (GCP VM Simulation)
   icecast:
     image: infiniteproject/icecast:latest
+    platform: linux/amd64
     container_name: promptfm-icecast-local
     restart: unless-stopped
     ports:
@@ -58,7 +59,7 @@ services:
 
   # 4. MinIO Local Object Storage (Cloudflare R2 Simulation)
   minio:
-    image: minio/minio:latest
+    image: cgr.dev/chainguard/minio:latest
     container_name: promptfm-minio-local
     restart: unless-stopped
     ports:

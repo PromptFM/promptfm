@@ -1,5 +1,7 @@
 // src/lib/infra/secrets-sync.ts
-// Secure secret synchronization helpers for Vercel and documented SecretShare workflows.
+// Secure secret synchronization helpers for Vercel, OCI web env parity, and documented SecretShare workflows.
+
+import nonInfraAppEnvManifest from '../../../config/non-infra-app-env.json';
 
 export interface VercelSecretPayload {
   key: string;
@@ -13,7 +15,18 @@ export interface SecretShareProcessInfo {
   instructions: string;
 }
 
+export interface NonInfraAppEnvManifest {
+  gcpBundleSecretName: string;
+  buildKeys: string[];
+  runtimeKeys: string[];
+  requiredRuntimeKeys: string[];
+  staticRuntimeEnv: Record<string, string>;
+  directGcpSecretNames: Record<string, string>;
+}
+
 const VALID_ENV_KEY_REGEX = /^[A-Z][A-Z0-9_]*$/;
+
+export const NON_INFRA_APP_ENV_GCP_SECRET_NAME = nonInfraAppEnvManifest.gcpBundleSecretName;
 
 /**
  * Validates and formats a secret payload for Vercel deployment environments.
@@ -52,6 +65,17 @@ export function buildVercelCliEnvArgs(key: string, environment: string): string[
   return ['env', 'add', key, environment];
 }
 
+export function getNonInfraAppEnvManifest(): NonInfraAppEnvManifest {
+  return {
+    gcpBundleSecretName: nonInfraAppEnvManifest.gcpBundleSecretName,
+    buildKeys: [...nonInfraAppEnvManifest.buildKeys],
+    runtimeKeys: [...nonInfraAppEnvManifest.runtimeKeys],
+    requiredRuntimeKeys: [...nonInfraAppEnvManifest.requiredRuntimeKeys],
+    staticRuntimeEnv: { ...nonInfraAppEnvManifest.staticRuntimeEnv },
+    directGcpSecretNames: { ...nonInfraAppEnvManifest.directGcpSecretNames },
+  };
+}
+
 /**
  * Returns metadata and documentation links for secure credential sharing.
  */
@@ -60,6 +84,6 @@ export function getSecretShareProcessInfo(): SecretShareProcessInfo {
     secretShareUrl: 'https://secretshare.internal/promptfm-secrets',
     documentationPath: 'docs/admin-guide.md',
     instructions:
-      'Secrets must be transferred via encrypted one-time SecretShare links before injecting into Vercel or GitHub Secrets.',
+      'Secrets must be transferred via encrypted one-time SecretShare links before injecting into Vercel or Google Cloud Secret Manager-backed workflows.',
   };
 }

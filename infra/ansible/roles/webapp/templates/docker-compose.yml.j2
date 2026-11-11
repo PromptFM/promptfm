@@ -10,6 +10,9 @@ services:
       HOSTNAME: 0.0.0.0
       PORT: "{{ promptfm_web_container_port }}"
       PROMPTFM_STATUS_STREAM_URL: "{{ promptfm_web_status_stream_url }}"
+{% for key, value in promptfm_web_container_environment | dictsort %}
+      {{ key }}: {{ value | to_json }}
+{% endfor %}
     ports:
       - "127.0.0.1:{{ promptfm_web_release_host_port }}:{{ promptfm_web_container_port }}"
     networks:

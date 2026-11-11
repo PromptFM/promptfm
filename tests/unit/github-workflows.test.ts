@@ -42,6 +42,19 @@ describe('GitHub Actions Workflows Suite', () => {
       expect(content).toContain('ubuntu-24.04-arm');
       expect(content).toContain('docker buildx imagetools create');
       expect(content).toMatch(/linux\/amd64,linux\/arm64|linux\/arm64,linux\/amd64/);
+      expect(content).toContain('npx vercel env pull .env.production.local --environment=production --yes');
+      expect(content).toContain('VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}');
+      expect(content).toContain('VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}');
+      expect(content).toContain('VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}');
+      expect(content).toContain('Resolve OCI web app env for build and cutover');
+      expect(content).toContain('node scripts/resolve-oci-web-env.cjs --print-bundle-secret-name');
+      expect(content).toContain('gcloud secrets versions access latest --secret="$BUNDLE_SECRET_NAME"');
+      expect(content).not.toMatch(/GCP_BUNDLED_APP_ENV_JSON="\$\(gcloud secrets versions access latest --secret=(["'])?[A-Za-z0-9._-]+\1/u);
+      expect(content).toContain('.env.production.local');
+      expect(content).toContain('node scripts/resolve-oci-web-env.cjs');
+      expect(content).toContain('OCI_WEB_BUILD_ENV_JSON');
+      expect(content).toContain('OCI_WEB_RUNTIME_ENV_JSON');
+      expect(content).toContain('BUILD_ARGS+=(--build-arg');
       expect(content).toContain('/api/healthz');
       expect(content).toMatch(/cutover/i);
       expect(content).toMatch(/retained[_ -]release|previous[_ -]release/i);
@@ -116,14 +129,28 @@ describe('GitHub Actions Workflows Suite', () => {
   });
 
   describe('Update Secrets Workflow (update-secrets.yml)', () => {
-    it('exists, requires secret_key/secret_value and references SecretShare guide', () => {
+    it('syncs to GCP first and treats Vercel write failures as non-blocking after GCP succeeds', () => {
       const content = readWorkflow('update-secrets.yml');
-      expect(content).toContain('name: 🔐 Update Secrets in Vercel');
+      const gcpStepIndex = content.indexOf('Validate & Synchronize Secrets to Google Cloud Secret Manager');
+      const vercelStepIndex = content.indexOf('Best-Effort Synchronize Secrets to Vercel');
+
+      expect(content).toContain('name: 🔐 Update App Secrets');
       expect(content).toContain('secret_key:');
       expect(content).toContain('secret_value:');
       expect(content).toContain('secretshare');
       expect(content).toContain('docs/admin-guide.md');
+      expect(content).toContain('Configure GCP Service Account Credentials');
+      expect(content).toContain('Google Cloud Secret Manager');
+      expect(content).toContain('Successfully synchronized $SECRET_KEY to Google Cloud Secret Manager');
+      expect(content).toContain('node scripts/resolve-oci-web-env.cjs --print-bundle-secret-name');
+      expect(content).toContain('node scripts/resolve-oci-web-env.cjs --print-direct-gcp-secret-name "$SECRET_KEY"');
+      expect(content).not.toMatch(/BUNDLE_SECRET_NAME=(["'])[A-Za-z0-9._-]+\1/u);
       expect(content).toContain('npx vercel env add');
+      expect(content).toContain('gcloud secrets versions add');
+      expect(gcpStepIndex).toBeGreaterThanOrEqual(0);
+      expect(vercelStepIndex).toBeGreaterThan(gcpStepIndex);
+      expect(content).toContain('continue-on-error: true');
+      expect(content).toContain('::warning::VERCEL_TOKEN secret is not configured in repository secrets; skipping Vercel sync.');
     });
   });
 

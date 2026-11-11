@@ -94,6 +94,11 @@ describe("Ansible streamer compose template (Oracle support)", () => {
       expect(block).not.toMatch(/^liquidsoap_script=radio-standby\.liq/m);
       expect(read('infra/ansible/playbook-oci.yml')).toContain('hosts: streamer_oci');
     });
+
+    it('keeps Oracle streamer redeploys from taking ownership of the shared Caddyfile', () => {
+      const playbook = read('infra/ansible/playbook-oci.yml');
+      expect(playbook).toContain('promptfm_streamer_manage_caddy_config: false');
+    });
   });
 
   describe('OCI web cutover and callback origin expectations', () => {
@@ -111,10 +116,9 @@ describe("Ansible streamer compose template (Oracle support)", () => {
       expect(webTasks).toMatch(/cutover|switch/i);
     });
 
-    it('keeps the streamer callback origin configurable instead of pointing promptfm_api_url at the public apex', () => {
+    it('points the on-air OCI streamer at the live apex instead of a dead private hostname', () => {
       const ociVarsBlock = inventory.split('[streamer_oci:vars]')[1]?.split('[streamer:vars]')[0] ?? '';
-      expect(ociVarsBlock).toContain('promptfm_api_url=');
-      expect(ociVarsBlock).not.toContain('promptfm_api_url=https://promptfm.live');
+      expect(ociVarsBlock).toContain("promptfm_api_url={{ lookup('env', 'PROMPTFM_API_URL') | default('https://promptfm.live', true) }}");
     });
 
     it('stops hard-coding apex callback URLs inside the Liquidsoap script', () => {

@@ -69,10 +69,10 @@ describe('Admin Quick Navigation Badges in README.md', () => {
     }
   });
 
-  it('contains resilient Production and System Status badges matching the current restore state', () => {
+  it('contains resilient Production and System Status badges that link to the live app and live status page', () => {
     const content = fs.readFileSync(readmePath, 'utf8');
     expect(content).toMatch(/\[!\[.*Production.*\]\(.*\)\]\(https:\/\/promptfm\.live\)/i);
-    expect(content).toContain('status-degraded.svg');
-    expect(content).toMatch(/\[!\[.*System Status.*\]\(.*\)\]\(https:\/\/github\.com\/PromptFM\/promptfm\/issues\/191\)/i);
+    expect(content).toContain('https://promptfm.live/api/status?format=svg');
+    expect(content).toMatch(/\[!\[.*System Status.*\]\(.*\)\]\(https:\/\/promptfm\.live\/status\)/i);
   });
 });

@@ -5,13 +5,17 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Unified Song Queue & Live Airplay Pathway (Issue #43)', () => {
   test('serves the admin queue API with accurate positions and live ETAs', async ({ request }) => {
-    const adminKey = process.env.ADMIN_API_KEY || 'promptfm-local-dev-key';
-    const res = await request.get(`/api/admin/queue?channel=main&key=${adminKey}`, {
-      headers: {
-        Authorization: `Bearer ${adminKey}`,
-        'x-admin-key': adminKey,
-      },
-    });
+    const adminKey = process.env.ADMIN_API_KEY;
+    const params = new URLSearchParams({ channel: 'main' });
+    const headers: Record<string, string> = {};
+
+    if (adminKey) {
+      params.set('key', adminKey);
+      headers.Authorization = `Bearer ${adminKey}`;
+      headers['x-admin-key'] = adminKey;
+    }
+
+    const res = await request.get(`/api/admin/queue?${params.toString()}`, { headers });
     expect(res.ok()).toBe(true);
 
     const json = await res.json();

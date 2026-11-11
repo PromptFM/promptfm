@@ -70,6 +70,11 @@
     group: "{{ ansible_user }}"
     mode: '0644'
 
+- name: Check whether the streamer Caddyfile already exists
+  stat:
+    path: "{{ app_dir }}/Caddyfile"
+  register: streamer_caddyfile_stat
+
 - name: Deploy Caddy reverse proxy configuration
   register: caddy_conf
   template:
@@ -78,6 +83,7 @@
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: '0644'
+  when: promptfm_streamer_manage_caddy_config | default(true) or not streamer_caddyfile_stat.stat.exists
 
 - name: Deploy Docker Compose configuration
   template:
@@ -120,7 +126,7 @@
   command: docker compose restart caddy
   args:
     chdir: "{{ app_dir }}"
-  when: caddy_conf is changed
+  when: caddy_conf is defined and caddy_conf is changed
 
 - name: Wait for Icecast port 8000 to become available
   wait_for:

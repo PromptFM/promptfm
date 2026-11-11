@@ -3,8 +3,9 @@
 
 import { DEFAULT_STREAM_URL } from '@/lib/audio/player-controller';
 
-export type ServiceStatus = 'operational' | 'degraded' | 'outage';
+export type ServiceStatus = 'operational' | 'degraded' | 'outage' | 'not_configured';
 export type SystemStatus = 'all_operational' | 'degraded_performance' | 'major_outage';
+export type ServiceConfigurationIssue = 'optional_integration' | 'missing_runtime_secret';
 
 export const DEFAULT_PROBE_TIMEOUT = 5000;
 export const DEFAULT_DEGRADED_LATENCY_MS = 3000;
@@ -17,6 +18,7 @@ export interface ServiceCheckResult {
   description: string;
   lastChecked: string;
   error?: string;
+  configurationIssue?: ServiceConfigurationIssue;
 }
 
 export interface SystemHealthReport {
@@ -27,16 +29,61 @@ export interface SystemHealthReport {
 }
 
 export interface MockCheckers {
-  audioStreamer?: () => Promise<{ status: ServiceStatus; latencyMs: number; error?: string }>;
-  database?: () => Promise<{ status: ServiceStatus; latencyMs: number; error?: string }>;
-  aiDjEngine?: () => Promise<{ status: ServiceStatus; latencyMs: number; error?: string }>;
-  edgeDelivery?: () => Promise<{ status: ServiceStatus; latencyMs: number; error?: string }>;
-  communityBridge?: () => Promise<{ status: ServiceStatus; latencyMs: number; error?: string }>;
+  audioStreamer?: () => Promise<ProbeResult>;
+  database?: () => Promise<ProbeResult>;
+  aiDjEngine?: () => Promise<ProbeResult>;
+  edgeDelivery?: () => Promise<ProbeResult>;
+  communityBridge?: () => Promise<ProbeResult>;
 }
 
 export interface HealthCheckOptions {
   mockCheckers?: MockCheckers;
   timeoutMs?: number;
+}
+
+interface ProbeResult {
+  status: ServiceStatus;
+  latencyMs: number;
+  error?: string;
+  configurationIssue?: ServiceConfigurationIssue;
+}
+
+function notConfigured(
+  error: string,
+  configurationIssue: ServiceConfigurationIssue = 'optional_integration'
+): ProbeResult {
+  return {
+    status: 'not_configured',
+    latencyMs: 0,
+    error,
+    configurationIssue,
+  };
+}
+
+function operationalProbeResult(latencyMs = 1): ProbeResult {
+  return {
+    status: 'operational',
+    latencyMs,
+  };
+}
+
+function createServiceCheckResult(
+  id: string,
+  name: string,
+  description: string,
+  result: ProbeResult,
+  lastChecked: string
+): ServiceCheckResult {
+  return {
+    id,
+    name,
+    description,
+    status: result.status,
+    latencyMs: result.latencyMs,
+    error: result.error,
+    configurationIssue: result.configurationIssue,
+    lastChecked,
+  };
 }
 
 /**
@@ -59,7 +106,7 @@ export async function runProbe(
   probeFn: () => Promise<void>,
   timeoutMs = DEFAULT_PROBE_TIMEOUT,
   degradedThresholdMs = DEFAULT_DEGRADED_LATENCY_MS
-): Promise<{ status: ServiceStatus; latencyMs: number; error?: string }> {
+): Promise<ProbeResult> {
   const start = Date.now();
   try {
     const timeoutPromise = new Promise<never>((_, reject) =>
@@ -192,23 +239,27 @@ export async function checkSystemHealth(
   // 3. AI DJ Generation Probe (Gemini / Vertex AI)
   const aiResult = mocks?.aiDjEngine
     ? await mocks.aiDjEngine()
-    : await runProbe(async () => {
+    : await (() => {
         const geminiKey = process.env.GEMINI_API_KEY;
-        if (!geminiKey && process.env.NODE_ENV !== 'production') {
-          return;
-        }
         if (!geminiKey) {
-          throw new Error('GEMINI_API_KEY not configured');
+          return process.env.NODE_ENV === 'production'
+            ? Promise.resolve(
+                notConfigured('GEMINI_API_KEY not configured', 'missing_runtime_secret')
+              )
+            : Promise.resolve(operationalProbeResult());
         }
-        // Ping Gemini models endpoint
-        const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`,
-          { signal: AbortSignal.timeout(timeout) }
-        );
-        if (!res.ok) {
-          throw new Error(`Gemini API HTTP ${res.status}`);
-        }
-      }, timeout);
+
+        return runProbe(async () => {
+          // Ping Gemini models endpoint
+          const res = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`,
+            { signal: AbortSignal.timeout(timeout) }
+          );
+          if (!res.ok) {
+            throw new Error(`Gemini API HTTP ${res.status}`);
+          }
+        }, timeout);
+      })();
 
   // 4. Edge & CDN Delivery (Vercel Edge / Cloudflare)
   const edgeResult = mocks?.edgeDelivery
@@ -221,62 +272,57 @@ export async function checkSystemHealth(
   // 5. Community Bridges (Discord & Telegram Webhooks)
   const bridgeResult = mocks?.communityBridge
     ? await mocks.communityBridge()
-    : await runProbe(async () => {
+    : await (() => {
         const discordWebhook = process.env.DISCORD_WEBHOOK_URL;
-        if (!discordWebhook && process.env.NODE_ENV !== 'production') {
-          return;
-        }
         if (!discordWebhook) {
-          throw new Error('DISCORD_WEBHOOK_URL not configured');
+          return process.env.NODE_ENV === 'production'
+            ? Promise.resolve(
+                notConfigured('DISCORD_WEBHOOK_URL not configured', 'missing_runtime_secret')
+              )
+            : Promise.resolve(operationalProbeResult());
         }
-      }, timeout);
+
+        return runProbe(async () => {
+          return;
+        }, timeout);
+      })();
 
   const services: ServiceCheckResult[] = [
-    {
-      id: 'audio_streamer',
-      name: '24/7 Audio Streaming Engine (Icecast / Liquidsoap)',
-      description: 'Continuous low-latency audio mixing and live MP3/AAC mount point streaming.',
-      status: streamResult.status,
-      latencyMs: streamResult.latencyMs,
-      error: streamResult.error,
-      lastChecked: now,
-    },
-    {
-      id: 'database',
-      name: 'PostgreSQL Database & pgvector',
-      description: 'Track catalog, listener preferences, rotation logs, and semantic prompt indexing.',
-      status: dbResult.status,
-      latencyMs: dbResult.latencyMs,
-      error: dbResult.error,
-      lastChecked: now,
-    },
-    {
-      id: 'ai_dj_engine',
-      name: 'Generative AI DJ Roster (Gemini & Neural TTS)',
-      description: 'Real-time DJ persona scriptwriting, weather synthesis, and neural speech synthesis.',
-      status: aiResult.status,
-      latencyMs: aiResult.latencyMs,
-      error: aiResult.error,
-      lastChecked: now,
-    },
-    {
-      id: 'edge_delivery',
-      name: 'Global Edge Network & CDN',
-      description: 'Vercel edge functions, Next.js web application routing, and Cloudflare static asset caching.',
-      status: edgeResult.status,
-      latencyMs: edgeResult.latencyMs,
-      error: edgeResult.error,
-      lastChecked: now,
-    },
-    {
-      id: 'community_bridge',
-      name: 'Community Discord & Telegram Notification Bridges',
-      description: 'Real-time track announcements, listener song requests, and DJ shoutout dispatches.',
-      status: bridgeResult.status,
-      latencyMs: bridgeResult.latencyMs,
-      error: bridgeResult.error,
-      lastChecked: now,
-    },
+    createServiceCheckResult(
+      'audio_streamer',
+      '24/7 Audio Streaming Engine (Icecast / Liquidsoap)',
+      'Continuous low-latency audio mixing and live MP3/AAC mount point streaming.',
+      streamResult,
+      now
+    ),
+    createServiceCheckResult(
+      'database',
+      'PostgreSQL Database & pgvector',
+      'Track catalog, listener preferences, rotation logs, and semantic prompt indexing.',
+      dbResult,
+      now
+    ),
+    createServiceCheckResult(
+      'ai_dj_engine',
+      'Generative AI DJ Roster (Gemini & Neural TTS)',
+      'Real-time DJ persona scriptwriting, weather synthesis, and neural speech synthesis.',
+      aiResult,
+      now
+    ),
+    createServiceCheckResult(
+      'edge_delivery',
+      'Global Edge Network & CDN',
+      'Vercel edge functions, Next.js web application routing, and Cloudflare static asset caching.',
+      edgeResult,
+      now
+    ),
+    createServiceCheckResult(
+      'community_bridge',
+      'Community Discord & Telegram Notification Bridges',
+      'Real-time track announcements, listener song requests, and DJ shoutout dispatches.',
+      bridgeResult,
+      now
+    ),
   ];
 
   // Derive aggregate system status
@@ -290,9 +336,11 @@ export async function checkSystemHealth(
   }
 
   // Calculate simulated 30-day uptime percentage
-  const operationalCount = services.filter((s) => s.status === 'operational').length;
+  const impactingServiceCount = services.filter(
+    (s) => s.status === 'degraded' || s.status === 'outage'
+  ).length;
   const baseUptime = 99.98;
-  const uptimePenalty = (services.length - operationalCount) * 0.45;
+  const uptimePenalty = impactingServiceCount * 0.45;
   const uptimePercentage = Math.max(95.0, Number((baseUptime - uptimePenalty).toFixed(2)));
 
   return {

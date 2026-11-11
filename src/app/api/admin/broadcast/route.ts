@@ -5,12 +5,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendDiscordNotification, sendTelegramNotification } from '@/lib/chat/bridge';
 import { postTweetToX, TweetResult } from '@/lib/social/x-client';
-import { isAdminAuthorized } from '@/lib/auth/admin-auth';
+import { isAdminAuthorized } from '@/lib/auth/admin-route-auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
-  if (!isAdminAuthorized(req)) {
+  if (!(await isAdminAuthorized(req))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -84,4 +84,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: errorMsg }, { status: 500 });
   }
 }
-

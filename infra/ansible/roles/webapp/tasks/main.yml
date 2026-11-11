@@ -47,6 +47,46 @@
     promptfm_web_registry_token: "{{ promptfm_web_registry_token | default(lookup('env', 'PROMPTFM_WEB_REGISTRY_TOKEN') | default('', true), true) }}"
   no_log: true
 
+- name: Resolve OCI web runtime env payload
+  set_fact:
+    promptfm_web_runtime_env_json: "{{ lookup('env', 'OCI_WEB_RUNTIME_ENV_JSON') | default('{}', true) }}"
+
+- name: Parse OCI web runtime env payload
+  set_fact:
+    promptfm_web_runtime_env: "{{ promptfm_web_runtime_env_json | from_json }}"
+  no_log: true
+
+- name: Resolve OCI web runtime env defaults needed for app parity with Vercel
+  set_fact:
+    promptfm_web_runtime_env_with_defaults: >-
+      {{
+        promptfm_web_runtime_env
+        | combine(
+            {
+              'NEXT_PUBLIC_SITE_URL': promptfm_web_runtime_env.NEXT_PUBLIC_SITE_URL | default('https://promptfm.live', true),
+              'VERCEL_ENV': promptfm_web_runtime_env.VERCEL_ENV | default('production', true)
+            },
+            recursive=True
+          )
+      }}
+  no_log: true
+
+- name: Resolve OCI web container environment from runtime payload
+  set_fact:
+    promptfm_web_container_environment: "{{ promptfm_web_runtime_env_with_defaults | to_json | from_json }}"
+  no_log: true
+
+- name: Fail when the OCI web deploy is missing required app runtime env
+  fail:
+    msg: >-
+      OCI web deploy requires NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      SUPABASE_SERVICE_ROLE_KEY, and ADMIN_API_KEY in the deploy environment before cutover.
+  when:
+    - (promptfm_web_runtime_env_with_defaults.NEXT_PUBLIC_SUPABASE_URL | default('') | length) == 0
+      or (promptfm_web_runtime_env_with_defaults.NEXT_PUBLIC_SUPABASE_ANON_KEY | default('') | length) == 0
+      or (promptfm_web_runtime_env_with_defaults.SUPABASE_SERVICE_ROLE_KEY | default('') | length) == 0
+      or (promptfm_web_runtime_env_with_defaults.ADMIN_API_KEY | default('') | length) == 0
+
 - name: Resolve pre-cutover candidate smoke paths
   set_fact:
     promptfm_web_candidate_smoke_paths: >-
