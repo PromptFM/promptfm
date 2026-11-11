@@ -31,6 +31,19 @@ describe('OCI web packaging and runtime build expectations', () => {
     expect(scripts).toContain('Dockerfile.web');
   });
 
+  it('forwards every manifest build key through the repo-local docker:web:* scripts', () => {
+    const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as {
+      scripts?: Record<string, string>;
+    };
+    const buildxScript = pkg.scripts?.['docker:web:buildx'] ?? '';
+    const pushScript = pkg.scripts?.['docker:web:push'] ?? '';
+
+    for (const key of manifest.buildKeys) {
+      expect(buildxScript).toContain(`--build-arg ${key}`);
+      expect(pushScript).toContain(`--build-arg ${key}`);
+    }
+  });
+
   it('accepts every manifest build key at image build time so OCI can replace the Vercel runtime safely', () => {
     const dockerfile = fs.readFileSync(path.join(rootDir, 'Dockerfile.web'), 'utf8');
 
@@ -38,5 +51,14 @@ describe('OCI web packaging and runtime build expectations', () => {
       expect(dockerfile).toContain(`ARG ${key}`);
       expect(dockerfile).toContain(`ENV ${key}=$${key}`);
     }
+  });
+
+  it('fails image builds early when the public Supabase build args are missing or still set to placeholders', () => {
+    const dockerfile = fs.readFileSync(path.join(rootDir, 'Dockerfile.web'), 'utf8');
+
+    expect(dockerfile).toContain('NEXT_PUBLIC_SUPABASE_URL build arg is required for Dockerfile.web');
+    expect(dockerfile).toContain('placeholder Supabase URL');
+    expect(dockerfile).toContain('NEXT_PUBLIC_SUPABASE_ANON_KEY build arg is required for Dockerfile.web');
+    expect(dockerfile).toContain('placeholder anon key');
   });
 });
