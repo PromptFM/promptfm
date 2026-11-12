@@ -74,7 +74,7 @@ jobs:
                   HAS_SQL=true
                   HAS_CORE=true
                   ;;
-                infra/*|.github/workflows/ci.yml|.github/workflows/release.yml|.github/workflows/deploy-web-oci.yml)
+                infra/*|.github/workflows/ci.yml|.github/workflows/release.yml|.github/workflows/deploy-web-oci.yml|.github/workflows/apply-terraform.yml|.github/workflows/deploy-streamer-oci.yml|.github/workflows/uptime.yml)
                   DOC_ONLY=false
                   HAS_INFRA=true
                   ;;

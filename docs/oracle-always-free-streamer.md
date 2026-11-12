@@ -107,7 +107,7 @@ One secret keeps the project at 1 of the 6 free active secret versions.
 | Terraform | `infra/terraform-oci`, token from `gcloud auth print-access-token` | **Apply Terraform (Oracle streamer)** workflow |
 | Ansible | `infra/ansible/deploy-oci.sh` | **Deploy Streamer (Oracle)** workflow, which runs the same script |
 
-`deploy-oci.sh` takes the SSH key out of the secret, finds the VM's IP in the Terraform state, and runs `playbook-oci.yml`. The workflow leaves the streamer on air with `radio.liq`; tick `standby` to put it in standby (`radio-standby.liq`).
+`deploy-oci.sh` takes the SSH key out of the secret, finds the VM's IP in the Terraform state, and runs `playbook-oci.yml`. The workflow leaves the streamer on air with `radio.liq`; tick `standby` to put it in standby (`radio-standby.liq`). When `standby` is off, the workflow now also runs the shared `infra/verify-stream-on-air.sh` check.
 
 Rotate with the **Rotate Secret** workflow. It adds the new version and destroys the old one (disabled versions still count toward the 6 free, so they must be destroyed).
 
@@ -123,7 +123,7 @@ Oracle's Notifications service sends a confirmation email to `budget_alert_email
 
 ## 5. Deploying the stack
 
-Terraform only creates the VM. Ansible deploys the stack with its own playbook, so the GCP flow is untouched:
+Terraform only creates the VM. Ansible deploys the stack with its own playbook over plain SSH, not over the old GCP IAP path:
 
 ```bash
 cd infra/ansible
@@ -131,13 +131,15 @@ cd infra/ansible
 ./deploy-oci.sh -e liquidsoap_script=radio-standby.liq   # standby: loops the fallback track, never calls the API
 ```
 
-`deploy-oci.sh` gets the SSH key from Secret Manager and the IP from the Terraform state, so there is nothing to configure. The **Deploy Streamer (Oracle)** workflow runs the same script. Icecast and Liquidsoap are restarted when their config changes, because they do not reload it themselves.
+`deploy-oci.sh` gets the SSH key from Secret Manager and the IP from the Terraform state, so there is nothing to configure. The **Deploy Streamer (Oracle)** workflow runs the same script. When Oracle should be live, **Deploy Streamer (Oracle)**, **Apply Infrastructure**, and **24/7 Zero-Cost Uptime & Health Monitor** all use the same `infra/verify-stream-on-air.sh` guard. Icecast and Liquidsoap are restarted when their config changes, because they do not reload it themselves.
 
 The Oracle host is in the `[streamer_oci]` group of `inventory.ini` (`caddy_bind_address=0.0.0.0`, `liquidsoap_script=radio.liq`). `terraform output ansible_inventory_line` gives the host line.
 
 On Oracle, `playbook-oci.yml` manages the audio stack only. The live `promptfm.live` edge config is owned by the OCI web cutover path, so streamer redeploys must not rewrite `/opt/promptfm/streamer/Caddyfile` after web cutover is in place.
 
 **Standby matters.** Liquidsoap asks the live API for the next track and reports every track start. Two streamers on air at once would consume the queue twice and double every Discord and Telegram "now playing" post. Standby is `deploy/streamer/radio-standby.liq`, which loops the fallback track and never calls the API. Use it on the Oracle host whenever the GCP host is on air, for example during a rollback.
+
+**Fallback or standby audio now counts as failed health when Oracle should be live.** The shared verifier checks both `/api/radio/next?format=annotate` and `status-json.xsl` for fallback markers such as `PromptFM Standby`, `PromptFM Ambient AI Anthem`, `demo-fallback`, or `fallback.mp3`. An HTTP 200 from `/stream.mp3` is not enough if the metadata still shows standby audio.
 
 The existing `scripts/run-ansible-iap.ts` runner goes through GCP IAP and only works for the GCP host. Use plain SSH for the Oracle one.
 
@@ -168,7 +170,7 @@ Done on 2026-11-09. The steps are kept as a record.
 
 ## Rollback and tagging
 
-How the stream moves between Oracle and GCP, how the infra tags work, and the runbook for when Oracle stops are in [infra-overview.md](infra-overview.md). In short: `infra/stream-host` says `oracle` or `gcp`, and `infra/converge-stream.sh` (or the **Rollback Infrastructure** workflow with a tag) makes the infrastructure match it, one streamer at a time. A rollback to GCP breaks the $0 goal (about $0.17 a day per listener), so it is a short emergency measure.
+How the stream moves between Oracle and GCP, how the infra tags work, and the runbook for when Oracle stops are in [infra-overview.md](infra-overview.md). In short: `infra/stream-host` says `oracle` or `gcp`, and **Apply Infrastructure** / `infra/converge-stream.sh` (or the **Rollback Infrastructure** workflow with a tag) makes the infrastructure match it, one streamer at a time. **Apply Terraform (Oracle streamer)** manages the Oracle VM itself, **Deploy Streamer (Oracle)** deploys or flips Oracle between `radio.liq` and standby, and **24/7 Zero-Cost Uptime & Health Monitor** keeps checking that Oracle is truly on air. A rollback to GCP breaks the $0 goal (about $0.17 a day per listener), so it is a short emergency measure.
 
 ---
 

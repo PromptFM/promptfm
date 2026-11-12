@@ -164,6 +164,8 @@ describe('Oracle Cloud streamer module (infra/terraform-oci)', () => {
       expect(wf).toMatch(/standby:\s*\n\s+description:[^\n]*\n\s+type: boolean\n\s+default: false/);
       expect(wf).toContain('infra/ansible/deploy-oci.sh');
       expect(wf).toContain('liquidsoap_script=radio-standby.liq');
+      expect(wf).toContain('Verify Oracle is on air when standby is off');
+      expect(wf).toContain('infra/verify-stream-on-air.sh');
       expect(wf).toMatch(/^ {2}deploy-streamer-oci:\n {4}name: deploy-streamer-oci$/m);
       expect(wf).not.toMatch(/if:.*\bsecrets\./);
     });

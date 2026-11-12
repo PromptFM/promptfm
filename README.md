@@ -402,7 +402,7 @@ Current public status on the Oracle OCI production path:
 - **Live public entrypoints:** [`https://promptfm.live`](https://promptfm.live) and [`https://www.promptfm.live`](https://www.promptfm.live) — live Next.js app via the Oracle OCI cutover path.
 - **Live web health:** `/api/healthz` returns `{"status":"ok","ready":true,...}`; `/admin` and `/status` return HTTP 200 HTML; `/api/status` returns HTTP 200 JSON and keeps aggregate status tied to the public broadcast surface. Optional integrations such as Gemini and the Discord bridge can report `not_configured` until their runtime secrets are wired without flipping the public site to degraded.
 - **Live audio stream:** [`https://stream.promptfm.live/stream.mp3`](https://stream.promptfm.live/stream.mp3).
-- **Streamer health endpoint:** [`https://stream.promptfm.live/status-json.xsl`](https://stream.promptfm.live/status-json.xsl) remains HTTP 200 and still reports `Google Cloud Always Free (us-central1)` as the stream location.
+- **Streamer health endpoint:** [`https://stream.promptfm.live/status-json.xsl`](https://stream.promptfm.live/status-json.xsl) remains HTTP 200. For operational truth, use the shared `infra/verify-stream-on-air.sh` check: fallback or standby markers in stream metadata are treated as failure when Oracle should be live.
 - **Operator telemetry:** Oracle Metrics Explorer, GCP Cloud Logging, GCP Trace, and GitHub Actions checks linked above.
 
 ---

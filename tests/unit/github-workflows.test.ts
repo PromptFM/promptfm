@@ -86,6 +86,8 @@ describe('GitHub Actions Workflows Suite', () => {
       expect(content).toContain('TF_VAR_streamer_vm_running');
       expect(content).toContain('infra/converge-stream.sh quiesce');
       expect(content).toContain('infra/converge-stream.sh serve');
+      expect(content).toContain('Verify chosen host is actually on air (not fallback)');
+      expect(content).toContain('infra/verify-stream-on-air.sh');
     });
 
     it('ignores rollback tags, which only record a rollback', () => {
@@ -151,6 +153,13 @@ describe('GitHub Actions Workflows Suite', () => {
       expect(vercelStepIndex).toBeGreaterThan(gcpStepIndex);
       expect(content).toContain('continue-on-error: true');
       expect(content).toContain('::warning::VERCEL_TOKEN secret is not configured in repository secrets; skipping Vercel sync.');
+    });
+  });
+
+  describe('Uptime monitor (uptime.yml)', () => {
+    it('checks stream metadata so standby or demo fallback audio trips the monitor', () => {
+      const content = readWorkflow('uptime.yml');
+      expect(content).toContain('infra/verify-stream-on-air.sh');
     });
   });
 
@@ -260,6 +269,9 @@ describe('GitHub Actions Workflows Suite', () => {
       const content = readWorkflow('ci.yml');
       expect(content).toContain('.github/workflows/release.yml');
       expect(content).toContain('.github/workflows/deploy-web-oci.yml');
+      expect(content).toContain('.github/workflows/apply-terraform.yml');
+      expect(content).toContain('.github/workflows/deploy-streamer-oci.yml');
+      expect(content).toContain('.github/workflows/uptime.yml');
       expect(content).toContain('infra/ansible/playbook-web-oci.yml --syntax-check');
       expect(content).toContain('infra/ansible/playbook-web-oci.yml --list-tasks');
     });

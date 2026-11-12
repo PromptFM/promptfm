@@ -400,5 +400,18 @@ describe('Vercel Budget Gate ($0 Infra Policy)', () => {
       });
       expect(jobs.terraformValidate).toBe(true);
     });
+
+    it('treats infra deploy and uptime workflows as infra changes too', () => {
+      const jobs = evaluateCIJobsForPR({
+        changedFiles: [
+          '.github/workflows/apply-terraform.yml',
+          '.github/workflows/deploy-streamer-oci.yml',
+          '.github/workflows/uptime.yml',
+        ],
+        actor: 'contributor',
+      });
+
+      expect(jobs.terraformValidate).toBe(true);
+    });
   });
 });

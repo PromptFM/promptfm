@@ -721,12 +721,16 @@ PromptFM leverages automated GitHub Actions workflows to govern OCI web releases
 | Workflow | File | Trigger | Purpose |
 | :--- | :--- | :--- | :--- |
 | **🚀 Release PromptFM** | `.github/workflows/release.yml` | `workflow_dispatch` or push tag `promptfm/*` / `v*.*.*` | Verifies quality gate, tags and cuts release, creates the GitHub production deployment, calls `deploy-web-oci.yml`, and publishes release evidence. Release/cutover, rollback, and forward redeploy are proven in runs `42833955213`, `42858867447`, and `42862562417`. |
-| **🏗️ Apply Terraform Changes** | `.github/workflows/apply-terraform.yml` | `workflow_dispatch` or push tag `promptfm-infra/*` | Runs `npm run prepare-infra`, initializes free GCS state backend, applies Terraform, conditionally runs Ansible via zero-cost IAP tunneling ($0.00), and synchronizes Hostinger DNS. |
+| **🏗️ Apply Infrastructure** | `.github/workflows/apply-terraform.yml` | `workflow_dispatch` or push tag `promptfm-infra/*` | Runs `npm run prepare-infra`, initializes the free GCS state backend, reads `infra/stream-host`, runs `infra/converge-stream.sh quiesce`, applies Terraform for the chosen host, runs `infra/converge-stream.sh serve`, and fails if shared on-air verification still sees fallback or standby audio. |
 | **🏗️ Apply Terraform (Oracle streamer)** | `.github/workflows/apply-terraform-oci.yml` | `workflow_dispatch` (`apply`) | Plans the Oracle Always Free streamer in `infra/terraform-oci` (state prefix `terraform/oci-state`); only applies when `apply` is ticked. Credentials come from `promptfm-oci-credentials`. |
+| **📻 Deploy Streamer (Oracle)** | `.github/workflows/deploy-streamer-oci.yml` | `workflow_dispatch` (`standby`) | Runs `infra/ansible/deploy-oci.sh` over SSH using the Oracle key from `promptfm-oci-credentials`. When `standby` is off it also runs the shared on-air verifier and fails if Oracle is still serving fallback or standby audio. |
+| **⏱️ 24/7 Zero-Cost Uptime & Health Monitor** | `.github/workflows/uptime.yml` | `schedule` (every 30 minutes) or `workflow_dispatch` | Checks `promptfm.live/api/healthz`, `promptfm.live/api/status`, and the shared on-air verification path. A stream that only serves the fallback/standby loop is treated as down for Oracle-live operations. |
 | **🔍 Create Preview Link in Vercel** | `.github/workflows/create-preview-link.yml` | `workflow_dispatch` (`commit_sha`) | On-demand manual Vercel preview deployment for a specific commit SHA without auto-triggering on PR approval. |
-| **🔐 Update Secrets in Vercel** | `.github/workflows/update-secrets.yml` | `workflow_dispatch` (`secret_key`, `secret_value`, `environments`) | Securely writes environment variables to Vercel with SecretShare runbook integration. |
+| **🔐 Update App Secrets** | `.github/workflows/update-secrets.yml` | `workflow_dispatch` | Synchronizes app secrets to GCP Secret Manager and best-effort mirrors to Vercel using the SecretShare runbook. |
 | **⏪ Rollback PromptFM** | `.github/workflows/rollback.yml` | `workflow_dispatch` (`rollback_ref`) | Restores a specified commit SHA or tag through the shared OCI deploy path, reusing candidate health checks and retained-release metadata before cutover. The retained-release rollback drill is proven by run `42858867447`. |
-| **📚 Release GitHub Pages** | `.github/workflows/pages.yml` | `workflow_dispatch` or push to `main` (`docs/**`) | Deploys documentation and architectural guides to GitHub Pages. |
+| **⏪ Rollback Infrastructure** | `.github/workflows/rollback-infra.yml` | `workflow_dispatch` (`target_ref`) | Records and tags an infrastructure rollback target so **Apply Infrastructure** can converge the stream host and DNS to that snapshot. |
+| **🌐 Apply Hostinger DNS Changes** | `.github/workflows/apply-dns.yml` | `workflow_dispatch` | Applies the committed Hostinger zone state after validation. |
+| **📚 Release GitHub Pages** | `.github/workflows/pages.yml` | `workflow_dispatch` or push tag `gh-pages/*` | Deploys documentation and architectural guides to GitHub Pages. |
 | **💬 PR Quality Gate & Bot** | `.github/workflows/ci.yml` (`pr-guidance-comment`) | `pull_request` (when quality checks pass) | Comments instructions: *"make an admin run the Make preview link workflow on the following sha: `<sha>`"* and posts action cards for Terraform/Ansible updates. |
 
 ---
@@ -753,44 +757,27 @@ terraform {
 
 ---
 
-### C. Zero-Cost Ansible Configuration via Google Cloud IAP Tunneling ($0.00)
+### C. Stream host deployment paths
 
-PromptFM streamer VM configuration is managed by Ansible ([`infra/ansible/`](file:///Users/trifan/.gemini/antigravity/worktrees/promptfm/vercel_speed_insights/infra/ansible/)) and executed through **Google Cloud Identity-Aware Proxy (IAP) TCP Forwarding** at **$0.00 cost**.
+PromptFM now has two distinct streamer paths and they should not be confused:
 
-#### 1. Why IAP Tunneling is $0.00
-- **No IAP Tunneling Surcharges**: Google Cloud does not charge for Identity-Aware Proxy TCP forwarding (SSH / RDP tunneling). Standard Cloud IAP is completely free.
-- **Zero Public Port 22 Exposure**: The VM does not expose port 22 to the public internet (`0.0.0.0/0`). Connections route strictly through Google's internal IAP proxy block (`35.235.240.0/20`).
-- **No Extra SSH Keys in GitHub Secrets**: `gcloud compute ssh` automatically generates an ephemeral SSH key inside the runner and registers it via Compute Engine instance metadata using the authenticated `GCP_SA_KEY` service account.
+#### 1. Shared infra converge path
 
-#### 2. Change Detection & Decision Engine (`shouldRunAnsible`)
-> The **Apply Infrastructure** workflow no longer calls this for the GCP VM: the VM is a cold standby whose stack is started, not redeployed (see [infra-overview.md](infra-overview.md)). The CLI command below still works for a running GCP VM.
+- **Workflow:** `.github/workflows/apply-terraform.yml` (**Apply Infrastructure**)
+- **Host selector:** `infra/stream-host` (`oracle` or `gcp`)
+- **What it does:** quiesces the other host, applies Terraform for the chosen host, serves the stream from that host, updates Hostinger DNS, then runs `infra/verify-stream-on-air.sh`
+- **Failure rule:** when Oracle should be live, fallback or standby markers in `/api/radio/next?format=annotate` or `status-json.xsl` fail the run even if `/stream.mp3` is reachable
 
-To avoid unnecessary container restarts and conserve runner minutes, Ansible is applied **only when changes or uninitialized state are detected**:
+#### 2. Oracle streamer deploy path
 
-| Trigger Condition | Evaluated Signal | Decision |
-| :--- | :--- | :--- |
-| **Skip Override** | CLI `--skip` | **SKIP** (`Explicitly skipped via skip_ansible option`) |
-| **Force Override** | CLI `--force` | **RUN** (`Forced execution via force_ansible option`) |
-| **Ansible File Changes** | `git diff` detects modifications in `infra/ansible/**` | **RUN** (`Changes detected in infra/ansible configuration files`) |
-| **Terraform VM Modification** | Terraform apply log contains `google_compute_instance.streamer` creation/change | **RUN** (`Terraform provisioned or modified the streamer VM instance`) |
-| **Stream Health Failure** | Streamer audio stack is uninitialized or port 8000 is unhealthy | **RUN** (`Streamer service is marked unhealthy or uninitialized`) |
-| **No Infra/Ansible Changes** | No VM modifications, clean git diff, and stream healthy | **SKIP** (`No Ansible file changes or VM modifications detected`) |
+- **Workflow:** `.github/workflows/deploy-streamer-oci.yml` (**Deploy Streamer (Oracle)**)
+- **Transport:** plain SSH using the key stored in `promptfm-oci-credentials`
+- **What it does:** runs `infra/ansible/deploy-oci.sh` to deploy either `radio.liq` or `radio-standby.liq`
+- **Failure rule:** if `standby` is off, the workflow runs the same `infra/verify-stream-on-air.sh` guard as **Apply Infrastructure** and **24/7 Zero-Cost Uptime & Health Monitor**
 
-#### 3. CLI & Workflow Commands
+#### 3. Legacy GCP IAP path
 
-```bash
-# Run Ansible streamer orchestration through IAP only if needed
-npm run promptfm -- ansible
-
-# Force live execution regardless of diff
-npm run promptfm -- ansible --force
-
-# Dry-run execution (--check --diff)
-npm run promptfm -- ansible --check
-
-# Pass terraform apply output for automatic VM change detection
-npm run promptfm -- ansible --terraform-log /tmp/terraform-apply.log
-```
+The CLI command `npm run promptfm -- ansible` still exists for a running GCP VM, but it is not the normal production apply path any more. The GCP streamer is a cold standby whose containers are started by `infra/converge-stream.sh` when `infra/stream-host` is `gcp`.
 
 ---
 
@@ -1132,7 +1119,5 @@ The automated PR Guidance Bot detects modified files and publishes information c
 - **Infrastructure & Secrets Card**: Emitted when `infra/**`, `group_vars/**`, or secret utilities change. Directs admins to the [Rotate Secret workflow](https://github.com/PromptFM/promptfm/actions/workflows/rotate-secrets.yml) for GCP Secret Manager credentials, and the [Update Secrets workflow](https://github.com/PromptFM/promptfm/actions/workflows/update-secrets.yml) for Vercel flags.
 - **SQL Migration Card**: Emitted when `supabase/migrations/*.sql` changes. Directs admins to the [Apply SQL Schema workflow](https://github.com/PromptFM/promptfm/actions/workflows/apply-sql-schema.yml).
 - **UI Preview Card**: Emitted when `src/app/**` or frontend components change. Informs maintainers on how to request an on-demand preview link (`/pr-link`).
-
-
 
 
