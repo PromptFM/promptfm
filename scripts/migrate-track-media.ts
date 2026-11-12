@@ -758,6 +758,15 @@ export async function runTrackMediaMigrationCLI(
     let databaseUrl = databaseUrlSelection?.value ?? null;
 
     if (databaseUrlSelection) {
+      if (
+        getSupabasePoolerHost(databaseUrlSelection.value) &&
+        canFallbackFromDatabaseSelection(databaseUrlSelection) &&
+        !hasSupabaseAdminFallbackEnv()
+      ) {
+        await ensureBundledAppEnv(resolvedDeps);
+        await ensureMigrationSecrets(resolvedDeps);
+      }
+
       try {
         validateTrackMediaDatabaseUrlSelection(databaseUrlSelection);
       } catch (error) {

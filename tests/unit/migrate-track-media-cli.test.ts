@@ -621,6 +621,64 @@ describe('migrate-track-media CLI', () => {
     expect(stdout.warn).toHaveBeenCalledWith(expect.stringContaining('Falling back to Supabase admin API'));
   });
 
+  it('hydrates Supabase admin fallback from GCP before rejecting a pooler-backed promptfm-database-url secret', async () => {
+    delete process.env.DATABASE_URL;
+    delete process.env.POSTGRES_URL_NON_POOLING;
+    delete process.env.POSTGRES_URL;
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    const getAdminClient = vi.fn(() => createSupabaseStub([]) as any);
+    const createPgClient = vi.fn();
+    const resolveGcpSecretImpl = vi.fn(async (name: string) => {
+      if (name === 'promptfm-database-url') {
+        return 'postgres://inventory-user:secret@aws-0-us-east-1.pooler.supabase.com:6543/promptfm?sslmode=require';
+      }
+
+      if (name === NON_INFRA_APP_ENV_GCP_SECRET_NAME) {
+        return JSON.stringify({
+          NEXT_PUBLIC_SUPABASE_URL: 'https://bundled.supabase.co',
+        });
+      }
+
+      if (name === 'promptfm-supabase-service-role-key') {
+        return 'resolved-service-role';
+      }
+
+      return '';
+    });
+    const stdout = {
+      log: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn(),
+    };
+
+    const exitCode = await runTrackMediaMigrationCLI(['migrate', '--dry-run'], {
+      getAdminClient,
+      createPgClient,
+      resolveGcpSecretImpl,
+      stdout,
+    });
+
+    expect(exitCode).toBe(TRACK_MEDIA_MIGRATION_EXIT_CODES.success);
+    expect(createPgClient).not.toHaveBeenCalled();
+    expect(getAdminClient).toHaveBeenCalledTimes(1);
+    expect(resolveGcpSecretImpl).toHaveBeenCalledWith('promptfm-database-url', {
+      fallbackEnvVar: 'DATABASE_URL',
+    });
+    expect(resolveGcpSecretImpl).toHaveBeenCalledWith(NON_INFRA_APP_ENV_GCP_SECRET_NAME, {
+      fallbackEnvVar: 'GCP_BUNDLED_APP_ENV_JSON',
+    });
+    expect(resolveGcpSecretImpl).toHaveBeenCalledWith('promptfm-supabase-service-role-key', {
+      fallbackEnvVar: 'SUPABASE_SERVICE_ROLE_KEY',
+    });
+    expect(process.env.NEXT_PUBLIC_SUPABASE_URL).toBe('https://bundled.supabase.co');
+    expect(process.env.SUPABASE_SERVICE_ROLE_KEY).toBe('resolved-service-role');
+    expect(stdout.warn).toHaveBeenCalledWith(
+      expect.stringContaining('the resolved promptfm-database-url secret is still pooler-backed')
+    );
+  });
+
   it('allows live apply to proceed via Supabase rewrites when only a pooler DB secret is available', async () => {
     delete process.env.DATABASE_URL;
     delete process.env.POSTGRES_URL_NON_POOLING;
