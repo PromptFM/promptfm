@@ -128,6 +128,7 @@ verify() {
     code="$(curl --resolve "stream.$DOMAIN:443:$ip" -s -o /dev/null -m 6 -w '%{http_code}' "https://stream.$DOMAIN/stream.mp3" || true)"
     if [ "$code" = "200" ]; then
       echo "    stream answers on $ip (HTTP $code)"
+      PROMPTFM_STREAM_STATUS_CURL_RESOLVE="stream.$DOMAIN:443:$ip" infra/verify-stream-on-air.sh
       return 0
     fi
     sleep 10

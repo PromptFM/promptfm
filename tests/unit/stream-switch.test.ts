@@ -119,6 +119,25 @@ describe('Stream switch (GCP <-> Oracle)', () => {
       expect(body).toContain('--resolve');
       expect(body).toContain('exit 1');
     });
+
+    it('reuses a dedicated on-air verifier so fallback audio fails the cutover check', () => {
+      expect(exists('infra/verify-stream-on-air.sh')).toBe(true);
+      const verifier = read('infra/verify-stream-on-air.sh');
+      expect(verifier.startsWith('#!/usr/bin/env bash')).toBe(true);
+      expect(verifier).toContain('node scripts/verify-stream-on-air.cjs');
+
+      const impl = read('scripts/verify-stream-on-air.cjs');
+      expect(impl).toContain('/api/radio/next?format=annotate');
+      expect(impl).toContain('status-json.xsl');
+      expect(impl).toContain('PromptFM Ambient AI Anthem');
+      expect(impl).toContain('PromptFM Standby');
+      expect(impl).toContain('demo-fallback');
+      expect(impl).toContain('fallback\\.mp3');
+
+      const body = fn('verify');
+      expect(body).toContain('infra/verify-stream-on-air.sh');
+      before(body, 'HTTP $code', 'verify-stream-on-air.sh');
+    });
   });
 
   describe('Terraform (infra/terraform)', () => {

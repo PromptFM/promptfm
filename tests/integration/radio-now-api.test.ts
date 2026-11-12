@@ -76,6 +76,20 @@ describe('GET /api/radio/now API Integration', () => {
     expect(json.listeners.network_total).toBeGreaterThanOrEqual(json.listeners.channel);
   });
 
+  it('returns non-Supabase demo audio when now playing falls back after rotation error', async () => {
+    vi.spyOn(rotation, 'getNowPlaying').mockRejectedValue(new Error('rotation offline'));
+
+    const req = new NextRequest('http://localhost:3000/api/radio/now');
+    const res = await GET(req);
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.now_playing.id).toBe('demo-fallback');
+    expect(json.now_playing.title).toBe('PromptFM Ambient AI Anthem');
+    expect(json.now_playing.audio_url).toBe(rotation.DEMO_FALLBACK_AUDIO_URL);
+    expect(json.now_playing.audio_url).not.toContain('supabase.co/storage');
+  });
+
   it('returns cover_art_url from track or falls back to /logo-mark.png', async () => {
     vi.spyOn(rotation, 'getNowPlaying').mockResolvedValue({
       item: {
@@ -139,4 +153,3 @@ describe('GET /api/radio/now API Integration', () => {
     expect(json.listeners_count).toBeGreaterThanOrEqual(1);
   });
 });
-

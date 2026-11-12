@@ -42,10 +42,9 @@ cd promptfm
 
 # 2. Install dependencies:
 npm install
-
-# 3. Create your local environment file (pre-configured with safe mock secrets):
-cp .env.example .env.local
 ```
+
+For zero-config local development, you do **not** need to create `.env.local` first. `npm run dev` bootstraps the safe local defaults it needs automatically.
 
 ### Choose Your Development Mode:
 
@@ -53,17 +52,18 @@ cp .env.example .env.local
 If you are working on the Next.js frontend, React components, Tailwind styling, or player controls:
 ```bash
 npm run dev
+
+# Optional: inspect exactly which local defaults and localhost services were resolved
+npm run dev:config
 ```
 Open **[http://localhost:3000](http://localhost:3000)** in your browser. The live audio player, schedule, and song submission portals will be fully operational in dev simulation mode using local mock state and safe fallbacks.
 
 #### Option B: Full Local Cloud Simulator (Simulating GCP & Supabase with Docker)
 If you are testing audio crossfading, Icecast stream mounting, pgvector RAG queries, or S3 uploads locally:
 ```bash
-# Starts Icecast (port 8000), Liquidsoap (port 1234), PostgreSQL+pgvector (port 54322), and MinIO (port 9000):
-npm run local:up
-
-# Start Next.js connected to your local stack:
-npm run dev
+# Starts Icecast (port 8000), Liquidsoap (port 1234), PostgreSQL+pgvector (port 54322),
+# MinIO (port 9000), then launches Next.js with the local wrapper:
+npm run local:dev
 ```
 * **Local Icecast Audio Stream**: `http://localhost:8000/stream.mp3`
 * **Local Icecast Admin**: `http://localhost:8000/admin/` (User: `admin`, Pass: `admin_local`)
@@ -74,6 +74,11 @@ To stop local containers:
 ```bash
 npm run local:down
 ```
+
+If you need real cloud credentials instead of the safe local defaults, copy `.env.local.example` to `.env.local` and fill in your own values explicitly.
+
+> [!NOTE]
+> `.env.example` and the localhost / MinIO values are only for local developer simulation. Maintainers running `npm run media:*` against live PromptFM data should use ambient `gcloud` auth or ignored local env files and follow the **Public Track Media Cutover (Supabase Storage -> Cloudflare R2)** runbook in [`docs/admin-guide.md`](docs/admin-guide.md).
 
 ---
 
@@ -157,4 +162,3 @@ If your feature requires new API keys or environment variables in Vercel:
 4. Push to your fork and submit a PR to [`PromptFM/promptfm`](https://github.com/PromptFM/promptfm) targeting the `main` branch.
 5. Fill out all sections of the [Pull Request Template](./.github/PULL_REQUEST_TEMPLATE.md).
 6. Request review from **@atrifan**. Once approved and CI is green, your code will be merged to `main` and shipped in the next tagged production release!
-

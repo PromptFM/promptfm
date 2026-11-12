@@ -90,7 +90,7 @@ The audio stream is the only thing that moves between Oracle and GCP. Everything
 | `npm run promptfm -- ansible` (IAP to GCP) | The GCP VM | Not used any more. The GCP stack is started, not redeployed, so no second copy is created |
 | `ssh ubuntu@<oracle ip>` | Oracle VM | Yes. Find the IP with `terraform -chdir=infra/terraform-oci output public_ip` |
 | `gcloud compute ssh promptfm-streamer ...` | GCP VM | Only while the VM is running |
-| Workflows: **Apply Infrastructure**, **Rollback Infrastructure**, **Apply Terraform (Oracle streamer)**, **Deploy Streamer (Oracle)**, **Rotate Secret** | GitHub Actions | Yes, see section 4 |
+| Workflows: **Apply Infrastructure**, **Rollback Infrastructure**, **Apply Terraform (Oracle streamer)**, **Deploy Streamer (Oracle)**, **24/7 Zero-Cost Uptime & Health Monitor**, **Apply Hostinger DNS Changes**, **Rotate Secret** | GitHub Actions | Yes, see sections 4 to 6 |
 
 ---
 
@@ -107,6 +107,16 @@ One file decides where the stream is served: [`infra/stream-host`](../infra/stre
 | 3. serve | start the containers already on the GCP VM, point `stream` at its **new** IP, check the stream | check GCP is stopped, Oracle on air, point `stream` at Oracle, check the stream |
 
 Every step is safe to repeat. If a run fails halfway, run the same command again.
+
+### Shared on-air verification
+
+Three workflows use the same verifier when Oracle is supposed to be live:
+
+- **Apply Infrastructure** (`.github/workflows/apply-terraform.yml`) after `infra/converge-stream.sh serve`
+- **Deploy Streamer (Oracle)** (`.github/workflows/deploy-streamer-oci.yml`) when `standby` is off
+- **24/7 Zero-Cost Uptime & Health Monitor** (`.github/workflows/uptime.yml`) every 30 minutes
+
+They all run `infra/verify-stream-on-air.sh`. It checks both `https://promptfm.live/api/radio/next?format=annotate` and `https://stream.promptfm.live/status-json.xsl`. If either still shows fallback or standby markers such as `PromptFM Standby`, `PromptFM Ambient AI Anthem`, `demo-fallback`, or `fallback.mp3`, the run fails even if `/stream.mp3` itself is HTTP 200.
 
 ### Tags
 
@@ -191,7 +201,7 @@ Also look at the Oracle [instance page](https://cloud.oracle.com/compute/instanc
 | :--- | :--- |
 | Containers stopped | `ssh ubuntu@<ip>` then `cd /opt/promptfm/streamer && sudo docker compose up -d` |
 | Config drift or a bad deploy | Run **Deploy Streamer (Oracle)**, or `infra/ansible/deploy-oci.sh` |
-| Stuck in standby (silence or the fallback loop) | `infra/ansible/deploy-oci.sh -e liquidsoap_script=radio.liq` |
+| Stuck in standby (silence or the fallback loop) | `infra/ansible/deploy-oci.sh -e liquidsoap_script=radio.liq`. This is also what to fix when the shared on-air verifier fails on fallback or standby audio |
 | VM stopped | Start it in the Oracle console, or `terraform apply` in `infra/terraform-oci` |
 | VM reclaimed or deleted | `terraform apply` in `infra/terraform-oci` (or `retry-apply.sh` on "Out of host capacity"), then deploy |
 | CPU choking (check Metrics Explorer) | Lower `max-listeners` in `deploy/streamer/icecast.xml` and redeploy |

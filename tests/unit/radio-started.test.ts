@@ -8,6 +8,7 @@ import {
   isAirplayRecentlyAnnounced,
   recordAirplayAnnounced,
   resetAirplayDedupeCache,
+  DEMO_FALLBACK_AUDIO_URL,
   AirplayItem,
 } from '@/lib/dj/rotation';
 import { broadcastToCommunity } from '@/lib/chat/bridge';
@@ -441,9 +442,8 @@ describe('Liquidsoap Synchronization & Track Started Flow', () => {
     it('returns exact fallback metadata when demo-fallback is started', async () => {
       const started = await markTrackStarted('main', 'demo-fallback');
       expect(started.artist).toBe('PromptFM Core');
-      expect(started.audio_url).toBe(
-        'https://oxfacfdpxbxilucooijy.supabase.co/storage/v1/object/public/tracks/promptfm_ambient_ai_anthem.mp3'
-      );
+      expect(started.audio_url).toBe(DEMO_FALLBACK_AUDIO_URL);
+      expect(started.audio_url).not.toContain('supabase.co/storage');
     });
 
     it('does NOT set currentAirplayItem on main stage when non-main channel track starts', async () => {

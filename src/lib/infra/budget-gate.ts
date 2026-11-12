@@ -234,7 +234,8 @@ export function evaluateCIJobsForPR(params: CIJobEvaluationParams): CIJobDecisio
   const isDocOnly = hasChangedFiles && params.changedFiles.every(isNonApplicationFile);
 
   const hasInfraChanges = hasChangedFiles && params.changedFiles.some((f) =>
-    /^infra\//i.test(f) || /^\.github\/workflows\/ci\.yml$/i.test(f)
+    /^infra\//i.test(f) ||
+    /^\.github\/workflows\/(ci|release|deploy-web-oci|apply-terraform|deploy-streamer-oci|uptime)\.yml$/i.test(f)
   );
 
   const hasUIOrRouteChanges = hasChangedFiles && params.changedFiles.some((f) =>
@@ -259,4 +260,3 @@ export function evaluateCIJobsForPR(params: CIJobEvaluationParams): CIJobDecisio
     packageVulnerabilityScan: true,
   };
 }
-

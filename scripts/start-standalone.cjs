@@ -8,6 +8,10 @@ const { spawn } = require('node:child_process');
 const DEFAULT_STREAM_URL = 'https://stream.promptfm.live/stream.mp3';
 const LOCAL_STREAM_URL = 'http://localhost:8000/stream.mp3';
 const SAFE_DEFAULT_KEYS = new Set(['DEV_FALLBACK_SIMULATION']);
+const SAFE_ZERO_CONFIG_KEYS = new Set([
+  'DEV_FALLBACK_SIMULATION',
+  'NEXT_PUBLIC_ADMIN_EMAILS',
+]);
 const LOCAL_R2_KEYS = new Set([
   'R2_ACCOUNT_ID',
   'R2_ACCESS_KEY_ID',
@@ -122,6 +126,16 @@ function applyMissingEnv(targetEnv, sourceEntries, allowedKeys) {
   }
 }
 
+function resolveLocalSiteUrl(env) {
+  const configured = env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (configured) {
+    return configured;
+  }
+
+  const port = String(env.PORT || env.port || '3000').trim() || '3000';
+  return `http://localhost:${port}`;
+}
+
 function isLocalDevStreamUrl(value) {
   if (!value) return false;
 
@@ -174,6 +188,7 @@ function resolveStreamUrl(env, exampleEntries, localServices) {
 
 async function prepareStartupEnv(options = {}) {
   const cwd = options.cwd || process.cwd();
+  const command = options.command || 'start';
   const env = { ...(options.env || process.env) };
   const loadedFiles = [];
   const probe = options.probePort || probePort;
@@ -191,6 +206,8 @@ async function prepareStartupEnv(options = {}) {
     loadedFiles.push('.env.example');
   }
 
+  applyMissingEnv(env, envExample.entries, SAFE_ZERO_CONFIG_KEYS);
+
   if (isExampleLocalSupabaseUrl(env.NEXT_PUBLIC_SUPABASE_URL)) {
     delete env.NEXT_PUBLIC_SUPABASE_URL;
   }
@@ -201,6 +218,9 @@ async function prepareStartupEnv(options = {}) {
   };
 
   env.NEXT_PUBLIC_STREAM_URL = resolveStreamUrl(env, envExample.entries, localServices);
+  if (command !== 'start') {
+    env.NEXT_PUBLIC_SITE_URL = resolveLocalSiteUrl(env);
+  }
 
   if (localServices.minio) {
     applyMissingEnv(env, envExample.entries, LOCAL_R2_KEYS);
@@ -216,6 +236,7 @@ async function prepareStartupEnv(options = {}) {
     localServices,
     resolved: {
       DEV_FALLBACK_SIMULATION: env.DEV_FALLBACK_SIMULATION,
+      NEXT_PUBLIC_SITE_URL: env.NEXT_PUBLIC_SITE_URL,
       NEXT_PUBLIC_STREAM_URL: env.NEXT_PUBLIC_STREAM_URL,
       NEXT_PUBLIC_R2_PUBLIC_URL: env.NEXT_PUBLIC_R2_PUBLIC_URL,
     },
@@ -296,7 +317,7 @@ async function runCli() {
   const printConfig = rawArgs.includes('--print-config');
   const args = rawArgs.filter((arg) => arg !== '--print-config');
   const command = args.shift() || 'start';
-  const startup = await prepareStartupEnv();
+  const startup = await prepareStartupEnv({ command });
 
   if (printConfig) {
     process.stdout.write(
@@ -329,6 +350,7 @@ module.exports = {
   probePort,
   prepareStartupEnv,
   resolveStreamUrl,
+  resolveLocalSiteUrl,
   isLocalDevStreamUrl,
   stageStandaloneRuntime,
 };

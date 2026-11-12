@@ -5,6 +5,7 @@ import * as path from 'path';
 describe('Local Development & Isolation Configuration', () => {
   const envExamplePath = path.resolve(__dirname, '../../.env.example');
   const dockerComposePath = path.resolve(__dirname, '../../docker-compose.local.yml');
+  const packageJsonPath = path.resolve(__dirname, '../../package.json');
 
   it('provides an .env.example file with zero production secrets', () => {
     expect(fs.existsSync(envExamplePath)).toBe(true);
@@ -40,6 +41,16 @@ describe('Local Development & Isolation Configuration', () => {
     expect(dockerContent).toContain('liquidsoap');
     expect(dockerContent).toContain('postgres');
     expect(dockerContent).toContain('minio');
+  });
+
+  it('exposes reproducible local-run scripts for zero-config and full local stack development', () => {
+    const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8')) as {
+      scripts?: Record<string, string>;
+    };
+
+    expect(pkg.scripts?.dev).toBe('node scripts/start-standalone.cjs dev');
+    expect(pkg.scripts?.['dev:config']).toBe('node scripts/start-standalone.cjs dev --print-config');
+    expect(pkg.scripts?.['local:dev']).toBe('npm run local:up && npm run dev');
   });
 
   it('ensures local database seed creates channels and test tracks', () => {

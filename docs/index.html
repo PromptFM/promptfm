@@ -258,7 +258,7 @@
       <div class="status-bar">
         <div class="status-item"><span class="dot"></span> Stream: <strong>stream.promptfm.live:443</strong></div>
         <div class="status-item"><span class="dot"></span> System API: <strong>/api/status (returns on OCI cutover)</strong></div>
-        <div class="status-item"><span class="dot"></span> Public Web: <strong>Oracle maintenance page live</strong></div>
+        <div class="status-item"><span class="dot"></span> Public Web: <strong>Live app on OCI cutover path</strong></div>
         <div class="status-item"><span class="dot"></span> Speed Insights: <strong><a href="https://vercel.com/alextrifan/promptfm/speed-insights" target="_blank" style="color:var(--accent); text-decoration:none;">Vercel preview telemetry &amp; Web Vitals &rarr;</a></strong></div>
         <div class="status-item"><span class="dot"></span> GCP Streamer: <strong>e2-micro, stopped (retired)</strong></div>
         <div class="status-item"><span class="dot"></span> Oracle Streamer: <strong>On air, AMD micro ($0.00 Always Free, quota-capped)</strong></div>
@@ -385,7 +385,7 @@ npm run promptfm -- tag sql-rollback &lt;version&gt;</pre>
         </div>
         <div class="card">
           <h3>Vercel Previews &amp; Realtime Status</h3>
-          <p>Vercel remains useful for preview deploys, flags, and web telemetry while the public production web entrypoint is the Oracle maintenance page during the OCI migration:</p>
+          <p>Vercel remains useful for preview deploys, flags, and web telemetry while the public production web entrypoint is the OCI release/candidate/cutover path:</p>
           <p><a href="https://vercel.com/alextrifan/promptfm/flags" class="link" target="_blank" rel="noopener">🚩 Vercel Feature Flags &amp; Kill-Switches Console &rarr;</a></p>
           <p><a href="https://vercel.com/alextrifan/promptfm/speed-insights" class="link" target="_blank" rel="noopener">⚡ Vercel Speed Insights (RUM &amp; Web Vitals) &rarr;</a></p>
           <p><a href="speed-insights.html" class="link">📈 Live CI Speed &amp; Performance Benchmarks Portal &rarr;</a></p>
@@ -481,11 +481,11 @@ npm run test:mutate</pre>
       <div class="grid">
         <div class="card">
           <h3>Disaster Recovery &amp; Streamer Reboot</h3>
-          <p>If the Icecast or Liquidsoap audio stream experiences connectivity dropouts, execute standard systemd recovery or tunnel restart:</p>
-          <pre># SSH into Always-Free GCP streamer VM
-ssh streamer@stream.promptfm.live
-# Restart Icecast 2 &amp; Liquidsoap broadcast containers
-sudo systemctl restart docker-compose@promptfm
+          <p>If the Icecast or Liquidsoap audio stream drops out, redeploy Oracle or run the shared on-air verifier. Fallback or standby audio is a failure when Oracle should be live:</p>
+          <pre># Verify stream health and fail on fallback / standby markers
+infra/verify-stream-on-air.sh
+# Or redeploy the Oracle streamer stack
+infra/ansible/deploy-oci.sh
 # Verify stream health
 curl -I https://stream.promptfm.live/stream.mp3</pre>
           <a href="https://github.com/PromptFM/promptfm/blob/main/docs/admin-guide.md" class="link" target="_blank" rel="noopener">Open Station Admin Guide (admin-guide.md) &rarr;</a>
@@ -493,9 +493,9 @@ curl -I https://stream.promptfm.live/stream.mp3</pre>
         <div class="card">
           <h3>Automated Multi-Lane Rollback Runbook</h3>
           <p>PromptFM supports independent rollbacks for code, infrastructure, and database migrations without redeploying other systems:</p>
-          <pre># Application Rollback (Vercel)
+          <pre># Application Rollback (OCI web path)
 npm run promptfm -- tag release --version rollback-&lt;sha&gt;
-# Infrastructure Rollback (Terraform/Ansible)
+# Infrastructure Rollback (Apply Infrastructure + converge-stream)
 npm run promptfm -- tag infra-rollback &lt;targetRef&gt;
 # SQL Migration Rollback (Supabase)
 npm run promptfm -- tag sql-rollback &lt;version&gt;</pre>
@@ -521,16 +521,16 @@ npm run promptfm -- tag sql-rollback &lt;version&gt;</pre>
         <div class="card">
           <h3>Quality Gates &amp; Validation</h3>
           <p><strong>ci.yml:</strong> Runs Vitest unit &amp; integration tests, TypeScript compiler (typecheck), ESLint, Terraform format &amp; state check, Ansible syntax &amp; dry-run, and Stryker mutation verification.<br>
-             <strong>preview-deploy.yml:</strong> Zero-cost budget gate protecting Vercel CPU quotas.<br>
+             <strong>create-preview-link.yml:</strong> On-demand Vercel preview creation for a chosen commit SHA.<br>
              <strong>retest.yml:</strong> Chat-Ops bot listening for <code>/retest</code> comments on PRs.</p>
         </div>
         <div class="card">
           <h3>Deployment &amp; Secret Management</h3>
-          <p><strong>apply-terraform.yml:</strong> Applies Terraform infra, conditionally executes Ansible via zero-cost IAP tunneling upon <code>infra/ansible</code> or VM state changes, and syncs DNS upon <code>promptfm-infra/*</code> tags or manual dispatch.<br>
+          <p><strong>apply-terraform.yml:</strong> Shared infra converge workflow: quiesces the other host, applies Terraform for the chosen stream host, serves the stream, syncs DNS, and fails if on-air verification still sees fallback or standby audio.<br>
+             <strong>deploy-streamer-oci.yml:</strong> Deploys the Oracle streamer over SSH and runs the same on-air verification when <code>standby</code> is off.<br>
+             <strong>uptime.yml:</strong> Scheduled health monitor for OCI app readiness, live status, and the shared on-air verification check.<br>
              <strong>apply-terraform-oci.yml:</strong> Plans (and applies when <code>apply</code> is ticked) the Oracle Always Free streamer in <code>infra/terraform-oci</code>.<br>
-             <strong>apply-sql-schema.yml:</strong> Applies Supabase database migrations upon <code>promptfm-sql/*</code> tags or manual dispatch using GCP Secret Manager credentials.<br>
-             <strong>rotate-secrets.yml:</strong> Automated rotation for GCP Secret Manager credentials with immediate version N-1 destruction ($0 quota guard).<br>
-             <strong>rollback-infra.yml &amp; rollback-sql.yml:</strong> Safe rollbacks to specific commit SHAs or migration versions.</p>
+             <strong>apply-sql-schema.yml</strong>, <strong>rotate-secrets.yml</strong>, <strong>update-secrets.yml</strong>, <strong>rollback-infra.yml</strong>, and <strong>rollback-sql.yml</strong> cover database, secrets, and rollback operations.</p>
         </div>
       </div>
     </section>

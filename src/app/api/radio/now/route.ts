@@ -3,7 +3,7 @@
 // Returns currently playing audio item, upcoming items, active on-air DJ, upvotes, and live listener counts.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getNowPlaying, getUpNext } from '@/lib/dj/rotation';
+import { createDemoFallbackItem, getNowPlaying, getUpNext } from '@/lib/dj/rotation';
 import { getActiveDJ } from '@/lib/dj/roster';
 import { getScheduledRequests } from '@/lib/dj/queue';
 import { getLiveListenerStats, registerListenerPing } from '@/lib/radio/listeners';
@@ -23,25 +23,14 @@ export async function GET(req: NextRequest) {
   }
 
   const fallbackDJ = getActiveDJ(channelSlug);
+  const fallbackItem = createDemoFallbackItem(fallbackDJ);
 
   try {
     let nowPlayingTimeout: ReturnType<typeof setTimeout> | undefined;
     const nowPlayingPromise = new Promise<Awaited<ReturnType<typeof getNowPlaying>>>((resolve) => {
       nowPlayingTimeout = setTimeout(() => {
         resolve({
-          item: {
-            id: 'demo-fallback',
-            type: 'music',
-            title: 'PromptFM Ambient AI Anthem',
-            artist: 'PromptFM Core',
-            audio_url:
-              'https://oxfacfdpxbxilucooijy.supabase.co/storage/v1/object/public/tracks/promptfm_ambient_ai_anthem.mp3',
-            cover_art_url: '/logo-mark.png',
-            category: 'Ambient & Lo-Fi',
-            tool_used: 'Stable Audio',
-            upvotes_count: 20,
-            dj: { id: fallbackDJ.id, name: fallbackDJ.name, title: fallbackDJ.title },
-          },
+          item: fallbackItem,
           startedAt: new Date().toISOString(),
           elapsedSeconds: 0,
           activeDJ: fallbackDJ,
@@ -58,19 +47,7 @@ export async function GET(req: NextRequest) {
         .catch(() => {
           if (nowPlayingTimeout) clearTimeout(nowPlayingTimeout);
           resolve({
-            item: {
-              id: 'demo-fallback',
-              type: 'music',
-              title: 'PromptFM Ambient AI Anthem',
-              artist: 'PromptFM Core',
-              audio_url:
-                'https://oxfacfdpxbxilucooijy.supabase.co/storage/v1/object/public/tracks/promptfm_ambient_ai_anthem.mp3',
-              cover_art_url: '/logo-mark.png',
-              category: 'Ambient & Lo-Fi',
-              tool_used: 'Stable Audio',
-              upvotes_count: 20,
-              dj: { id: fallbackDJ.id, name: fallbackDJ.name, title: fallbackDJ.title },
-            },
+            item: fallbackItem,
             startedAt: new Date().toISOString(),
             elapsedSeconds: 0,
             activeDJ: fallbackDJ,

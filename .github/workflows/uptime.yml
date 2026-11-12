@@ -38,3 +38,6 @@ jobs:
           else
             echo "::warning ::Status endpoint returned code $HTTP_STATUS"
           fi
+
+      - name: 📻 Fail when stream is stuck on fallback or standby audio
+        run: infra/verify-stream-on-air.sh

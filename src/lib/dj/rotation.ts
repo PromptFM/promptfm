@@ -46,6 +46,27 @@ export interface AirplayItem {
   queue_id?: string;
 }
 
+type AirplayPresenter = Pick<DJProfile, 'id' | 'name' | 'title'>;
+
+export const DEMO_FALLBACK_AUDIO_URL =
+  'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3';
+
+export function createDemoFallbackItem(activeDJ: AirplayPresenter): AirplayItem {
+  return {
+    id: 'demo-fallback',
+    type: 'music',
+    title: 'PromptFM Ambient AI Anthem',
+    artist: 'PromptFM Core',
+    audio_url: DEMO_FALLBACK_AUDIO_URL,
+    cover_art_url: '/logo-mark.png',
+    category: 'Ambient & Lo-Fi',
+    duration_hint_seconds: 210,
+    tool_used: 'Stable Audio',
+    upvotes_count: 20,
+    dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
+  };
+}
+
 // In-memory counters and state for track rotation per process
 let tracksSinceLastInterstitial = 0;
 let tracksSinceLastAd = 0;
@@ -453,19 +474,7 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
           matchedItem = pendingAirplayItem;
           pendingAirplayItem = null;
         } else if (icecastLive.title === 'PromptFM Ambient AI Anthem') {
-          matchedItem = {
-            id: 'demo-fallback',
-            type: 'music',
-            title: 'PromptFM Ambient AI Anthem',
-            artist: 'PromptFM Core',
-            audio_url: 'https://oxfacfdpxbxilucooijy.supabase.co/storage/v1/object/public/tracks/promptfm_ambient_ai_anthem.mp3',
-            cover_art_url: '/logo-mark.png',
-            category: 'Ambient & Lo-Fi',
-            duration_hint_seconds: 210,
-            tool_used: 'Stable Audio',
-            upvotes_count: 20,
-            dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
-          };
+          matchedItem = createDemoFallbackItem(activeDJ);
         } else {
           const supabase = createAdminClient();
           const { data: matchedTrack } = await supabase
@@ -570,18 +579,7 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
   }
 
   if (!item) {
-    item = {
-      id: 'demo-fallback',
-      type: 'music',
-      title: 'PromptFM Ambient AI Anthem',
-      artist: 'PromptFM Core',
-      audio_url: 'https://oxfacfdpxbxilucooijy.supabase.co/storage/v1/object/public/tracks/promptfm_ambient_ai_anthem.mp3',
-      cover_art_url: '/logo-mark.png',
-      category: 'Ambient & Lo-Fi',
-      tool_used: 'Stable Audio',
-      upvotes_count: 20,
-      dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
-    };
+    item = createDemoFallbackItem(activeDJ);
   }
 
   let rank: number | null = null;
@@ -1038,19 +1036,7 @@ export async function markTrackStarted(
   ) {
     itemToStart = pendingAirplayItem;
   } else if (itemId === 'demo-fallback' || title === 'PromptFM Ambient AI Anthem') {
-    itemToStart = {
-      id: 'demo-fallback',
-      type: 'music',
-      title: 'PromptFM Ambient AI Anthem',
-      artist: 'PromptFM Core',
-      audio_url: 'https://oxfacfdpxbxilucooijy.supabase.co/storage/v1/object/public/tracks/promptfm_ambient_ai_anthem.mp3',
-      cover_art_url: '/logo-mark.png',
-      category: 'Ambient & Lo-Fi',
-      duration_hint_seconds: 210,
-      tool_used: 'Stable Audio',
-      upvotes_count: 20,
-      dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
-    };
+    itemToStart = createDemoFallbackItem(activeDJ);
   } else if (itemId || title) {
     // Attempt lookup in tracks table by ID or Title
     try {
@@ -1088,7 +1074,7 @@ export async function markTrackStarted(
           artist: artistName,
           audio_url:
             actual.audio_url ||
-            'https://oxfacfdpxbxilucooijy.supabase.co/storage/v1/object/public/tracks/promptfm_ambient_ai_anthem.mp3',
+            DEMO_FALLBACK_AUDIO_URL,
           cover_art_url: actual.cover_art_url || '/logo-mark.png',
           category: actual.category,
           description: actual.description,
@@ -1110,19 +1096,7 @@ export async function markTrackStarted(
   }
 
   if (!itemToStart) {
-    itemToStart = (!isUnresolvableUnknown && pendingAirplayItem) || currentAirplayItem || {
-      id: 'demo-fallback',
-      type: 'music',
-      title: 'PromptFM Ambient AI Anthem',
-      artist: 'PromptFM Core',
-      audio_url: 'https://oxfacfdpxbxilucooijy.supabase.co/storage/v1/object/public/tracks/promptfm_ambient_ai_anthem.mp3',
-      cover_art_url: '/logo-mark.png',
-      category: 'Ambient & Lo-Fi',
-      duration_hint_seconds: 210,
-      tool_used: 'Stable Audio',
-      upvotes_count: 20,
-      dj: { id: activeDJ.id, name: activeDJ.name, title: activeDJ.title },
-    };
+    itemToStart = (!isUnresolvableUnknown && pendingAirplayItem) || currentAirplayItem || createDemoFallbackItem(activeDJ);
   }
 
   // 2. Mark queue row as played now that the track has actually started on air
@@ -1601,15 +1575,5 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
   }
 
   // Fallback demo track if database has 0 tracks yet
-  return await finishAndBroadcast({
-    id: 'demo-fallback',
-    type: 'music',
-    title: 'PromptFM Ambient AI Anthem',
-    artist: 'PromptFM Core',
-    audio_url: 'https://oxfacfdpxbxilucooijy.supabase.co/storage/v1/object/public/tracks/promptfm_ambient_ai_anthem.mp3',
-    cover_art_url: '/logo-mark.png',
-    category: 'Ambient & Lo-Fi',
-    tool_used: 'Stable Audio',
-    upvotes_count: 20,
-  });
+  return await finishAndBroadcast(createDemoFallbackItem(activeDJ));
 }

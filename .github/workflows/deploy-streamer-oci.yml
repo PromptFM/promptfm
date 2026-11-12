@@ -57,3 +57,7 @@ jobs:
             EXTRA="-e liquidsoap_script=radio-standby.liq"
           fi
           infra/ansible/deploy-oci.sh $EXTRA
+
+      - name: Verify Oracle is on air when standby is off
+        if: ${{ !inputs.standby }}
+        run: infra/verify-stream-on-air.sh

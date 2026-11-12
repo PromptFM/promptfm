@@ -167,6 +167,10 @@ jobs:
         if: steps.guard.outputs.run == 'true'
         run: infra/converge-stream.sh serve
 
+      - name: Verify chosen host is actually on air (not fallback)
+        if: steps.guard.outputs.run == 'true'
+        run: infra/verify-stream-on-air.sh
+
       - name: Tag and Record Infrastructure Release
         if: github.event_name == 'workflow_dispatch' && inputs.ref == ''
         run: npm run promptfm -- tag infra
