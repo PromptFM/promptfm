@@ -219,7 +219,19 @@ npm run promptfm -- listen
 
 ## 🔑 Environment Variables Configuration
 
-Copy `.env.local.example` to `.env.local` and configure:
+For zero-config local development, install dependencies and run:
+
+```bash
+npm run dev
+
+# Optional: print the exact local defaults and localhost services the wrapper resolved
+npm run dev:config
+
+# Optional: start the full local Docker stack and launch the app in one command
+npm run local:dev
+```
+
+If you want real cloud/service credentials locally, copy `.env.local.example` to `.env.local` and configure:
 
 ```bash
 # Public App Settings
@@ -240,11 +252,34 @@ R2_ACCOUNT_ID="your-account-id"
 R2_ACCESS_KEY_ID="your-access-key"
 R2_SECRET_ACCESS_KEY="your-secret-key"
 R2_BUCKET_NAME="promptfm-tracks"
-R2_PUBLIC_URL="https://cdn.promptfm.live"
+NEXT_PUBLIC_R2_PUBLIC_URL="https://cdn.promptfm.live"
+
+# Maintainer-only public media migration override (must be a true direct Postgres URL)
+POSTGRES_URL_NON_POOLING="postgres://postgres:...@db.<project-ref>.supabase.co:5432/postgres?sslmode=require"
 
 # Google AdSense
 NEXT_PUBLIC_ADSENSE_CLIENT_ID="ca-pub-7299057534028491"
 ```
+
+### Public Media Maintenance (`npm run media:*`)
+
+PromptFM is cutting public track media over from legacy Supabase Storage URLs to Cloudflare R2. CI only runs the non-destructive checks (`media:inventory:ci` and `media:migrate:dry-run`); the live apply remains a local maintainer operation.
+
+```bash
+# 1. Inspect remaining Supabase-backed public media references
+npm run media:inventory -- --preview-limit 20
+
+# 2. Preview the copy + rewrite plan without mutating anything
+npm run media:migrate:dry-run -- --preview-limit 20
+
+# 3. Apply the migration once the preview looks correct
+npm run media:migrate -- --preview-limit 20 --batch-size 100
+```
+
+- `npm run media:*` prefers `POSTGRES_URL_NON_POOLING`, and it must point at a true direct Postgres connection. Never use a `*.pooler.supabase.com` URL for `POSTGRES_URL_NON_POOLING`.
+- If `DATABASE_URL`, `POSTGRES_URL`, or the GCP `promptfm-database-url` secret are still pooler-backed, the CLI warns and falls back to the Supabase admin API when `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are available.
+- Missing `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_R2_PUBLIC_URL`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and `R2_BUCKET_NAME` can be hydrated from the bundled GCP secret `promptfm-web-app-env` or a local `GCP_BUNDLED_APP_ENV_JSON` override.
+- Live `npm run media:migrate` requires `NEXT_PUBLIC_R2_PUBLIC_URL` plus all `R2_*` values.
 
 ---
 

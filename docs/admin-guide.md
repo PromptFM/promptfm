@@ -156,7 +156,7 @@ The PromptFM CLI is a standalone station management suite located in `scripts/pr
 #### 4. Live Drops, Sponsor Ads & Audio Synthesis
 | Command | Description | Example |
 | :--- | :--- | :--- |
-| `upload <file> [options]` | **Unified Track Upload Tool**: Uploads an MP3/M4A/WAV file directly to Supabase Storage CDN (or R2), extracts ID3 metadata & embedded album art, extracts lyrics, sets votes/genre, and indexes 768-dim embeddings. All scratch upload scripts are replaced by this single command. | `npm run promptfm -- upload track.mp3 --title "Title" --artist "Artist" --category "Synthwave & Electro" --votes 32` |
+| `upload <file> [options]` | **Unified Track Upload Tool**: Uploads an MP3/M4A/WAV file directly to Cloudflare R2 for steady-state public media delivery (legacy Supabase Storage remains source-only during cutover), extracts ID3 metadata & embedded album art, extracts lyrics, sets votes/genre, and indexes 768-dim embeddings. All scratch upload scripts are replaced by this single command. | `npm run promptfm -- upload track.mp3 --title "Title" --artist "Artist" --category "Synthwave & Electro" --votes 32` |
 | `say "<text>" [--dj <id>]` | Synthesizes a manual AI DJ voice drop with Gemini 2.5 TTS on demand. | `npm run promptfm -- say "Welcome listeners to PromptFM"` |
 | `weather [city] [--dj <id>]` | Fetches live Open-Meteo weather and synthesizes an on-air forecast on demand. | `npm run promptfm -- weather Tokyo --dj luna` |
 | `news [topic] [--live]` | Synthesizes an on-demand AI news drop from real Google RSS headlines. | `npm run promptfm -- news tech --live` |
@@ -927,11 +927,47 @@ When a pull request includes SQL migrations, the automated PR guidance bot adds:
 ```
 
 #### 4. REST / Secret Sync
-Pull local client flags from Vercel:
+For zero-config local app development, prefer `npm run dev` and let the local wrapper use its safe built-in defaults.
+
+If you explicitly want local parity with Vercel-managed client flags, pull them into `.env.local`:
 ```bash
 npx vercel env pull .env.local --environment=development --yes
 ```
 *(Note: Database and infrastructure credentials are automatically resolved from Google Cloud Secret Manager via ambient `gcloud` login or `GCP_SA_KEY` CI credential).*
+
+### E. Public Track Media Cutover (Supabase Storage -> Cloudflare R2)
+
+PromptFM keeps Supabase for database/auth control-plane duties, but public track audio and artwork are being cut over from legacy Supabase Storage URLs to Cloudflare R2.
+
+#### 1. Required Inputs & Fallback Rules
+- **Preferred DB path:** set `POSTGRES_URL_NON_POOLING` to the true direct Supabase Postgres connection (usually port `5432`), not a `*.pooler.supabase.com` URL.
+- **Admin fallback path:** if the selected `DATABASE_URL`, `POSTGRES_URL`, or GCP `promptfm-database-url` secret is still pooler-backed, the migration CLI warns and falls back to the Supabase admin API when `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are available.
+- **Bundled app-env fallback:** missing `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_R2_PUBLIC_URL`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and `R2_BUCKET_NAME` can be hydrated from the bundled GCP secret `promptfm-web-app-env` or a local `GCP_BUNDLED_APP_ENV_JSON` override.
+- **Live apply requires R2 write config:** `NEXT_PUBLIC_R2_PUBLIC_URL`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and `R2_BUCKET_NAME` must all resolve before `npm run media:migrate -- --apply` can proceed.
+
+#### 2. Operator Sequence
+```bash
+# 1. Inventory remaining Supabase-backed references
+npm run media:inventory -- --preview-limit 20
+
+# 2. Preview the copy + rewrite plan without mutating anything
+npm run media:migrate:dry-run -- --preview-limit 20
+
+# 3. Apply only after inventory + dry-run look correct
+npm run media:migrate -- --preview-limit 20 --batch-size 100
+
+# 4. Re-check for remaining legacy references
+npm run media:inventory:ci
+
+# 5. Verify the station is still on air
+infra/verify-stream-on-air.sh
+```
+
+If the only reachable fallback path is the Supabase admin API and it returns a service restriction such as `exceed_cached_egress_quota`, stop there and treat it as an external service blocker. Do not retry blind live rewrites.
+
+#### 3. CI Guardrail
+- `.github/workflows/ci.yml` is intentionally non-destructive here: it only runs `media:inventory:ci` and `media:migrate:dry-run`.
+- Never wire live `npm run media:migrate -- --apply` into CI.
 
 ---
 
@@ -945,10 +981,10 @@ PromptFM maintains a strict multi-cloud separation of concerns to achieve zero s
 
 | Tier / Location | What Lives Here | Storage / Authority | Cost Model |
 |---|---|---|---|
-| **Google Cloud Secret Manager** | Database credentials (`promptfm-database-url`), Supabase service role key (`promptfm-supabase-service-role-key`), Hostinger DNS token (`promptfm-hostinger-api-token`), Oracle Cloud API credentials as one JSON secret (`promptfm-oci-credentials`), OAuth secrets | Primary Vault for Backend & Infra | **$0.00 Always-Free** (up to 6 active secret versions, 10k requests/mo) |
-| **Vercel Environment** | UI feature flags (`FLAGS_SECRET`), public analytics IDs, client endpoints (`NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_STREAM_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) | Client UI & Frontend Runtime | **$0.00 Hobby Plan** (no backend/infra secrets permitted) |
+| **Google Cloud Secret Manager** | Database credentials (`promptfm-database-url`), Supabase service role key (`promptfm-supabase-service-role-key`), bundled app env (`promptfm-web-app-env`), Hostinger DNS token (`promptfm-hostinger-api-token`), Oracle Cloud API credentials as one JSON secret (`promptfm-oci-credentials`), OAuth secrets | Primary Vault for Backend, Infra & OCI parity | **$0.00 Always-Free** (up to 6 active secret versions, 10k requests/mo) |
+| **Vercel Environment** | UI feature flags (`FLAGS_SECRET`), public analytics IDs, deployed frontend env (`NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_STREAM_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) | Preview UI & Frontend Runtime | **$0.00 Hobby Plan** (no backend/infra secrets permitted) |
 | **GitHub Actions Secrets** | Deployment roots only: `GCP_SA_KEY`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `GITHUB_TOKEN` | CI/CD Runner Orchestration | **$0.00 Free Actions Runners** |
-| **Local Machine** | **0 secrets stored on disk**. Ambient Application Default Credentials (ADC) via `gcloud` | Developer Sandbox | **$0.00** |
+| **Local Machine** | No committed secrets on disk. Prefer ambient Application Default Credentials (ADC) via `gcloud`; use ignored local env files only for one-off maintainer overrides | Developer Sandbox | **$0.00** |
 
 ---
 
@@ -1006,8 +1042,8 @@ The GCP Secret Manager free tier covers up to **6 active secret versions** and *
 
 - **Local Machine**:
   - Run `gcloud auth application-default login` once.
-  - No database connection strings or tokens are written to `.env` files.
-  - CLI scripts (`npm run db:migrate`, `npm run prepare-infra`) resolve credentials in memory directly via `resolveGcpSecret()`.
+  - Most CLI scripts (`npm run db:migrate`, `npm run prepare-infra`, `npm run media:*`) resolve credentials in memory directly via `resolveGcpSecret()`.
+  - For one-off maintainer workflows, use ignored local env files or `GCP_BUNDLED_APP_ENV_JSON`; never commit live secrets.
 - **GitHub Actions (CI)**:
   - Runners use the single root secret `GCP_SA_KEY`.
   - Service account key is activated into ephemeral runner memory and destroyed when the runner terminates.
@@ -1027,6 +1063,8 @@ All PromptFM secrets in project `promptfm-radio-1793623670` fit strictly within 
 | `promptfm-google-oauth-client-id` | Google OAuth Web Client ID | Automatic | 0-1 | Included in 6 max |
 | `promptfm-google-oauth-client-secret` | Google OAuth Client Secret | Automatic | 0-1 | Included in 6 max |
 | **Total Project Usage** | | | **4-6 / 6 active versions** | **✅ 100% $0.00** |
+
+The bundled app env secret `promptfm-web-app-env` is also audited for OCI web parity and local `media:*` recovery paths. Treat it as part of the same operator surface even though the table above focuses on the root secret inventory.
 
 ---
 
@@ -1057,7 +1095,7 @@ To maintain a permanent $0.00 cloud invoice across all five providers:
 #### 4. Supabase
 - **Free Plan**: Up to 2 active database projects at $0.00/month.
 - **Database Storage**: Keep database size &le; 500 MB.
-- **Connection Pooling**: Always connect via the Supabase pooler (`aws-0-*.pooler.supabase.com:6543`) with `sslmode=require` to prevent database connection exhaustion.
+- **Connection Pooling**: Normal app/runtime traffic may use the Supabase pooler (`aws-0-*.pooler.supabase.com:6543`) with `sslmode=require`, but `npm run media:*` prefers a true direct non-pooling URL via `POSTGRES_URL_NON_POOLING`. If only pooler-backed `DATABASE_URL`, `POSTGRES_URL`, or `promptfm-database-url` are available, the migration CLI falls back to the Supabase admin API only when `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are available.
 - **Egress**: Stay &le; 5 GB monthly egress.
 
 #### 5. Hostinger
@@ -1119,5 +1157,3 @@ The automated PR Guidance Bot detects modified files and publishes information c
 - **Infrastructure & Secrets Card**: Emitted when `infra/**`, `group_vars/**`, or secret utilities change. Directs admins to the [Rotate Secret workflow](https://github.com/PromptFM/promptfm/actions/workflows/rotate-secrets.yml) for GCP Secret Manager credentials, and the [Update Secrets workflow](https://github.com/PromptFM/promptfm/actions/workflows/update-secrets.yml) for Vercel flags.
 - **SQL Migration Card**: Emitted when `supabase/migrations/*.sql` changes. Directs admins to the [Apply SQL Schema workflow](https://github.com/PromptFM/promptfm/actions/workflows/apply-sql-schema.yml).
 - **UI Preview Card**: Emitted when `src/app/**` or frontend components change. Informs maintainers on how to request an on-demand preview link (`/pr-link`).
-
-

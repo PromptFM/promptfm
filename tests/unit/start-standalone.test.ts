@@ -9,6 +9,7 @@ const startStandalone = require('../../scripts/start-standalone.cjs') as {
   parseEnvFile: (content: string) => Record<string, string>;
   prepareStartupEnv: (options?: {
     cwd?: string;
+    command?: string;
     env?: Partial<NodeJS.ProcessEnv>;
     probePort?: (host: string, port: number, timeoutMs?: number) => Promise<boolean>;
   }) => Promise<{
@@ -68,6 +69,56 @@ describe('start-standalone local startup env', () => {
     expect(startup.env.NEXT_PUBLIC_SUPABASE_URL).toBeUndefined();
     expect(startup.env.ADMIN_API_KEY).toBeUndefined();
     expect(startup.env.NEXT_PUBLIC_R2_PUBLIC_URL).toBe('http://localhost:9000/promptfm-audio');
+  });
+
+  it('hydrates only the safe zero-config defaults needed for local dev when no env file exists', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'promptfm-start-'));
+    fs.writeFileSync(
+      path.join(tmpDir, '.env.example'),
+      [
+        'DEV_FALLBACK_SIMULATION=true',
+        'NEXT_PUBLIC_ADMIN_EMAILS=dev@promptfm.local,admin@promptfm.local',
+        'ADMIN_API_KEY=promptfm-local-dev-key',
+        'GEMINI_API_KEY=mock-gemini-api-key-local-simulation',
+        'TELEGRAM_BOT_TOKEN=0000000000:LOCAL_MOCK_TELEGRAM_TOKEN',
+        'X_API_KEY=mock_x_api_key',
+      ].join('\n')
+    );
+
+    const startup = await startStandalone.prepareStartupEnv({
+      cwd: tmpDir,
+      command: 'dev',
+      env: {
+        PORT: '3111',
+      },
+      probePort: vi.fn(async () => false),
+    });
+
+    expect(startup.env.DEV_FALLBACK_SIMULATION).toBe('true');
+    expect(startup.env.NEXT_PUBLIC_SITE_URL).toBe('http://localhost:3111');
+    expect(startup.env.NEXT_PUBLIC_ADMIN_EMAILS).toBe('dev@promptfm.local,admin@promptfm.local');
+    expect(startup.env.ADMIN_API_KEY).toBeUndefined();
+    expect(startup.env.GEMINI_API_KEY).toBeUndefined();
+    expect(startup.env.TELEGRAM_BOT_TOKEN).toBeUndefined();
+    expect(startup.env.X_API_KEY).toBeUndefined();
+    expect(startup.resolved.NEXT_PUBLIC_SITE_URL).toBe('http://localhost:3111');
+  });
+
+  it('does not synthesize a localhost site URL for standalone start when NEXT_PUBLIC_SITE_URL is unset', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'promptfm-start-'));
+    fs.writeFileSync(path.join(tmpDir, '.env.example'), 'DEV_FALLBACK_SIMULATION=true\n');
+
+    const startup = await startStandalone.prepareStartupEnv({
+      cwd: tmpDir,
+      command: 'start',
+      env: {
+        PORT: '3222',
+      },
+      probePort: vi.fn(async () => false),
+    });
+
+    expect(startup.env.NEXT_PUBLIC_SITE_URL).toBeUndefined();
+    expect(startup.resolved.NEXT_PUBLIC_SITE_URL).toBeUndefined();
   });
 
   it('falls back to the hosted stream when localhost stream is only an example and Icecast is down', async () => {

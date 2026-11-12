@@ -12,6 +12,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { loadLocalEnvFiles } from '../src/lib/infra/prepare-infra';
 import { resolveGcpSecret } from '../src/lib/infra/gcp-secrets';
+import { NON_INFRA_APP_ENV_GCP_SECRET_NAME } from '../src/lib/infra/secrets-sync';
 import { createAdminClient } from '../src/lib/supabase/server';
 import { getBucketName, getPublicUrl, getR2Client } from '../src/lib/r2';
 import {
@@ -32,6 +33,11 @@ import {
 
 const DEFAULT_BATCH_SIZE = 100;
 const DEFAULT_PREVIEW_LIMIT = 10;
+const TRACK_MEDIA_PG_CONNECTION_TIMEOUT_MS = 15_000;
+const TRACK_MEDIA_PG_STATEMENT_TIMEOUT_MS = 30_000;
+const TRACK_MEDIA_PG_QUERY_TIMEOUT_MS = 35_000;
+const TRACK_MEDIA_PG_LOCK_TIMEOUT_MS = 5_000;
+const TRACK_MEDIA_PG_APPLICATION_NAME = 'promptfm-track-media-migration';
 
 export interface RunTrackMediaMigrationDeps {
   fetchImpl?: typeof fetch;
@@ -64,27 +70,166 @@ export interface TrackMediaPostgresClient {
 }
 
 const TRACK_MEDIA_DATABASE_URL_ENV_KEYS = [
-  'DATABASE_URL',
   'POSTGRES_URL_NON_POOLING',
+  'DATABASE_URL',
   'SUPABASE_DB_URL',
   'POSTGRES_URL',
 ] as const;
 
-function getTrackMediaDatabaseUrlFromEnv(): string | null {
+type TrackMediaDatabaseUrlEnvKey = (typeof TRACK_MEDIA_DATABASE_URL_ENV_KEYS)[number];
+
+interface TrackMediaDatabaseUrlSelection {
+  key: TrackMediaDatabaseUrlEnvKey | 'promptfm-database-url';
+  value: string;
+}
+
+const TRACK_MEDIA_BUNDLED_APP_ENV_KEYS = [
+  'NEXT_PUBLIC_SUPABASE_URL',
+  'NEXT_PUBLIC_R2_PUBLIC_URL',
+  'R2_ACCOUNT_ID',
+  'R2_ACCESS_KEY_ID',
+  'R2_SECRET_ACCESS_KEY',
+  'R2_BUCKET_NAME',
+] as const;
+
+type TrackMediaBundledAppEnvKey = (typeof TRACK_MEDIA_BUNDLED_APP_ENV_KEYS)[number];
+
+function parseTrackMediaBundledAppEnv(raw: string): Partial<Record<TrackMediaBundledAppEnvKey, string>> {
+  if (!raw || !raw.trim()) {
+    return {};
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    throw new Error(
+      `Failed to parse ${NON_INFRA_APP_ENV_GCP_SECRET_NAME} bundled app env JSON: ${formatTrackMediaMigrationError(error)}`,
+    );
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(
+      `${NON_INFRA_APP_ENV_GCP_SECRET_NAME} bundled app env JSON must be an object.`,
+    );
+  }
+
+  const parsedRecord = parsed as Record<string, unknown>;
+
+  const hydrated: Partial<Record<TrackMediaBundledAppEnvKey, string>> = {};
+  for (const key of TRACK_MEDIA_BUNDLED_APP_ENV_KEYS) {
+    const value = parsedRecord[key];
+    if (typeof value !== 'string') {
+      continue;
+    }
+
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === '[SENSITIVE]' || trimmed.startsWith('[SENSITIVE')) {
+      continue;
+    }
+
+    hydrated[key] = trimmed;
+  }
+
+  return hydrated;
+}
+
+async function ensureBundledAppEnv(
+  deps: Required<Pick<RunTrackMediaMigrationDeps, 'resolveGcpSecretImpl'>>,
+): Promise<void> {
+  const missingKeys = TRACK_MEDIA_BUNDLED_APP_ENV_KEYS.filter((key) => !process.env[key]?.trim());
+  if (missingKeys.length === 0) {
+    return;
+  }
+
+  const bundledAppEnvRaw = await deps.resolveGcpSecretImpl(NON_INFRA_APP_ENV_GCP_SECRET_NAME, {
+    fallbackEnvVar: 'GCP_BUNDLED_APP_ENV_JSON',
+  });
+  if (!bundledAppEnvRaw) {
+    return;
+  }
+
+  const bundledAppEnv = parseTrackMediaBundledAppEnv(bundledAppEnvRaw);
+  for (const key of missingKeys) {
+    const value = bundledAppEnv[key];
+    if (value) {
+      process.env[key] = value;
+    }
+  }
+}
+
+function getTrackMediaDatabaseUrlFromEnv(): TrackMediaDatabaseUrlSelection | null {
   for (const key of TRACK_MEDIA_DATABASE_URL_ENV_KEYS) {
     const value = process.env[key]?.trim();
     if (value) {
-      return value;
+      return { key, value };
     }
   }
 
   return null;
 }
 
+function getSupabasePoolerHost(databaseUrl: string): string | null {
+  try {
+    const parsed = new URL(databaseUrl);
+    const hostname = parsed.hostname.toLowerCase();
+    if (hostname === 'pooler.supabase.com' || hostname.endsWith('.pooler.supabase.com')) {
+      return parsed.host;
+    }
+  } catch {
+    const match = databaseUrl.match(/\/\/([^/?#]*pooler\.supabase\.com(?::\d+)?)(?:[/?#]|$)/i);
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+
+  return null;
+}
+
+function validateTrackMediaDatabaseUrlSelection(selection: TrackMediaDatabaseUrlSelection): void {
+  const poolerHost = getSupabasePoolerHost(selection.value);
+  if (!poolerHost) {
+    return;
+  }
+
+  const source =
+    selection.key === 'promptfm-database-url'
+      ? 'resolved promptfm-database-url secret'
+      : `${selection.key}`;
+
+  throw new Error(
+    `Selected database URL from ${source} points at Supabase pooler host ${poolerHost}. Track media migration requires a true non-pooling Postgres URL (usually the direct port 5432 connection). Set POSTGRES_URL_NON_POOLING to the direct database URL, not a *.pooler.supabase.com address.`,
+  );
+}
+
+function canFallbackFromDatabaseSelection(selection: TrackMediaDatabaseUrlSelection): boolean {
+  return selection.key === 'promptfm-database-url' || selection.key === 'DATABASE_URL' || selection.key === 'POSTGRES_URL';
+}
+
+function hasSupabaseAdminFallbackEnv(): boolean {
+  return Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() && process.env.SUPABASE_SERVICE_ROLE_KEY?.trim(),
+  );
+}
+
 export function buildTrackMediaPgClientOptions(connectionString: string): {
   connectionString: string;
   ssl: false | { rejectUnauthorized: false };
+  connectionTimeoutMillis: number;
+  statement_timeout: number;
+  query_timeout: number;
+  lock_timeout: number;
+  application_name: string;
 } {
+  const sharedOptions = {
+    connectionString,
+    connectionTimeoutMillis: TRACK_MEDIA_PG_CONNECTION_TIMEOUT_MS,
+    statement_timeout: TRACK_MEDIA_PG_STATEMENT_TIMEOUT_MS,
+    query_timeout: TRACK_MEDIA_PG_QUERY_TIMEOUT_MS,
+    lock_timeout: TRACK_MEDIA_PG_LOCK_TIMEOUT_MS,
+    application_name: TRACK_MEDIA_PG_APPLICATION_NAME,
+  };
+
   try {
     const parsed = new URL(connectionString);
     const sslMode = parsed.searchParams.get('sslmode')?.toLowerCase();
@@ -92,14 +237,14 @@ export function buildTrackMediaPgClientOptions(connectionString: string): {
 
     if (sslMode === 'disable' || ssl === '0' || ssl === 'false') {
       return {
-        connectionString,
+        ...sharedOptions,
         ssl: false,
       };
     }
 
     if (sslMode === 'no-verify') {
       return {
-        connectionString,
+        ...sharedOptions,
         ssl: { rejectUnauthorized: false },
       };
     }
@@ -109,6 +254,7 @@ export function buildTrackMediaPgClientOptions(connectionString: string): {
       parsed.searchParams.set('sslmode', 'no-verify');
 
       return {
+        ...sharedOptions,
         connectionString: parsed.toString(),
         ssl: { rejectUnauthorized: false },
       };
@@ -118,7 +264,7 @@ export function buildTrackMediaPgClientOptions(connectionString: string): {
   }
 
   return {
-    connectionString,
+    ...sharedOptions,
     ssl: { rejectUnauthorized: false },
   };
 }
@@ -128,6 +274,39 @@ async function defaultCreatePgClient(connectionString: string): Promise<TrackMed
   const client = new Client(buildTrackMediaPgClientOptions(connectionString));
   await client.connect();
   return client;
+}
+
+function formatTrackMediaMigrationError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function connectTrackMediaPostgres(
+  databaseUrl: string,
+  context: string,
+  deps: Required<Pick<RunTrackMediaMigrationDeps, 'createPgClient' | 'stdout'>>,
+): Promise<TrackMediaPostgresClient> {
+  const pgOptions = buildTrackMediaPgClientOptions(databaseUrl);
+  deps.stdout.log(
+    `[track-media-migration] connecting to Postgres for ${context} (connect timeout=${pgOptions.connectionTimeoutMillis}ms, query timeout=${pgOptions.query_timeout}ms, statement timeout=${pgOptions.statement_timeout}ms, lock timeout=${pgOptions.lock_timeout}ms)`,
+  );
+
+  const client = await deps.createPgClient(databaseUrl);
+  deps.stdout.log(`[track-media-migration] connected to Postgres for ${context}`);
+  return client;
+}
+
+async function closeTrackMediaPostgres(
+  client: TrackMediaPostgresClient,
+  context: string,
+  deps: Required<Pick<RunTrackMediaMigrationDeps, 'stdout'>>,
+): Promise<void> {
+  try {
+    await client.end();
+  } catch (error) {
+    deps.stdout.warn(
+      `[track-media-migration] failed to close Postgres connection for ${context}: ${formatTrackMediaMigrationError(error)}`,
+    );
+  }
 }
 
 function parseArgValue(args: string[], flag: string): string | undefined {
@@ -238,7 +417,7 @@ async function ensureMigrationSecrets(
 
 async function ensureMigrationDatabaseUrl(
   deps: Required<Pick<RunTrackMediaMigrationDeps, 'resolveGcpSecretImpl'>>,
-): Promise<string | null> {
+): Promise<TrackMediaDatabaseUrlSelection | null> {
   const existing = getTrackMediaDatabaseUrlFromEnv();
   if (existing) {
     return existing;
@@ -250,7 +429,10 @@ async function ensureMigrationDatabaseUrl(
 
   if (dbUrl) {
     process.env.DATABASE_URL = dbUrl;
-    return dbUrl;
+    return {
+      key: 'promptfm-database-url',
+      value: dbUrl,
+    };
   }
 
   return null;
@@ -258,45 +440,65 @@ async function ensureMigrationDatabaseUrl(
 
 async function fetchTrackRows(
   options: { batchSize: number },
-  deps: Required<Pick<RunTrackMediaMigrationDeps, 'getAdminClient' | 'createPgClient'>>,
+  deps: Required<Pick<RunTrackMediaMigrationDeps, 'getAdminClient' | 'createPgClient' | 'stdout'>>,
   databaseUrl?: string | null,
 ): Promise<TrackMediaInventoryRow[]> {
   if (databaseUrl) {
-    const client = await deps.createPgClient(databaseUrl);
+    const client = await connectTrackMediaPostgres(databaseUrl, 'track inventory', deps);
     try {
       const rows: TrackMediaInventoryRow[] = [];
       let from = 0;
+      let batchNumber = 1;
 
       while (true) {
-        const result = (await client.query(
-          `
-            SELECT
-              id::text AS id,
-              title,
-              artist_name,
-              status,
-              audio_url,
-              cover_art_url
-            FROM public.tracks
-            ORDER BY id ASC
-            LIMIT $1 OFFSET $2
-          `,
-          [options.batchSize, from],
-        )) as { rows: TrackMediaInventoryRow[]; rowCount?: number | null };
+        deps.stdout.log(
+          `[track-media-migration] querying Postgres track batch ${batchNumber} (offset=${from}, limit=${options.batchSize})`,
+        );
+
+        let result: { rows: TrackMediaInventoryRow[]; rowCount?: number | null };
+
+        try {
+          result = (await client.query(
+            `
+              SELECT
+                id::text AS id,
+                title,
+                artist_name,
+                status,
+                audio_url,
+                cover_art_url
+              FROM public.tracks
+              ORDER BY id ASC
+              LIMIT $1 OFFSET $2
+            `,
+            [options.batchSize, from],
+          )) as { rows: TrackMediaInventoryRow[]; rowCount?: number | null };
+        } catch (error) {
+          throw new Error(
+            `Failed to query Postgres track batch ${batchNumber} (offset ${from}, limit ${options.batchSize}): ${formatTrackMediaMigrationError(error)}`,
+          );
+        }
 
         const batch = result.rows ?? [];
         rows.push(...batch);
+        deps.stdout.log(
+          `[track-media-migration] fetched Postgres track batch ${batchNumber} (${batch.length} row(s), ${rows.length} total)`,
+        );
 
         if (batch.length < options.batchSize) {
+          deps.stdout.log(
+            `[track-media-migration] completed Postgres track inventory fetch (${rows.length} row(s) total)`,
+          );
           break;
         }
 
         from += batch.length;
+        batchNumber += 1;
       }
 
       return rows;
     } finally {
-      await client.end();
+      await closeTrackMediaPostgres(client, 'track inventory', deps);
     }
   }
 
@@ -476,7 +678,9 @@ async function executeTrackMediaMigrationPlan(
     return execution;
   }
 
-  const databaseClient = databaseUrl ? await deps.createPgClient(databaseUrl) : undefined;
+  const databaseClient = databaseUrl
+    ? await connectTrackMediaPostgres(databaseUrl, 'track media reference rewrites', deps)
+    : undefined;
 
   try {
     for (const object of plan.objects) {
@@ -520,7 +724,7 @@ async function executeTrackMediaMigrationPlan(
     return execution;
   } finally {
     if (databaseClient) {
-      await databaseClient.end();
+      await closeTrackMediaPostgres(databaseClient, 'track media reference rewrites', deps);
     }
   }
 }
@@ -550,10 +754,38 @@ export async function runTrackMediaMigrationCLI(
 
     const options = parseTrackMediaMigrationArgs(argv);
     const rowLimit = parseOptionalPositiveInt(parseArgValue(argv, '--limit'));
-    const databaseUrl = await ensureMigrationDatabaseUrl(resolvedDeps);
+    let databaseUrlSelection = await ensureMigrationDatabaseUrl(resolvedDeps);
+    let databaseUrl = databaseUrlSelection?.value ?? null;
+
+    if (databaseUrlSelection) {
+      try {
+        validateTrackMediaDatabaseUrlSelection(databaseUrlSelection);
+      } catch (error) {
+        if (!canFallbackFromDatabaseSelection(databaseUrlSelection) || !hasSupabaseAdminFallbackEnv()) {
+          throw error;
+        }
+
+        resolvedDeps.stdout.warn(
+          `[track-media-migration] ${formatTrackMediaMigrationError(error)} Falling back to Supabase admin API because ${databaseUrlSelection.key === 'promptfm-database-url' ? 'the resolved promptfm-database-url secret is still pooler-backed' : `${databaseUrlSelection.key} is pooler-backed`} and Supabase admin credentials are available.`,
+        );
+        if (databaseUrlSelection.key === 'promptfm-database-url' || databaseUrlSelection.key === 'DATABASE_URL') {
+          delete process.env.DATABASE_URL;
+        }
+        if (databaseUrlSelection.key === 'POSTGRES_URL') {
+          delete process.env.POSTGRES_URL;
+        }
+        databaseUrlSelection = null;
+        databaseUrl = null;
+      }
+    }
 
     if (!databaseUrl) {
+      await ensureBundledAppEnv(resolvedDeps);
       await ensureMigrationSecrets(resolvedDeps);
+    }
+
+    if (options.mode === 'migrate' && !options.dryRun) {
+      await ensureBundledAppEnv(resolvedDeps);
     }
 
     if (!databaseUrl && !process.env.NEXT_PUBLIC_SUPABASE_URL) {
@@ -599,7 +831,7 @@ export async function runTrackMediaMigrationCLI(
     });
   } catch (error) {
     resolvedDeps.stdout.error(
-      `[track-media-migration] ${error instanceof Error ? error.message : String(error)}`,
+      `[track-media-migration] ${formatTrackMediaMigrationError(error)}`,
     );
     return TRACK_MEDIA_MIGRATION_EXIT_CODES.failure;
   }
