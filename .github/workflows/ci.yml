@@ -124,6 +124,89 @@ jobs:
       - name: Run TypeScript Typecheck
         run: npm run typecheck
 
+      - name: Run Targeted Track Media Migration Tests
+        if: needs.detect-changes.outputs.has_core_domain == 'true' || needs.detect-changes.outputs.has_infra == 'true' || github.event_name == 'push'
+        env:
+          NODE_ENV: test
+        run: |
+          npx vitest run \
+            tests/unit/track-media-migration.test.ts \
+            tests/unit/migrate-track-media-cli.test.ts
+
+      - name: Run Targeted Radio Fallback Regression Tests
+        if: needs.detect-changes.outputs.has_core_domain == 'true' || needs.detect-changes.outputs.has_infra == 'true' || github.event_name == 'push'
+        env:
+          NODE_ENV: test
+        run: |
+          npx vitest run \
+            tests/unit/radio-started.test.ts \
+            tests/unit/rotation-sync.test.ts \
+            tests/integration/radio-now-api.test.ts
+
+      - name: Configure Optional GCP Credentials for Track Media Inventory Guard
+        if: (needs.detect-changes.outputs.has_core_domain == 'true' || needs.detect-changes.outputs.has_infra == 'true' || github.event_name == 'push') && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          if [ -z "$GCP_SA_KEY" ]; then
+            echo "ℹ️ GCP_SA_KEY not provided; track media inventory guard will use direct env credentials only."
+            exit 0
+          fi
+
+          if ! command -v gcloud >/dev/null 2>&1; then
+            echo "::warning::gcloud CLI unavailable; track media inventory guard cannot resolve promptfm-database-url."
+            exit 0
+          fi
+
+          if echo "$GCP_SA_KEY" | grep -q '^{'; then
+            echo "$GCP_SA_KEY" > /tmp/gcp-sa-key.json
+          else
+            echo "$GCP_SA_KEY" | base64 -d > /tmp/gcp-sa-key.json
+          fi
+
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-sa-key.json" >> "$GITHUB_ENV"
+          gcloud auth activate-service-account --key-file=/tmp/gcp-sa-key.json --project=promptfm-radio-1793623670
+
+      - name: Run Track Media Migration Dry Run (Trusted Contexts Only)
+        if: (needs.detect-changes.outputs.has_core_domain == 'true' || needs.detect-changes.outputs.has_infra == 'true' || github.event_name == 'push') && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_R2_PUBLIC_URL: ${{ vars.NEXT_PUBLIC_R2_PUBLIC_URL || secrets.NEXT_PUBLIC_R2_PUBLIC_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          # Prefer direct Postgres in CI because Supabase REST may be restricted on some projects.
+          if [ -n "$DATABASE_URL" ] || [ -n "$POSTGRES_URL_NON_POOLING" ]; then
+            npm run media:migrate:dry-run -- --preview-limit 20
+          elif [ -n "$GOOGLE_APPLICATION_CREDENTIALS" ] && command -v gcloud >/dev/null 2>&1; then
+            npm run media:migrate:dry-run -- --preview-limit 20
+          elif [ -n "$NEXT_PUBLIC_SUPABASE_URL" ] && [ -n "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            npm run media:migrate:dry-run -- --preview-limit 20
+          else
+            echo "ℹ️ No database, GCP, or Supabase credentials available in this trusted context; skipping track media migration dry-run."
+          fi
+
+      - name: Run Track Media Inventory Guard (Trusted Contexts Only)
+        if: (needs.detect-changes.outputs.has_core_domain == 'true' || needs.detect-changes.outputs.has_infra == 'true' || github.event_name == 'push') && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_R2_PUBLIC_URL: ${{ vars.NEXT_PUBLIC_R2_PUBLIC_URL || secrets.NEXT_PUBLIC_R2_PUBLIC_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          # Prefer direct Postgres in CI because Supabase REST may be restricted on some projects.
+          if [ -n "$DATABASE_URL" ] || [ -n "$POSTGRES_URL_NON_POOLING" ]; then
+            npm run media:inventory:ci
+          elif [ -n "$GOOGLE_APPLICATION_CREDENTIALS" ] && command -v gcloud >/dev/null 2>&1; then
+            npm run media:inventory:ci
+          elif [ -n "$NEXT_PUBLIC_SUPABASE_URL" ] && [ -n "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            npm run media:inventory:ci
+          else
+            echo "ℹ️ No database, GCP, or Supabase credentials available in this trusted context; skipping track media inventory guard."
+          fi
+
       - name: Run SQL Schema Linter
         if: needs.detect-changes.outputs.has_sql == 'true' || github.event_name == 'push'
         run: npm run lint:sql

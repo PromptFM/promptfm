@@ -13,12 +13,13 @@ import {
   fetchLiveWeatherSummary,
   getNextAirplayItem,
   resetAirplayDedupeCache,
+  DEMO_FALLBACK_AUDIO_URL,
 } from '@/lib/dj/rotation';
 
 // Mock Supabase admin client
 const { mockUpsert, mockState, mockBroadcast } = vi.hoisted(() => ({
   mockUpsert: vi.fn().mockResolvedValue({ data: null, error: null }),
-  mockState: { customSingle: null as any },
+  mockState: { customSingle: null as any, customSingles: [] as any[] },
   mockBroadcast: vi.fn().mockResolvedValue({ discord: true, telegram: true }),
 }));
 
@@ -41,6 +42,9 @@ vi.mock('@/lib/supabase/server', () => {
   chain.order = vi.fn(() => chain);
   chain.limit = vi.fn(() => chain);
   chain.maybeSingle = vi.fn().mockImplementation(async () => {
+    if (mockState.customSingles.length > 0) {
+      return mockState.customSingles.shift();
+    }
     if (mockState.customSingle !== null) {
       const res = mockState.customSingle;
       mockState.customSingle = null;
@@ -99,6 +103,7 @@ describe('On-Air Track Synchronization & Rotation Watchdog', () => {
     vi.clearAllMocks();
     mockBroadcast.mockClear();
     mockState.customSingle = null;
+    mockState.customSingles = [];
     resetAirplayDedupeCache();
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false,
@@ -327,6 +332,8 @@ describe('On-Air Track Synchronization & Rotation Watchdog', () => {
       const reconciled = await getNowPlaying('main');
       expect(reconciled.item.id).toBe('demo-fallback');
       expect(reconciled.item.title).toBe('PromptFM Ambient AI Anthem');
+      expect(reconciled.item.audio_url).toBe(DEMO_FALLBACK_AUDIO_URL);
+      expect(reconciled.item.audio_url).not.toContain('supabase.co/storage');
       expect(reconciled.item.category).toBe('Ambient & Lo-Fi');
       expect(reconciled.item.tool_used).toBe('Stable Audio');
       expect(reconciled.item.upvotes_count).toBe(20);
@@ -377,6 +384,8 @@ describe('On-Air Track Synchronization & Rotation Watchdog', () => {
     const started = await markTrackStarted('main', undefined, 'PromptFM Ambient AI Anthem');
     expect(started.id).toBe('demo-fallback');
     expect(started.title).toBe('PromptFM Ambient AI Anthem');
+    expect(started.audio_url).toBe(DEMO_FALLBACK_AUDIO_URL);
+    expect(started.audio_url).not.toContain('supabase.co/storage');
     expect(started.category).toBe('Ambient & Lo-Fi');
     expect(started.duration_hint_seconds).toBe(210);
     expect(started.tool_used).toBe('Stable Audio');
@@ -823,6 +832,18 @@ describe('On-Air Track Synchronization & Rotation Watchdog', () => {
           channel_slug: 'db-empty-state-channel',
         })
       );
+    });
+
+    it('falls back to non-Supabase demo audio when no station state or approved track exists', async () => {
+      mockState.customSingles = [{ data: null }, { data: null }];
+      mockUpsert.mockClear();
+
+      const result = await getNowPlaying('db-demo-fallback-channel');
+
+      expect(result.item.id).toBe('demo-fallback');
+      expect(result.item.audio_url).toBe(DEMO_FALLBACK_AUDIO_URL);
+      expect(result.item.audio_url).not.toContain('supabase.co/storage');
+      expect(mockUpsert).not.toHaveBeenCalled();
     });
   });
 });

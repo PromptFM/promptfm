@@ -240,6 +240,44 @@ describe('GitHub Actions Workflows Suite', () => {
     });
   });
 
+  describe('Track Media Migration Coverage in CI Workflow (ci.yml)', () => {
+    it('runs targeted migration tests and only performs the inventory guard in trusted contexts', () => {
+      const content = readWorkflow('ci.yml');
+      expect(content).toContain('Run Targeted Track Media Migration Tests');
+      expect(content).toContain('tests/unit/track-media-migration.test.ts');
+      expect(content).toContain('tests/unit/migrate-track-media-cli.test.ts');
+      expect(content).toContain('Run Track Media Migration Dry Run (Trusted Contexts Only)');
+      expect(content).toContain('Configure Optional GCP Credentials for Track Media Inventory Guard');
+      expect(content).toContain('GCP_SA_KEY');
+      expect(content).toContain('gcloud auth activate-service-account');
+      expect(content).toContain('promptfm-radio-1793623670');
+      expect(content).toContain('gcloud CLI unavailable; track media inventory guard cannot resolve promptfm-database-url.');
+      expect(content).toContain('Run Track Media Inventory Guard (Trusted Contexts Only)');
+      expect(content).toContain("github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository");
+      expect(content).toContain('DATABASE_URL');
+      expect(content).toContain('POSTGRES_URL_NON_POOLING');
+      expect(content).toContain('NEXT_PUBLIC_SUPABASE_URL');
+      expect(content).toContain('NEXT_PUBLIC_R2_PUBLIC_URL');
+      expect(content).toContain('SUPABASE_SERVICE_ROLE_KEY');
+      expect(content).toContain('GOOGLE_APPLICATION_CREDENTIALS');
+      expect(content).toContain('npm run media:migrate:dry-run');
+      expect(content).toContain('npm run media:inventory:ci');
+      expect(content).toContain('skipping track media migration dry-run');
+      expect(content).toContain('No database, GCP, or Supabase credentials available in this trusted context; skipping track media inventory guard.');
+      expect(content).not.toMatch(/npm run media:migrate(\s|$)/);
+    });
+  });
+
+  describe('Fallback URL Regression Coverage in CI Workflow (ci.yml)', () => {
+    it('runs a targeted fallback and stream URL regression suite before the full coverage pass', () => {
+      const content = readWorkflow('ci.yml');
+      expect(content).toContain('Run Targeted Radio Fallback Regression Tests');
+      expect(content).toContain('tests/unit/radio-started.test.ts');
+      expect(content).toContain('tests/unit/rotation-sync.test.ts');
+      expect(content).toContain('tests/integration/radio-now-api.test.ts');
+    });
+  });
+
   describe('Playwright CI Optimization (ci.yml) (Issue #83)', () => {
     it('caches Playwright browser and skips install-deps on cache hit', () => {
       const content = readWorkflow('ci.yml');
