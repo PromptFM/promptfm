@@ -262,19 +262,6 @@ describe('GitHub Actions Workflows Suite', () => {
       expect(content).toContain('GOOGLE_APPLICATION_CREDENTIALS');
       expect(content).toContain('npm run media:migrate:dry-run');
       expect(content).toContain('npm run media:inventory:ci');
-      expect(content).toContain('pooler.supabase.com');
-      expect(content).toContain(
-        'POSTGRES_URL_NON_POOLING is configured with a Supabase pooler URL, not a direct Postgres host; skipping track media migration dry-run in CI.'
-      );
-      expect(content).toContain(
-        'POSTGRES_URL_NON_POOLING is configured with a Supabase pooler URL, not a direct Postgres host; skipping track media inventory guard in CI.'
-      );
-      expect(content).toContain(
-        'Trusted-context CI only has a Supabase pooler-backed DATABASE_URL and no direct POSTGRES_URL_NON_POOLING; skipping track media migration dry-run.'
-      );
-      expect(content).toContain(
-        'Trusted-context CI only has a Supabase pooler-backed DATABASE_URL and no direct POSTGRES_URL_NON_POOLING; skipping track media inventory guard.'
-      );
       expect(content).toContain('skipping track media migration dry-run');
       expect(content).toContain('No database, GCP, or Supabase credentials available in this trusted context; skipping track media inventory guard.');
       expect(content).not.toMatch(/npm run media:migrate(\s|$)/);

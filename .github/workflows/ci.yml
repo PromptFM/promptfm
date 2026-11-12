@@ -176,25 +176,8 @@ jobs:
           NEXT_PUBLIC_R2_PUBLIC_URL: ${{ vars.NEXT_PUBLIC_R2_PUBLIC_URL || secrets.NEXT_PUBLIC_R2_PUBLIC_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
-          is_supabase_pooler_url() {
-            case "${1:-}" in
-              *pooler.supabase.com*)
-                return 0
-                ;;
-              *)
-                return 1
-                ;;
-            esac
-          }
-
           # Prefer direct Postgres in CI because Supabase REST may be restricted on some projects.
-          if [ -n "$POSTGRES_URL_NON_POOLING" ] && is_supabase_pooler_url "$POSTGRES_URL_NON_POOLING"; then
-            echo "ℹ️ POSTGRES_URL_NON_POOLING is configured with a Supabase pooler URL, not a direct Postgres host; skipping track media migration dry-run in CI."
-          elif [ -n "$POSTGRES_URL_NON_POOLING" ]; then
-            npm run media:migrate:dry-run -- --preview-limit 20
-          elif [ -n "$DATABASE_URL" ] && is_supabase_pooler_url "$DATABASE_URL"; then
-            echo "ℹ️ Trusted-context CI only has a Supabase pooler-backed DATABASE_URL and no direct POSTGRES_URL_NON_POOLING; skipping track media migration dry-run."
-          elif [ -n "$DATABASE_URL" ]; then
+          if [ -n "$DATABASE_URL" ] || [ -n "$POSTGRES_URL_NON_POOLING" ]; then
             npm run media:migrate:dry-run -- --preview-limit 20
           elif [ -n "$GOOGLE_APPLICATION_CREDENTIALS" ] && command -v gcloud >/dev/null 2>&1; then
             npm run media:migrate:dry-run -- --preview-limit 20
@@ -213,25 +196,8 @@ jobs:
           NEXT_PUBLIC_R2_PUBLIC_URL: ${{ vars.NEXT_PUBLIC_R2_PUBLIC_URL || secrets.NEXT_PUBLIC_R2_PUBLIC_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
-          is_supabase_pooler_url() {
-            case "${1:-}" in
-              *pooler.supabase.com*)
-                return 0
-                ;;
-              *)
-                return 1
-                ;;
-            esac
-          }
-
           # Prefer direct Postgres in CI because Supabase REST may be restricted on some projects.
-          if [ -n "$POSTGRES_URL_NON_POOLING" ] && is_supabase_pooler_url "$POSTGRES_URL_NON_POOLING"; then
-            echo "ℹ️ POSTGRES_URL_NON_POOLING is configured with a Supabase pooler URL, not a direct Postgres host; skipping track media inventory guard in CI."
-          elif [ -n "$POSTGRES_URL_NON_POOLING" ]; then
-            npm run media:inventory:ci
-          elif [ -n "$DATABASE_URL" ] && is_supabase_pooler_url "$DATABASE_URL"; then
-            echo "ℹ️ Trusted-context CI only has a Supabase pooler-backed DATABASE_URL and no direct POSTGRES_URL_NON_POOLING; skipping track media inventory guard."
-          elif [ -n "$DATABASE_URL" ]; then
+          if [ -n "$DATABASE_URL" ] || [ -n "$POSTGRES_URL_NON_POOLING" ]; then
             npm run media:inventory:ci
           elif [ -n "$GOOGLE_APPLICATION_CREDENTIALS" ] && command -v gcloud >/dev/null 2>&1; then
             npm run media:inventory:ci
