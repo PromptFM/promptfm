@@ -176,13 +176,37 @@ jobs:
           NEXT_PUBLIC_R2_PUBLIC_URL: ${{ vars.NEXT_PUBLIC_R2_PUBLIC_URL || secrets.NEXT_PUBLIC_R2_PUBLIC_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
+          run_track_media_migration_dry_run() {
+            local output_file
+            output_file="$(mktemp)"
+
+            set +e
+            npm run media:migrate:dry-run -- --preview-limit 20 2>&1 | tee "$output_file"
+            local status=${PIPESTATUS[0]}
+            set -e
+
+            if [ "$status" -eq 0 ]; then
+              rm -f "$output_file"
+              return 0
+            fi
+
+            if grep -Fq 'exceed_cached_egress_quota' "$output_file"; then
+              echo "::warning::Supabase returned exceed_cached_egress_quota during track media migration dry-run; treating the trusted-context CI guard as skipped instead of failed."
+              rm -f "$output_file"
+              return 0
+            fi
+
+            rm -f "$output_file"
+            return "$status"
+          }
+
           # Prefer direct Postgres in CI because Supabase REST may be restricted on some projects.
           if [ -n "$DATABASE_URL" ] || [ -n "$POSTGRES_URL_NON_POOLING" ]; then
-            npm run media:migrate:dry-run -- --preview-limit 20
+            run_track_media_migration_dry_run
           elif [ -n "$GOOGLE_APPLICATION_CREDENTIALS" ] && command -v gcloud >/dev/null 2>&1; then
-            npm run media:migrate:dry-run -- --preview-limit 20
+            run_track_media_migration_dry_run
           elif [ -n "$NEXT_PUBLIC_SUPABASE_URL" ] && [ -n "$SUPABASE_SERVICE_ROLE_KEY" ]; then
-            npm run media:migrate:dry-run -- --preview-limit 20
+            run_track_media_migration_dry_run
           else
             echo "ℹ️ No database, GCP, or Supabase credentials available in this trusted context; skipping track media migration dry-run."
           fi
@@ -196,13 +220,37 @@ jobs:
           NEXT_PUBLIC_R2_PUBLIC_URL: ${{ vars.NEXT_PUBLIC_R2_PUBLIC_URL || secrets.NEXT_PUBLIC_R2_PUBLIC_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
+          run_track_media_inventory_guard() {
+            local output_file
+            output_file="$(mktemp)"
+
+            set +e
+            npm run media:inventory:ci 2>&1 | tee "$output_file"
+            local status=${PIPESTATUS[0]}
+            set -e
+
+            if [ "$status" -eq 0 ]; then
+              rm -f "$output_file"
+              return 0
+            fi
+
+            if grep -Fq 'exceed_cached_egress_quota' "$output_file"; then
+              echo "::warning::Supabase returned exceed_cached_egress_quota during track media inventory guard; treating the trusted-context CI guard as skipped instead of failed."
+              rm -f "$output_file"
+              return 0
+            fi
+
+            rm -f "$output_file"
+            return "$status"
+          }
+
           # Prefer direct Postgres in CI because Supabase REST may be restricted on some projects.
           if [ -n "$DATABASE_URL" ] || [ -n "$POSTGRES_URL_NON_POOLING" ]; then
-            npm run media:inventory:ci
+            run_track_media_inventory_guard
           elif [ -n "$GOOGLE_APPLICATION_CREDENTIALS" ] && command -v gcloud >/dev/null 2>&1; then
-            npm run media:inventory:ci
+            run_track_media_inventory_guard
           elif [ -n "$NEXT_PUBLIC_SUPABASE_URL" ] && [ -n "$SUPABASE_SERVICE_ROLE_KEY" ]; then
-            npm run media:inventory:ci
+            run_track_media_inventory_guard
           else
             echo "ℹ️ No database, GCP, or Supabase credentials available in this trusted context; skipping track media inventory guard."
           fi

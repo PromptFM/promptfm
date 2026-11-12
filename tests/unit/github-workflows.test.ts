@@ -262,6 +262,13 @@ describe('GitHub Actions Workflows Suite', () => {
       expect(content).toContain('GOOGLE_APPLICATION_CREDENTIALS');
       expect(content).toContain('npm run media:migrate:dry-run');
       expect(content).toContain('npm run media:inventory:ci');
+      expect(content).toContain("grep -Fq 'exceed_cached_egress_quota'");
+      expect(content).toContain(
+        'Supabase returned exceed_cached_egress_quota during track media migration dry-run; treating the trusted-context CI guard as skipped instead of failed.'
+      );
+      expect(content).toContain(
+        'Supabase returned exceed_cached_egress_quota during track media inventory guard; treating the trusted-context CI guard as skipped instead of failed.'
+      );
       expect(content).toContain('skipping track media migration dry-run');
       expect(content).toContain('No database, GCP, or Supabase credentials available in this trusted context; skipping track media inventory guard.');
       expect(content).not.toMatch(/npm run media:migrate(\s|$)/);
