@@ -81,9 +81,51 @@ function getTrackMediaDatabaseUrlFromEnv(): string | null {
   return null;
 }
 
+export function buildTrackMediaPgClientOptions(connectionString: string): {
+  connectionString: string;
+  ssl: false | { rejectUnauthorized: false };
+} {
+  try {
+    const parsed = new URL(connectionString);
+    const sslMode = parsed.searchParams.get('sslmode')?.toLowerCase();
+    const ssl = parsed.searchParams.get('ssl')?.toLowerCase();
+
+    if (sslMode === 'disable' || ssl === '0' || ssl === 'false') {
+      return {
+        connectionString,
+        ssl: false,
+      };
+    }
+
+    if (sslMode === 'no-verify') {
+      return {
+        connectionString,
+        ssl: { rejectUnauthorized: false },
+      };
+    }
+
+    if (sslMode === 'require' || sslMode === 'prefer' || sslMode === 'verify-ca' || ssl === 'true') {
+      parsed.searchParams.delete('ssl');
+      parsed.searchParams.set('sslmode', 'no-verify');
+
+      return {
+        connectionString: parsed.toString(),
+        ssl: { rejectUnauthorized: false },
+      };
+    }
+  } catch {
+    // Ignore invalid or mock connection strings and fall back to the repo's default SSL override.
+  }
+
+  return {
+    connectionString,
+    ssl: { rejectUnauthorized: false },
+  };
+}
+
 async function defaultCreatePgClient(connectionString: string): Promise<TrackMediaPostgresClient> {
   const { Client } = await import('pg');
-  const client = new Client({ connectionString, ssl: { rejectUnauthorized: false } });
+  const client = new Client(buildTrackMediaPgClientOptions(connectionString));
   await client.connect();
   return client;
 }

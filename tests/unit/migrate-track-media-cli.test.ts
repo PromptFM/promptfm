@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Client } from 'pg';
 import * as gcpSecretsModule from '../../src/lib/infra/gcp-secrets';
 import { TRACK_MEDIA_MIGRATION_EXIT_CODES } from '../../src/lib/infra/track-media-migration';
-import { parseTrackMediaMigrationArgs, runTrackMediaMigrationCLI } from '../../scripts/migrate-track-media';
+import {
+  buildTrackMediaPgClientOptions,
+  parseTrackMediaMigrationArgs,
+  runTrackMediaMigrationCLI,
+} from '../../scripts/migrate-track-media';
 
 function createSupabaseStub(rows: any[]) {
   return {
@@ -147,6 +152,16 @@ describe('migrate-track-media CLI', () => {
       batchSize: 100,
       previewLimit: 10,
     });
+  });
+
+  it('keeps direct Postgres SSL in no-verify mode when the URL encodes sslmode=require', () => {
+    const options = buildTrackMediaPgClientOptions(
+      'postgres://inventory-user:secret@db.example.com:5432/promptfm?sslmode=require'
+    );
+    const client = new Client(options);
+
+    expect(options.connectionString).toContain('sslmode=no-verify');
+    expect((client as any).connectionParameters.ssl).toMatchObject({ rejectUnauthorized: false });
   });
 
   it('returns exit code 2 for CI inventory when Supabase-backed media remains', async () => {

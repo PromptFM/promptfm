@@ -47,10 +47,12 @@ describe('PromptFM Documentation & Architecture Portal (docs/index.html)', () =>
     expect(html).toContain('input');
   });
 
-  it('contains links to rollbacks and SemVer tagging lanes', () => {
+  it('contains rollback and SemVer tagging commands', () => {
     const html = fs.readFileSync(portalPath, 'utf8');
-    expect(html).toContain('promptfm-infra');
-    expect(html).toContain('promptfm-sql');
+    expect(html).toContain('tag suggest [app|infra|sql]');
+    expect(html).toContain('tag infra --version 1.0.0');
+    expect(html).toContain('tag infra-rollback');
+    expect(html).toContain('tag sql-rollback');
     expect(html).toMatch(/rollback/i);
   });
 
