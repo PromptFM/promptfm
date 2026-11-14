@@ -25,21 +25,34 @@ export interface MinimalPgClient {
   end: () => Promise<void>;
 }
 
+const SUPABASE_POOLER_HOST_REGEX = /^(?:[a-z0-9-]+\.)*pooler\.supabase\.com$/i;
+
+export function isSupabasePoolerHost(hostname: string): boolean {
+  if (!hostname || typeof hostname !== 'string') {
+    return false;
+  }
+  return SUPABASE_POOLER_HOST_REGEX.test(hostname.trim());
+}
+
 export function formatPostgresSessionUrl(rawUrl: string): string {
-  if (rawUrl.includes(':6543/') && rawUrl.includes('pooler.supabase.com')) {
-    return rawUrl.replace(':6543/', ':5432/');
+  if (!rawUrl || typeof rawUrl !== 'string') {
+    return rawUrl;
   }
 
   try {
-    const parsed = new URL(rawUrl);
-    const host = parsed.hostname.toLowerCase();
-    if (host.includes('pooler.supabase.com') && parsed.port === '6543') {
+    const urlToParse = rawUrl.includes('://') ? rawUrl : `postgres://${rawUrl}`;
+    const parsed = new URL(urlToParse);
+
+    if (isSupabasePoolerHost(parsed.hostname) && parsed.port === '6543') {
       parsed.port = '5432';
+      if (!rawUrl.includes('://')) {
+        return parsed.toString().replace(/^postgres:\/\//, '');
+      }
       return parsed.toString();
     }
     return rawUrl;
   } catch {
-    return rawUrl.replace(':6543/', ':5432/');
+    return rawUrl;
   }
 }
 

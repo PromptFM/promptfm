@@ -30,13 +30,21 @@ export function buildLegacyR2CoverKey(
   supabaseAudioUrl: string,
   existingCoverUrl?: string | null,
 ): string | null {
-  if (!existingCoverUrl || existingCoverUrl === '/logo-mark.png' || !existingCoverUrl.includes('supabase.co/storage')) {
+  if (!existingCoverUrl || existingCoverUrl === '/logo-mark.png') {
     return null;
   }
 
-  const parts = existingCoverUrl.split('/');
-  const filename = decodeURIComponent(parts[parts.length - 1] || '');
-  return `tracks/legacy/covers/${filename}`;
+  try {
+    const parsed = new URL(existingCoverUrl);
+    if (!parsed.pathname.includes('/storage/')) {
+      return null;
+    }
+    const parts = parsed.pathname.split('/');
+    const filename = decodeURIComponent(parts[parts.length - 1] || '');
+    return `tracks/legacy/covers/${filename}`;
+  } catch {
+    return null;
+  }
 }
 
 export function normalizeFilenameMatch(targetFilename: string, candidateFilename: string): boolean {

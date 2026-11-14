@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import {
   formatPostgresSessionUrl,
+  isSupabasePoolerHost,
   getDirectPostgresDatabaseUrl,
   fetchApprovedTracksDirect,
   fetchTrackByIdOrTitleDirect,
@@ -8,6 +9,20 @@ import {
 } from '../../src/lib/dj/direct-track-queries';
 
 describe('direct track queries module', () => {
+  it('validates supabase pooler hostnames securely without substring bypasses', () => {
+    expect(isSupabasePoolerHost('pooler.supabase.com')).toBe(true);
+    expect(isSupabasePoolerHost('aws-0-us-east-1.pooler.supabase.com')).toBe(true);
+    expect(isSupabasePoolerHost('AWS-0-EU-CENTRAL-1.POOLER.SUPABASE.COM')).toBe(true);
+
+    // Substring bypasses must fail
+    expect(isSupabasePoolerHost('evil-pooler.supabase.com')).toBe(false);
+    expect(isSupabasePoolerHost('pooler.supabase.com.attacker.com')).toBe(false);
+    expect(isSupabasePoolerHost('attacker-pooler.supabase.com')).toBe(false);
+    expect(isSupabasePoolerHost('db.example.com')).toBe(false);
+    expect(isSupabasePoolerHost('')).toBe(false);
+    expect(isSupabasePoolerHost(null as any)).toBe(false);
+  });
+
   it('formats pooler URLs to use session port 5432', () => {
     const pooler6543 = 'postgres://user:pass@aws-0-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require';
     expect(formatPostgresSessionUrl(pooler6543)).toBe(
@@ -17,8 +32,19 @@ describe('direct track queries module', () => {
     const nonPooler = 'postgres://user:pass@db.example.com:5432/db';
     expect(formatPostgresSessionUrl(nonPooler)).toBe(nonPooler);
 
-    // Fallback string matching
-    expect(formatPostgresSessionUrl('invalid-pooler.supabase.com:6543/db')).toBe('invalid-pooler.supabase.com:5432/db');
+    // Non-pooler with port 6543 should remain unchanged
+    expect(formatPostgresSessionUrl('postgres://user:pass@db.example.com:6543/db')).toBe(
+      'postgres://user:pass@db.example.com:6543/db'
+    );
+
+    // Scheme-less pooler URL
+    expect(formatPostgresSessionUrl('aws-0-us-east-1.pooler.supabase.com:6543/postgres')).toBe(
+      'aws-0-us-east-1.pooler.supabase.com:5432/postgres'
+    );
+
+    // Falsy or non-string input
+    expect(formatPostgresSessionUrl('' as any)).toBe('');
+    expect(formatPostgresSessionUrl(null as any)).toBeNull();
   });
 
   it('resolves database URL with expected priority and session formatting', () => {
