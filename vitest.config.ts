@@ -26,7 +26,7 @@ export default defineConfig({
   },
   resolve: {
     alias: [
-      { find: 'next/headers', replacement: path.resolve(__dirname, './node_modules/next/headers.js') },
+      { find: 'next/headers', replacement: require.resolve('next/headers') },
       { find: '@', replacement: path.resolve(__dirname, './src') },
     ],
   },

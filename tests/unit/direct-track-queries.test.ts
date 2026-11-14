@@ -5,7 +5,10 @@ import {
   getDirectPostgresDatabaseUrl,
   fetchApprovedTracksDirect,
   fetchTrackByIdOrTitleDirect,
+  insertTrackDirect,
+  listAllTracksDirect,
   type DirectDbTrackRow,
+  type InsertTrackInput,
 } from '../../src/lib/dj/direct-track-queries';
 
 describe('direct track queries module', () => {
@@ -216,5 +219,194 @@ describe('direct track queries module', () => {
     });
 
     expect(track).toBeNull();
+  });
+
+  describe('insertTrackDirect', () => {
+    it('inserts a track with full metadata and returns the created row', async () => {
+      const mockInserted = {
+        id: 'new-track-uuid',
+        title: 'Cyber Sunrise',
+        artist_name: 'DJ Nova',
+        audio_url: 'https://pub-r2.dev/tracks/admin/new-track.mp3',
+        tool_used: 'Suno',
+        upvotes_count: 50,
+        cover_art_url: 'https://pub-r2.dev/tracks/admin/covers/cover.jpg',
+        category: 'Synthwave',
+        description: 'Sunrise vibes',
+        lyrics: 'Glow in the dawn',
+        is_explicit: false,
+        family_friendly: true,
+        channel_exclusions: ['18plus'],
+        status: 'approved',
+      };
+
+      const mockQuery = vi.fn().mockResolvedValue({ rows: [mockInserted] });
+      const mockClient = {
+        query: mockQuery,
+        end: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const track = await insertTrackDirect(
+        {
+          title: 'Cyber Sunrise',
+          artist_name: 'DJ Nova',
+          audio_url: 'https://pub-r2.dev/tracks/admin/new-track.mp3',
+          category: 'Synthwave',
+          tool_used: 'Suno',
+          description: 'Sunrise vibes',
+          lyrics: 'Glow in the dawn',
+          cover_art_url: 'https://pub-r2.dev/tracks/admin/covers/cover.jpg',
+          upvotes_count: 50,
+          family_friendly: true,
+          is_explicit: false,
+          channel_exclusions: ['18plus'],
+        },
+        { client: mockClient as any }
+      );
+
+      expect(track.id).toBe('new-track-uuid');
+      expect(track.title).toBe('Cyber Sunrise');
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO public.tracks'),
+        [
+          'Cyber Sunrise',
+          'DJ Nova',
+          'https://pub-r2.dev/tracks/admin/new-track.mp3',
+          'Synthwave',
+          'Suno',
+          'Sunrise vibes',
+          'Glow in the dawn',
+          'https://pub-r2.dev/tracks/admin/covers/cover.jpg',
+          'approved',
+          50,
+          true,
+          false,
+          ['18plus'],
+        ]
+      );
+    });
+
+    it('applies standard defaults when optional metadata is omitted', async () => {
+      const mockInserted = {
+        id: 'default-track-uuid',
+        title: 'Minimal Song',
+        artist_name: 'Artist',
+        audio_url: 'https://pub-r2.dev/minimal.mp3',
+        tool_used: 'Suno',
+        upvotes_count: 25,
+        cover_art_url: null,
+        category: 'General',
+        description: null,
+        lyrics: null,
+        is_explicit: false,
+        family_friendly: true,
+        channel_exclusions: [],
+        status: 'approved',
+      };
+
+      const mockQuery = vi.fn().mockResolvedValue({ rows: [mockInserted] });
+      const mockClient = {
+        query: mockQuery,
+        end: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const track = await insertTrackDirect(
+        {
+          title: 'Minimal Song',
+          artist_name: 'Artist',
+          audio_url: 'https://pub-r2.dev/minimal.mp3',
+        },
+        { client: mockClient as any }
+      );
+
+      expect(track.id).toBe('default-track-uuid');
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO public.tracks'),
+        [
+          'Minimal Song',
+          'Artist',
+          'https://pub-r2.dev/minimal.mp3',
+          'General',
+          'Suno',
+          null,
+          null,
+          null,
+          'approved',
+          25,
+          true,
+          false,
+          [],
+        ]
+      );
+    });
+
+    it('throws validation error when required fields are missing', async () => {
+      const mockClient = {
+        query: vi.fn(),
+        end: vi.fn(),
+      };
+
+      await expect(
+        insertTrackDirect(
+          { title: '', artist_name: 'Artist', audio_url: 'https://r2.dev/a.mp3' },
+          { client: mockClient as any }
+        )
+      ).rejects.toThrow('Track title is required');
+
+      await expect(
+        insertTrackDirect(
+          { title: 'Title', artist_name: '   ', audio_url: 'https://r2.dev/a.mp3' },
+          { client: mockClient as any }
+        )
+      ).rejects.toThrow('Artist name is required');
+
+      await expect(
+        insertTrackDirect(
+          { title: 'Title', artist_name: 'Artist', audio_url: '' },
+          { client: mockClient as any }
+        )
+      ).rejects.toThrow('Audio URL is required');
+    });
+  });
+
+  describe('listAllTracksDirect', () => {
+    it('queries tracks ordered by creation time with default and custom limits', async () => {
+      const mockRows: DirectDbTrackRow[] = [
+        {
+          id: '1',
+          title: 'Track 1',
+          artist_name: 'Artist 1',
+          audio_url: 'https://r2.dev/1.mp3',
+          tool_used: 'Suno',
+          upvotes_count: 10,
+        },
+      ];
+
+      const mockQuery = vi.fn().mockResolvedValue({ rows: mockRows });
+      const mockClient = {
+        query: mockQuery,
+        end: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const tracks = await listAllTracksDirect({
+        limit: 50,
+        client: mockClient as any,
+      });
+
+      expect(tracks).toHaveLength(1);
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('ORDER BY created_at DESC'),
+        [50]
+      );
+
+      // Default limit 200
+      await listAllTracksDirect({
+        client: mockClient as any,
+      });
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('ORDER BY created_at DESC'),
+        [200]
+      );
+    });
   });
 });

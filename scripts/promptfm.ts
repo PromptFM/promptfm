@@ -11,6 +11,9 @@ import { getStationQueue, formatQueueForCLI } from '../src/lib/dj/queue';
 import { synthesizeScheduledRequest, rejectScheduledRequest, synthesizeBatchAnnouncement } from '../src/lib/dj/batches';
 import { getAllDJs, getActiveDJ, getDJById, getAdsConfig, getActiveAdSpot } from '../src/lib/dj/roster';
 import { createAdminClient } from '../src/lib/supabase/server';
+import { executeCliTrackUpload } from '../src/lib/dj/cli-upload';
+import { listAllTracksDirect } from '../src/lib/dj/direct-track-queries';
+import { ensureGcpSecretsLoaded } from '../src/lib/infra/gcp-secrets';
 import { broadcastToCommunity, castVoteForTrack } from '../src/lib/chat/bridge';
 import { submitContentReport, getRecentReports, resolveContentReport, auditContentReports } from '../src/lib/safety/reports';
 import { autoGenerateChannelGuardrails } from '../src/lib/safety/channel-guardrails';
@@ -89,6 +92,10 @@ function parseArg(flag: string): string | undefined {
 }
 
 async function main() {
+  if (command && command !== 'help') {
+    await ensureGcpSecretsLoaded({ quiet: true });
+  }
+
   if (!command || command === 'help') {
     console.log(`
 📻 PromptFM Terminal Station Manager & Admin CLI
@@ -338,187 +345,56 @@ Moderation & Schedule:
         process.exit(1);
       }
 
-      if (!existsSync(filePath)) {
-        console.error(`Error: File not found at "${filePath}"`);
-        process.exit(1);
-      }
-
-      const fileBuffer = readFileSync(filePath);
-      const rawFileName = basename(filePath);
-      const cleanFileName = rawFileName.replace(/^["']|["']$/g, '');
-
-      // Detect media extension and MIME type
-      const lowerName = cleanFileName.toLowerCase();
-      let ext = 'mp3';
-      let contentType = 'audio/mpeg';
-
-      if (lowerName.endsWith('.mp4')) {
-        ext = 'mp4';
-        contentType = 'video/mp4';
-      } else if (lowerName.endsWith('.m4a')) {
-        ext = 'm4a';
-        contentType = 'audio/mp4';
-      } else if (lowerName.endsWith('.wav')) {
-        ext = 'wav';
-        contentType = 'audio/wav';
-      } else if (lowerName.endsWith('.ogg')) {
-        ext = 'ogg';
-        contentType = 'audio/ogg';
-      } else if (lowerName.endsWith('.flac')) {
-        ext = 'flac';
-        contentType = 'audio/flac';
-      }
-
-      console.log(`🔍 Inspecting audio metadata & ID3 tags for "${cleanFileName}"...`);
-      const meta = await extractMetadataFromBuffer(fileBuffer, cleanFileName, contentType);
-
-      const title = parseArg('--title') || meta.title;
-      const artist = parseArg('--artist') || meta.artist;
-      const category = parseArg('--category') || meta.category;
-      const tool = (parseArg('--tool') || 'Suno') as 'Suno' | 'Udio' | 'Stable Audio' | 'Other';
-      const description = parseArg('--description') || meta.description;
-      const lyrics = parseArg('--lyrics') || meta.lyrics;
-
-      console.log(`\n🎵 Track Metadata Extracted:`);
-      console.log(`• Title:       "${title}"`);
-      console.log(`• Artist:      "${artist}"`);
-      console.log(`• Category:    "${category}"`);
-      console.log(`• Tool Used:   "${tool}"`);
-      if (description) console.log(`• Prompt/Desc: "${description}"`);
-      if (lyrics) console.log(`• Lyrics:      "${lyrics.slice(0, 60)}..."`);
-      console.log(`• Cover Icon:  ${meta.hasCoverArt ? 'Embedded Picture Found (Saved)' : 'PromptFM Default Brand Icon'}`);
-
-      console.log(`\n📤 Uploading "${cleanFileName}" (${(fileBuffer.length / (1024 * 1024)).toFixed(2)} MB, ${contentType})...`);
-
-      const supabase = createAdminClient();
-      let publicUrl = '';
-
-      // 1. Try Cloudflare R2 if configured and valid
-      const isR2Configured = Boolean(
-        process.env.R2_ACCOUNT_ID &&
-        process.env.R2_ACCOUNT_ID !== 'your-cloudflare-account-id' &&
-        process.env.R2_ACCESS_KEY_ID &&
-        process.env.R2_SECRET_ACCESS_KEY
-      );
-
-      if (isR2Configured) {
-        try {
-          const key = `tracks/admin/${randomUUID()}.${ext}`;
-          const s3 = getR2Client();
-          await s3.send(
-            new PutObjectCommand({
-              Bucket: getBucketName(),
-              Key: key,
-              Body: fileBuffer,
-              ContentType: contentType,
-            })
-          );
-          publicUrl = getPublicUrl(key);
-          console.log(`✅ Stored on Cloudflare R2: ${publicUrl}`);
-        } catch (r2Err) {
-          console.warn(`R2 upload skipped, falling back to Supabase:`, r2Err);
-        }
-      }
-
-      // 2. Default to Supabase Storage
-      if (!publicUrl) {
-        const storageFileName = `${cleanFileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-        const { error: uploadError } = await supabase.storage
-          .from('tracks')
-          .upload(storageFileName, fileBuffer, {
-            contentType,
-            upsert: true,
-          });
-
-        if (uploadError) {
-          console.error('Error uploading to Supabase Storage:', uploadError.message);
-          process.exit(1);
-        }
-
-        const { data: urlData } = supabase.storage.from('tracks').getPublicUrl(storageFileName);
-        publicUrl = urlData?.publicUrl || '';
-        console.log(`✅ Stored on Supabase Storage CDN: ${publicUrl}`);
-      }
-
-      // 3. Upload embedded album cover art if present
-      let coverArtUrl = DEFAULT_TRACK_ICON;
-      if (meta.hasCoverArt && meta.coverArtUrl) {
-        if (meta.coverArtUrl.startsWith('data:image/')) {
-          const base64Data = meta.coverArtUrl.split(',')[1];
-          if (base64Data) {
-            const coverBuffer = Buffer.from(base64Data, 'base64');
-            const coverFileName = `covers/${cleanFileName.replace(/\.[^.]+$/, '')}-cover.jpg`;
-            const { error: coverErr } = await supabase.storage
-              .from('tracks')
-              .upload(coverFileName, coverBuffer, {
-                contentType: 'image/jpeg',
-                upsert: true,
-              });
-
-            if (!coverErr) {
-              const { data: cUrl } = supabase.storage.from('tracks').getPublicUrl(coverFileName);
-              coverArtUrl = cUrl?.publicUrl || DEFAULT_TRACK_ICON;
-              console.log(`🖼️ Stored album cover art: ${coverArtUrl}`);
-            }
-          }
-        } else {
-          coverArtUrl = meta.coverArtUrl;
-        }
-      }
-
       const votesArg = parseArg('--votes');
-      const initialVotes = votesArg ? parseInt(votesArg, 10) : 25;
+      const votes = votesArg ? parseInt(votesArg, 10) : undefined;
       const familyFriendly = parseArg('--family-friendly') !== 'false';
       const isExplicit = parseArg('--explicit') === 'true';
 
-      console.log(`💾 Adding to Supabase as an APPROVED rotation track...`);
-      const { data, error } = await supabase
-        .from('tracks')
-        .insert({
-          title,
-          artist_name: artist,
-          category,
-          tool_used: tool,
-          audio_url: publicUrl,
-          description: description || null,
-          lyrics: lyrics || null,
-          cover_art_url: coverArtUrl,
-          status: 'approved',
-          family_friendly: familyFriendly,
-          is_explicit: isExplicit,
-          upvotes_count: initialVotes,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error saving track to database:', error.message);
-        process.exit(1);
-      }
-
-      console.log(`\n🎉 Track is LIVE on PromptFM!`);
-      console.log(`• ID: ${data.id}`);
-      console.log(`• Title: "${data.title}" by ${data.artist_name}`);
-      console.log(`• Tool: ${data.tool_used}`);
-      console.log(`• Category: ${data.category}`);
-      console.log(`• Upvotes: ${data.upvotes_count}`);
-
-      console.log(`\n🤖 Generating 768-dim pgvector embedding for semantic vibe search...`);
+      console.log(`\n📤 Uploading track to Cloudflare R2 & PromptFM catalog...`);
       try {
-        const indexRes = await indexTrackEmbedding(data.id, {
-          title: data.title,
-          artist_name: data.artist_name,
-          category: data.category,
-          description: data.description || undefined,
-          lyrics: data.lyrics || undefined,
+        const result = await executeCliTrackUpload({
+          filePath,
+          title: parseArg('--title'),
+          artist: parseArg('--artist'),
+          category: parseArg('--category'),
+          tool: parseArg('--tool'),
+          description: parseArg('--description'),
+          lyrics: parseArg('--lyrics'),
+          votes,
+          familyFriendly,
+          isExplicit,
+          ensureSecrets: true,
         });
-        if (indexRes.success) {
-          console.log(`✨ Successfully indexed track embedding for RAG vibe search!`);
-        } else {
-          console.log(`ℹ️ Track indexing skipped or offline: ${indexRes.error}`);
+
+        console.log(`\n🎉 Track is LIVE on PromptFM!`);
+        console.log(`• ID: ${result.trackId}`);
+        console.log(`• Title: "${result.title}" by ${result.artist}`);
+        console.log(`• Audio URL: ${result.audioUrl}`);
+        console.log(`• Cover URL: ${result.coverArtUrl}`);
+        console.log(`• Tool: ${result.tool}`);
+        console.log(`• Category: ${result.category}`);
+        console.log(`• Upvotes: ${result.upvotesCount}`);
+
+        console.log(`\n🤖 Generating 768-dim pgvector embedding for semantic vibe search...`);
+        try {
+          const indexRes = await indexTrackEmbedding(result.trackId, {
+            title: result.title,
+            artist_name: result.artist,
+            category: result.category,
+            description: parseArg('--description'),
+            lyrics: parseArg('--lyrics'),
+          });
+          if (indexRes.success) {
+            console.log(`✨ Successfully indexed track embedding for RAG vibe search!`);
+          } else {
+            console.log(`ℹ️ Track indexing skipped or offline: ${indexRes.error}`);
+          }
+        } catch (embErr) {
+          console.warn('Embedding indexing error:', embErr);
         }
-      } catch (embErr) {
-        console.warn('Embedding indexing error:', embErr);
+      } catch (err: any) {
+        console.error('Upload failed:', err.message);
+        process.exit(1);
       }
       break;
     }
@@ -1105,18 +981,31 @@ Moderation & Schedule:
       const supabase = createAdminClient();
 
       if (sub === 'list' || sub === 'approved') {
-        const { data: allTracks, error } = await supabase
-          .from('tracks')
-          .select('id, title, artist_name, tool_used, status, upvotes_count')
-          .order('upvotes_count', { ascending: false });
-
-        if (error) {
-          console.error('Error fetching tracks:', error);
-          return;
+        let allTracks: any[] = [];
+        try {
+          const directTracks = await listAllTracksDirect({ limit: 500 });
+          if (directTracks && directTracks.length > 0) {
+            allTracks = directTracks;
+          }
+        } catch {
+          // Fall back to Supabase client
         }
 
-        console.log(`\n🎵 PromptFM Tracks in Database (${allTracks?.length || 0}):`);
-        allTracks?.forEach((t, i) => {
+        if (allTracks.length === 0) {
+          const { data: supabaseTracks, error } = await supabase
+            .from('tracks')
+            .select('id, title, artist_name, tool_used, status, upvotes_count')
+            .order('upvotes_count', { ascending: false });
+
+          if (error && allTracks.length === 0) {
+            console.error('Error fetching tracks:', error);
+            return;
+          }
+          allTracks = supabaseTracks || [];
+        }
+
+        console.log(`\n🎵 PromptFM Tracks in Database (${allTracks.length}):`);
+        allTracks.forEach((t, i) => {
           console.log(`${i + 1}. [${t.id}] "${t.title}" by ${t.artist_name} | status: ${t.status} | votes: ${t.upvotes_count}`);
         });
         return;
