@@ -156,7 +156,7 @@ The PromptFM CLI is a standalone station management suite located in `scripts/pr
 #### 4. Live Drops, Sponsor Ads & Audio Synthesis
 | Command | Description | Example |
 | :--- | :--- | :--- |
-| `upload <file> [options]` | **Unified Track Upload Tool**: Uploads an MP3/M4A/WAV file directly to Cloudflare R2 for steady-state public media delivery (legacy Supabase Storage remains source-only during cutover), extracts ID3 metadata & embedded album art, extracts lyrics, sets votes/genre, and indexes 768-dim embeddings. All scratch upload scripts are replaced by this single command. | `npm run promptfm -- upload track.mp3 --title "Title" --artist "Artist" --category "Synthwave & Electro" --votes 32` |
+| `upload <file> [options]` | **Unified Track Upload Tool**: Uploads an MP3/M4A/WAV file and embedded ID3 cover art directly to Cloudflare R2 for steady-state media delivery, inserts records via direct PostgreSQL (port 5432) to bypass Supabase REST restrictions, and auto-resolves ambient secrets from Google Cloud Secret Manager (`promptfm-web-app-env`) via `gcloud`. All scratch upload scripts are replaced by this single command. | `npm run promptfm -- upload track.mp3 --title "Title" --artist "Artist" --category "Synthwave & Electro" --votes 32` |
 | `say "<text>" [--dj <id>]` | Synthesizes a manual AI DJ voice drop with Gemini 2.5 TTS on demand. | `npm run promptfm -- say "Welcome listeners to PromptFM"` |
 | `weather [city] [--dj <id>]` | Fetches live Open-Meteo weather and synthesizes an on-air forecast on demand. | `npm run promptfm -- weather Tokyo --dj luna` |
 | `news [topic] [--live]` | Synthesizes an on-demand AI news drop from real Google RSS headlines. | `npm run promptfm -- news tech --live` |
@@ -370,15 +370,20 @@ PromptFM's airplay engine is strictly **schedule-driven**:
 
    # All options supported:
    #   -t, --title <title>          Track title (auto-detected from ID3 if omitted)
-   #   -a, --artist <artist>        Artist name
-   #   -c, --category <cat>         Genre/Category (e.g. "Chillout & Ambient", "Kids & Family")
-   #   -v, --votes <count>          Initial leaderboard upvotes
+   #   -a, --artist <artist>        Artist name (auto-detected from ID3 if omitted)
+   #   -c, --category <cat>         Genre/Category (e.g. "Synthwave & Electro", "Ambient & Lo-Fi")
+   #   -v, --votes <count>          Initial leaderboard upvotes (default: 25)
    #   -d, --description <desc>     Track prompt or backstory
    #   -m, --model <tool>           AI generator model (Suno, Udio, Stable Audio)
    #   --explicit                   Flag track as 18+ explicit
    #   --family-friendly            Flag track as safe for Kids & Family channel
-   #   --embed                      Generate 768-dim pgvector embedding for semantic search
    ```
+
+   **Architecture & Steady-State Storage**:
+   - **Secret Resolution**: The CLI automatically resolves `R2_*` and `DATABASE_URL` secrets from Google Cloud Secret Manager (`promptfm-web-app-env` / `promptfm-database-url`) in memory via ambient `gcloud` credentials. Station admins do not need secrets in `.env.local`.
+   - **Media Delivery (Cloudflare R2)**: Audio files are stored under `promptfm-audio/tracks/admin/<uuid>.<ext>` and embedded ID3 album cover art under `promptfm-audio/tracks/admin/covers/<uuid>-cover.jpg`.
+   - **Zero-Downtime Database Ingestion (Port 5432)**: Catalog records are inserted directly into PostgreSQL using the port 5432 session pooler (`insertTrackDirect`), completely bypassing the Supabase HTTP edge gateway (`HTTP 402 exceed_cached_egress_quota`).
+   - **Admin Catalog Listing**: `npm run promptfm -- admin list` queries PostgreSQL over port 5432 directly (`listAllTracksDirect`), ensuring operators can audit library status during external gateway outages.
 
 ---
 
