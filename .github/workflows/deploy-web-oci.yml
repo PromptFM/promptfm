@@ -316,6 +316,23 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.ref }}
 
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Configure GCP Service Account Credentials
+        run: |
+          if [ -n "${{ secrets.GCP_SA_KEY }}" ]; then
+            if echo "${{ secrets.GCP_SA_KEY }}" | grep -q '^{' ; then
+              echo "${{ secrets.GCP_SA_KEY }}" > /tmp/gcp-sa-key.json
+            else
+              echo "${{ secrets.GCP_SA_KEY }}" | base64 -d > /tmp/gcp-sa-key.json
+            fi
+            echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-sa-key.json" >> "$GITHUB_ENV"
+            gcloud auth activate-service-account --key-file=/tmp/gcp-sa-key.json --project=promptfm-radio-1793623670
+          fi
+
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -333,7 +350,14 @@ jobs:
           IMAGE_ARCH_SUFFIX: ${{ matrix.suffix }}
           OCI_WEB_BUILD_ENV_JSON: ${{ needs.prepare-oci-web.outputs.oci_web_build_env_json }}
         run: |
-          python3 - <<'PY' "$OCI_WEB_BUILD_ENV_JSON" > /tmp/oci-build-args.sh
+          BUILD_ENV="$OCI_WEB_BUILD_ENV_JSON"
+          if [ -z "$BUILD_ENV" ] || [ "$BUILD_ENV" = "{}" ]; then
+            BUNDLE_SECRET_NAME="$(node scripts/resolve-oci-web-env.cjs --print-bundle-secret-name | tr -d '\n')"
+            GCP_BUNDLED_APP_ENV_JSON="$(gcloud secrets versions access latest --secret="$BUNDLE_SECRET_NAME" --project=promptfm-radio-1793623670 2>/dev/null || true)"
+            BUILD_ENV="$(GCP_BUNDLED_APP_ENV_JSON="$GCP_BUNDLED_APP_ENV_JSON" node scripts/resolve-oci-web-env.cjs | python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin).get("buildEnv", {})))')"
+          fi
+
+          python3 - <<'PY' "$BUILD_ENV" > /tmp/oci-build-args.sh
           import json, shlex, sys
 
           build = json.loads(sys.argv[1] or '{}')
