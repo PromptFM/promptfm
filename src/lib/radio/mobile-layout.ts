@@ -39,7 +39,8 @@ export type PlayerPopoverType = 'channels' | 'upNext' | 'transcript';
  * anchored responsive widths on tablet and desktop.
  */
 export function getPopoverPositionClasses(popoverType: PlayerPopoverType): string {
-  const commonMobile = 'absolute bottom-full mb-2 left-2 right-2 max-h-[75vh] flex flex-col z-50 animate-in fade-in slide-in-from-bottom-2';
+  const commonMobile =
+    'absolute bottom-full mb-2 left-2 right-2 max-h-[min(75vh,520px)] flex flex-col min-h-0 z-50 animate-in fade-in slide-in-from-bottom-2';
 
   switch (popoverType) {
     case 'channels':
@@ -75,4 +76,11 @@ export function getMobileHeroGridClasses() {
  */
 export function getBottomPlayerSafeAreaClass(): string {
   return 'pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))]';
+}
+
+/**
+ * Scrollable body region for the mobile Up Next bottom sheet (Issue #220).
+ */
+export function getUpNextPopoverScrollClasses(): string {
+  return 'flex-1 min-h-0 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] space-y-1.5 pr-0.5 pb-[env(safe-area-inset-bottom,0px)]';
 }

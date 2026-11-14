@@ -23,6 +23,7 @@ import {
 } from './icecast-metadata';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import { selectTracksForUpNextLibraryFill } from './up-next-library-fill';
 
 export interface AirplayItem {
   id: string;
@@ -209,6 +210,14 @@ export function clearRecentlyPlayed(channelSlug?: string): void {
   } else {
     channelRecentlyPlayed.clear();
   }
+}
+
+/**
+ * Test and preview helper: seed rotation history without running the full airplay engine.
+ */
+export function recordRecentlyPlayedForPreview(channelSlug: string, trackIds: string[]): void {
+  const deduped = trackIds.filter(Boolean);
+  channelRecentlyPlayed.set(channelSlug, deduped.slice(-20));
 }
 
 /**
@@ -841,40 +850,48 @@ export async function getUpNext(
     }
 
     if (topTracks) {
-      for (const t of topTracks) {
-        if (!libraryExcludedTrackIds.has(t.id) && upNext.length < limit) {
-          const isAllowed = isContentAllowedForAirplay(
-            Boolean((t as unknown as { is_explicit?: boolean }).is_explicit),
-            channelSlug,
-            now,
-            (t as unknown as { family_friendly?: boolean }).family_friendly,
-            (t as unknown as { category?: string }).category,
-            (t as unknown as { title?: string }).title
-          );
-          if (isAllowed) {
-            libraryExcludedTrackIds.add(t.id);
+      const recentIds = getRecentlyPlayed(channelSlug);
+      const libraryPicks = selectTracksForUpNextLibraryFill(
+        topTracks,
+        libraryExcludedTrackIds,
+        recentIds,
+        needed
+      );
 
-            const targetTime = new Date(now.getTime() + runningOffsetSeconds * 1000);
-            const hoursStr = String(targetTime.getUTCHours()).padStart(2, '0');
-            const minStr = String(targetTime.getUTCMinutes()).padStart(2, '0');
-            const estimated_air_time = `${hoursStr}:${minStr} UTC`;
-
-            upNext.push({
-              id: t.id,
-              type: 'music',
-              title: t.title,
-              artist: t.artist_name,
-              audio_url: t.audio_url,
-              cover_art_url: (t as unknown as { cover_art_url?: string }).cover_art_url || '/logo-mark.png',
-              category: (t as unknown as { category?: string }).category,
-              tool_used: t.tool_used,
-              upvotes_count: t.upvotes_count,
-              queue_position: upNext.length + 1,
-              estimated_air_time,
-            });
-            runningOffsetSeconds += ((t as unknown as { duration_hint_seconds?: number }).duration_hint_seconds || 210);
-          }
+      for (const t of libraryPicks) {
+        const isAllowed = isContentAllowedForAirplay(
+          Boolean((t as unknown as { is_explicit?: boolean }).is_explicit),
+          channelSlug,
+          now,
+          (t as unknown as { family_friendly?: boolean }).family_friendly,
+          (t as unknown as { category?: string }).category,
+          (t as unknown as { title?: string }).title
+        );
+        if (!isAllowed) {
+          continue;
         }
+
+        libraryExcludedTrackIds.add(t.id);
+
+        const targetTime = new Date(now.getTime() + runningOffsetSeconds * 1000);
+        const hoursStr = String(targetTime.getUTCHours()).padStart(2, '0');
+        const minStr = String(targetTime.getUTCMinutes()).padStart(2, '0');
+        const estimated_air_time = `${hoursStr}:${minStr} UTC`;
+
+        upNext.push({
+          id: t.id,
+          type: 'music',
+          title: t.title,
+          artist: t.artist_name,
+          audio_url: t.audio_url,
+          cover_art_url: (t as unknown as { cover_art_url?: string }).cover_art_url || '/logo-mark.png',
+          category: (t as unknown as { category?: string }).category,
+          tool_used: t.tool_used,
+          upvotes_count: t.upvotes_count,
+          queue_position: upNext.length + 1,
+          estimated_air_time,
+        });
+        runningOffsetSeconds += ((t as unknown as { duration_hint_seconds?: number }).duration_hint_seconds || 210);
       }
     }
   }
