@@ -5,6 +5,10 @@
 // Broadcasts Now Playing updates, transcripts, and voting links to Discord & Telegram.
 
 import { createAdminClient } from '../supabase/server';
+import {
+  fetchApprovedTracksDirect,
+  fetchTrackByIdOrTitleDirect,
+} from './direct-track-queries';
 import { createBroadcastDrop, fetchLiveHeadlines } from './engine';
 import { getActiveDJ, getAdsConfig, getActiveAdSpot, isContentAllowedForAirplay, DJProfile } from './roster';
 import { getStationSchedule, ScheduleBlock, ClockMilestone } from '../radio/schedule';
@@ -477,11 +481,25 @@ export async function getNowPlaying(channelSlug = 'main'): Promise<{
           matchedItem = createDemoFallbackItem(activeDJ);
         } else {
           const supabase = createAdminClient();
-          const { data: matchedTrack } = await supabase
-            .from('tracks')
-            .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, description, lyrics, duration_hint_seconds')
-            .ilike('title', icecastLive.title.trim())
-            .maybeSingle();
+          let matchedTrack: any = null;
+          try {
+            const { data } = await supabase
+              .from('tracks')
+              .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, description, lyrics, duration_hint_seconds')
+              .ilike('title', icecastLive.title.trim())
+              .maybeSingle();
+            matchedTrack = data;
+          } catch {
+            // Non-blocking failover
+          }
+
+          if (!matchedTrack) {
+            try {
+              matchedTrack = await fetchTrackByIdOrTitleDirect({ title: icecastLive.title });
+            } catch {
+              // Non-blocking failover
+            }
+          }
 
           if (matchedTrack) {
             matchedItem = {
@@ -796,12 +814,31 @@ export async function getUpNext(
       libraryExcludedTrackIds.add(item.id);
     }
 
-    const { data: topTracks } = await supabase
-      .from('tracks')
-      .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, is_explicit, family_friendly, duration_hint_seconds')
-      .eq('status', 'approved')
-      .order('upvotes_count', { ascending: false })
-      .limit(needed + 25);
+    let topTracks: any[] | null = null;
+    try {
+      const { data, error } = await supabase
+        .from('tracks')
+        .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, is_explicit, family_friendly, duration_hint_seconds')
+        .eq('status', 'approved')
+        .order('upvotes_count', { ascending: false })
+        .limit(needed + 25);
+      if (!error && Array.isArray(data) && data.length > 0) {
+        topTracks = data;
+      }
+    } catch {
+      // Non-blocking failover
+    }
+
+    if (!topTracks || topTracks.length === 0) {
+      try {
+        const directTracks = await fetchApprovedTracksDirect({ limit: needed + 25 });
+        if (directTracks && directTracks.length > 0) {
+          topTracks = directTracks;
+        }
+      } catch {
+        // Non-blocking failover
+      }
+    }
 
     if (topTracks) {
       for (const t of topTracks) {
@@ -1050,7 +1087,21 @@ export async function markTrackStarted(
         query = query.ilike('title', title.trim());
       }
 
-      const { data: track } = await query.maybeSingle();
+      let track: any = null;
+      try {
+        const { data } = await query.maybeSingle();
+        track = data;
+      } catch {
+        // Non-blocking failover
+      }
+
+      if (!track) {
+        try {
+          track = await fetchTrackByIdOrTitleDirect({ id: itemId, title });
+        } catch {
+          // Non-blocking failover
+        }
+      }
 
       if (track && (!itemId || (track as any).id === itemId)) {
         const raw = track as unknown as {
@@ -1487,23 +1538,44 @@ export async function getNextAirplayItem(channelSlug = 'main', autoPromote = tru
   );
 
   let rawTracks: any[] | null = null;
+  try {
+    if (countdownConfig.isCountdown) {
+      const { data, error } = await supabase
+        .from('tracks')
+        .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, description, lyrics, is_explicit, family_friendly')
+        .eq('status', 'approved')
+        .order('upvotes_count', { ascending: false })
+        .limit(countdownConfig.size);
+      if (!error && Array.isArray(data) && data.length > 0) {
+        rawTracks = data;
+      }
+    } else {
+      // Everyday main-stage rotation: pull from full approved library without limiting to 40
+      const { data, error } = await supabase
+        .from('tracks')
+        .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, description, lyrics, is_explicit, family_friendly')
+        .eq('status', 'approved')
+        .order('upvotes_count', { ascending: false });
+      if (!error && Array.isArray(data) && data.length > 0) {
+        rawTracks = data;
+      }
+    }
+  } catch {
+    // Non-blocking failover
+  }
 
-  if (countdownConfig.isCountdown) {
-    const { data } = await supabase
-      .from('tracks')
-      .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, description, lyrics, is_explicit, family_friendly')
-      .eq('status', 'approved')
-      .order('upvotes_count', { ascending: false })
-      .limit(countdownConfig.size);
-    rawTracks = data;
-  } else {
-    // Everyday main-stage rotation: pull from full approved library without limiting to 40
-    const { data } = await supabase
-      .from('tracks')
-      .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, description, lyrics, is_explicit, family_friendly')
-      .eq('status', 'approved')
-      .order('upvotes_count', { ascending: false });
-    rawTracks = data;
+  // Fallback to direct PostgreSQL query when Supabase REST is blocked or returns empty
+  if (!rawTracks || rawTracks.length === 0) {
+    try {
+      const directTracks = await fetchApprovedTracksDirect({
+        limit: countdownConfig.isCountdown ? countdownConfig.size : 200,
+      });
+      if (directTracks && directTracks.length > 0) {
+        rawTracks = directTracks;
+      }
+    } catch {
+      // Non-blocking failover
+    }
   }
 
   // Filter against parental controls and channel rating restrictions
