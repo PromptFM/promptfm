@@ -150,3 +150,126 @@ export async function destroyPreviousSecretVersions(
   return destroyed;
 }
 
+export interface EnsureSecretsOptions {
+  projectId?: string;
+  force?: boolean;
+  execGcloud?: (cmd: string) => string;
+  requiredKeys?: string[];
+  quiet?: boolean;
+}
+
+export interface EnsureSecretsResult {
+  loaded: boolean;
+  resolvedKeys: string[];
+  error?: string;
+}
+
+export const DEFAULT_REQUIRED_SECRET_KEYS = [
+  'R2_ACCOUNT_ID',
+  'R2_ACCESS_KEY_ID',
+  'R2_SECRET_ACCESS_KEY',
+  'R2_BUCKET_NAME',
+  'DATABASE_URL',
+];
+
+/**
+ * Ensures required station secrets are loaded into process.env from Google Cloud Secret Manager.
+ * Resolves from promptfm-web-app-env and fallback promptfm-database-url, with ambient SA key authentication.
+ */
+export async function ensureGcpSecretsLoaded(
+  options: EnsureSecretsOptions = {}
+): Promise<EnsureSecretsResult> {
+  const {
+    projectId = DEFAULT_GCP_PROJECT_ID,
+    force = false,
+    execGcloud = defaultExecGcloud,
+    requiredKeys = DEFAULT_REQUIRED_SECRET_KEYS,
+    quiet = false,
+  } = options;
+
+  if (!force) {
+    const allPresent = requiredKeys.every(
+      (k) => Boolean(process.env[k] && process.env[k]!.trim() && !process.env[k]!.startsWith('[SENSITIVE'))
+    );
+    if (allPresent) {
+      return { loaded: false, resolvedKeys: [] };
+    }
+  }
+
+  const resolvedKeys: string[] = [];
+
+  const runWithAuthRetry = (cmd: string): string => {
+    try {
+      return execGcloud(cmd);
+    } catch (err: any) {
+      const errMsg = err?.message || String(err);
+      const isAuthErr =
+        errMsg.includes('Re-authentication required') ||
+        errMsg.includes('Invalid credentials') ||
+        errMsg.includes('You do not currently have an active account selected') ||
+        errMsg.includes('ACCESS_TOKEN_SCOPE_INSUFFICIENT') ||
+        errMsg.includes('401') ||
+        errMsg.includes('403');
+
+      if (isAuthErr && process.env.GCP_SA_KEY) {
+        try {
+          execGcloud(`echo '${process.env.GCP_SA_KEY}' | gcloud auth activate-service-account --key-file=-`);
+          return execGcloud(cmd);
+        } catch {
+          throw err;
+        }
+      }
+      throw err;
+    }
+  };
+
+  try {
+    const bundleCmd = `gcloud secrets versions access latest --secret=promptfm-web-app-env --project=${projectId}`;
+    const rawBundle = runWithAuthRetry(bundleCmd).trim();
+
+    if (rawBundle) {
+      try {
+        const bundle = JSON.parse(rawBundle);
+        if (typeof bundle === 'object' && bundle !== null) {
+          for (const [key, val] of Object.entries(bundle)) {
+            if (typeof val === 'string' && (force || !process.env[key] || !process.env[key]!.trim())) {
+              process.env[key] = val;
+              resolvedKeys.push(key);
+            }
+          }
+        }
+      } catch {
+        // Not JSON
+      }
+    }
+
+    if (!process.env.DATABASE_URL || !process.env.DATABASE_URL.trim()) {
+      try {
+        const dbCmd = `gcloud secrets versions access latest --secret=promptfm-database-url --project=${projectId}`;
+        const dbUrl = runWithAuthRetry(dbCmd).trim();
+        if (dbUrl) {
+          process.env.DATABASE_URL = dbUrl;
+          resolvedKeys.push('DATABASE_URL');
+        }
+      } catch {
+        // Optional standalone secret fallback
+      }
+    }
+
+    return {
+      loaded: resolvedKeys.length > 0,
+      resolvedKeys,
+    };
+  } catch (err: any) {
+    if (!quiet) {
+      console.warn(`[GCP Secrets] Could not auto-resolve secrets from project ${projectId}: ${err?.message || err}`);
+    }
+    return {
+      loaded: false,
+      resolvedKeys: [],
+      error: err?.message || String(err),
+    };
+  }
+}
+
+

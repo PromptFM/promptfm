@@ -224,3 +224,197 @@ export async function fetchTrackByIdOrTitleDirect(query: {
     }
   }
 }
+
+export interface InsertTrackInput {
+  title: string;
+  artist_name: string;
+  audio_url: string;
+  category?: string | null;
+  tool_used?: string | null;
+  description?: string | null;
+  lyrics?: string | null;
+  cover_art_url?: string | null;
+  status?: string;
+  upvotes_count?: number;
+  family_friendly?: boolean;
+  is_explicit?: boolean;
+  channel_exclusions?: string[];
+}
+
+export async function insertTrackDirect(
+  input: InsertTrackInput,
+  options: {
+    client?: MinimalPgClient;
+    databaseUrl?: string;
+  } = {}
+): Promise<DirectDbTrackRow & { status: string; created_at?: string }> {
+  if (!input.title || !input.title.trim()) {
+    throw new Error('Track title is required');
+  }
+  if (!input.artist_name || !input.artist_name.trim()) {
+    throw new Error('Artist name is required');
+  }
+  if (!input.audio_url || !input.audio_url.trim()) {
+    throw new Error('Audio URL is required');
+  }
+
+  const title = input.title.trim();
+  const artistName = input.artist_name.trim();
+  const audioUrl = input.audio_url.trim();
+  const category = input.category?.trim() || 'General';
+  const toolUsed = input.tool_used?.trim() || 'Suno';
+  const description = input.description?.trim() || null;
+  const lyrics = input.lyrics?.trim() || null;
+  const coverArtUrl = input.cover_art_url?.trim() || null;
+  const status = input.status || 'approved';
+  const upvotesCount = typeof input.upvotes_count === 'number' ? input.upvotes_count : 25;
+  const familyFriendly = input.family_friendly !== false;
+  const isExplicit = Boolean(input.is_explicit);
+  const channelExclusions = Array.isArray(input.channel_exclusions) ? input.channel_exclusions : [];
+
+  let client = options.client;
+  let ownClient = false;
+
+  if (!client) {
+    if (process.env.VITEST && !options.databaseUrl) {
+      throw new Error('Database client or URL must be provided in test environment');
+    }
+    const resolvedUrl =
+      (options.databaseUrl && formatPostgresSessionUrl(options.databaseUrl)) ||
+      getDirectPostgresDatabaseUrl();
+
+    if (!resolvedUrl) {
+      throw new Error('DATABASE_URL is required to perform direct PostgreSQL insert');
+    }
+
+    client = await createDefaultPgClient(resolvedUrl);
+    ownClient = true;
+  }
+
+  try {
+    const res = await client.query(
+      `
+        INSERT INTO public.tracks (
+          title,
+          artist_name,
+          audio_url,
+          category,
+          tool_used,
+          description,
+          lyrics,
+          cover_art_url,
+          status,
+          upvotes_count,
+          family_friendly,
+          is_explicit,
+          channel_exclusions
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        RETURNING
+          id::text as id,
+          title,
+          artist_name,
+          audio_url,
+          tool_used,
+          COALESCE(upvotes_count, 0) as upvotes_count,
+          cover_art_url,
+          category,
+          description,
+          lyrics,
+          COALESCE(is_explicit, false) as is_explicit,
+          COALESCE(family_friendly, true) as family_friendly,
+          status,
+          created_at
+      `,
+      [
+        title,
+        artistName,
+        audioUrl,
+        category,
+        toolUsed,
+        description,
+        lyrics,
+        coverArtUrl,
+        status,
+        upvotesCount,
+        familyFriendly,
+        isExplicit,
+        channelExclusions,
+      ]
+    );
+
+    return res.rows[0];
+  } finally {
+    if (ownClient && client) {
+      try {
+        await client.end();
+      } catch {
+        // Non-blocking cleanup
+      }
+    }
+  }
+}
+
+export async function listAllTracksDirect(
+  options: {
+    limit?: number;
+    client?: MinimalPgClient;
+    databaseUrl?: string;
+  } = {}
+): Promise<DirectDbTrackRow[]> {
+  const limit = options.limit || 200;
+
+  let client = options.client;
+  let ownClient = false;
+
+  if (!client) {
+    if (process.env.VITEST && !options.databaseUrl) {
+      return [];
+    }
+    const resolvedUrl =
+      (options.databaseUrl && formatPostgresSessionUrl(options.databaseUrl)) ||
+      getDirectPostgresDatabaseUrl();
+
+    if (!resolvedUrl) {
+      return [];
+    }
+
+    client = await createDefaultPgClient(resolvedUrl);
+    ownClient = true;
+  }
+
+  try {
+    const res = await client.query(
+      `
+        SELECT
+          id::text as id,
+          title,
+          artist_name,
+          audio_url,
+          tool_used,
+          COALESCE(upvotes_count, 0) as upvotes_count,
+          cover_art_url,
+          category,
+          description,
+          lyrics,
+          COALESCE(is_explicit, false) as is_explicit,
+          COALESCE(family_friendly, true) as family_friendly,
+          status,
+          created_at
+        FROM public.tracks
+        ORDER BY created_at DESC
+        LIMIT $1
+      `,
+      [limit]
+    );
+
+    return (res.rows as DirectDbTrackRow[]) || [];
+  } finally {
+    if (ownClient && client) {
+      try {
+        await client.end();
+      } catch {
+        // Non-blocking cleanup
+      }
+    }
+  }
+}

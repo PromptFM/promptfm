@@ -3,6 +3,7 @@ import {
   resolveGcpSecret,
   clearSecretCache,
   destroyPreviousSecretVersions,
+  ensureGcpSecretsLoaded,
 } from '../../src/lib/infra/gcp-secrets';
 
 describe('GCP Secret Manager Zero-Cost Resolver (src/lib/infra/gcp-secrets.ts)', () => {
@@ -176,5 +177,137 @@ describe('GCP Secret Manager Zero-Cost Resolver (src/lib/infra/gcp-secrets.ts)',
     });
     const destroyed2 = await destroyPreviousSecretVersions('error-secret', { execGcloud: throwingExec });
     expect(destroyed2).toEqual([]);
+  });
+
+  describe('ensureGcpSecretsLoaded', () => {
+    it('skips loading when required keys are already in process.env', async () => {
+      process.env.R2_ACCOUNT_ID = 'acc-123';
+      process.env.R2_ACCESS_KEY_ID = 'key-123';
+      process.env.R2_SECRET_ACCESS_KEY = 'secret-123';
+      process.env.R2_BUCKET_NAME = 'promptfm-audio';
+      process.env.DATABASE_URL = 'postgres://user:pass@host:5432/db';
+
+      const mockExec = vi.fn();
+      const res = await ensureGcpSecretsLoaded({
+        execGcloud: mockExec,
+      });
+
+      expect(res.loaded).toBe(false);
+      expect(mockExec).not.toHaveBeenCalled();
+    });
+
+    it('fetches promptfm-web-app-env from GCP Secret Manager and populates missing keys', async () => {
+      delete process.env.R2_ACCOUNT_ID;
+      delete process.env.R2_ACCESS_KEY_ID;
+      delete process.env.R2_SECRET_ACCESS_KEY;
+      delete process.env.R2_BUCKET_NAME;
+      delete process.env.DATABASE_URL;
+
+      const bundleJson = JSON.stringify({
+        R2_ACCOUNT_ID: 'gcp-acc-999',
+        R2_ACCESS_KEY_ID: 'gcp-key-999',
+        R2_SECRET_ACCESS_KEY: 'gcp-sec-999',
+        R2_BUCKET_NAME: 'promptfm-audio',
+        DATABASE_URL: 'postgres://gcp:pass@aws-0.pooler.supabase.com:5432/db',
+        NEXT_PUBLIC_R2_PUBLIC_URL: 'https://pub-r2.dev',
+      });
+
+      const mockExec = vi.fn().mockImplementation((cmd: string) => {
+        if (cmd.includes('promptfm-web-app-env')) return bundleJson;
+        return '';
+      });
+
+      const res = await ensureGcpSecretsLoaded({
+        execGcloud: mockExec,
+      });
+
+      expect(res.loaded).toBe(true);
+      expect(process.env.R2_ACCOUNT_ID).toBe('gcp-acc-999');
+      expect(process.env.R2_ACCESS_KEY_ID).toBe('gcp-key-999');
+      expect(process.env.R2_SECRET_ACCESS_KEY).toBe('gcp-sec-999');
+      expect(process.env.R2_BUCKET_NAME).toBe('promptfm-audio');
+      expect(process.env.DATABASE_URL).toBe('postgres://gcp:pass@aws-0.pooler.supabase.com:5432/db');
+      expect(process.env.NEXT_PUBLIC_R2_PUBLIC_URL).toBe('https://pub-r2.dev');
+      expect(mockExec).toHaveBeenCalledWith(
+        expect.stringContaining('gcloud secrets versions access latest --secret=promptfm-web-app-env')
+      );
+    });
+
+    it('fetches standalone promptfm-database-url if DATABASE_URL is not in bundle', async () => {
+      delete process.env.DATABASE_URL;
+      delete process.env.R2_ACCOUNT_ID;
+
+      const bundleJson = JSON.stringify({
+        R2_ACCOUNT_ID: 'acc-1',
+        R2_ACCESS_KEY_ID: 'key-1',
+        R2_SECRET_ACCESS_KEY: 'sec-1',
+        R2_BUCKET_NAME: 'bucket-1',
+      });
+
+      const mockExec = vi.fn().mockImplementation((cmd: string) => {
+        if (cmd.includes('promptfm-web-app-env')) return bundleJson;
+        if (cmd.includes('promptfm-database-url')) return 'postgres://standalone:pass@host:5432/db\n';
+        return '';
+      });
+
+      const res = await ensureGcpSecretsLoaded({
+        execGcloud: mockExec,
+      });
+
+      expect(res.loaded).toBe(true);
+      expect(process.env.DATABASE_URL).toBe('postgres://standalone:pass@host:5432/db');
+    });
+
+    it('authenticates with GCP_SA_KEY when gcloud access initially fails with auth error', async () => {
+      delete process.env.R2_ACCOUNT_ID;
+      process.env.GCP_SA_KEY = '{"type":"service_account"}';
+
+      let callCount = 0;
+      const mockExec = vi.fn().mockImplementation((cmd: string) => {
+        if (cmd.includes('activate-service-account')) {
+          return 'Activated service account';
+        }
+        if (cmd.includes('promptfm-web-app-env')) {
+          callCount++;
+          if (callCount === 1) {
+            throw new Error('Re-authentication required: Invalid credentials');
+          }
+          return JSON.stringify({
+            R2_ACCOUNT_ID: 'recovered-acc',
+            R2_ACCESS_KEY_ID: 'recovered-key',
+            R2_SECRET_ACCESS_KEY: 'recovered-sec',
+            R2_BUCKET_NAME: 'recovered-bucket',
+            DATABASE_URL: 'postgres://recovered:5432/db',
+          });
+        }
+        return '';
+      });
+
+      const res = await ensureGcpSecretsLoaded({
+        execGcloud: mockExec,
+      });
+
+      expect(res.loaded).toBe(true);
+      expect(process.env.R2_ACCOUNT_ID).toBe('recovered-acc');
+      expect(mockExec).toHaveBeenCalledWith(
+        expect.stringContaining('activate-service-account')
+      );
+    });
+
+    it('returns loaded false gracefully when gcloud fails completely and no SA key is available', async () => {
+      delete process.env.R2_ACCOUNT_ID;
+      delete process.env.GCP_SA_KEY;
+
+      const mockExec = vi.fn().mockImplementation(() => {
+        throw new Error('gcloud: command not found');
+      });
+
+      const res = await ensureGcpSecretsLoaded({
+        execGcloud: mockExec,
+      });
+
+      expect(res.loaded).toBe(false);
+      expect(res.error).toBeDefined();
+    });
   });
 });
