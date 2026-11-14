@@ -203,6 +203,9 @@ test.describe('Mobile iPhone Layout, Bottom Player & Popovers (#109)', () => {
       expect(Math.abs(leftMargin - rightMargin)).toBeLessThanOrEqual(4);
     }
 
+    const scrollRegion = upNextPopover.getByTestId('upnext-popover-scroll');
+    await expect(scrollRegion).toBeVisible();
+
     // Schedule link should be visible
     const scheduleLink = upNextPopover.getByRole('link', { name: /Full 24-Hour Broadcast Schedule/i });
     await expect(scheduleLink).toBeVisible();

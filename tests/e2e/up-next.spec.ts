@@ -202,4 +202,66 @@ test.describe('Issue #84: Up Next Widgets & Accessibility (E2E)', () => {
     await expect(section).toContainText('#1 NEXT');
     await expect(section).toContainText('#2 NEXT');
   });
+
+  test('Issue #220: mobile player Up Next popover scrolls when queue exceeds viewport', async ({ page }) => {
+    const upcoming = Array.from({ length: 12 }, (_, i) => ({
+      id: `scroll-track-${i}`,
+      type: 'music',
+      title: `Queued Title ${i + 1}`,
+      artist: `Artist ${i + 1}`,
+      cover_art_url: '/logo-mark.png',
+      queue_position: i + 1,
+    }));
+
+    await page.route('**/api/radio/now*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          channel: 'main',
+          now_playing: {
+            id: 'now-scroll',
+            type: 'music',
+            title: 'Now Spinning',
+            artist: 'Rotation Bot',
+            cover_art_url: '/logo-mark.png',
+          },
+          up_next: upcoming,
+          listeners_count: 12,
+          listeners: { channel: 12, network_total: 12, active_channels_count: 1 },
+          active_dj: { id: 'dj_neon', name: 'DJ Neon', title: 'Host' },
+          elapsed_seconds: 20,
+          duration_seconds: 180,
+          started_at: new Date().toISOString(),
+        }),
+      });
+    });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+
+    const toggle = page.getByRole('button', { name: /Toggle Up Next airplay queue/i });
+    await toggle.click();
+
+    const scrollRegion = page.getByTestId('upnext-popover-scroll');
+    await expect(scrollRegion).toBeVisible();
+
+    await scrollRegion.evaluate((el) => {
+      el.style.maxHeight = '140px';
+    });
+
+    const metrics = await scrollRegion.evaluate((el) => ({
+      clientHeight: el.clientHeight,
+      scrollHeight: el.scrollHeight,
+      overflowY: window.getComputedStyle(el).overflowY,
+      webkitOverflowScrolling: (el.style as CSSStyleDeclaration & { webkitOverflowScrolling?: string }).webkitOverflowScrolling,
+    }));
+    expect(metrics.overflowY).toBe('auto');
+    expect(metrics.scrollHeight).toBeGreaterThan(metrics.clientHeight);
+
+    const lastTrack = scrollRegion.getByText('Queued Title 12');
+    await lastTrack.scrollIntoViewIfNeeded();
+    await expect(lastTrack).toBeVisible();
+  });
 });

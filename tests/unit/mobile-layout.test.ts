@@ -8,6 +8,7 @@ import {
   getMobileHeroGridClasses,
   getBottomPlayerSafeAreaClass,
   isSmallScreenViewport,
+  getUpNextPopoverScrollClasses,
 } from '@/lib/radio/mobile-layout';
 
 describe('Mobile iPhone Layout Helpers & Safe Area Handling', () => {
@@ -38,7 +39,7 @@ describe('Mobile iPhone Layout Helpers & Safe Area Handling', () => {
       expect(classes).toContain('sm:left-6');
       expect(classes).toContain('sm:right-auto');
       expect(classes).toContain('sm:w-80');
-      expect(classes).toContain('max-h-[75vh]');
+      expect(classes).toContain('max-h-[min(75vh,520px)]');
     });
 
     it('returns symmetrical full-width centered mobile classes with right-anchored desktop classes for upNext popover', () => {
@@ -48,7 +49,8 @@ describe('Mobile iPhone Layout Helpers & Safe Area Handling', () => {
       expect(classes).toContain('sm:left-auto');
       expect(classes).toContain('sm:right-6');
       expect(classes).toContain('sm:w-96');
-      expect(classes).toContain('max-h-[75vh]');
+      expect(classes).toContain('max-h-[min(75vh,520px)]');
+      expect(classes).toContain('min-h-0');
     });
 
     it('returns symmetrical full-width centered mobile classes with max-w-md desktop classes for transcript popover', () => {
@@ -66,6 +68,17 @@ describe('Mobile iPhone Layout Helpers & Safe Area Handling', () => {
       expect(classes).toContain('left-2');
       expect(classes).toContain('right-2');
       expect(classes).toContain('sm:w-80');
+    });
+  });
+
+  describe('getUpNextPopoverScrollClasses (Issue #220)', () => {
+    it('enables touch momentum scrolling inside the mobile bottom sheet body', () => {
+      const classes = getUpNextPopoverScrollClasses();
+      expect(classes).toContain('overflow-y-auto');
+      expect(classes).toContain('min-h-0');
+      expect(classes).toContain('flex-1');
+      expect(classes).toContain('[-webkit-overflow-scrolling:touch]');
+      expect(classes).toContain('overscroll-y-contain');
     });
   });
 

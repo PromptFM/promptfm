@@ -53,6 +53,7 @@ import {
 import {
   formatMobilePlayerTime,
   getPopoverPositionClasses,
+  getUpNextPopoverScrollClasses,
 } from '@/lib/radio/mobile-layout';
 import { formatPageTitle, updateMediaSession } from '@/lib/player/media-session';
 import { fetchRadioTelemetry } from '@/lib/radio/telemetry-client';
@@ -626,7 +627,10 @@ export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerPro
                 </button>
               </div>
 
-              <div className="overflow-y-auto max-h-[50vh] pr-0.5 space-y-1.5">
+              <div
+                data-testid="upnext-popover-scroll"
+                className={getUpNextPopoverScrollClasses()}
+              >
                 {queueMode === 'empty' ? (
                   <p className="text-xs text-zinc-400 py-2" data-testid="player-queue-empty">
                     Automated rotation selecting from top-voted community tracks.
@@ -697,7 +701,7 @@ export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerPro
                   </div>
                 ) : (
                   <div className="space-y-1.5">
-                    {modalQueueItems.slice(0, 4).map((item, i) => {
+                    {modalQueueItems.map((item, i) => {
                     const isCurrent = item.isCurrent;
                     return (
                       <div
