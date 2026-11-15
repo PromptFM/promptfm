@@ -167,7 +167,9 @@ describe('Issue #205: Creator spotlight sponsor ribbon', () => {
 
     expect(html).toContain('Submit Your Track');
     expect(html).toContain('Dismiss sponsor message');
-    expect(html).toMatch(/flex items-center gap-2 flex-shrink-0/);
+    expect(html).toContain('grid-cols-1');
+    expect(html).toContain('lg:grid-cols-[minmax(0,1fr)_auto]');
+    expect(html).toMatch(/flex items-center justify-center gap-2/);
     expect(html).toContain('ring-1 ring-emerald-500');
   });
 
