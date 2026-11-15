@@ -1,7 +1,7 @@
 // src/lib/seo/structured-data.ts
 // Centralized SEO configuration, metadata utilities, and Schema.org JSON-LD generators.
 
-import { OFFICIAL_CHANNELS } from '@/lib/radio/channels';
+import { OFFICIAL_CHANNELS } from '../radio/channels';
 
 export const SITE_URL = 'https://promptfm.live';
 export const SITE_NAME = 'PromptFM';

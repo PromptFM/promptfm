@@ -2,13 +2,13 @@
 // Route-handler-only admin authorization that can verify Supabase sessions.
 
 import type { NextRequest } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '../supabase/server';
 import {
   canBypassUnconfiguredAdminAuth,
   hasLikelySupabaseSessionCookie,
   hasValidAdminApiKey,
   isAdminEmailAuthorized,
-} from '@/lib/auth/admin-auth';
+} from './admin-auth';
 
 export async function isAdminAuthorized(req: NextRequest | Request): Promise<boolean> {
   if (hasValidAdminApiKey(req)) {

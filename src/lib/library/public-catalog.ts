@@ -1,7 +1,7 @@
 // src/lib/library/public-catalog.ts
 // Unified public catalog service for PromptFM library browsing, search, and queueing.
 
-import { createAdminClient } from '@/lib/supabase/server';
+import { createAdminClient } from '../supabase/server';
 
 export const DEFAULT_PAGE_SIZE = 20;
 export const MAX_PAGE_SIZE = 50;
