@@ -4,6 +4,7 @@
 
 import { createAdminClient } from '../supabase/server';
 import { postTweetToX } from '../social/x-client';
+import { incrementTrackUpvotesDirect, type MinimalPgClient } from '../dj/direct-track-queries';
 
 export interface BroadcastNotification {
   title: string;
@@ -72,7 +73,11 @@ let fallbackDemoVotes = 0;
  */
 export async function castVoteForTrack(
   trackId: string,
-  _voterId?: string
+  _voterId?: string,
+  options: {
+    client?: MinimalPgClient;
+    databaseUrl?: string;
+  } = {}
 ): Promise<{ success: boolean; newCount: number; title: string }> {
   // Handle demo-fallback track gracefully if database is cold/empty
   if (trackId === 'demo-fallback') {
@@ -84,31 +89,47 @@ export async function castVoteForTrack(
     };
   }
 
-  const supabase = createAdminClient();
+  try {
+    const supabase = createAdminClient();
 
-  const { data: track, error: fetchErr } = await supabase
-    .from('tracks')
-    .select('id, title, upvotes_count')
-    .eq('id', trackId)
-    .single();
+    const { data: track, error: fetchErr } = await supabase
+      .from('tracks')
+      .select('id, title, upvotes_count')
+      .eq('id', trackId)
+      .single();
 
-  if (fetchErr || !track) {
+    if (fetchErr || !track) {
+      const direct = await incrementTrackUpvotesDirect(trackId, options);
+      if (direct) {
+        return { success: true, newCount: direct.upvotes_count, title: direct.title };
+      }
+      return { success: false, newCount: 0, title: 'Unknown Track' };
+    }
+
+    const updatedCount = (track.upvotes_count || 0) + 1;
+
+    const { error: updateErr } = await supabase
+      .from('tracks')
+      .update({ upvotes_count: updatedCount })
+      .eq('id', trackId);
+
+    if (updateErr) {
+      console.error('Failed to increment vote count:', updateErr);
+      const direct = await incrementTrackUpvotesDirect(trackId, options);
+      if (direct) {
+        return { success: true, newCount: direct.upvotes_count, title: direct.title };
+      }
+      return { success: false, newCount: track.upvotes_count, title: track.title };
+    }
+
+    return { success: true, newCount: updatedCount, title: track.title };
+  } catch {
+    const direct = await incrementTrackUpvotesDirect(trackId, options);
+    if (direct) {
+      return { success: true, newCount: direct.upvotes_count, title: direct.title };
+    }
     return { success: false, newCount: 0, title: 'Unknown Track' };
   }
-
-  const updatedCount = (track.upvotes_count || 0) + 1;
-
-  const { error: updateErr } = await supabase
-    .from('tracks')
-    .update({ upvotes_count: updatedCount })
-    .eq('id', trackId);
-
-  if (updateErr) {
-    console.error('Failed to increment vote count:', updateErr);
-    return { success: false, newCount: track.upvotes_count, title: track.title };
-  }
-
-  return { success: true, newCount: updatedCount, title: track.title };
 }
 
 /**

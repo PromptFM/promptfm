@@ -289,37 +289,59 @@ export default function TopPage() {
     async function fetchTracks() {
       setLoading(true);
 
-      // Fetch top 20 approved tracks
-      const { data: trackData, error } = await supabase
-        .from('tracks')
-        .select('*')
-        .eq('status', 'approved')
-        .order('upvotes_count', { ascending: false })
-        .limit(20);
+      let trackData: any[] = [];
+      try {
+        const res = await fetch('/api/charts?limit=20');
+        if (res.ok) {
+          const body = await res.json();
+          if (Array.isArray(body?.items) && body.items.length > 0) {
+            trackData = body.items;
+          }
+        }
+      } catch {
+        // Fallback to client-side supabase if API request fails
+      }
 
-      if (error || !trackData || cancelled) {
+      if (trackData.length === 0) {
+        // Fetch top 20 approved tracks via client-side Supabase as fallback
+        const { data: clientData, error } = await supabase
+          .from('tracks')
+          .select('*')
+          .eq('status', 'approved')
+          .order('upvotes_count', { ascending: false })
+          .limit(20);
+
+        if (!error && clientData) {
+          trackData = clientData;
+        }
+      }
+
+      if (cancelled) {
         setLoading(false);
         return;
       }
 
       // Fetch the current user's votes in parallel
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
       let userVotedIds = new Set<string>();
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      if (user) {
-        const { data: voteData } = await supabase
-          .from('votes')
-          .select('track_id')
-          .eq('user_id', user.id)
-          .in(
-            'track_id',
-            trackData.map((t) => t.id),
-          );
+        if (user && trackData.length > 0) {
+          const { data: voteData } = await supabase
+            .from('votes')
+            .select('track_id')
+            .eq('user_id', user.id)
+            .in(
+              'track_id',
+              trackData.map((t) => t.id),
+            );
 
-        userVotedIds = new Set((voteData ?? []).map((v) => v.track_id as string));
+          userVotedIds = new Set((voteData ?? []).map((v) => v.track_id as string));
+        }
+      } catch {
+        // Non-blocking auth / vote check
       }
 
       if (!cancelled) {
@@ -380,16 +402,27 @@ export default function TopPage() {
       );
 
       // ── Actual DB mutation ─────────────────────────────────────────────────
-      if (isVoted) {
-        await supabase
-          .from('votes')
-          .delete()
-          .eq('user_id', user.id)
-          .eq('track_id', trackId);
-      } else {
-        await supabase
-          .from('votes')
-          .insert({ user_id: user.id, track_id: trackId });
+      try {
+        if (isVoted) {
+          await supabase
+            .from('votes')
+            .delete()
+            .eq('user_id', user.id)
+            .eq('track_id', trackId);
+        } else {
+          // Send to /api/vote to record upvote reliably via direct PostgreSQL
+          await fetch('/api/vote', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ trackId }),
+          }).catch(() => null);
+
+          await supabase
+            .from('votes')
+            .insert({ user_id: user.id, track_id: trackId });
+        }
+      } catch {
+        // Non-blocking mutation error
       }
 
       setVotingId(null);

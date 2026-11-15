@@ -45,6 +45,8 @@ import {
   fetchApprovedCatalogTracks,
   buildPublicCatalog,
 } from '@/lib/library/public-catalog';
+import { fetchTopApprovedTracks } from '@/lib/charts/charts-service';
+import { castVoteForTrack } from '@/lib/chat/bridge';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 
@@ -759,17 +761,18 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
 
     case 'promptfm_get_top_tracks': {
       const limit = typeof args.limit === 'number' ? Math.min(Math.max(args.limit, 1), 20) : 10;
-      const { data, error } = await supabase
-        .from('tracks')
-        .select('id, title, artist_name, tool_used, upvotes_count, audio_url')
-        .eq('status', 'approved')
-        .order('upvotes_count', { ascending: false })
-        .limit(limit);
-
-      if (error) throw new Error(error.message);
+      const tracks = await fetchTopApprovedTracks({ limit });
       return {
-        count: data?.length || 0,
-        leaderboard: data?.map((t, idx) => ({ rank: idx + 1, ...t })),
+        count: tracks.length,
+        leaderboard: tracks.map((t, idx) => ({
+          rank: idx + 1,
+          id: t.id,
+          title: t.title,
+          artist_name: t.artist_name,
+          tool_used: t.tool_used,
+          upvotes_count: t.upvotes_count,
+          audio_url: t.audio_url,
+        })),
       };
     }
 
@@ -777,26 +780,13 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
       const trackId = args.track_id as string;
       if (!trackId) throw new Error('Missing track_id');
 
-      const { data: track, error: fetchErr } = await supabase
-        .from('tracks')
-        .select('id, title, upvotes_count')
-        .eq('id', trackId)
-        .single();
+      const voteResult = await castVoteForTrack(trackId);
+      if (!voteResult.success) throw new Error('Track not found');
 
-      if (fetchErr || !track) throw new Error('Track not found');
-
-      const { data: updated, error: updateErr } = await supabase
-        .from('tracks')
-        .update({ upvotes_count: (track.upvotes_count || 0) + 1 })
-        .eq('id', trackId)
-        .select()
-        .single();
-
-      if (updateErr) throw new Error(updateErr.message);
       return {
         success: true,
-        message: `Upvoted "${updated.title}"!`,
-        new_upvotes_count: updated.upvotes_count,
+        message: `Upvoted "${voteResult.title}"!`,
+        new_upvotes_count: voteResult.newCount,
       };
     }
 
