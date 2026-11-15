@@ -178,6 +178,11 @@ html[data-theme='light'] [aria-label='Sponsor Announcement'] {
   border-color: #a7f3d0;
 }
 
+html[data-theme='light'] [aria-label='Sponsor Announcement'] .text-emerald-400,
+html[data-theme='light'] [aria-label='Sponsor Announcement'] .text-emerald-300 {
+  color: #064e3b;
+}
+
 html[data-theme='light'] [aria-label='Live radio player'] {
   background-color: #fafafa;
   color: #18181b;

@@ -36,7 +36,10 @@ test.describe('Issue #82 light and dark mode', () => {
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 
-    const results = await new AxeBuilder({ page }).include('nav').analyze();
+    const results = await new AxeBuilder({ page })
+      .include('nav')
+      .include('[aria-label="Sponsor Announcement"]')
+      .analyze();
     const serious = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
     expect(serious).toEqual([]);
   });
