@@ -115,5 +115,22 @@ describe('Google AdSense Legal & Privacy Compliance Specification', () => {
       expect(homePageContent).toContain('The Autonomous AI Radio Revolution');
       expect(homePageContent).toContain('Clock-Wheel Automation & AI Personalities');
     });
+
+    it('ensures cookie consent banner yields to navigation dropdowns in stacking context', async () => {
+      const fs = await import('fs');
+      const path = await import('path');
+      const cookieBannerContent = fs.readFileSync(
+        path.join(process.cwd(), 'src/components/CookieConsentBanner.tsx'),
+        'utf8'
+      );
+      const navbarContent = fs.readFileSync(
+        path.join(process.cwd(), 'src/components/Navbar.tsx'),
+        'utf8'
+      );
+
+      expect(cookieBannerContent).toContain('z-40');
+      expect(cookieBannerContent).not.toContain('z-50');
+      expect(navbarContent).toContain('sticky top-0 z-50');
+    });
   });
 });
