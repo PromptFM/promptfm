@@ -106,7 +106,13 @@ describe('getUpNext library rotation (Issue #219)', () => {
     resetChannelAirplayItems();
   });
 
-  it('returns three distinct upcoming ids with the third slot rotating past recently played picks', async () => {
+  it('does not invent library tracks as upcoming, including a sticky top-voted title', async () => {
+    mockFallbackTracks[0] = {
+      ...mockFallbackTracks[0],
+      id: 'forged-in-pain',
+      title: 'Forged in Pain',
+    };
+
     const upNext = await getUpNext(
       'main',
       3,
@@ -115,11 +121,33 @@ describe('getUpNext library rotation (Issue #219)', () => {
         elapsedSeconds: 30,
       }
     );
-    expect(upNext).toHaveLength(3);
-    const ids = upNext.map((t) => t.id);
-    expect(new Set(ids).size).toBe(3);
-    expect(ids).not.toContain('on-air');
-    expect(ids).toEqual(['rank-3', 'rank-4', 'rank-5']);
+
+    expect(upNext.map((t) => t.title)).not.toContain('Forged in Pain');
+    expect(upNext).toEqual([]);
+  });
+
+  it('shows only the staged next item until listener requests exist', async () => {
+    mockStationState.main = {
+      ...mockStationState.main!,
+      staged_item: {
+        id: 'real-next',
+        type: 'music',
+        title: 'Actually Next',
+        artist: 'Listener',
+        audio_url: 'https://a/real.mp3',
+      },
+    };
+
+    const upNext = await getUpNext(
+      'main',
+      3,
+      {
+        item: mockStationState.main!.airplay_item,
+        elapsedSeconds: 30,
+      }
+    );
+
+    expect(upNext.map((t) => t.id)).toEqual(['real-next']);
   });
 });
 

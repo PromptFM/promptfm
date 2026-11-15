@@ -72,11 +72,11 @@ describe('Mobile iPhone Layout Helpers & Safe Area Handling', () => {
   });
 
   describe('getUpNextPopoverScrollClasses (Issue #220)', () => {
-    it('enables touch momentum scrolling inside the mobile bottom sheet body', () => {
+    it('enables touch momentum scrolling inside a height-capped mobile bottom sheet body', () => {
       const classes = getUpNextPopoverScrollClasses();
       expect(classes).toContain('overflow-y-auto');
-      expect(classes).toContain('min-h-0');
-      expect(classes).toContain('flex-1');
+      expect(classes).toContain('max-h-[min(42dvh,22rem)]');
+      expect(classes).toContain('touch-pan-y');
       expect(classes).toContain('[-webkit-overflow-scrolling:touch]');
       expect(classes).toContain('overscroll-y-contain');
     });

@@ -247,10 +247,6 @@ test.describe('Issue #84: Up Next Widgets & Accessibility (E2E)', () => {
     const scrollRegion = page.getByTestId('upnext-popover-scroll');
     await expect(scrollRegion).toBeVisible();
 
-    await scrollRegion.evaluate((el) => {
-      el.style.maxHeight = '140px';
-    });
-
     const metrics = await scrollRegion.evaluate((el) => ({
       clientHeight: el.clientHeight,
       scrollHeight: el.scrollHeight,
