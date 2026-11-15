@@ -42,10 +42,16 @@ describe('Next.js App Router Metadata Routes Integration', () => {
     expect(urls).toContain('https://promptfm.live/submit');
 
     // Static routes
+    expect(urls).toContain('https://promptfm.live/about');
+    expect(urls).toContain('https://promptfm.live/faq');
+    expect(urls).toContain('https://promptfm.live/contact');
+    expect(urls).toContain('https://promptfm.live/schedule');
+    expect(urls).toContain('https://promptfm.live/library');
     expect(urls).toContain('https://promptfm.live/status');
     expect(urls).toContain('https://promptfm.live/terms');
     expect(urls).toContain('https://promptfm.live/privacy');
     expect(urls).toContain('https://promptfm.live/dmca');
+    expect(urls).toContain('https://promptfm.live/copyright');
 
     // Theme radio channel URLs
     expect(urls).toContain('https://promptfm.live/channels?channel=main');

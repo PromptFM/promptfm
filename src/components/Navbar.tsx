@@ -69,7 +69,7 @@ export default function Navbar() {
   }, [communityOpen]);
 
   return (
-    <nav className="sticky top-0 z-40 border-b border-zinc-800/80 bg-zinc-950/90 backdrop-blur-md">
+    <nav className="sticky top-0 z-50 border-b border-zinc-800/80 bg-zinc-950/90 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Brand Logo */}
         <Link
@@ -184,6 +184,30 @@ export default function Navbar() {
                   <div>
                     <span className="font-semibold block">About PromptFM</span>
                     <span className="text-[11px] text-zinc-400">AI DJs & Station Architecture</span>
+                  </div>
+                </Link>
+
+                <Link
+                  href="/faq"
+                  onClick={closeMenu}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-900 transition-colors text-xs"
+                >
+                  <MessageSquare className="w-4 h-4 text-emerald-400" />
+                  <div>
+                    <span className="font-semibold block">FAQ & Knowledge Base</span>
+                    <span className="text-[11px] text-zinc-400">Suno, Udio, Licensing & Rules</span>
+                  </div>
+                </Link>
+
+                <Link
+                  href="/contact"
+                  onClick={closeMenu}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-900 transition-colors text-xs"
+                >
+                  <Send className="w-4 h-4 text-emerald-400" />
+                  <div>
+                    <span className="font-semibold block">Contact Operations</span>
+                    <span className="text-[11px] text-zinc-400">Support & DMCA Inquiries</span>
                   </div>
                 </Link>
 
@@ -390,6 +414,24 @@ export default function Navbar() {
               >
                 <Sparkles className="w-4 h-4 text-emerald-400" />
                 <span>About PromptFM</span>
+              </Link>
+
+              <Link
+                href="/faq"
+                onClick={closeMenu}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-zinc-200 hover:text-emerald-400 hover:bg-zinc-800/60 transition-colors text-sm font-medium"
+              >
+                <MessageSquare className="w-4 h-4 text-emerald-400" />
+                <span>FAQ & Knowledge Base</span>
+              </Link>
+
+              <Link
+                href="/contact"
+                onClick={closeMenu}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-zinc-200 hover:text-emerald-400 hover:bg-zinc-800/60 transition-colors text-sm font-medium"
+              >
+                <Send className="w-4 h-4 text-emerald-400" />
+                <span>Contact Operations</span>
               </Link>
 
               <Link

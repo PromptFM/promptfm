@@ -507,6 +507,35 @@ export default function TopPage() {
               ))}
           </div>
         )}
+
+        {/* Editorial Chart Methodology & Broadcast Cadence */}
+        <section className="mt-10 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6 space-y-4 text-left text-xs text-zinc-300">
+          <div className="border-b border-zinc-800 pb-3">
+            <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-emerald-400" />
+              Chart Methodology & Broadcast Rotation
+            </h2>
+            <p className="text-zinc-400 mt-1">
+              Every Sunday at 18:00 UTC, DJ Neon hosts the live Top 20 Countdown show on the PromptFM Main Stage.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <h3 className="font-semibold text-white">Democratic Listener Voting</h3>
+              <p className="text-zinc-400 leading-relaxed">
+                Rankings reflect genuine listener engagement. Upvotes placed across our web player, Discord, and Telegram bot gateways contribute directly to weekly position calculation.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <h3 className="font-semibold text-white">Anti-Brigading Guardrails</h3>
+              <p className="text-zinc-400 leading-relaxed">
+                To ensure fair airplay discovery, our voting pipeline enforces cryptographic session hashing and per-track rate limits to prevent inorganic voting manipulation.
+              </p>
+            </div>
+          </div>
+        </section>
       </div>
 
       {/* Content Report Dialog */}

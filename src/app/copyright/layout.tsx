@@ -2,7 +2,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Commercial AI Rights & Voice Clone Rules — PromptFM',
+  title: 'Commercial AI Rights, Copyright & Voice Clone Rules — PromptFM',
   description:
     'Commercial generative music licensing terms for Suno, Udio, Stable Audio, deepfake vocalist prohibitions, and right-of-publicity protections on PromptFM.',
   alternates: {
