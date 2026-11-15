@@ -23,6 +23,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import AuthButton from '@/components/AuthButton';
+import ThemeToggle from '@/components/ThemeToggle';
 import { getCommunityLinks } from '@/lib/community/links';
 import { isOutside, isDismissKey } from '@/lib/ui/dropdown';
 
@@ -269,6 +270,7 @@ export default function Navbar() {
             <span>Submit Track</span>
           </Link>
 
+          <ThemeToggle />
           <AuthButton />
         </div>
 
@@ -282,6 +284,8 @@ export default function Navbar() {
             <Upload className="w-3.5 h-3.5" />
             <span>Submit</span>
           </Link>
+
+          <ThemeToggle />
 
           <button
             type="button"
