@@ -82,5 +82,5 @@ export function getBottomPlayerSafeAreaClass(): string {
  * Scrollable body region for the mobile Up Next bottom sheet (Issue #220).
  */
 export function getUpNextPopoverScrollClasses(): string {
-  return 'flex-1 min-h-0 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] space-y-1.5 pr-0.5 pb-[env(safe-area-inset-bottom,0px)]';
+  return 'max-h-[min(42dvh,22rem)] overflow-y-auto overscroll-y-contain touch-pan-y [-webkit-overflow-scrolling:touch] space-y-1.5 pr-0.5 pb-[env(safe-area-inset-bottom,0px)]';
 }

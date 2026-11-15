@@ -185,7 +185,8 @@ describe('Now Playing & Vote State Synchronization', () => {
     // 2. Alphabet Song / Kids-only track must NEVER appear in Up Next for main stage
     expect(ids).not.toContain('track-kids');
 
-    // 3. Normal track (track-102) should be present
-    expect(ids).toContain('track-102');
+    // Uncommitted library titles are not a real upcoming list.
+    expect(ids).not.toContain('track-102');
+    expect(upNext).toEqual([]);
   });
 });

@@ -629,7 +629,10 @@ export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerPro
 
               <div
                 data-testid="upnext-popover-scroll"
-                className={getUpNextPopoverScrollClasses()}
+                role="region"
+                aria-label="Upcoming tracks"
+                tabIndex={0}
+                className={`${getUpNextPopoverScrollClasses()} max-h-[min(42dvh,22rem)] overflow-y-auto overscroll-y-contain touch-pan-y`}
               >
                 {queueMode === 'empty' ? (
                   <p className="text-xs text-zinc-400 py-2" data-testid="player-queue-empty">
