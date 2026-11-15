@@ -19,6 +19,7 @@ import {
   resetNowPlayingDedupeCache,
   type BroadcastNotification,
 } from '@/lib/chat/bridge';
+import * as directTrackQueries from '@/lib/dj/direct-track-queries';
 
 describe('Community Chat Bridge (Discord & Telegram)', () => {
   const originalEnv = process.env;
@@ -563,6 +564,31 @@ describe('Community Chat Bridge (Discord & Telegram)', () => {
       expect(res.success).toBe(false);
       expect(res.newCount).toBe(10);
       expect(res.title).toBe('Glitch Synth');
+    });
+
+    it('fails over to direct PostgreSQL when supabase query errors (e.g. 402 quota exceeded)', async () => {
+      mockFrom.mockReturnValue({
+        select: () => ({
+          eq: () => ({
+            single: async () => ({
+              data: null,
+              error: new Error('exceed_cached_egress_quota'),
+            }),
+          }),
+        }),
+      });
+
+      const spyDirect = vi.spyOn(directTrackQueries, 'incrementTrackUpvotesDirect').mockResolvedValue({
+        id: 'direct-track-999',
+        title: 'Direct Cyber Anthem',
+        upvotes_count: 89,
+      });
+
+      const res = await castVoteForTrack('direct-track-999');
+      expect(spyDirect).toHaveBeenCalledWith('direct-track-999', expect.any(Object));
+      expect(res.success).toBe(true);
+      expect(res.newCount).toBe(89);
+      expect(res.title).toBe('Direct Cyber Anthem');
     });
   });
 });

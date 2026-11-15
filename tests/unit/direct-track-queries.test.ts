@@ -7,6 +7,7 @@ import {
   fetchTrackByIdOrTitleDirect,
   insertTrackDirect,
   listAllTracksDirect,
+  incrementTrackUpvotesDirect,
   type DirectDbTrackRow,
   type InsertTrackInput,
 } from '../../src/lib/dj/direct-track-queries';
@@ -407,6 +408,91 @@ describe('direct track queries module', () => {
         expect.stringContaining('ORDER BY created_at DESC'),
         [200]
       );
+    });
+  });
+
+  describe('incrementTrackUpvotesDirect', () => {
+    it('increments track upvotes using direct PostgreSQL client', async () => {
+      const mockResult = {
+        rows: [{ id: 'track-123', title: 'Cyber Pulse', upvotes_count: 42 }],
+      };
+      const mockQuery = vi.fn().mockResolvedValue(mockResult);
+      const mockClient = {
+        query: mockQuery,
+        end: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const result = await incrementTrackUpvotesDirect('track-123', {
+        client: mockClient as any,
+      });
+
+      expect(result).toEqual({
+        id: 'track-123',
+        title: 'Cyber Pulse',
+        upvotes_count: 42,
+      });
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE public.tracks'),
+        ['track-123']
+      );
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('SET upvotes_count = COALESCE(upvotes_count, 0) + 1'),
+        ['track-123']
+      );
+      expect(mockClient.end).not.toHaveBeenCalled();
+    });
+
+    it('returns null for empty or non-string trackId', async () => {
+      const mockClient = {
+        query: vi.fn(),
+        end: vi.fn().mockResolvedValue(undefined),
+      };
+
+      expect(await incrementTrackUpvotesDirect('', { client: mockClient as any })).toBeNull();
+      expect(await incrementTrackUpvotesDirect('   ', { client: mockClient as any })).toBeNull();
+      expect(await incrementTrackUpvotesDirect(null as any, { client: mockClient as any })).toBeNull();
+      expect(await incrementTrackUpvotesDirect(12345 as any, { client: mockClient as any })).toBeNull();
+      expect(await incrementTrackUpvotesDirect(undefined as any, { client: mockClient as any })).toBeNull();
+      expect(mockClient.query).not.toHaveBeenCalled();
+    });
+
+    it('trims leading and trailing whitespace from trackId', async () => {
+      const mockQuery = vi.fn().mockResolvedValue({
+        rows: [{ id: 'trimmed-id', title: 'Trimmed Song', upvotes_count: 5 }],
+      });
+      const mockClient = {
+        query: mockQuery,
+        end: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const result = await incrementTrackUpvotesDirect('   trimmed-id   ', {
+        client: mockClient as any,
+      });
+
+      expect(result).toEqual({ id: 'trimmed-id', title: 'Trimmed Song', upvotes_count: 5 });
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('WHERE id::text = $1'),
+        ['trimmed-id']
+      );
+    });
+
+    it('returns null when track is not found in database', async () => {
+      const mockQuery = vi.fn().mockResolvedValue({ rows: [] });
+      const mockClient = {
+        query: mockQuery,
+        end: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const result = await incrementTrackUpvotesDirect('non-existent', {
+        client: mockClient as any,
+      });
+
+      expect(result).toBeNull();
+    });
+
+    it('returns null when no client and no databaseUrl is configured in test env', async () => {
+      const result = await incrementTrackUpvotesDirect('track-123');
+      expect(result).toBeNull();
     });
   });
 });

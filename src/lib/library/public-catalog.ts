@@ -2,6 +2,7 @@
 // Unified public catalog service for PromptFM library browsing, search, and queueing.
 
 import { createAdminClient } from '../supabase/server';
+import { fetchApprovedTracksDirect, type MinimalPgClient } from '../dj/direct-track-queries';
 
 export const DEFAULT_PAGE_SIZE = 20;
 export const MAX_PAGE_SIZE = 50;
@@ -186,7 +187,12 @@ export function parseLibraryQueueBody(body: unknown): QueueBodyParseResult {
   return { ok: true, trackId: trackId.trim() };
 }
 
-export async function fetchApprovedCatalogTracks(): Promise<CatalogTrackInput[]> {
+export async function fetchApprovedCatalogTracks(
+  options: {
+    client?: MinimalPgClient;
+    databaseUrl?: string;
+  } = {}
+): Promise<CatalogTrackInput[]> {
   try {
     const supabase = createAdminClient();
     const { data, error } = await supabase
@@ -195,10 +201,19 @@ export async function fetchApprovedCatalogTracks(): Promise<CatalogTrackInput[]>
       .eq('status', 'approved')
       .order('upvotes_count', { ascending: false });
 
-    if (error || !data) {
-      return [];
+    if (!error && data && data.length > 0) {
+      return data as CatalogTrackInput[];
     }
-    return data as CatalogTrackInput[];
+  } catch {
+    // Fail over to direct PostgreSQL
+  }
+
+  try {
+    const directRows = await fetchApprovedTracksDirect(options);
+    return directRows.map((row) => ({
+      ...row,
+      status: 'approved',
+    })) as CatalogTrackInput[];
   } catch {
     return [];
   }

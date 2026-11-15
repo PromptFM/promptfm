@@ -10,6 +10,7 @@ import {
   type CatalogTrackInput,
 } from '@/lib/library/public-catalog';
 import * as supabaseServer from '@/lib/supabase/server';
+import * as directTrackQueries from '@/lib/dj/direct-track-queries';
 
 function track(overrides: Partial<CatalogTrackInput> = {}): CatalogTrackInput {
   return {
@@ -245,32 +246,71 @@ describe('fetchApprovedCatalogTracks', () => {
     expect(orderMock).toHaveBeenCalledWith('upvotes_count', { ascending: false });
   });
 
-  it('returns empty array when supabase returns error even if data is non-null', async () => {
-    const orderMock = vi.fn().mockResolvedValue({ data: [{ id: '1' }], error: { message: 'db error' } });
+  it('fails over to direct PostgreSQL when supabase returns error', async () => {
+    const orderMock = vi.fn().mockResolvedValue({ data: null, error: { message: 'exceed_cached_egress_quota' } });
     const eqMock = vi.fn().mockReturnValue({ order: orderMock });
     const selectMock = vi.fn().mockReturnValue({ eq: eqMock });
     const fromMock = vi.fn().mockReturnValue({ select: selectMock });
     vi.spyOn(supabaseServer, 'createAdminClient').mockReturnValue({ from: fromMock } as any);
 
+    const directRows: directTrackQueries.DirectDbTrackRow[] = [
+      {
+        id: 'direct-1',
+        title: 'Direct Track 1',
+        artist_name: 'Direct Artist',
+        audio_url: 'https://r2.dev/track1.mp3',
+        tool_used: 'Suno',
+        upvotes_count: 75,
+        cover_art_url: '/cover.png',
+        category: 'Synthwave',
+      },
+    ];
+    vi.spyOn(directTrackQueries, 'fetchApprovedTracksDirect').mockResolvedValue(directRows);
+
     const rows = await fetchApprovedCatalogTracks();
-    expect(rows).toEqual([]);
+    expect(directTrackQueries.fetchApprovedTracksDirect).toHaveBeenCalled();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      id: 'direct-1',
+      title: 'Direct Track 1',
+      artist_name: 'Direct Artist',
+      audio_url: 'https://r2.dev/track1.mp3',
+      tool_used: 'Suno',
+      status: 'approved',
+      upvotes_count: 75,
+    });
   });
 
-  it('returns empty array when supabase returns error or null data', async () => {
-    const orderMock = vi.fn().mockResolvedValue({ data: null, error: { message: 'db error' } });
-    const eqMock = vi.fn().mockReturnValue({ order: orderMock });
-    const selectMock = vi.fn().mockReturnValue({ eq: eqMock });
-    const fromMock = vi.fn().mockReturnValue({ select: selectMock });
-    vi.spyOn(supabaseServer, 'createAdminClient').mockReturnValue({ from: fromMock } as any);
-
-    const rows = await fetchApprovedCatalogTracks();
-    expect(rows).toEqual([]);
-  });
-
-  it('returns empty array when query throws', async () => {
+  it('fails over to direct PostgreSQL when supabase query throws', async () => {
     vi.spyOn(supabaseServer, 'createAdminClient').mockImplementation(() => {
       throw new Error('connection fail');
     });
+
+    const directRows: directTrackQueries.DirectDbTrackRow[] = [
+      {
+        id: 'direct-2',
+        title: 'Direct Track 2',
+        artist_name: 'Direct Artist 2',
+        audio_url: 'https://r2.dev/track2.mp3',
+        tool_used: 'Udio',
+        upvotes_count: 30,
+        cover_art_url: null,
+        category: 'Ambient',
+      },
+    ];
+    vi.spyOn(directTrackQueries, 'fetchApprovedTracksDirect').mockResolvedValue(directRows);
+
+    const rows = await fetchApprovedCatalogTracks();
+    expect(directTrackQueries.fetchApprovedTracksDirect).toHaveBeenCalled();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.id).toBe('direct-2');
+  });
+
+  it('returns empty array when both supabase and direct PostgreSQL fail or return empty', async () => {
+    vi.spyOn(supabaseServer, 'createAdminClient').mockImplementation(() => {
+      throw new Error('connection fail');
+    });
+    vi.spyOn(directTrackQueries, 'fetchApprovedTracksDirect').mockResolvedValue([]);
 
     const rows = await fetchApprovedCatalogTracks();
     expect(rows).toEqual([]);
