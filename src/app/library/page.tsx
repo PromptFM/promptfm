@@ -370,6 +370,42 @@ export default function PublicLibraryPage() {
             Next
           </button>
         </div>
+
+        {/* Editorial Catalog & Airplay Guide */}
+        <section className="mt-12 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6 sm:p-8 space-y-6 text-left">
+          <div className="border-b border-zinc-800 pb-3">
+            <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
+              <Music2 className="w-5 h-5 text-emerald-400" />
+              Catalog Curation & Live Airplay Queue Standards
+            </h2>
+            <p className="text-xs text-zinc-400 mt-1">
+              Every track indexed in the PromptFM catalog undergoes automated and community quality screening.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs text-zinc-300">
+            <div className="space-y-2">
+              <h3 className="font-semibold text-white">Audio Quality Standards</h3>
+              <p className="text-zinc-400 leading-relaxed">
+                All submitted audio must be clean stereo MP3 at a minimum of 192 kbps. Tracks with severe digital clipping or generation distortion are filtered during ingest.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="font-semibold text-white">Live Broadcast Queue Mechanics</h3>
+              <p className="text-zinc-400 leading-relaxed">
+                Clicking &quot;Add to queue&quot; schedules the song directly into the upcoming autonomous clock-wheel cycle. Our anti-repeat algorithm prevents back-to-back artist duplicates.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="font-semibold text-white">Verified Commercial Licensing</h3>
+              <p className="text-zinc-400 leading-relaxed">
+                Only tracks created under paid commercial tiers (Suno Pro/Premier, Udio Standard/Pro) are eligible for broadcast airplay, ensuring full compliance with copyright statutes.
+              </p>
+            </div>
+          </div>
+        </section>
       </div>
     </main>
   );

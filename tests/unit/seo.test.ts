@@ -54,13 +54,18 @@ describe('SEO & Structured Data Service', () => {
     it('generates complete sitemap items with canonical URLs, change frequencies, and priorities', () => {
       const testDate = new Date('2026-11-03T00:00:00Z');
       const sitemap = generateSitemapUrls(testDate);
-      expect(sitemap.length).toBe(14);
+      expect(sitemap.length).toBe(19);
 
       const urls = sitemap.map((s) => s.url);
       expect(urls).toContain('https://promptfm.live');
       expect(urls).toContain('https://promptfm.live/channels');
       expect(urls).toContain('https://promptfm.live/channels?channel=afterdark');
+      expect(urls).toContain('https://promptfm.live/schedule');
+      expect(urls).toContain('https://promptfm.live/library');
       expect(urls).toContain('https://promptfm.live/top');
+      expect(urls).toContain('https://promptfm.live/about');
+      expect(urls).toContain('https://promptfm.live/faq');
+      expect(urls).toContain('https://promptfm.live/contact');
       expect(urls).toContain('https://promptfm.live/submit');
       expect(urls).toContain('https://promptfm.live/terms');
       expect(urls).toContain('https://promptfm.live/dmca');
@@ -83,10 +88,35 @@ describe('SEO & Structured Data Service', () => {
       expect(channelsEntry?.changeFrequency).toBe('daily');
       expect(channelsEntry?.lastModified).toBe(testDate);
 
+      const scheduleEntry = sitemap.find((s) => s.url === 'https://promptfm.live/schedule');
+      expect(scheduleEntry?.priority).toBe(0.9);
+      expect(scheduleEntry?.changeFrequency).toBe('daily');
+      expect(scheduleEntry?.lastModified).toBe(testDate);
+
+      const libraryEntry = sitemap.find((s) => s.url === 'https://promptfm.live/library');
+      expect(libraryEntry?.priority).toBe(0.9);
+      expect(libraryEntry?.changeFrequency).toBe('daily');
+      expect(libraryEntry?.lastModified).toBe(testDate);
+
       const topEntry = sitemap.find((s) => s.url === 'https://promptfm.live/top');
       expect(topEntry?.priority).toBe(0.9);
       expect(topEntry?.changeFrequency).toBe('daily');
       expect(topEntry?.lastModified).toBe(testDate);
+
+      const aboutEntry = sitemap.find((s) => s.url === 'https://promptfm.live/about');
+      expect(aboutEntry?.priority).toBe(0.8);
+      expect(aboutEntry?.changeFrequency).toBe('weekly');
+      expect(aboutEntry?.lastModified).toBe(testDate);
+
+      const faqEntry = sitemap.find((s) => s.url === 'https://promptfm.live/faq');
+      expect(faqEntry?.priority).toBe(0.8);
+      expect(faqEntry?.changeFrequency).toBe('weekly');
+      expect(faqEntry?.lastModified).toBe(testDate);
+
+      const contactEntry = sitemap.find((s) => s.url === 'https://promptfm.live/contact');
+      expect(contactEntry?.priority).toBe(0.7);
+      expect(contactEntry?.changeFrequency).toBe('monthly');
+      expect(contactEntry?.lastModified).toBe(testDate);
 
       const submitEntry = sitemap.find((s) => s.url === 'https://promptfm.live/submit');
       expect(submitEntry?.priority).toBe(0.7);

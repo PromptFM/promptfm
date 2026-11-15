@@ -188,6 +188,30 @@ export default function Navbar() {
                 </Link>
 
                 <Link
+                  href="/faq"
+                  onClick={closeMenu}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-900 transition-colors text-xs"
+                >
+                  <MessageSquare className="w-4 h-4 text-emerald-400" />
+                  <div>
+                    <span className="font-semibold block">FAQ & Knowledge Base</span>
+                    <span className="text-[11px] text-zinc-400">Suno, Udio, Licensing & Rules</span>
+                  </div>
+                </Link>
+
+                <Link
+                  href="/contact"
+                  onClick={closeMenu}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-900 transition-colors text-xs"
+                >
+                  <Send className="w-4 h-4 text-emerald-400" />
+                  <div>
+                    <span className="font-semibold block">Contact Operations</span>
+                    <span className="text-[11px] text-zinc-400">Support & DMCA Inquiries</span>
+                  </div>
+                </Link>
+
+                <Link
                   href="/#contribute"
                   onClick={closeMenu}
                   className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-900 transition-colors text-xs"
@@ -390,6 +414,24 @@ export default function Navbar() {
               >
                 <Sparkles className="w-4 h-4 text-emerald-400" />
                 <span>About PromptFM</span>
+              </Link>
+
+              <Link
+                href="/faq"
+                onClick={closeMenu}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-zinc-200 hover:text-emerald-400 hover:bg-zinc-800/60 transition-colors text-sm font-medium"
+              >
+                <MessageSquare className="w-4 h-4 text-emerald-400" />
+                <span>FAQ & Knowledge Base</span>
+              </Link>
+
+              <Link
+                href="/contact"
+                onClick={closeMenu}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-zinc-200 hover:text-emerald-400 hover:bg-zinc-800/60 transition-colors text-sm font-medium"
+              >
+                <Send className="w-4 h-4 text-emerald-400" />
+                <span>Contact Operations</span>
               </Link>
 
               <Link
