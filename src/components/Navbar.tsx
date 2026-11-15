@@ -117,6 +117,13 @@ export default function Navbar() {
           </Link>
 
           <Link
+            href="/library"
+            className="text-zinc-300 hover:text-white px-3 py-1.5 rounded-lg hover:bg-zinc-900/60 transition-colors"
+          >
+            Library
+          </Link>
+
+          <Link
             href="/top"
             className="text-zinc-300 hover:text-white px-3 py-1.5 rounded-lg hover:bg-zinc-900/60 transition-colors"
           >
@@ -327,6 +334,14 @@ export default function Navbar() {
               >
                 <Calendar className="w-4 h-4 text-emerald-400" />
                 <span>Broadcast Schedule</span>
+              </Link>
+              <Link
+                href="/library"
+                onClick={closeMenu}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-zinc-200 hover:text-emerald-400 hover:bg-zinc-800/60 transition-colors text-sm font-medium"
+              >
+                <Music2 className="w-4 h-4 text-emerald-400" />
+                <span>Song Library</span>
               </Link>
               <Link
                 href="/top"

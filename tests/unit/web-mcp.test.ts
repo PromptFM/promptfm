@@ -12,6 +12,7 @@ import {
   webMcpSearchVibe,
   webMcpGetNowPlaying,
   webMcpGetUpNext,
+  webMcpGetLibrary,
   webMcpGetTopTracks,
   webMcpGetSchedule,
   webMcpGetDJs,
@@ -908,6 +909,25 @@ describe('Web MCP Client & Command Protocol', () => {
       const body = JSON.parse(call[1].body);
       expect(body.params.name).toBe('promptfm_get_up_next');
       expect(body.params.arguments).toEqual({ channel: 'main', limit: 5 });
+      expect(call[1].headers.Authorization).toBe('Bearer adm');
+    });
+
+    it('webMcpGetLibrary calls promptfm_get_library', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          jsonrpc: '2.0',
+          id: '1',
+          result: { content: [{ type: 'text', text: JSON.stringify({ items: [] }) }] },
+        }),
+      } as unknown as Response);
+
+      await webMcpGetLibrary({ page: 2, pageSize: 25, q: 'synth', tool: 'Suno' }, 'adm');
+      const call = (global.fetch as any).mock.calls[0];
+      const body = JSON.parse(call[1].body);
+      expect(body.params.name).toBe('promptfm_get_library');
+      expect(body.params.arguments).toEqual({ page: 2, pageSize: 25, q: 'synth', tool: 'Suno' });
       expect(call[1].headers.Authorization).toBe('Bearer adm');
     });
 

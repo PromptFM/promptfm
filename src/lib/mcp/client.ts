@@ -515,6 +515,13 @@ export async function webMcpGetUpNext(channel = 'main', limit = 5, adminKey?: st
   return callMcpTool('promptfm_get_up_next', { channel, limit }, { adminKey });
 }
 
+export async function webMcpGetLibrary(
+  params: { page?: number; pageSize?: number; q?: string; tool?: string } = {},
+  adminKey?: string
+) {
+  return callMcpTool('promptfm_get_library', params, { adminKey });
+}
+
 export async function webMcpGetTopTracks(limit = 10, adminKey?: string) {
   return callMcpTool('promptfm_get_top_tracks', { limit }, { adminKey });
 }

@@ -20,6 +20,7 @@ Listeners can directly control the radio stream, inspect the airplay queue, vote
 | `/weather <city>` | Discord & Telegram | Requests a live regional weather forecast in the next batch drop | `/weather Tokyo` |
 | `/zodiac <sign>` | Discord & Telegram | Requests a futuristic AI music astrological reading | `/zodiac Scorpio` |
 | `/report <track_id> <reason>` | Web, Discord & Telegram | Alerts station moderators of a broadcast standards or copyright issue | `/report track-123 Explicit lyrics` |
+| `/library` (Song Library) | Web UI, CLI & MCP | Browse the full approved station catalog with 15s preview, 1-click voting, and direct queueing | Open `/library` on website |
 | `/help` or `/start` | Web, Discord & Telegram | Displays the interactive bot guide, commands list, and airplay schedule | `/help` |
 
 ---
