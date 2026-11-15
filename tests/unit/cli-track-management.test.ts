@@ -4,6 +4,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as trackMgmt from '@/lib/dj/track-management';
 import { formatRequestLifecycleMessage } from '@/lib/song/lifecycle';
+import { buildPublicCatalog } from '@/lib/library/public-catalog';
 
 describe('PromptFM Admin Track CLI Actions', () => {
   beforeEach(() => {
@@ -106,5 +107,17 @@ describe('PromptFM Admin Track CLI Actions', () => {
     expect(output).toContain('⏳ AIRING SOON (UP NEXT)');
     expect(output).toContain('Cyberpunk Drive');
     expect(output).toContain('terminal_user');
+  });
+
+  it('builds approved catalog for terminal CLI tracks list output', () => {
+    const rawTracks = [
+      { id: 't-1', title: 'Cyber Drift', artist_name: 'DJ Vance', tool_used: 'Suno', status: 'approved', upvotes_count: 5 },
+      { id: 't-2', title: 'Pending Track', status: 'pending' },
+    ];
+    const catalog = buildPublicCatalog(rawTracks, { page: 1, pageSize: 20 });
+    expect(catalog.total).toBe(1);
+    expect(catalog.items[0]?.title).toBe('Cyber Drift');
+    expect(catalog.items[0]?.artistName).toBe('DJ Vance');
+    expect(catalog.items[0]?.toolUsed).toBe('Suno');
   });
 });

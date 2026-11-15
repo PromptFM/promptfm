@@ -41,6 +41,10 @@ import { getConfiguredStreamUrl } from '@/lib/audio/stream-config';
 import { getInfraBudgetPolicy } from '@/lib/infra/budget-gate';
 import { canBypassUnconfiguredAdminAuth, hasValidAdminApiKey } from '@/lib/auth/admin-auth';
 import type { ReportReason, ReportTargetType } from '@/types/database';
+import {
+  fetchApprovedCatalogTracks,
+  buildPublicCatalog,
+} from '@/lib/library/public-catalog';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 
@@ -49,6 +53,32 @@ export const dynamic = 'force-dynamic';
 // ── Public MCP Tools ─────────────────────────────────────────────────────────
 
 const PUBLIC_MCP_TOOLS = [
+  {
+    name: 'promptfm_get_library',
+    description:
+      'Fetches the approved AI music track library with pagination, search by title or artist, tool filter, vote count, audio URLs, and 15-second preview.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        page: {
+          type: 'number',
+          description: 'Page number (default: 1)',
+        },
+        pageSize: {
+          type: 'number',
+          description: 'Number of tracks per page (default: 20, max: 50)',
+        },
+        q: {
+          type: 'string',
+          description: 'Search query to filter by title or artist name',
+        },
+        tool: {
+          type: 'string',
+          description: 'Filter tracks by AI tool (e.g. Suno, Udio, Stable Audio)',
+        },
+      },
+    },
+  },
   {
     name: 'promptfm_get_top_tracks',
     description:
@@ -717,6 +747,16 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
 
   // Public tools
   switch (name) {
+    case 'promptfm_get_library': {
+      const tracks = await fetchApprovedCatalogTracks();
+      return buildPublicCatalog(tracks, {
+        page: args.page,
+        pageSize: args.pageSize,
+        q: args.q,
+        tool: args.tool,
+      });
+    }
+
     case 'promptfm_get_top_tracks': {
       const limit = typeof args.limit === 'number' ? Math.min(Math.max(args.limit, 1), 20) : 10;
       const { data, error } = await supabase

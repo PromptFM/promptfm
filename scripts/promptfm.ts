@@ -22,6 +22,7 @@ import { findTracksByVibe, indexTrackEmbedding } from '../src/lib/dj/rag';
 import { queueSong, getSongQueueStatus } from '../src/lib/song/pathway';
 import { getRequestLifecycle, formatRequestLifecycleMessage } from '../src/lib/song/lifecycle';
 import { editTrackMetadata, deleteTrack } from '../src/lib/dj/track-management';
+import { fetchApprovedCatalogTracks, buildPublicCatalog } from '../src/lib/library/public-catalog';
 import {
   registerTelegramWebhook,
   getTelegramWebhookInfo,
@@ -103,6 +104,8 @@ async function main() {
 Tracks & Playlists:
   upload <file>           Upload a local MP3 from your Mac directly to R2 as approved
                           Flags: --title "Name" --artist "Artist" --tool "Suno"
+  library                 Browse the full approved track library with pagination and filters
+                          Flags: --page <n> --page-size <n> --q <term> --tool <name>
 
 Airplay Queue ("Up Next"):
   now                     Show what is currently playing on stream and active DJ
@@ -1129,10 +1132,68 @@ Moderation & Schedule:
       break;
     }
 
+    case 'library': {
+      const page = parseArg('--page') || '1';
+      const pageSize = parseArg('--page-size') || parseArg('--limit') || '20';
+      const q = parseArg('--q') || parseArg('--search') || '';
+      const tool = parseArg('--tool') || '';
+
+      const tracks = await fetchApprovedCatalogTracks();
+      const catalog = buildPublicCatalog(tracks, { page, pageSize, q, tool });
+
+      console.log(`\n📚 PromptFM Approved Music Library (Page ${catalog.page} of ${catalog.totalPages || 1} • Total: ${catalog.total} tracks)`);
+      console.log(`--------------------------------------------------------------------------------`);
+      if (catalog.items.length === 0) {
+        console.log('No approved tracks found matching your filter.');
+      } else {
+        catalog.items.forEach((item, idx) => {
+          const num = (catalog.page - 1) * catalog.pageSize + idx + 1;
+          const artist = item.artistName ? ` by ${item.artistName}` : '';
+          const toolStr = item.toolUsed ? ` [${item.toolUsed}]` : '';
+          const votes = `(${item.upvotesCount} votes)`;
+          console.log(`  ${num.toString().padStart(2, ' ')}. ${item.title}${artist}${toolStr} ${votes} - ID: ${item.id}`);
+        });
+      }
+      console.log(`--------------------------------------------------------------------------------`);
+      if (catalog.hasNext) {
+        console.log(`👉 Next page: npm run promptfm library -- --page ${catalog.page + 1}${q ? ` --q "${q}"` : ''}${tool ? ` --tool "${tool}"` : ''}\n`);
+      }
+      break;
+    }
+
     case 'track':
     case 'tracks': {
       const sub = args[1];
       const targetId = args[2];
+
+      if (sub === 'list' || sub === 'ls') {
+        const page = parseArg('--page') || '1';
+        const pageSize = parseArg('--page-size') || parseArg('--limit') || '20';
+        const q = parseArg('--q') || parseArg('--search') || '';
+        const tool = parseArg('--tool') || '';
+
+        const tracks = await fetchApprovedCatalogTracks();
+        const catalog = buildPublicCatalog(tracks, { page, pageSize, q, tool });
+
+        console.log(`\n📚 PromptFM Approved Music Library (Page ${catalog.page} of ${catalog.totalPages || 1} • Total: ${catalog.total} tracks)`);
+        console.log(`--------------------------------------------------------------------------------`);
+        if (catalog.items.length === 0) {
+          console.log('No approved tracks found matching your filter.');
+        } else {
+          catalog.items.forEach((item, idx) => {
+            const num = (catalog.page - 1) * catalog.pageSize + idx + 1;
+            const artist = item.artistName ? ` by ${item.artistName}` : '';
+            const toolStr = item.toolUsed ? ` [${item.toolUsed}]` : '';
+            const votes = `(${item.upvotesCount} votes)`;
+            console.log(`  ${num.toString().padStart(2, ' ')}. ${item.title}${artist}${toolStr} ${votes} - ID: ${item.id}`);
+          });
+        }
+        console.log(`--------------------------------------------------------------------------------`);
+        if (catalog.hasNext) {
+          console.log(`👉 Next page: npm run promptfm library -- --page ${catalog.page + 1}${q ? ` --q "${q}"` : ''}${tool ? ` --tool "${tool}"` : ''}\n`);
+        }
+        return;
+      }
       if (sub === 'edit') {
         const title = parseArg('--title');
         const artist = parseArg('--artist');
