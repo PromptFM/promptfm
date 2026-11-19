@@ -10,7 +10,7 @@ const firstTrack = {
   upvotesCount: 4,
   coverArtUrl: null,
   category: 'Synthwave & Electro',
-  previewSeconds: 15,
+  previewSeconds: 20,
 };
 
 function catalogItem(index: number) {
@@ -57,7 +57,7 @@ test.describe('Public song library', () => {
             total: 1,
             totalPages: 1,
             hasNext: false,
-            previewSeconds: 15,
+            previewSeconds: 20,
           }),
         });
         return;
@@ -74,7 +74,7 @@ test.describe('Public song library', () => {
             total: 25,
             totalPages: 2,
             hasNext: false,
-            previewSeconds: 15,
+            previewSeconds: 20,
           }),
         });
         return;
@@ -90,7 +90,7 @@ test.describe('Public song library', () => {
           total: 25,
           totalPages: 2,
           hasNext: true,
-          previewSeconds: 15,
+          previewSeconds: 20,
         }),
       });
     });
@@ -118,13 +118,13 @@ test.describe('Public song library', () => {
     await expect(page.getByRole('heading', { name: /song library/i })).toBeVisible();
     await expect(page.getByRole('link', { name: /^Library$/ })).toBeVisible();
     await expect(page.getByRole('textbox', { name: /search the library/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Preview Aurora Drift for 15 seconds/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Preview Aurora Drift for 20 seconds/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /Vote for Aurora Drift/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /Add Aurora Drift to queue/i })).toBeVisible();
     await expect(page.getByText('Hidden B-Side')).toHaveCount(0);
 
-    await page.getByRole('button', { name: /Preview Aurora Drift for 15 seconds/i }).click();
-    await expect(page.getByRole('button', { name: /Preview Aurora Drift for 15 seconds/i })).toHaveAttribute(
+    await page.getByRole('button', { name: /Preview Aurora Drift for 20 seconds/i }).click();
+    await expect(page.getByRole('button', { name: /Preview Aurora Drift for 20 seconds/i })).toHaveAttribute(
       'aria-pressed',
       'true',
     );

@@ -5,7 +5,7 @@
 // Features:
 //   • Server-fetched initial data (hydrated by a parent Server Component wrapper).
 //   • Optimistic UI voting — the count updates instantly in the browser.
-//   • Inline 30-second preview player per track.
+//   • Inline 20-second midsection preview player per track.
 //   • Visual rank badges for positions 1–3.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -23,6 +23,11 @@ import { createClient } from '@/lib/supabase/client';
 import ReportModal from '@/components/ReportModal';
 import NativeSponsorCard from '@/components/NativeSponsorCard';
 import type { RankedTrack, AITool } from '@/types/database';
+import {
+  DEFAULT_PREVIEW_DURATION_SECONDS,
+  createPreviewPlayerSession,
+  type PreviewSession,
+} from '@/lib/audio/preview';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,56 +50,64 @@ const RANK_STYLES: Record<number, string> = {
 
 function usePreviewPlayer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const sessionRef = useRef<PreviewSession | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
-  // Stop after 30 seconds
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const play = useCallback((trackId: string, url: string) => {
     // Stop whatever is currently playing
+    sessionRef.current?.stop();
+    sessionRef.current = null;
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.src = '';
+      audioRef.current = null;
     }
-    if (timerRef.current) clearTimeout(timerRef.current);
 
     if (playingId === trackId) {
       // Toggle off
       setPlayingId(null);
+      setLoadingId(null);
       return;
     }
 
     setLoadingId(trackId);
     const audio = new Audio(url);
-    audio.volume = 0.8;
-
-    audio.addEventListener('playing', () => {
-      setPlayingId(trackId);
-      setLoadingId(null);
-      timerRef.current = setTimeout(() => {
-        audio.pause();
-        setPlayingId(null);
-      }, 30_000);
-    });
-
-    audio.addEventListener('error', () => {
-      setLoadingId(null);
-      setPlayingId(null);
-    });
-
     audioRef.current = audio;
-    audio.play().catch(() => {
-      setLoadingId(null);
-      setPlayingId(null);
+
+    sessionRef.current = createPreviewPlayerSession(audio, {
+      previewDurationSeconds: DEFAULT_PREVIEW_DURATION_SECONDS,
+      onPlaying: () => {
+        setPlayingId(trackId);
+        setLoadingId(null);
+      },
+      onStop: () => {
+        if (audioRef.current === audio) {
+          audioRef.current = null;
+        }
+        setPlayingId((curr) => (curr === trackId ? null : curr));
+        setLoadingId(null);
+      },
+      onError: () => {
+        if (audioRef.current === audio) {
+          audioRef.current = null;
+        }
+        setLoadingId(null);
+        setPlayingId((curr) => (curr === trackId ? null : curr));
+      },
     });
   }, [playingId]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      audioRef.current?.pause();
-      if (timerRef.current) clearTimeout(timerRef.current);
+      sessionRef.current?.stop();
+      sessionRef.current = null;
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+        audioRef.current = null;
+      }
     };
   }, []);
 
@@ -188,7 +201,7 @@ function TrackRow({
       {/* Preview play button */}
       <button
         onClick={() => onPlay(track.id, track.audio_url)}
-        aria-label={isPlaying ? `Pause preview of ${track.title}` : `Play 30s preview of ${track.title}`}
+        aria-label={isPlaying ? `Pause preview of ${track.title}` : `Play 20s preview of ${track.title}`}
         className={[
           'flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center',
           'transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400',

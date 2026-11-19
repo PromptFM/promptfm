@@ -1,12 +1,17 @@
 'use client';
 
 // src/app/library/page.tsx
-// Public Song Library: Listeners can browse the approved catalog, preview tracks for 15 seconds,
+// Public Song Library: Listeners can browse the approved catalog, preview tracks for 20 seconds from the midsection,
 // vote for songs, and enqueue tracks for live broadcast airplay.
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Pause, ChevronUp, Plus, Search, Loader2, Music2 } from 'lucide-react';
 import type { PublicCatalogItem, PublicCatalogResponse } from '@/lib/library/public-catalog';
+import {
+  DEFAULT_PREVIEW_DURATION_SECONDS,
+  createPreviewPlayerSession,
+  type PreviewSession,
+} from '@/lib/audio/preview';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +32,7 @@ export default function PublicLibraryPage() {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewSessionRef = useRef<PreviewSession | null>(null);
 
   const fetchCatalog = useCallback(async (targetPage: number, q: string) => {
     setLoading(true);
@@ -72,17 +78,23 @@ export default function PublicLibraryPage() {
   // Audio preview cleanup
   useEffect(() => {
     return () => {
+      previewSessionRef.current?.stop();
+      previewSessionRef.current = null;
       if (audioRef.current) {
         audioRef.current.pause();
+        audioRef.current = null;
       }
       if (timerRef.current) {
         clearTimeout(timerRef.current);
+        timerRef.current = null;
       }
     };
   }, []);
 
   const handleTogglePreview = (track: PublicCatalogItem) => {
     if (playingId === track.id) {
+      previewSessionRef.current?.stop();
+      previewSessionRef.current = null;
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current = null;
@@ -95,6 +107,8 @@ export default function PublicLibraryPage() {
       return;
     }
 
+    previewSessionRef.current?.stop();
+    previewSessionRef.current = null;
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current = null;
@@ -109,21 +123,25 @@ export default function PublicLibraryPage() {
     try {
       const audio = new Audio(track.audioUrl);
       audioRef.current = audio;
-      audio.volume = 0.8;
-      audio.play().catch(() => {
-        // Ignored in test environments or autoplay restricted contexts
-      });
 
-      const seconds = track.previewSeconds || 15;
-      timerRef.current = setTimeout(() => {
-        if (audioRef.current) {
-          audioRef.current.pause();
-          audioRef.current = null;
-        }
-        setPlayingId(null);
-      }, seconds * 1000);
+      const seconds = track.previewSeconds || DEFAULT_PREVIEW_DURATION_SECONDS;
+      previewSessionRef.current = createPreviewPlayerSession(audio, {
+        previewDurationSeconds: seconds,
+        onStop: () => {
+          if (audioRef.current === audio) {
+            audioRef.current = null;
+          }
+          setPlayingId((curr) => (curr === track.id ? null : curr));
+        },
+        onError: () => {
+          if (audioRef.current === audio) {
+            audioRef.current = null;
+          }
+          setPlayingId((curr) => (curr === track.id ? null : curr));
+        },
+      });
     } catch {
-      // Audio unsupported context
+      setPlayingId(null);
     }
   };
 

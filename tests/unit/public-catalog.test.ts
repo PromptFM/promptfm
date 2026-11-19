@@ -80,9 +80,9 @@ describe('public catalog query parsing', () => {
 });
 
 describe('buildPublicCatalog', () => {
-  it('returns only public fields for approved tracks and a 15 second preview', () => {
+  it('returns only public fields for approved tracks and a 20 second preview', () => {
     const page = buildPublicCatalog([track()], {});
-    expect(page.previewSeconds).toBe(15);
+    expect(page.previewSeconds).toBe(20);
     expect(page.total).toBe(1);
     expect(page.totalPages).toBe(1);
     expect(page.hasNext).toBe(false);
@@ -96,7 +96,7 @@ describe('buildPublicCatalog', () => {
         upvotesCount: 4,
         coverArtUrl: 'https://cdn.example/aurora.jpg',
         category: 'Synthwave & Electro',
-        previewSeconds: 15,
+        previewSeconds: 20,
       },
     ]);
     expect(Object.keys(page.items[0] ?? {}).sort()).toEqual([

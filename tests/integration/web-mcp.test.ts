@@ -67,7 +67,7 @@ describe('Web MCP Client to /api/mcp Route Integration', () => {
     expect(data.items).toBeDefined();
     expect(data.page).toBe(1);
     expect(data.pageSize).toBe(10);
-    expect(data.previewSeconds).toBe(15);
+    expect(data.previewSeconds).toBe(20);
   });
 
   it('calls promptfm_admin_edit_track and promptfm_admin_delete_track through /api/mcp', async () => {
