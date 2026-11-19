@@ -3,10 +3,11 @@
 
 import { createAdminClient } from '../supabase/server';
 import { fetchApprovedTracksDirect, type MinimalPgClient } from '../dj/direct-track-queries';
+import { DEFAULT_PREVIEW_DURATION_SECONDS } from '../audio/preview';
 
 export const DEFAULT_PAGE_SIZE = 20;
 export const MAX_PAGE_SIZE = 50;
-export const PUBLIC_PREVIEW_SECONDS = 15;
+export const PUBLIC_PREVIEW_SECONDS = DEFAULT_PREVIEW_DURATION_SECONDS;
 
 export interface CatalogTrackInput {
   id: string;

@@ -51,6 +51,6 @@ describe('CLI and Library Module Resolution', () => {
     expect(typeof publicCatalog.buildPublicCatalog).toBe('function');
     expect(typeof publicCatalog.fetchApprovedCatalogTracks).toBe('function');
     expect(publicCatalog.DEFAULT_PAGE_SIZE).toBe(20);
-    expect(publicCatalog.PUBLIC_PREVIEW_SECONDS).toBe(15);
+    expect(publicCatalog.PUBLIC_PREVIEW_SECONDS).toBe(20);
   });
 });
