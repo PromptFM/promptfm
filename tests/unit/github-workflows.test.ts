@@ -161,6 +161,20 @@ describe('GitHub Actions Workflows Suite', () => {
       const content = readWorkflow('uptime.yml');
       expect(content).toContain('infra/verify-stream-on-air.sh');
     });
+
+    it('checks out the repository and configures Node runtime before running on-air stream verification', () => {
+      const content = readWorkflow('uptime.yml');
+      expect(content).toContain('actions/checkout');
+      expect(content).toContain('actions/setup-node');
+
+      const checkoutIndex = content.indexOf('actions/checkout');
+      const setupNodeIndex = content.indexOf('actions/setup-node');
+      const verifyScriptIndex = content.indexOf('infra/verify-stream-on-air.sh');
+
+      expect(checkoutIndex).toBeGreaterThanOrEqual(0);
+      expect(setupNodeIndex).toBeGreaterThan(checkoutIndex);
+      expect(verifyScriptIndex).toBeGreaterThan(setupNodeIndex);
+    });
   });
 
   describe('Rollback Workflow (rollback.yml)', () => {
