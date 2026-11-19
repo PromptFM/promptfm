@@ -14,6 +14,14 @@ jobs:
     name: 🩺 Probe PromptFM OCI app readiness and live status
     runs-on: ubuntu-latest
     steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v7
+
+      - name: 🟢 Setup Node.js 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
       - name: 🌐 Ping OCI deploy readiness API
         run: |
           echo "Probing PromptFM OCI health endpoint..."
