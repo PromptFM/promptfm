@@ -24,6 +24,7 @@ export interface ListenerRequestPayload {
   type: RequestType;
   content: string;
   target?: string;
+  lyrics?: string;
 }
 
 export interface SlotAllocationResult {
@@ -130,6 +131,7 @@ export async function scheduleListenerRequest(payload: ListenerRequestPayload): 
       userId: payload.platform_user_id,
       messageId: payload.platform_message_id,
       prompt: payload.content,
+      lyrics: payload.lyrics,
       dedicationTarget: payload.target,
       allowFallbackRequest: true,
     });

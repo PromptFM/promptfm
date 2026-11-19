@@ -73,8 +73,8 @@ export function getActiveClockSegment(minute: number): AirplayClockSegment {
 
 export const LISTENER_COMMANDS: ListenerCommandDef[] = [
   {
-    command: '/song <vibe or title>',
-    desc: 'Queue an AI track matching your vibe into the live stream next',
+    command: '/song <prompt or title>',
+    desc: 'Queue an AI track matching your prompt, title, or lyrics into the live stream next',
     category: 'Airplay',
     example: '/song synthwave cyberpunk sunset',
   },
@@ -142,7 +142,7 @@ export function getBotHelpText(format: 'markdown_v1' | 'telegram' | 'discord' = 
 • \`/nowplaying\` or \`/np\` — View the live song, artist, AI tool, host DJ, and upvote score.
 • \`/queue\` (\`/q\`) or \`/next\` (\`/n\`) — View upcoming songs in rotation and pending listener requests.
 • \`/request <id or query>\` (\`/req\`) — Track the live lifecycle status and queue position of your song request.
-• \`/song <vibe or title>\` or \`/s <vibe>\` — Request an AI track into the live airplay queue! (e.g. \`/s synthwave\`)
+• \`/song <prompt or title>\` or \`/s <prompt>\` — Request an AI track into the live airplay queue! (e.g. \`/s synthwave\` or \`/song Neon Skyline\`, optional \`lyrics\`)
 • \`/vote <track_id>\` — Cast an upvote for any track to boost its weekly chart ranking.
 
 **Community Shoutouts & Interactive Drops:**
@@ -170,7 +170,7 @@ Tune in live: https://promptfm.live`;
 • /nowplaying or /np — View current live track, host DJ, and upvote directly with buttons.
 • /queue (/q) or /next (/n) — View upcoming songs in rotation and pending listener requests.
 • /request <id or query> (/req) — Track the live lifecycle status and queue position of your song request.
-• /song <vibe or title> or /s <prompt> — Queue an approved AI track into live broadcast next!
+• /song <prompt or title> or /s <prompt> — Queue an approved AI track into live broadcast next! (supports optional lyrics)
 • /vote <trackId> — Cast an upvote for any track to boost its chart standing.
 
 *Community Shoutouts & Interactive Drops:*

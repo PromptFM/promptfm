@@ -7,6 +7,13 @@ import { createAdminClient } from '../supabase/server';
 import { evaluateContentSafety } from '../safety/guardrails';
 import { findTracksByVibe } from '../dj/rag';
 import { getNowPlaying, getPendingAirplayItem } from '../dj/rotation';
+import {
+  fetchTrackByTitleOrLyricsDirect,
+  fetchStationStateDirect,
+  countPendingQueueDirect,
+  insertChannelQueueDirect,
+  insertCommunityRequestDirect,
+} from '../dj/direct-track-queries';
 
 export type SongRequestSource = 'discord' | 'telegram' | 'mcp' | 'web_admin' | 'cli' | 'web';
 
@@ -16,6 +23,7 @@ export interface UnifiedSongRequestInput {
   userId?: string;
   messageId?: string;
   prompt?: string;
+  lyrics?: string;
   trackId?: string;
   channelSlug?: string;
   priority?: boolean;
@@ -253,6 +261,25 @@ export async function queueSong(input: UnifiedSongRequestInput): Promise<Unified
           selectedTrack = lexicalMatch;
         }
       } catch {
+        // Fall through to lyrics search
+      }
+    }
+
+    // 2b. Lyrics Match (Issue #97)
+    if (!selectedTrack && input.lyrics) {
+      try {
+        const { data: lyricsMatch } = await supabase
+          .from('tracks')
+          .select('id, title, artist_name, tool_used, audio_url, duration_seconds')
+          .eq('status', 'approved')
+          .ilike('lyrics', `%${input.lyrics.trim()}%`)
+          .limit(1)
+          .maybeSingle();
+
+        if (lyricsMatch) {
+          selectedTrack = lyricsMatch;
+        }
+      } catch {
         // Fall through to top track
       }
     }
@@ -273,6 +300,22 @@ export async function queueSong(input: UnifiedSongRequestInput): Promise<Unified
         }
       } catch {
         // Handled below
+      }
+    }
+
+    // 4. Direct PostgreSQL Failover for Track Resolution (Issue #259)
+    if (!selectedTrack) {
+      try {
+        const directTrack = await fetchTrackByTitleOrLyricsDirect({
+          prompt: queryText,
+          lyrics: input.lyrics,
+          channelSlug,
+        });
+        if (directTrack) {
+          selectedTrack = directTrack;
+        }
+      } catch {
+        // Fall through
       }
     }
   }
@@ -309,9 +352,37 @@ export async function queueSong(input: UnifiedSongRequestInput): Promise<Unified
       if (stateData.staged_item) {
         stagedItem = stateData.staged_item;
       }
+    } else {
+      const directState = await fetchStationStateDirect({ channelSlug });
+      if (directState) {
+        if (directState.started_at) {
+          const startedMs = new Date(directState.started_at).getTime();
+          const elapsedSec = Math.max(0, Math.floor((Date.now() - startedMs) / 1000));
+          const hintSec = (directState.airplay_item as { duration_hint_seconds?: number })?.duration_hint_seconds ?? 210;
+          remainingCurrentTrack = Math.max(30, hintSec - elapsedSec);
+        }
+        if (directState.staged_item) {
+          stagedItem = directState.staged_item;
+        }
+      }
     }
   } catch {
-    // Non-blocking fallback
+    try {
+      const directState = await fetchStationStateDirect({ channelSlug });
+      if (directState) {
+        if (directState.started_at) {
+          const startedMs = new Date(directState.started_at).getTime();
+          const elapsedSec = Math.max(0, Math.floor((Date.now() - startedMs) / 1000));
+          const hintSec = (directState.airplay_item as { duration_hint_seconds?: number })?.duration_hint_seconds ?? 210;
+          remainingCurrentTrack = Math.max(30, hintSec - elapsedSec);
+        }
+        if (directState.staged_item) {
+          stagedItem = directState.staged_item;
+        }
+      }
+    } catch {
+      // Non-blocking fallback
+    }
   }
 
   if (!stagedItem) {
@@ -431,6 +502,17 @@ export async function queueSong(input: UnifiedSongRequestInput): Promise<Unified
     // Non-blocking
   }
 
+  if (pendingCount === 0) {
+    try {
+      const directCount = await countPendingQueueDirect({ channelSlug });
+      if (directCount > 0) {
+        pendingCount = directCount;
+      }
+    } catch {
+      // Non-blocking
+    }
+  }
+
   const existingIndex =
     selectedTrack && !isDedication
       ? queueItems.findIndex((item) => {
@@ -494,8 +576,23 @@ export async function queueSong(input: UnifiedSongRequestInput): Promise<Unified
       priority: isPriority,
     });
 
-    const { data: qData } = await executeInsert(queueBuilder);
-    queueRow = qData;
+    const { data: qData, error: qError } = await executeInsert(queueBuilder);
+    if (!qData || qError) {
+      try {
+        const directQueue = await insertChannelQueueDirect({
+          channelSlug,
+          trackId: selectedTrack.id,
+          promptUsed: queryText || selectedTrack.title,
+          requestedBy: requestedByFormatted,
+          priority: isPriority,
+        });
+        queueRow = directQueue;
+      } catch {
+        // Non-blocking
+      }
+    } else {
+      queueRow = qData;
+    }
   }
 
   // ── G. Log to community_requests for Audit & Admin Sync ────────────────────
@@ -510,9 +607,34 @@ export async function queueSong(input: UnifiedSongRequestInput): Promise<Unified
     batch_id: eta.batchId,
     status: 'scheduled',
     estimated_air_time: eta.estimatedAirDate.toISOString(),
+    lyrics: input.lyrics || null,
   });
 
-  const { data: reqRow, error: reqError } = await executeInsert(reqBuilder);
+  let { data: reqRow, error: reqError } = await executeInsert(reqBuilder);
+
+  if (reqError) {
+    try {
+      const directReq = await insertCommunityRequestDirect({
+        platform: normalizeRequestPlatform(input.source),
+        platformUserId: input.userId || 'station-user',
+        platformUserName: input.requestedBy,
+        platformMessageId: input.messageId || null,
+        type: 'song',
+        content: queryText || (selectedTrack ? selectedTrack.title : 'song request'),
+        target: selectedTrack ? selectedTrack.id : (input.dedicationTarget || null),
+        batchId: eta.batchId,
+        status: 'scheduled',
+        estimatedAirTime: eta.estimatedAirDate.toISOString(),
+        lyrics: input.lyrics || null,
+      });
+      if (directReq) {
+        reqRow = directReq;
+        reqError = null;
+      }
+    } catch {
+      // Keep reqError
+    }
+  }
 
   if (reqError) {
     throw new Error(`Failed to log request: ${reqError.message}`);

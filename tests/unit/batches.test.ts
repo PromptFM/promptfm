@@ -359,6 +359,20 @@ describe('Listener Request Batch Scheduling & Consolidation', () => {
       expect(result.isProvisional).toBe(true);
     });
 
+    it('forwards optional lyrics parameter to song queue pathway (Issue #97)', async () => {
+      const result = await scheduleListenerRequest({
+        platform: 'discord',
+        platform_user_id: 'user-lyric',
+        platform_user_name: 'lyric_listener',
+        type: 'song',
+        content: 'sunset grooves',
+        lyrics: 'golden hour dancing in the twilight',
+      });
+
+      expect(result.isRejected).toBeFalsy();
+      expect(result.confirmationMessage).toContain('queued for live airplay');
+    });
+
     it('falls back to rejected default id when rejectedReq row insert returns null', async () => {
       vi.mocked(evaluateContentSafety).mockResolvedValueOnce({
         safe: false,

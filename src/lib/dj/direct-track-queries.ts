@@ -418,3 +418,461 @@ export async function listAllTracksDirect(
     }
   }
 }
+
+export async function fetchTrackByTitleOrLyricsDirect(query: {
+  prompt?: string | null;
+  lyrics?: string | null;
+  channelSlug?: string | null;
+  client?: MinimalPgClient;
+  databaseUrl?: string;
+}): Promise<DirectDbTrackRow | null> {
+  const prompt = query.prompt?.trim() || null;
+  const lyrics = query.lyrics?.trim() || null;
+
+  let client = query.client;
+  let ownClient = false;
+
+  if (!client) {
+    if (process.env.VITEST && !query.databaseUrl) {
+      return null;
+    }
+    const resolvedUrl =
+      (query.databaseUrl && formatPostgresSessionUrl(query.databaseUrl)) ||
+      getDirectPostgresDatabaseUrl();
+
+    if (!resolvedUrl) {
+      return null;
+    }
+
+    client = await createDefaultPgClient(resolvedUrl);
+    ownClient = true;
+  }
+
+  try {
+    if (prompt && lyrics) {
+      const res = await client.query(
+        `
+          SELECT
+            id::text as id,
+            title,
+            artist_name,
+            audio_url,
+            tool_used,
+            COALESCE(upvotes_count, 0) as upvotes_count,
+            cover_art_url,
+            category,
+            description,
+            lyrics,
+            COALESCE(is_explicit, false) as is_explicit,
+            COALESCE(family_friendly, true) as family_friendly
+          FROM public.tracks
+          WHERE status = 'approved'
+            AND (title ILIKE $1 OR description ILIKE $1 OR lyrics ILIKE $2)
+          ORDER BY upvotes_count DESC
+          LIMIT 1
+        `,
+        [`%${prompt}%`, `%${lyrics}%`]
+      );
+      if (res.rows[0]) return res.rows[0];
+    }
+
+    if (lyrics) {
+      const res = await client.query(
+        `
+          SELECT
+            id::text as id,
+            title,
+            artist_name,
+            audio_url,
+            tool_used,
+            COALESCE(upvotes_count, 0) as upvotes_count,
+            cover_art_url,
+            category,
+            description,
+            lyrics,
+            COALESCE(is_explicit, false) as is_explicit,
+            COALESCE(family_friendly, true) as family_friendly
+          FROM public.tracks
+          WHERE status = 'approved'
+            AND lyrics ILIKE $1
+          ORDER BY upvotes_count DESC
+          LIMIT 1
+        `,
+        [`%${lyrics}%`]
+      );
+      if (res.rows[0]) return res.rows[0];
+    }
+
+    if (prompt) {
+      const res = await client.query(
+        `
+          SELECT
+            id::text as id,
+            title,
+            artist_name,
+            audio_url,
+            tool_used,
+            COALESCE(upvotes_count, 0) as upvotes_count,
+            cover_art_url,
+            category,
+            description,
+            lyrics,
+            COALESCE(is_explicit, false) as is_explicit,
+            COALESCE(family_friendly, true) as family_friendly
+          FROM public.tracks
+          WHERE status = 'approved'
+            AND (title ILIKE $1 OR description ILIKE $1)
+          ORDER BY upvotes_count DESC
+          LIMIT 1
+        `,
+        [`%${prompt}%`]
+      );
+      if (res.rows[0]) return res.rows[0];
+    }
+
+    // Fallback: top approved track
+    const res = await client.query(
+      `
+        SELECT
+          id::text as id,
+          title,
+          artist_name,
+          audio_url,
+          tool_used,
+          COALESCE(upvotes_count, 0) as upvotes_count,
+          cover_art_url,
+          category,
+          description,
+          lyrics,
+          COALESCE(is_explicit, false) as is_explicit,
+          COALESCE(family_friendly, true) as family_friendly
+        FROM public.tracks
+        WHERE status = 'approved'
+        ORDER BY upvotes_count DESC
+        LIMIT 1
+      `
+    );
+
+    return res.rows[0] || null;
+  } finally {
+    if (ownClient && client) {
+      try {
+        await client.end();
+      } catch {
+        // Non-blocking cleanup
+      }
+    }
+  }
+}
+
+export async function fetchStationStateDirect(options: {
+  channelSlug?: string | null;
+  client?: MinimalPgClient;
+  databaseUrl?: string;
+} = {}): Promise<{
+  channel_slug: string;
+  airplay_item: any;
+  staged_item?: any;
+  started_at: string;
+} | null> {
+  const channelSlug = options.channelSlug || 'main';
+
+  let client = options.client;
+  let ownClient = false;
+
+  if (!client) {
+    if (process.env.VITEST && !options.databaseUrl) {
+      return null;
+    }
+    const resolvedUrl =
+      (options.databaseUrl && formatPostgresSessionUrl(options.databaseUrl)) ||
+      getDirectPostgresDatabaseUrl();
+
+    if (!resolvedUrl) {
+      return null;
+    }
+
+    client = await createDefaultPgClient(resolvedUrl);
+    ownClient = true;
+  }
+
+  try {
+    const res = await client.query(
+      `
+        SELECT
+          channel_slug,
+          airplay_item,
+          staged_item,
+          started_at
+        FROM public.station_state
+        WHERE channel_slug = $1
+        LIMIT 1
+      `,
+      [channelSlug]
+    );
+
+    return res.rows[0] || null;
+  } finally {
+    if (ownClient && client) {
+      try {
+        await client.end();
+      } catch {
+        // Non-blocking cleanup
+      }
+    }
+  }
+}
+
+export async function countPendingQueueDirect(options: {
+  channelSlug?: string | null;
+  client?: MinimalPgClient;
+  databaseUrl?: string;
+} = {}): Promise<number> {
+  const channelSlug = options.channelSlug || 'main';
+
+  let client = options.client;
+  let ownClient = false;
+
+  if (!client) {
+    if (process.env.VITEST && !options.databaseUrl) {
+      return 0;
+    }
+    const resolvedUrl =
+      (options.databaseUrl && formatPostgresSessionUrl(options.databaseUrl)) ||
+      getDirectPostgresDatabaseUrl();
+
+    if (!resolvedUrl) {
+      return 0;
+    }
+
+    client = await createDefaultPgClient(resolvedUrl);
+    ownClient = true;
+  }
+
+  try {
+    const res = await client.query(
+      `
+        SELECT count(*)::text as count
+        FROM public.channel_queue q
+        WHERE (q.channel_id IN (SELECT id FROM public.channels WHERE slug = $1) OR q.channel_id = $1)
+          AND q.played_at IS NULL
+      `,
+      [channelSlug]
+    );
+
+    return parseInt(res.rows[0]?.count || '0', 10) || 0;
+  } finally {
+    if (ownClient && client) {
+      try {
+        await client.end();
+      } catch {
+        // Non-blocking cleanup
+      }
+    }
+  }
+}
+
+export async function insertChannelQueueDirect(params: {
+  channelSlug?: string | null;
+  trackId: string;
+  promptUsed: string;
+  requestedBy: string;
+  priority?: boolean;
+  client?: MinimalPgClient;
+  databaseUrl?: string;
+}): Promise<any> {
+  const channelSlug = params.channelSlug || 'main';
+  const priority = Boolean(params.priority);
+
+  let client = params.client;
+  let ownClient = false;
+
+  if (!client) {
+    if (process.env.VITEST && !params.databaseUrl) {
+      throw new Error('Database client or URL must be provided in test environment');
+    }
+    const resolvedUrl =
+      (params.databaseUrl && formatPostgresSessionUrl(params.databaseUrl)) ||
+      getDirectPostgresDatabaseUrl();
+
+    if (!resolvedUrl) {
+      throw new Error('DATABASE_URL is required to perform direct channel_queue insert');
+    }
+
+    client = await createDefaultPgClient(resolvedUrl);
+    ownClient = true;
+  }
+
+  try {
+    const res = await client.query(
+      `
+        INSERT INTO public.channel_queue (
+          channel_id,
+          track_id,
+          prompt_used,
+          requested_by,
+          priority
+        ) VALUES (
+          COALESCE((SELECT id FROM public.channels WHERE slug = $1 LIMIT 1), $1),
+          $2, $3, $4, $5
+        )
+        RETURNING
+          id::text as id,
+          channel_id,
+          track_id,
+          prompt_used,
+          requested_by,
+          priority,
+          created_at
+      `,
+      [channelSlug, params.trackId, params.promptUsed, params.requestedBy, priority]
+    );
+
+    return res.rows[0];
+  } finally {
+    if (ownClient && client) {
+      try {
+        await client.end();
+      } catch {
+        // Non-blocking cleanup
+      }
+    }
+  }
+}
+
+export async function insertCommunityRequestDirect(params: {
+  platform: string;
+  platformUserId: string;
+  platformUserName: string;
+  platformMessageId?: string | null;
+  type: string;
+  content: string;
+  target?: string | null;
+  batchId?: string | null;
+  status: string;
+  estimatedAirTime?: string | null;
+  lyrics?: string | null;
+  client?: MinimalPgClient;
+  databaseUrl?: string;
+}): Promise<any> {
+  let client = params.client;
+  let ownClient = false;
+
+  if (!client) {
+    if (process.env.VITEST && !params.databaseUrl) {
+      throw new Error('Database client or URL must be provided in test environment');
+    }
+    const resolvedUrl =
+      (params.databaseUrl && formatPostgresSessionUrl(params.databaseUrl)) ||
+      getDirectPostgresDatabaseUrl();
+
+    if (!resolvedUrl) {
+      throw new Error('DATABASE_URL is required to perform direct community_requests insert');
+    }
+
+    client = await createDefaultPgClient(resolvedUrl);
+    ownClient = true;
+  }
+
+  try {
+    try {
+      const res = await client.query(
+        `
+          INSERT INTO public.community_requests (
+            platform,
+            platform_user_id,
+            platform_user_name,
+            platform_message_id,
+            type,
+            content,
+            target,
+            batch_id,
+            status,
+            estimated_air_time,
+            lyrics
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          RETURNING
+            id::text as id,
+            platform,
+            platform_user_id,
+            platform_user_name,
+            platform_message_id,
+            type,
+            content,
+            target,
+            batch_id,
+            status,
+            estimated_air_time,
+            lyrics,
+            created_at
+        `,
+        [
+          params.platform,
+          params.platformUserId,
+          params.platformUserName,
+          params.platformMessageId || null,
+          params.type,
+          params.content,
+          params.target || null,
+          params.batchId || null,
+          params.status,
+          params.estimatedAirTime || null,
+          params.lyrics || null,
+        ]
+      );
+      return res.rows[0];
+    } catch {
+      // Fallback if lyrics column does not exist in schema yet
+      const fallbackRes = await client.query(
+        `
+          INSERT INTO public.community_requests (
+            platform,
+            platform_user_id,
+            platform_user_name,
+            platform_message_id,
+            type,
+            content,
+            target,
+            batch_id,
+            status,
+            estimated_air_time
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          RETURNING
+            id::text as id,
+            platform,
+            platform_user_id,
+            platform_user_name,
+            platform_message_id,
+            type,
+            content,
+            target,
+            batch_id,
+            status,
+            estimated_air_time,
+            created_at
+        `,
+        [
+          params.platform,
+          params.platformUserId,
+          params.platformUserName,
+          params.platformMessageId || null,
+          params.type,
+          params.content,
+          params.target || null,
+          params.batchId || null,
+          params.status,
+          params.estimatedAirTime || null,
+        ]
+      );
+      return fallbackRes.rows[0];
+    }
+  } finally {
+    if (ownClient && client) {
+      try {
+        await client.end();
+      } catch {
+        // Non-blocking cleanup
+      }
+    }
+  }
+}

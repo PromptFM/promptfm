@@ -153,7 +153,10 @@ export const DISCORD_SLASH_COMMANDS: DiscordSlashCommand[] = [
   {
     name: 'song',
     description: 'Request an approved AI track into the live queue',
-    options: [{ type: 3, name: 'vibe', description: 'Musical vibe prompt or genre', required: true }],
+    options: [
+      { type: 3, name: 'prompt', description: 'Song title, lyrics, or vibe prompt', required: true },
+      { type: 3, name: 'lyrics', description: 'Optional lyric line to improve track matching', required: false },
+    ],
   },
   {
     name: 'dedicate',
@@ -195,8 +198,11 @@ export const DISCORD_SHORTHAND_COMMANDS: DiscordSlashCommand[] = [
   { name: 'n', description: 'Shorthand: View next tracks in rotation' },
   {
     name: 's',
-    description: 'Shorthand: Request an approved track',
-    options: [{ type: 3, name: 'vibe', description: 'Musical vibe prompt', required: true }],
+    description: 'Shorthand: Request an approved track into the live queue',
+    options: [
+      { type: 3, name: 'prompt', description: 'Song title, lyrics, or vibe prompt', required: true },
+      { type: 3, name: 'lyrics', description: 'Optional lyric line to improve track matching', required: false },
+    ],
   },
   {
     name: 'd',

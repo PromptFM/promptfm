@@ -19,6 +19,7 @@ import { getRequestLifecycle, formatRequestLifecycleMessage } from '@/lib/song/l
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
+  let body: any = {};
   try {
     const rawBody = await req.text();
     const signature = req.headers.get('x-signature-ed25519');
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const body = rawBody ? JSON.parse(rawBody) : {};
+    body = rawBody ? JSON.parse(rawBody) : {};
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://promptfm.live';
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
 
@@ -328,6 +329,7 @@ export async function POST(req: NextRequest) {
       let type: RequestType = 'song';
       let content = text;
       let target = '';
+      let lyrics: string | undefined = undefined;
 
       if (text.startsWith('/dedicate') || text.startsWith('/d ') || text === '/d') {
         type = 'dedication';
@@ -347,32 +349,64 @@ export async function POST(req: NextRequest) {
         content = target;
       } else if (text.startsWith('/song') || text.startsWith('/s ') || text === '/s') {
         type = 'song';
-        content = (text.startsWith('/song') ? text.replace('/song', '') : text.replace('/s', '')).trim();
+        const rawContent = (text.startsWith('/song') ? text.replace('/song', '') : text.replace('/s', '')).trim();
+        if (rawContent.includes('|')) {
+          const [promptPart, lyricsPart] = rawContent.split('|');
+          content = (promptPart || '').trim();
+          lyrics = (lyricsPart || '').replace(/lyrics?:/i, '').trim() || undefined;
+        } else if (/lyrics?:/i.test(rawContent)) {
+          const match = rawContent.split(/lyrics?:/i);
+          content = (match[0] || '').trim();
+          lyrics = (match[1] || '').trim() || undefined;
+        } else {
+          content = rawContent;
+        }
       }
 
-      const slot = await scheduleListenerRequest({
-        platform: 'telegram',
-        platform_user_id: userId,
-        platform_user_name: from,
-        platform_message_id: String(body.message.message_id),
-        type,
-        content,
-        target,
-      });
-
-      if (botToken && chatId) {
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: chatId,
-            reply_to_message_id: body.message.message_id,
-            text: slot.confirmationMessage,
-          }),
+      try {
+        const slot = await scheduleListenerRequest({
+          platform: 'telegram',
+          platform_user_id: userId,
+          platform_user_name: from,
+          platform_message_id: String(body.message.message_id),
+          type,
+          content,
+          target,
+          lyrics,
         });
-      }
 
-      return NextResponse.json({ success: true, slot });
+        if (botToken && chatId) {
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              reply_to_message_id: body.message.message_id,
+              text: slot.confirmationMessage,
+            }),
+          });
+        }
+
+        return NextResponse.json({ success: true, slot });
+      } catch (cmdErr: unknown) {
+        const message = cmdErr instanceof Error ? cmdErr.message : String(cmdErr);
+        if (botToken && chatId) {
+          try {
+            await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                reply_to_message_id: body.message.message_id,
+                text: `⚠️ Could not process request: ${message}`,
+              }),
+            });
+          } catch {
+            // Non-blocking
+          }
+        }
+        return NextResponse.json({ success: false, error: message }, { status: 200 });
+      }
     }
 
     // ── 3. Discord Interactions (Slash Commands & Button Clicks) ─────────────
@@ -538,6 +572,7 @@ export async function POST(req: NextRequest) {
       let type: RequestType = 'song';
       let content = '';
       let target = '';
+      let lyrics: string | undefined = undefined;
 
       if (commandName === 'dedicate' || commandName === 'd') {
         type = 'dedication';
@@ -553,25 +588,41 @@ export async function POST(req: NextRequest) {
         content = target;
       } else {
         type = 'song';
-        content = options[0]?.value || 'synthwave';
+        content =
+          options.find((o: { name: string }) => ['prompt', 'query', 'vibe'].includes(o.name))?.value ||
+          options[0]?.value ||
+          'synthwave';
+        lyrics = options.find((o: { name: string }) => ['lyrics', 'lyric'].includes(o.name))?.value;
       }
 
-      const slot = await scheduleListenerRequest({
-        platform: 'discord',
-        platform_user_id: userId,
-        platform_user_name: user,
-        platform_message_id: body.id,
-        type,
-        content,
-        target,
-      });
+      try {
+        const slot = await scheduleListenerRequest({
+          platform: 'discord',
+          platform_user_id: userId,
+          platform_user_name: user,
+          platform_message_id: body.id,
+          type,
+          content,
+          target,
+          lyrics,
+        });
 
-      return NextResponse.json({
-        type: 4,
-        data: {
-          content: slot.confirmationMessage,
-        },
-      });
+        return NextResponse.json({
+          type: 4,
+          data: {
+            content: slot.confirmationMessage,
+          },
+        });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        return NextResponse.json({
+          type: 4,
+          data: {
+            flags: 64,
+            content: `⚠️ Could not process request: ${message}`,
+          },
+        });
+      }
     }
 
     // ── 4. Direct JSON API Request ───────────────────────────────────────────
@@ -583,6 +634,7 @@ export async function POST(req: NextRequest) {
         type: body.type,
         content: body.content,
         target: body.target,
+        lyrics: body.lyrics,
       });
 
       return NextResponse.json({ success: true, slot });
@@ -592,6 +644,21 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('Error handling bot webhook:', message);
+
+    if (body?.type === 2 || body?.type === 3) {
+      return NextResponse.json({
+        type: 4,
+        data: {
+          flags: 64,
+          content: `⚠️ Could not process request: ${message}`,
+        },
+      });
+    }
+
+    if (body?.message) {
+      return NextResponse.json({ success: false, error: message }, { status: 200 });
+    }
+
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

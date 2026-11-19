@@ -694,5 +694,116 @@ describe('Discord & Telegram Interactive Bot Commands Integration', () => {
       const hRes = await POST(hReq);
       expect((await hRes.json()).data.content).toContain('/song');
     });
+
+    it('handles Discord /song with prompt option and optional lyrics (Issues #71 & #97)', async () => {
+      const { scheduleListenerRequest } = await import('@/lib/dj/batches');
+      const req = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 2,
+          data: {
+            name: 'song',
+            options: [
+              { name: 'prompt', value: 'Midnight City' },
+              { name: 'lyrics', value: 'the city is my church' },
+            ],
+          },
+          member: { user: { id: 'disc_user_2', username: 'm83_fan' } },
+        }),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.type).toBe(4);
+      expect(json.data.content).toContain('Accepted for song');
+      expect(scheduleListenerRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'song',
+          content: 'Midnight City',
+          lyrics: 'the city is my church',
+        })
+      );
+    });
+
+    it('handles Telegram /song with optional lyric excerpt via pipe or keyword (Issue #97)', async () => {
+      const { scheduleListenerRequest } = await import('@/lib/dj/batches');
+      const req = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: {
+            message_id: 301,
+            from: { id: 888, username: 'telegram_listener' },
+            chat: { id: 999 },
+            text: '/song Neon Skyline | lyrics: electric night under skies',
+          },
+        }),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      expect(scheduleListenerRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'song',
+          content: 'Neon Skyline',
+          lyrics: 'electric night under skies',
+        })
+      );
+    });
+
+    it('handles Discord interaction error gracefully with HTTP 200 ephemeral response, preventing "application didn\'t respond in time"', async () => {
+      const { scheduleListenerRequest } = await import('@/lib/dj/batches');
+      vi.mocked(scheduleListenerRequest).mockRejectedValueOnce(
+        new Error('Service for this project is restricted due to exceed_cached_egress_quota')
+      );
+
+      const req = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 2,
+          data: {
+            name: 'song',
+            options: [{ name: 'prompt', value: 'synthwave' }],
+          },
+          member: { user: { id: 'disc_user_fail', username: 'test_listener' } },
+        }),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.type).toBe(4);
+      expect(json.data.flags).toBe(64); // Ephemeral
+      expect(json.data.content).toContain('Could not process request');
+    });
+
+    it('handles Telegram request error gracefully returning friendly message instead of HTTP 500', async () => {
+      const { scheduleListenerRequest } = await import('@/lib/dj/batches');
+      vi.mocked(scheduleListenerRequest).mockRejectedValueOnce(
+        new Error('Service for this project is restricted due to exceed_cached_egress_quota')
+      );
+
+      const req = new NextRequest('http://localhost:3000/api/bot/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: {
+            message_id: 302,
+            from: { id: 889, username: 'telegram_listener' },
+            chat: { id: 999 },
+            text: '/song synthwave',
+          },
+        }),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.success).toBe(false);
+      expect(json.error).toBeDefined();
+    });
   });
 });

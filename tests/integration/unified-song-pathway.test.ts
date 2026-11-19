@@ -350,4 +350,32 @@ describe('Unified Song Pathway Integration (Cross-Entrypoint Testing)', () => {
     expect(delJson.success).toBe(true);
     expect(delJson.removed_id).toBe(queueId);
   });
+
+  it('Path 5 (MCP + Lyrics): queues a song via MCP passing optional lyrics parameter (Issue #97)', async () => {
+    const req = new NextRequest('http://localhost:3000/api/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'req-mcp-lyrics-1',
+        method: 'tools/call',
+        params: {
+          name: 'promptfm_queue_song_request',
+          arguments: {
+            prompt: 'ambient music',
+            lyrics: 'drops falling down my window',
+            requested_by: 'MCP Lyricist',
+            channel: 'main',
+          },
+        },
+      }),
+    });
+
+    const res = await mcpPOST(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    const data = JSON.parse(json.result.content[0].text);
+    expect(data.success).toBe(true);
+    expect(mockRequests[mockRequests.length - 1].lyrics).toBe('drops falling down my window');
+  });
 });

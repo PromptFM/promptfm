@@ -72,7 +72,8 @@ describe('Listener Commands Directory & Bot Help Formatter', () => {
     expect(songCmd).toBeDefined();
     expect(songCmd?.category).toBe('Airplay');
     expect(songCmd?.example).toBe('/song synthwave cyberpunk sunset');
-    expect(songCmd?.desc).toBe('Queue an AI track matching your vibe into the live stream next');
+    expect(songCmd?.command).toBe('/song <prompt or title>');
+    expect(songCmd?.desc).toContain('prompt, title, or lyrics');
 
     const queueCmd = LISTENER_COMMANDS.find((c) => c.command === '/queue');
     expect(queueCmd).toBeDefined();
@@ -132,7 +133,7 @@ describe('Listener Commands Directory & Bot Help Formatter', () => {
     const text = getBotHelpText('discord');
     expect(text).toContain('PromptFM Interactive Bot & Broadcast Guide');
     expect(text).toContain('`/nowplaying`');
-    expect(text).toContain('`/song <vibe or title>`');
+    expect(text).toContain('`/song <prompt or title>`');
     expect(text).toContain('`/request <id or query>`');
     expect(text).toContain('`:45 - :00`');
     expect(text).toContain('https://promptfm.live');
@@ -143,7 +144,7 @@ describe('Listener Commands Directory & Bot Help Formatter', () => {
     expect(text).toContain('*PromptFM Interactive Bot & Broadcast Guide*');
     expect(text).toContain('/request <id or query>');
     expect(text).toContain('/nowplaying');
-    expect(text).toContain('/song <vibe or title>');
+    expect(text).toContain('/song <prompt or title>');
     expect(text).toContain(':45 - :00');
     expect(text).toContain('https://promptfm.live');
   });

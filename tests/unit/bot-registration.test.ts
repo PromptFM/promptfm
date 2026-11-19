@@ -15,6 +15,8 @@ import {
   TELEGRAM_BOT_COMMANDS,
   TELEGRAM_BOT_SHORTHAND_COMMANDS,
   ALL_TELEGRAM_COMMANDS,
+  DISCORD_SLASH_COMMANDS,
+  DISCORD_SHORTHAND_COMMANDS,
 } from '@/lib/community/bot-registration';
 
 describe('Bot Registration & Webhook Management Service', () => {
@@ -228,6 +230,46 @@ describe('Bot Registration & Webhook Management Service', () => {
           }),
         })
       );
+    });
+
+    it('names song slash command option prompt instead of vibe and includes optional lyrics (Issues #71 & #97)', () => {
+      const songCmd = DISCORD_SLASH_COMMANDS.find((c) => c.name === 'song');
+      expect(songCmd).toBeDefined();
+      expect(songCmd?.options).toBeDefined();
+
+      const promptOpt = songCmd?.options?.find((o) => o.name === 'prompt');
+      expect(promptOpt).toBeDefined();
+      expect(promptOpt?.required).toBe(true);
+      expect(promptOpt?.description.toLowerCase()).toContain('title');
+      expect(promptOpt?.description.toLowerCase()).not.toBe('musical vibe prompt or genre');
+
+      // Does not contain vibe-only option
+      const vibeOpt = songCmd?.options?.find((o) => o.name === 'vibe');
+      expect(vibeOpt).toBeUndefined();
+
+      // Includes optional lyrics option (Issue #97)
+      const lyricsOpt = songCmd?.options?.find((o) => o.name === 'lyrics');
+      expect(lyricsOpt).toBeDefined();
+      expect(lyricsOpt?.required).toBe(false);
+      expect(lyricsOpt?.description.toLowerCase()).toContain('lyric');
+    });
+
+    it('names shorthand s command option prompt instead of vibe and includes optional lyrics (Issues #71 & #97)', () => {
+      const sCmd = DISCORD_SHORTHAND_COMMANDS.find((c) => c.name === 's');
+      expect(sCmd).toBeDefined();
+      expect(sCmd?.options).toBeDefined();
+
+      const promptOpt = sCmd?.options?.find((o) => o.name === 'prompt');
+      expect(promptOpt).toBeDefined();
+      expect(promptOpt?.required).toBe(true);
+      expect(promptOpt?.description.toLowerCase()).toContain('title');
+
+      const vibeOpt = sCmd?.options?.find((o) => o.name === 'vibe');
+      expect(vibeOpt).toBeUndefined();
+
+      const lyricsOpt = sCmd?.options?.find((o) => o.name === 'lyrics');
+      expect(lyricsOpt).toBeDefined();
+      expect(lyricsOpt?.required).toBe(false);
     });
   });
 

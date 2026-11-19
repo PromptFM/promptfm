@@ -21,12 +21,56 @@ let mockNowPlaying: any = null;
 let mockRagShouldThrow = false;
 let mockNowPlayingShouldThrow = false;
 let mockCommunityRequestsShouldError = false;
+let mockPostgrestExceededQuota = false;
 let mockStationState: any = null;
+
+export const mockDirectQueries = {
+  fetchTrackByTitleOrLyricsDirect: vi.fn(),
+  fetchStationStateDirect: vi.fn(),
+  countPendingQueueDirect: vi.fn(),
+  insertChannelQueueDirect: vi.fn(),
+  insertCommunityRequestDirect: vi.fn(),
+};
+
+vi.mock('@/lib/dj/direct-track-queries', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/dj/direct-track-queries')>();
+  return {
+    ...actual,
+    fetchTrackByTitleOrLyricsDirect: (...args: any[]) => mockDirectQueries.fetchTrackByTitleOrLyricsDirect(...args),
+    fetchStationStateDirect: (...args: any[]) => mockDirectQueries.fetchStationStateDirect(...args),
+    countPendingQueueDirect: (...args: any[]) => mockDirectQueries.countPendingQueueDirect(...args),
+    insertChannelQueueDirect: (...args: any[]) => mockDirectQueries.insertChannelQueueDirect(...args),
+    insertCommunityRequestDirect: (...args: any[]) => mockDirectQueries.insertCommunityRequestDirect(...args),
+  };
+});
 
 // Mock dependencies
 vi.mock('@/lib/supabase/server', () => ({
   createAdminClient: () => ({
     from: (table: string) => {
+      if (mockPostgrestExceededQuota) {
+        const errorResult = {
+          data: null,
+          error: {
+            message: 'Service for this project is restricted due to the following violations: exceed_cached_egress_quota.',
+            code: '402',
+          },
+        };
+        const failingBuilder: any = {
+          insert: () => failingBuilder,
+          select: () => failingBuilder,
+          eq: () => failingBuilder,
+          ilike: () => failingBuilder,
+          is: () => failingBuilder,
+          order: () => failingBuilder,
+          limit: () => failingBuilder,
+          single: async () => errorResult,
+          maybeSingle: async () => errorResult,
+          then: (resolve: any) => resolve(errorResult),
+        };
+        return failingBuilder;
+      }
+
       if (table === 'channel_queue') {
         return {
           insert: (data: any) => {
@@ -246,7 +290,13 @@ describe('Unified Song Pathway (Issue #43)', () => {
     mockRagShouldThrow = false;
     mockNowPlayingShouldThrow = false;
     mockCommunityRequestsShouldError = false;
+    mockPostgrestExceededQuota = false;
     mockStationState = null;
+    mockDirectQueries.fetchTrackByTitleOrLyricsDirect.mockReset();
+    mockDirectQueries.fetchStationStateDirect.mockReset();
+    mockDirectQueries.countPendingQueueDirect.mockReset();
+    mockDirectQueries.insertChannelQueueDirect.mockReset();
+    mockDirectQueries.insertCommunityRequestDirect.mockReset();
     mockTracks = [
       {
         id: 'track-synth',
@@ -255,6 +305,7 @@ describe('Unified Song Pathway (Issue #43)', () => {
         status: 'approved',
         upvotes_count: 50,
         duration_seconds: 180,
+        lyrics: 'Cruising through the electric night under neon skies',
       },
       {
         id: 'track-ambient',
@@ -263,6 +314,7 @@ describe('Unified Song Pathway (Issue #43)', () => {
         status: 'approved',
         upvotes_count: 20,
         duration_seconds: 210,
+        lyrics: 'Floating through silent cosmic dust',
       },
     ];
     mockNowPlaying = {
@@ -1133,6 +1185,113 @@ describe('Unified Song Pathway (Issue #43)', () => {
       });
       expect(result.status).toBe('queued');
       expect(mockChannelQueue[0].requested_by).toBe('@user (Dedicated to @FriendName)');
+    });
+
+    it('resolves track by lyrics when optional lyrics parameter is provided (Issue #97)', async () => {
+      const result = await queueSong({
+        source: 'discord',
+        requestedBy: 'alex.trifan',
+        prompt: 'chill song',
+        lyrics: 'floating through silent cosmic dust',
+      });
+
+      expect(result.status).toBe('queued');
+      expect(result.track?.id).toBe('track-ambient');
+      expect(result.track?.title).toBe('Solar Echoes');
+      expect(mockCommunityRequests[0].lyrics).toBe('floating through silent cosmic dust');
+    });
+
+    it('fails over to direct PostgreSQL pooler when Supabase PostgREST returns 402 exceed_cached_egress_quota (Issue #259)', async () => {
+      mockPostgrestExceededQuota = true;
+
+      mockDirectQueries.fetchTrackByTitleOrLyricsDirect.mockResolvedValue({
+        id: 'track-direct-1',
+        title: 'Direct Pooler Track',
+        artist_name: 'Postgres DJ',
+        audio_url: 'https://r2.dev/direct.mp3',
+        duration_seconds: 200,
+        upvotes_count: 30,
+      });
+      mockDirectQueries.fetchStationStateDirect.mockResolvedValue({
+        channel_slug: 'main',
+        airplay_item: { id: 'live-1', duration_hint_seconds: 180 },
+        started_at: new Date().toISOString(),
+      });
+      mockDirectQueries.countPendingQueueDirect.mockResolvedValue(1);
+      mockDirectQueries.insertChannelQueueDirect.mockResolvedValue({
+        id: 'queue-direct-success',
+        channel_id: 'channel-main',
+        track_id: 'track-direct-1',
+      });
+      mockDirectQueries.insertCommunityRequestDirect.mockResolvedValue({
+        id: 'req-direct-success',
+        platform: 'discord',
+        status: 'scheduled',
+      });
+
+      const result = await queueSong({
+        source: 'discord',
+        requestedBy: 'alex.trifan',
+        prompt: 'Direct Pooler Track',
+        lyrics: 'floating through silent direct pooler',
+      });
+
+      expect(result.status).toBe('queued');
+      expect(result.track?.id).toBe('track-direct-1');
+      expect(result.requestId).toBe('req-direct-success');
+      expect(mockDirectQueries.fetchTrackByTitleOrLyricsDirect).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt: 'Direct Pooler Track',
+          lyrics: 'floating through silent direct pooler',
+        })
+      );
+      expect(mockDirectQueries.insertChannelQueueDirect).toHaveBeenCalled();
+      expect(mockDirectQueries.insertCommunityRequestDirect).toHaveBeenCalledWith(
+        expect.objectContaining({
+          platform: 'discord',
+          platformUserName: 'alex.trifan',
+          lyrics: 'floating through silent direct pooler',
+          status: 'scheduled',
+        })
+      );
+    });
+
+    it('fails over community_requests logging to direct postgres when Supabase insert fails and recovers cleanly', async () => {
+      // Normal track resolution and channel_queue insert, but community_requests insert error
+      mockCommunityRequestsShouldError = true;
+      mockDirectQueries.insertCommunityRequestDirect.mockResolvedValueOnce({
+        id: 'req-recovered-direct',
+        platform: 'discord',
+        status: 'scheduled',
+      });
+
+      const result = await queueSong({
+        source: 'discord',
+        requestedBy: '@testuser',
+        trackId: 'track-synth',
+      });
+
+      expect(result.status).toBe('queued');
+      expect(result.requestId).toBe('req-recovered-direct');
+      expect(mockDirectQueries.insertCommunityRequestDirect).toHaveBeenCalledWith(
+        expect.objectContaining({
+          lyrics: null,
+          platformUserName: '@testuser',
+        })
+      );
+    });
+
+    it('throws error when both Supabase and direct postgres fail to log community request', async () => {
+      mockCommunityRequestsShouldError = true;
+      mockDirectQueries.insertCommunityRequestDirect.mockRejectedValueOnce(new Error('Direct DB unreachable'));
+
+      await expect(
+        queueSong({
+          source: 'discord',
+          requestedBy: '@testuser',
+          trackId: 'track-synth',
+        })
+      ).rejects.toThrow('Failed to log request: Mock DB constraint violation');
     });
 
     it('schedules fallback request when allowFallbackRequest is true and no track matches', async () => {
