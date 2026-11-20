@@ -84,6 +84,10 @@ describe('WCAG 2.1 AA Contrast Engine (Issues #234 - #239)', () => {
         { label: 'rose', text: THEME_TOKENS.light.badges.rose.text, bg: THEME_TOKENS.light.badges.rose.bg },
         { label: 'red', text: THEME_TOKENS.light.badges.red.text, bg: THEME_TOKENS.light.badges.red.bg },
         { label: 'teal', text: THEME_TOKENS.light.badges.teal.text, bg: THEME_TOKENS.light.badges.teal.bg },
+        { label: 'sky', text: (THEME_TOKENS.light.badges as any).sky.text, bg: (THEME_TOKENS.light.badges as any).sky.bg },
+        { label: 'indigo', text: (THEME_TOKENS.light.badges as any).indigo.text, bg: (THEME_TOKENS.light.badges as any).indigo.bg },
+        { label: 'violet', text: (THEME_TOKENS.light.badges as any).violet.text, bg: (THEME_TOKENS.light.badges as any).violet.bg },
+        { label: 'zinc', text: (THEME_TOKENS.light.badges as any).zinc.text, bg: (THEME_TOKENS.light.badges as any).zinc.bg },
       ];
 
       for (const badge of badgePairs) {
@@ -91,6 +95,29 @@ describe('WCAG 2.1 AA Contrast Engine (Issues #234 - #239)', () => {
         expect(ratio).toBeGreaterThanOrEqual(4.5);
         expect(meetsWcagAA(badge.text, badge.bg)).toBe(true);
       }
+    });
+
+    it('Issue #271: Community card titles, descriptions, and pill badges meet WCAG AA on light card backgrounds', () => {
+      const community = (THEME_TOKENS.light as any).communityCard;
+      expect(community).toBeDefined();
+
+      // Discord card
+      expect(calculateContrastRatio(community.discord.title, community.discord.bg)).toBeGreaterThanOrEqual(4.5);
+      expect(calculateContrastRatio(community.discord.description, community.discord.bg)).toBeGreaterThanOrEqual(4.5);
+      expect(calculateContrastRatio(community.discord.badgeText, community.discord.badgeBg)).toBeGreaterThanOrEqual(4.5);
+
+      // Telegram card
+      expect(calculateContrastRatio(community.telegram.title, community.telegram.bg)).toBeGreaterThanOrEqual(4.5);
+      expect(calculateContrastRatio(community.telegram.description, community.telegram.bg)).toBeGreaterThanOrEqual(4.5);
+      expect(calculateContrastRatio(community.telegram.badgeText, community.telegram.badgeBg)).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('Issue #271: Prose typography and code snippets meet WCAG AA in light mode', () => {
+      const prose = (THEME_TOKENS.light as any).prose;
+      expect(prose).toBeDefined();
+      expect(calculateContrastRatio(prose.body, lightBg)).toBeGreaterThanOrEqual(4.5);
+      expect(calculateContrastRatio(prose.heading, lightBg)).toBeGreaterThanOrEqual(4.5);
+      expect(calculateContrastRatio(prose.codeText, prose.codeBg)).toBeGreaterThanOrEqual(4.5);
     });
   });
 

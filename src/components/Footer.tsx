@@ -10,6 +10,7 @@ import { Shield, Flag, Scale, Radio, MessageSquare, Terminal, Cookie, Send, Hear
 import AgreementsModal from '@/components/AgreementsModal';
 import ReportModal from '@/components/ReportModal';
 import { getCommunityLinks } from '@/lib/community/links';
+import { triggerCookiePreferencesOrCmp } from '@/lib/ads/cmp';
 
 export default function Footer() {
   const [agreementsOpen, setAgreementsOpen] = useState(false);
@@ -111,11 +112,7 @@ export default function Footer() {
             </Link>
             <button
               type="button"
-              onClick={() => {
-                if (typeof window !== 'undefined') {
-                  window.dispatchEvent(new CustomEvent('promptfm-open-cookie-preferences'));
-                }
-              }}
+              onClick={() => triggerCookiePreferencesOrCmp()}
               className="hover:text-emerald-400 transition-colors flex items-center gap-1"
             >
               <Cookie className="w-3.5 h-3.5" />

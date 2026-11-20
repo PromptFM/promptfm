@@ -32,7 +32,7 @@ export default function CommunitySection() {
   };
 
   return (
-    <section className="w-full max-w-4xl mx-auto px-4 py-8">
+    <section id="community" className="w-full max-w-4xl mx-auto px-4 py-8">
       <div className="text-center mb-6">
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-xs text-emerald-400 font-medium mb-2">
           <Users className="w-3.5 h-3.5" />

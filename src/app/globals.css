@@ -142,9 +142,13 @@ html[data-theme='light'] .bg-zinc-800\/40 {
   background-color: #e4e4e7;
 }
 
+html[data-theme='light'] .border-zinc-900,
 html[data-theme='light'] .border-zinc-800,
 html[data-theme='light'] .border-zinc-800\/80,
-html[data-theme='light'] .border-zinc-700 {
+html[data-theme='light'] .border-zinc-700,
+html[data-theme='light'] .border-zinc-700\/80,
+html[data-theme='light'] .border-zinc-700\/60,
+html[data-theme='light'] .border-zinc-700\/40 {
   border-color: #d4d4d8;
 }
 
@@ -237,12 +241,52 @@ html[data-theme='light'] .from-red-950\/30 {
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
 }
 
-/* Section container borders in light mode */
-html[data-theme='light'] #funding > div > div,
-html[data-theme='light'] #contribute > div > div,
+/* Section container borders in light mode (Issues #234, #271) */
+html[data-theme='light'] #funding > div,
+html[data-theme='light'] #contribute > div,
+html[data-theme='light'] #community > div,
 html[data-theme='light'] #schedule > div {
   background-image: linear-gradient(to bottom right, #ffffff, #f4f4f5, #fafafa);
   border-color: #e4e4e7;
+}
+
+/* Suppress heavy ambient blurred neon glow backdrops in light mode that bleach text (Issue #271) */
+html[data-theme='light'] #funding [class*='blur-3xl'],
+html[data-theme='light'] #contribute [class*='blur-3xl'] {
+  display: none;
+}
+
+/* ── Issue #271: Community Section cards in light mode ────────────────────── */
+html[data-theme='light'] #community .from-indigo-950\/30 {
+  --tw-gradient-from: #f5f3ff var(--tw-gradient-from-position);
+  --tw-gradient-to: rgb(245 243 255 / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+
+html[data-theme='light'] #community .from-sky-950\/30 {
+  --tw-gradient-from: #f0f9ff var(--tw-gradient-from-position);
+  --tw-gradient-to: rgb(240 249 255 / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+
+html[data-theme='light'] #community .to-zinc-900\/60 {
+  --tw-gradient-to: #fafafa var(--tw-gradient-to-position);
+}
+
+html[data-theme='light'] #community .border-indigo-500\/20 {
+  border-color: #e0e7ff;
+}
+
+html[data-theme='light'] #community .border-sky-500\/20 {
+  border-color: #bae6fd;
+}
+
+html[data-theme='light'] #community .bg-indigo-600\/20 {
+  background-color: #e0e7ff;
+}
+
+html[data-theme='light'] #community .bg-sky-600\/20 {
+  background-color: #e0f2fe;
 }
 
 /* ── Typography & Text contrast ──────────────────────────────────────────── */
@@ -373,50 +417,85 @@ html[data-theme='light'] [class*='text-indigo-400'] {
   color: #4338ca;
 }
 
-/* Badge background tints in light mode */
+/* Badge background tints in light mode (Issues #239, #271) */
+html[data-theme='light'] .bg-emerald-950\/80,
+html[data-theme='light'] .bg-emerald-950\/70,
 html[data-theme='light'] .bg-emerald-950\/60,
+html[data-theme='light'] .bg-emerald-950\/50,
 html[data-theme='light'] .bg-emerald-950\/40,
 html[data-theme='light'] .bg-emerald-950\/30,
+html[data-theme='light'] .bg-emerald-950\/20,
 html[data-theme='light'] .bg-emerald-950 {
   background-color: #ecfdf5;
 }
 
+html[data-theme='light'] .bg-purple-950\/80,
 html[data-theme='light'] .bg-purple-950\/70,
+html[data-theme='light'] .bg-purple-950\/60,
+html[data-theme='light'] .bg-purple-950\/50,
 html[data-theme='light'] .bg-purple-950\/40,
 html[data-theme='light'] .bg-purple-950 {
   background-color: #f5f3ff;
 }
 
+html[data-theme='light'] .bg-amber-950\/80,
+html[data-theme='light'] .bg-amber-950\/70,
 html[data-theme='light'] .bg-amber-950\/60,
+html[data-theme='light'] .bg-amber-950\/50,
 html[data-theme='light'] .bg-amber-950\/40,
 html[data-theme='light'] .bg-amber-950 {
   background-color: #fffbeb;
 }
 
+html[data-theme='light'] .bg-blue-950\/80,
+html[data-theme='light'] .bg-blue-950\/70,
 html[data-theme='light'] .bg-blue-950\/60,
+html[data-theme='light'] .bg-blue-950\/50,
 html[data-theme='light'] .bg-blue-950\/40,
 html[data-theme='light'] .bg-blue-950 {
   background-color: #eff6ff;
 }
 
+html[data-theme='light'] .bg-sky-950\/80,
+html[data-theme='light'] .bg-sky-950\/70,
+html[data-theme='light'] .bg-sky-950\/60,
+html[data-theme='light'] .bg-sky-950\/50,
+html[data-theme='light'] .bg-sky-950\/40,
+html[data-theme='light'] .bg-sky-950\/30,
+html[data-theme='light'] .bg-sky-950 {
+  background-color: #f0f9ff;
+}
+
+html[data-theme='light'] .bg-rose-950\/80,
+html[data-theme='light'] .bg-rose-950\/70,
 html[data-theme='light'] .bg-rose-950\/60,
+html[data-theme='light'] .bg-rose-950\/50,
 html[data-theme='light'] .bg-rose-950\/40,
 html[data-theme='light'] .bg-rose-950 {
   background-color: #fff1f2;
 }
 
+html[data-theme='light'] .bg-red-950\/80,
+html[data-theme='light'] .bg-red-950\/70,
 html[data-theme='light'] .bg-red-950\/60,
+html[data-theme='light'] .bg-red-950\/50,
 html[data-theme='light'] .bg-red-950\/40,
 html[data-theme='light'] .bg-red-950\/30,
 html[data-theme='light'] .bg-red-950 {
   background-color: #fef2f2;
 }
 
+html[data-theme='light'] .bg-teal-950\/80,
+html[data-theme='light'] .bg-teal-950\/60,
+html[data-theme='light'] .bg-teal-950\/50,
 html[data-theme='light'] .bg-teal-950\/40,
 html[data-theme='light'] .bg-teal-950 {
   background-color: #f0fdfa;
 }
 
+html[data-theme='light'] .bg-indigo-950\/80,
+html[data-theme='light'] .bg-indigo-950\/60,
+html[data-theme='light'] .bg-indigo-950\/50,
 html[data-theme='light'] .bg-indigo-950\/40,
 html[data-theme='light'] .bg-indigo-950 {
   background-color: #eef2ff;
@@ -431,14 +510,20 @@ html[data-theme='light'] .bg-emerald-500\/10 {
 
 html[data-theme='light'] .bg-purple-500\/20,
 html[data-theme='light'] .bg-purple-500\/15,
-html[data-theme='light'] .bg-purple-500\/10 {
+html[data-theme='light'] .bg-purple-500\/10,
+html[data-theme='light'] .bg-violet-500\/30,
+html[data-theme='light'] .bg-violet-500\/20,
+html[data-theme='light'] .bg-violet-500\/15,
+html[data-theme='light'] .bg-violet-500\/10 {
   background-color: #f5f3ff;
   border-color: #ddd6fe;
 }
 
 html[data-theme='light'] .bg-amber-500\/20,
 html[data-theme='light'] .bg-amber-500\/15,
-html[data-theme='light'] .bg-amber-500\/10 {
+html[data-theme='light'] .bg-amber-500\/10,
+html[data-theme='light'] .bg-amber-400\/10,
+html[data-theme='light'] .bg-amber-600\/10 {
   background-color: #fffbeb;
   border-color: #fde68a;
 }
@@ -448,6 +533,13 @@ html[data-theme='light'] .bg-blue-500\/15,
 html[data-theme='light'] .bg-blue-500\/10 {
   background-color: #eff6ff;
   border-color: #bfdbfe;
+}
+
+html[data-theme='light'] .bg-sky-500\/20,
+html[data-theme='light'] .bg-sky-500\/15,
+html[data-theme='light'] .bg-sky-500\/10 {
+  background-color: #f0f9ff;
+  border-color: #bae6fd;
 }
 
 html[data-theme='light'] .bg-rose-500\/20,
@@ -469,6 +561,15 @@ html[data-theme='light'] .bg-indigo-500\/15,
 html[data-theme='light'] .bg-indigo-500\/10 {
   background-color: #eef2ff;
   border-color: #c7d2fe;
+}
+
+html[data-theme='light'] .bg-zinc-500\/20,
+html[data-theme='light'] .bg-zinc-500\/15,
+html[data-theme='light'] .bg-zinc-500\/10,
+html[data-theme='light'] .bg-zinc-300\/30,
+html[data-theme='light'] .bg-zinc-300\/10 {
+  background-color: #f4f4f5;
+  border-color: #d4d4d8;
 }
 
 /* ── Issue #236: Homepage hero Support Station button ────────────────────── */
@@ -564,5 +665,49 @@ html[data-theme='light'] [aria-label='Upcoming tracks queue'] .text-emerald-400,
 html[data-theme='light'] [aria-label='Live radio player'] .text-emerald-400 {
   color: #065f46;
 }
+
+/* ── Issue #271: Light mode Prose Typography (About & Editorial pages) ───── */
+html[data-theme='light'] .prose-invert {
+  --tw-prose-body: #27272a;
+  --tw-prose-headings: #18181b;
+  --tw-prose-lead: #3f3f46;
+  --tw-prose-links: #065f46;
+  --tw-prose-bold: #18181b;
+  --tw-prose-counters: #52525b;
+  --tw-prose-bullets: #71717a;
+  --tw-prose-hr: #e4e4e7;
+  --tw-prose-quotes: #18181b;
+  --tw-prose-quote-borders: #e4e4e7;
+  --tw-prose-captions: #71717a;
+  --tw-prose-code: #065f46;
+  --tw-prose-pre-code: #18181b;
+  --tw-prose-pre-bg: #f4f4f5;
+  --tw-prose-th-borders: #d4d4d8;
+  --tw-prose-td-borders: #e4e4e7;
+}
+
+/* ── Issue #271: Footer light mode styling ───────────────────────────────── */
+html[data-theme='light'] footer {
+  background-color: #fafafa;
+  border-color: #e4e4e7;
+  color: #3f3f46;
+}
+
+html[data-theme='light'] footer .border-zinc-900 {
+  border-color: #e4e4e7;
+}
+
+/* ── Issue #272: Google AdSense CMP Revocation & Dialog Safety ───────────── */
+.fc-consent-root .fc-revocation-button,
+.fc-revocation-button {
+  bottom: calc(4.75rem + var(--safe-bottom)) !important;
+  left: 1rem !important;
+  z-index: 39 !important;
+}
+
+.fc-consent-root .fc-dialog-container {
+  z-index: 99999 !important;
+}
+
 
 

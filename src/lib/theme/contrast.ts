@@ -92,6 +92,28 @@ export const THEME_TOKENS = {
     channelCardBg: '#ffffff',
     activeQueueBg: '#ecfdf5',
     activeQueueTitle: '#064e3b',
+    communityCard: {
+      discord: {
+        bg: '#f5f3ff',
+        title: '#18181b',
+        description: '#3f3f46',
+        badgeText: '#4338ca',
+        badgeBg: '#e0e7ff',
+      },
+      telegram: {
+        bg: '#f0f9ff',
+        title: '#18181b',
+        description: '#3f3f46',
+        badgeText: '#0369a1',
+        badgeBg: '#e0f2fe',
+      },
+    },
+    prose: {
+      body: '#27272a',
+      heading: '#18181b',
+      codeText: '#065f46',
+      codeBg: '#ecfdf5',
+    },
     badges: {
       emerald: { text: '#065f46', bg: '#ecfdf5' },
       purple: { text: '#6d28d9', bg: '#f5f3ff' },
@@ -100,6 +122,10 @@ export const THEME_TOKENS = {
       rose: { text: '#be123c', bg: '#fff1f2' },
       red: { text: '#b91c1c', bg: '#fef2f2' },
       teal: { text: '#0f766e', bg: '#f0fdfa' },
+      sky: { text: '#0369a1', bg: '#f0f9ff' },
+      indigo: { text: '#4338ca', bg: '#eef2ff' },
+      violet: { text: '#6d28d9', bg: '#f5f3ff' },
+      zinc: { text: '#27272a', bg: '#f4f4f5' },
     },
   },
   dark: {
@@ -113,6 +139,28 @@ export const THEME_TOKENS = {
     channelCardBg: '#18181b',
     activeQueueBg: '#022c22',
     activeQueueTitle: '#6ee7b7',
+    communityCard: {
+      discord: {
+        bg: '#1e1b4b',
+        title: '#ffffff',
+        description: '#a1a1aa',
+        badgeText: '#a5b4fc',
+        badgeBg: '#312e81',
+      },
+      telegram: {
+        bg: '#082f49',
+        title: '#ffffff',
+        description: '#a1a1aa',
+        badgeText: '#7dd3fc',
+        badgeBg: '#0c4a6e',
+      },
+    },
+    prose: {
+      body: '#d4d4d8',
+      heading: '#ffffff',
+      codeText: '#6ee7b7',
+      codeBg: '#022c22',
+    },
     badges: {
       emerald: { text: '#6ee7b7', bg: '#022c22' },
       purple: { text: '#d8b4fe', bg: '#2e1065' },
@@ -121,6 +169,10 @@ export const THEME_TOKENS = {
       rose: { text: '#fda4af', bg: '#4c0519' },
       red: { text: '#fca5a5', bg: '#450a0a' },
       teal: { text: '#5eead4', bg: '#042f2e' },
+      sky: { text: '#7dd3fc', bg: '#082f49' },
+      indigo: { text: '#a5b4fc', bg: '#1e1b4b' },
+      violet: { text: '#c4b5fd', bg: '#2e1065' },
+      zinc: { text: '#e4e4e7', bg: '#27272a' },
     },
   },
 } as const;
