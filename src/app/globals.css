@@ -318,7 +318,13 @@ html[data-theme='light'] [class*='bg-emerald-600'] *,
 html[data-theme='light'] .bg-rose-600,
 html[data-theme='light'] .bg-rose-600 *,
 html[data-theme='light'] .bg-red-600,
-html[data-theme='light'] .bg-red-600 * {
+html[data-theme='light'] .bg-red-600 *,
+html[data-theme='light'] .bg-zinc-900.text-white,
+html[data-theme='light'] .bg-zinc-900.text-white *,
+html[data-theme='light'] .bg-zinc-800.text-white,
+html[data-theme='light'] .bg-zinc-800.text-white *,
+html[data-theme='light'] .bg-zinc-700.text-white,
+html[data-theme='light'] .bg-zinc-700.text-white * {
   color: #ffffff !important;
 }
 
@@ -700,6 +706,19 @@ html[data-theme='light'] #player-queue-popover .text-emerald-400,
 html[data-theme='light'] [aria-label='Upcoming tracks queue'] .text-emerald-400,
 html[data-theme='light'] [aria-label='Live radio player'] .text-emerald-400 {
   color: #065f46;
+}
+
+/* Ensure live radio player play/pause button satisfies WCAG 1.4.11 non-text contrast in light mode (Issue #271) */
+html[data-theme='light'] [aria-label='Live radio player'] button[aria-label*='Play stream'],
+html[data-theme='light'] [aria-label='Live radio player'] button[aria-label*='Play stream'] svg {
+  color: #ffffff !important;
+  fill: #ffffff !important;
+}
+
+html[data-theme='light'] [aria-label='Live radio player'] button[aria-label*='Pause stream'],
+html[data-theme='light'] [aria-label='Live radio player'] button[aria-label*='Pause stream'] svg {
+  color: #000000 !important;
+  fill: #000000 !important;
 }
 
 /* ── Issue #271: Light mode Prose Typography (About & Editorial pages) ───── */

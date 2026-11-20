@@ -133,6 +133,24 @@ describe('WCAG 2.1 AA Contrast Engine (Issues #234 - #239)', () => {
       expect(calculateContrastRatio(blackText, skyBg)).toBeGreaterThanOrEqual(7.0);
       expect(meetsWcagAA(blackText, skyBg)).toBe(true);
     });
+
+    it('Issue #271: Audio player play/pause button satisfies WCAG 1.4.11 non-text and WCAG AA contrast', () => {
+      // Idle play button in light mode: dark circular background (#18181b) with white play icon (#ffffff)
+      const idleLightBtnBg = '#18181b';
+      const whiteIcon = '#ffffff';
+      expect(calculateContrastRatio(whiteIcon, idleLightBtnBg)).toBeGreaterThanOrEqual(15.0);
+      expect(meetsWcagAA(whiteIcon, idleLightBtnBg)).toBe(true);
+
+      // Active play button: emerald-500 (#10b981) with black pause icon (#000000)
+      const activeBtnBg = '#10b981';
+      const blackIcon = '#000000';
+      expect(calculateContrastRatio(blackIcon, activeBtnBg)).toBeGreaterThanOrEqual(7.0);
+      expect(meetsWcagAA(blackIcon, activeBtnBg)).toBe(true);
+
+      // Defect verification: black icon (#18181b) on zinc-700 (#3f3f46) severely violates WCAG 1.4.11 (3:1 threshold)
+      const buggyDarkOnDarkRatio = calculateContrastRatio('#18181b', '#3f3f46');
+      expect(buggyDarkOnDarkRatio).toBeLessThan(3.0);
+    });
   });
 
   describe('WCAG AA validation for theme tokens in dark mode', () => {

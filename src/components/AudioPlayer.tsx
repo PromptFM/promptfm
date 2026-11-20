@@ -798,18 +798,18 @@ export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerPro
               'focus-visible:outline-emerald-400 focus-visible:outline-offset-2',
               isPlaying
                 ? 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-lg shadow-emerald-500/20'
-                : 'bg-zinc-700 hover:bg-zinc-600 text-white',
+                : 'bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-zinc-700 dark:hover:bg-zinc-600',
             ].join(' ')}
           >
             {isLoading ? (
-              <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+              <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin text-white" />
             ) : isPlaying ? (
-              <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black" fill="currentColor" viewBox="0 0 24 24">
                 <rect x="5" y="3" width="4" height="18" rx="1" />
                 <rect x="15" y="3" width="4" height="18" rx="1" />
               </svg>
             ) : (
-              <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 translate-x-[1px]" fill="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 translate-x-[1px] text-white" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M5 3l14 9-14 9V3z" />
               </svg>
             )}
@@ -909,7 +909,7 @@ export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerPro
                   aria-label={`Playback time: ${trackProgress.formattedElapsed} of ${trackProgress.formattedDuration}`}
                 >
                   <span>{trackProgress.formattedElapsed}</span>
-                  <span className="text-zinc-600" aria-hidden="true">/</span>
+                  <span className="text-zinc-400" aria-hidden="true">/</span>
                   <span className="text-zinc-400">{trackProgress.formattedDuration}</span>
                 </span>
               )}

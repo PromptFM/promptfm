@@ -58,6 +58,15 @@ test.describe('Issues #234-#241 Light, Dark, System Theme and WCAG Accessibility
     );
     expect(lightHomeViolations).toEqual([]);
 
+    // ── Issue #271: Audio player play button contrast in Light Mode ─────────
+    const playStreamBtn = page.locator('[aria-label="Live radio player"] button[aria-label="Play stream"]');
+    if (await playStreamBtn.isVisible()) {
+      const svgColor = await playStreamBtn.locator('svg').evaluate((el) => {
+        return window.getComputedStyle(el).color;
+      });
+      expect(svgColor).toBe('rgb(255, 255, 255)');
+    }
+
     // ── Issue #235: Navbar Dropdown Hover in Light Mode ─────────────────────
     const communityDropdown = page.locator('nav button:has-text("Community")');
     if (await communityDropdown.isVisible()) {
