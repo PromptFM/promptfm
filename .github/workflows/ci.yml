@@ -470,7 +470,7 @@ jobs:
             export GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-sa-key.json
             terraform -chdir=infra/terraform init -reconfigure
             set +e
-            terraform -chdir=infra/terraform plan -detailed-exitcode -no-color
+            terraform -chdir=infra/terraform plan -detailed-exitcode -no-color -lock=false
             TF_EXIT=$?
             set -e
             if [ "$TF_EXIT" -eq 0 ]; then
