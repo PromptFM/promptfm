@@ -335,8 +335,10 @@ html[data-theme='light'] .text-zinc-500 {
 
 /* In dark mode, ensure secondary zinc-500 achieves WCAG AA >= 4.5:1 against dark surfaces (Issue #271) */
 html:not([data-theme='light']) .text-zinc-500,
-html[data-theme='dark'] .text-zinc-500 {
-  color: #a1a1aa;
+html:not([data-theme='light']) [class*='text-zinc-500'],
+html[data-theme='dark'] .text-zinc-500,
+html[data-theme='dark'] [class*='text-zinc-500'] {
+  color: #a1a1aa !important;
 }
 
 html[data-theme='light'] .bg-black\/30,

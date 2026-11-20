@@ -152,7 +152,7 @@ export default function CommunitySection() {
                   <code className="text-xs font-mono font-semibold text-emerald-400 group-hover:text-emerald-300">
                     {cmd.command}
                   </code>
-                  <span className="text-[10px] text-zinc-500 font-medium px-1.5 py-0.2 bg-zinc-900 border border-zinc-800 rounded">
+                  <span className="text-[10px] text-zinc-400 font-medium px-1.5 py-0.2 bg-zinc-900 border border-zinc-800 rounded">
                     {cmd.category}
                   </span>
                 </div>
@@ -160,7 +160,7 @@ export default function CommunitySection() {
               </div>
               <button
                 type="button"
-                className="p-1.5 rounded-lg text-zinc-500 group-hover:text-emerald-400 transition-colors flex-shrink-0"
+                className="p-1.5 rounded-lg text-zinc-400 group-hover:text-emerald-400 transition-colors flex-shrink-0"
                 aria-label={`Copy ${cmd.command}`}
               >
                 {copiedCmd === cmd.command ? (

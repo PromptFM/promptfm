@@ -176,7 +176,7 @@ export default function WebMcpConsole({
 
       {/* Quick Action Chips */}
       <div className="flex flex-wrap items-center gap-2 sm:gap-1.5 text-xs">
-        <span className="w-full sm:w-auto text-[11px] text-zinc-400 sm:text-zinc-500 font-medium mr-1">Quick Actions:</span>
+        <span className="w-full sm:w-auto text-[11px] text-zinc-400 font-medium mr-1">Quick Actions:</span>
         {QUICK_ACTIONS.map((action, idx) => {
           const Icon = action.icon;
           return (
@@ -255,7 +255,7 @@ export default function WebMcpConsole({
                 </code>
               )}
             </div>
-            <span className="text-[10px] text-zinc-500 font-mono self-start sm:self-auto">
+            <span className="text-[10px] text-zinc-400 font-mono self-start sm:self-auto">
               target: {selectedChannel}
             </span>
           </div>
@@ -361,7 +361,7 @@ export default function WebMcpConsole({
       )}
 
       {/* Footer info badge */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-1 text-[11px] text-zinc-500 pt-1">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-1 text-[11px] text-zinc-400 pt-1">
         <span>Unified Station API: Dispatches to official <code className="text-zinc-400">/api/mcp</code></span>
         <a
           href="/api/mcp"
