@@ -80,10 +80,23 @@ export function detectChangedFiles(options: DetectOptions = {}): string[] {
   };
 
   const tryGitDiff = (base: string): string[] => {
-    const committed = execFn(`git diff --name-only ${base}...HEAD`, {
-      encoding: 'utf-8',
-      stdio: 'pipe',
-    });
+    let committed: string;
+    try {
+      committed = execFn(`git diff --name-only ${base}...HEAD`, {
+        encoding: 'utf-8',
+        stdio: 'pipe',
+      });
+    } catch (err: unknown) {
+      const errMsg = String(err);
+      if (errMsg.includes('no merge base')) {
+        committed = execFn(`git diff --name-only ${base} HEAD`, {
+          encoding: 'utf-8',
+          stdio: 'pipe',
+        });
+      } else {
+        throw err;
+      }
+    }
     const uncommitted = includeUncommitted ? runSafeCmd('git diff --name-only HEAD') : '';
     const untracked = includeUncommitted ? runSafeCmd('git ls-files --others --exclude-standard') : '';
 
@@ -385,12 +398,14 @@ export function findRelatedTestFiles(
     const stem = sourceFile.replace(/^src\//, '').replace(/\.(ts|tsx|js|jsx)$/, '');
     const baseName = path.basename(sourceFile, path.extname(sourceFile));
 
+    const searchTarget = baseName === 'index' ? stem : baseName;
+
     for (const testFile of testFilePool) {
       if (related.has(testFile)) continue;
 
       try {
         const content = readFileFn(testFile);
-        if (content.includes(stem) || content.includes(baseName)) {
+        if (content.includes(searchTarget)) {
           related.add(testFile);
         }
       } catch {

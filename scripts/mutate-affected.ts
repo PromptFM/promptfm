@@ -17,6 +17,7 @@ function parseCliArgs(): {
   wholeFiles: boolean;
   allTests: boolean;
   breakScore: number;
+  dryRun: boolean;
 } {
   const args = process.argv.slice(2);
   let baseRef = process.env.BASE_REF || 'origin/main';
@@ -25,6 +26,7 @@ function parseCliArgs(): {
   let wholeFiles = false;
   let allTests = false;
   let breakScore = 80;
+  let dryRun = false;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--base' && args[i + 1]) {
@@ -40,17 +42,19 @@ function parseCliArgs(): {
       wholeFiles = true;
     } else if (args[i] === '--all-tests') {
       allTests = true;
+    } else if (args[i] === '--dry-run') {
+      dryRun = true;
     } else if (args[i] === '--break' && args[i + 1]) {
       breakScore = parseInt(args[i + 1], 10);
       i++;
     }
   }
 
-  return { baseRef, incremental, force, wholeFiles, allTests, breakScore };
+  return { baseRef, incremental, force, wholeFiles, allTests, breakScore, dryRun };
 }
 
 function main(): void {
-  const { baseRef, incremental, force, wholeFiles, allTests, breakScore } = parseCliArgs();
+  const { baseRef, incremental, force, wholeFiles, allTests, breakScore, dryRun } = parseCliArgs();
 
   console.log(`[Stryker:Targeted] Comparing changed files against base ref: ${baseRef}`);
 
@@ -82,12 +86,19 @@ function main(): void {
       });
     } catch {
       try {
-        diffOutput = execSync('git diff -U0 HEAD~1...HEAD', {
+        diffOutput = execSync(`git diff -U0 ${baseRef} HEAD`, {
           encoding: 'utf-8',
           stdio: 'pipe',
         });
       } catch {
-        diffOutput = '';
+        try {
+          diffOutput = execSync('git diff -U0 HEAD~1...HEAD', {
+            encoding: 'utf-8',
+            stdio: 'pipe',
+          });
+        } catch {
+          diffOutput = '';
+        }
       }
     }
 
@@ -145,6 +156,11 @@ function main(): void {
   });
 
   console.log(`[Stryker:Targeted] Executing: ./node_modules/.bin/stryker ${strykerArgs.join(' ')}\n`);
+
+  if (dryRun) {
+    console.log('[Stryker:Targeted] Dry run active; skipping Stryker execution.');
+    process.exit(0);
+  }
 
   const result = spawnSync('./node_modules/.bin/stryker', strykerArgs, {
     stdio: 'inherit',

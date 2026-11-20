@@ -87,6 +87,62 @@ describe('Affected Files & Targeted Testing Engine', () => {
       expect(files).toEqual(['src/lib/radio/channels.ts']);
     });
 
+    it('falls back to direct tree diff when git reports no merge base (shallow clone)', () => {
+      const mockExec = vi.fn().mockImplementation((cmd: string, opts?: { encoding?: string; stdio?: string }) => {
+        if (cmd.includes('origin/main...HEAD')) {
+          throw new Error('fatal: origin/main...HEAD: no merge base');
+        }
+        if (cmd === 'git diff --name-only origin/main HEAD' && opts?.encoding === 'utf-8' && opts?.stdio === 'pipe') {
+          return 'src/lib/radio/channels.ts\n';
+        }
+        return '';
+      });
+
+      const files = detectChangedFiles({
+        baseRef: 'origin/main',
+        execFn: mockExec,
+      });
+
+      expect(files).toEqual(['src/lib/radio/channels.ts']);
+    });
+
+    it('ignores uncommitted and untracked changes when includeUncommitted is false', () => {
+      const mockExec = vi.fn().mockImplementation((cmd: string) => {
+        if (cmd.includes('...HEAD')) {
+          return 'src/lib/dj/engine.ts\n';
+        }
+        if (cmd.includes('diff --name-only HEAD') || cmd.includes('ls-files')) {
+          return 'src/lib/should-ignore.ts\n';
+        }
+        return '';
+      });
+
+      const files = detectChangedFiles({
+        baseRef: 'origin/main',
+        includeUncommitted: false,
+        execFn: mockExec,
+      });
+
+      expect(files).toEqual(['src/lib/dj/engine.ts']);
+    });
+
+    it('handles errors when checking uncommitted working-tree or untracked files gracefully', () => {
+      const mockExec = vi.fn().mockImplementation((cmd: string) => {
+        if (cmd.includes('...HEAD')) {
+          return 'src/lib/dj/engine.ts\n';
+        }
+        throw new Error('git working tree locked');
+      });
+
+      const files = detectChangedFiles({
+        baseRef: 'origin/main',
+        includeUncommitted: true,
+        execFn: mockExec,
+      });
+
+      expect(files).toEqual(['src/lib/dj/engine.ts']);
+    });
+
     it('handles empty git diff gracefully', () => {
       const mockExec = vi.fn().mockReturnValue('');
       const files = detectChangedFiles({ execFn: mockExec });
@@ -614,6 +670,23 @@ export function isAllowed(role: string): boolean {
         'tests/integration/mcp-admin.test.ts',
         'tests/unit/feature-flags.test.ts',
       ]);
+    });
+
+    it('uses module stem for index files to avoid false matches on baseName', () => {
+      const changed = ['src/lib/dj/index.ts'];
+      const testFileMap: Record<string, string> = {
+        'tests/unit/dj-index.test.ts': `import * as dj from '@/lib/dj/index';`,
+        'tests/unit/unrelated.test.ts': `import { helper } from '@/lib/common/index';`,
+      };
+
+      const mockReadFile = vi.fn().mockImplementation((p: string) => testFileMap[p] || '');
+
+      const related = findRelatedTestFiles(changed, {
+        availableTestFiles: Object.keys(testFileMap),
+        readFileFn: mockReadFile,
+      });
+
+      expect(related).toEqual(['tests/unit/dj-index.test.ts']);
     });
 
     it('returns empty array when no test files import the source file', () => {
