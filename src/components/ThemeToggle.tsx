@@ -1,66 +1,90 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Sun, Monitor } from 'lucide-react';
 import {
   THEME_STORAGE_KEY,
   parseStoredTheme,
+  resolveColorScheme,
+  cycleThemePreference,
   themeToggleLabel,
-  toggleColorScheme,
+  applyTheme,
   type ColorScheme,
+  type ThemePreference,
 } from '@/lib/theme/color-scheme';
 
-function readAppliedTheme(): ColorScheme {
-  if (typeof document === 'undefined') {
-    return 'dark';
-  }
-  return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
-}
-
-export function applyTheme(scheme: ColorScheme) {
-  document.documentElement.dataset.theme = scheme;
-  document.documentElement.style.colorScheme = scheme;
-  try {
-    localStorage.setItem(THEME_STORAGE_KEY, scheme);
-  } catch {
-    // Ignore storage restrictions
-  }
-}
+export { applyTheme };
 
 export default function ThemeToggle({ className = '' }: { className?: string }) {
-  const [scheme, setScheme] = useState<ColorScheme>('dark');
+  const [preference, setPreference] = useState<ThemePreference>('system');
+  const [resolvedScheme, setResolvedScheme] = useState<ColorScheme>('dark');
 
   useEffect(() => {
-    const stored = parseStoredTheme(
-      (() => {
-        try {
-          return localStorage.getItem(THEME_STORAGE_KEY);
-        } catch {
-          return null;
-        }
-      })()
-    );
-    const prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches;
-    const next = stored ?? (prefersLight ? 'light' : 'dark');
-    applyTheme(next);
-    setScheme(next);
+    let stored: ThemePreference | null = null;
+    try {
+      stored = parseStoredTheme(localStorage.getItem(THEME_STORAGE_KEY));
+    } catch {
+      stored = null;
+    }
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: light)');
+    const initialPref: ThemePreference = stored ?? 'system';
+    const initialResolved = resolveColorScheme(initialPref, mediaQuery.matches);
+
+    applyTheme(initialPref, initialResolved);
+    setPreference(initialPref);
+    setResolvedScheme(initialResolved);
+
+    if (typeof document !== 'undefined') {
+      requestAnimationFrame(() => {
+        document.documentElement.dataset.themeReady = 'true';
+      });
+    }
+
+    const handleSystemChange = (e: MediaQueryListEvent) => {
+      let currentStored: ThemePreference | null = null;
+      try {
+        currentStored = parseStoredTheme(localStorage.getItem(THEME_STORAGE_KEY));
+      } catch {
+        currentStored = null;
+      }
+
+      if (!currentStored || currentStored === 'system') {
+        const nextResolved: ColorScheme = e.matches ? 'light' : 'dark';
+        applyTheme('system', nextResolved);
+        setPreference('system');
+        setResolvedScheme(nextResolved);
+      }
+    };
+
+    mediaQuery.addEventListener('change', handleSystemChange);
+    return () => mediaQuery.removeEventListener('change', handleSystemChange);
   }, []);
 
-  const label = themeToggleLabel(scheme);
+  const label = themeToggleLabel(preference);
 
   return (
     <button
       type="button"
-      className={`inline-flex items-center justify-center rounded-lg border border-zinc-700 p-2 text-zinc-300 hover:text-white hover:bg-zinc-800 ${className}`}
+      className={`inline-flex items-center justify-center rounded-lg border border-zinc-700 p-2 text-zinc-300 hover:text-white hover:bg-zinc-800 transition-colors ${className}`}
       aria-label={label}
       title={label}
       onClick={() => {
-        const next = toggleColorScheme(readAppliedTheme());
-        applyTheme(next);
-        setScheme(next);
+        const next = cycleThemePreference(preference);
+        const prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+        const resolved = resolveColorScheme(next, prefersLight);
+        applyTheme(next, resolved);
+        setPreference(next);
+        setResolvedScheme(resolved);
       }}
     >
-      {scheme === 'dark' ? <Sun className="w-4 h-4" aria-hidden="true" /> : <Moon className="w-4 h-4" aria-hidden="true" />}
+      {preference === 'system' ? (
+        <Monitor className="w-4 h-4" aria-hidden="true" />
+      ) : preference === 'light' ? (
+        <Sun className="w-4 h-4" aria-hidden="true" />
+      ) : (
+        <Moon className="w-4 h-4" aria-hidden="true" />
+      )}
     </button>
   );
 }

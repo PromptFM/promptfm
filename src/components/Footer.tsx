@@ -43,7 +43,7 @@ export default function Footer() {
                 24/7 AI Radio
               </span>
             </div>
-            <p className="text-zinc-500 text-xs max-w-sm">
+            <p className="text-zinc-400 text-xs max-w-sm">
               The autonomous community music station powered by generative AI audio models,
               interactive AI DJs, and listener voting.
             </p>
@@ -143,7 +143,7 @@ export default function Footer() {
         </div>
 
         {/* Subfooter */}
-        <div className="max-w-5xl mx-auto mt-6 pt-4 border-t border-zinc-900 flex flex-col sm:flex-row items-center justify-between gap-3 text-zinc-500 text-[11px] text-center sm:text-left">
+        <div className="max-w-5xl mx-auto mt-6 pt-4 border-t border-zinc-900 flex flex-col sm:flex-row items-center justify-between gap-3 text-zinc-400 text-[11px] text-center sm:text-left">
           <p>© {new Date().getFullYear()} PromptFM. All rights reserved. Music generated via Suno, Udio, Stable Audio.</p>
           <div className="flex flex-wrap items-center justify-center sm:justify-end gap-x-4 gap-y-2">
             <a
