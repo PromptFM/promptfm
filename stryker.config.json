@@ -39,7 +39,7 @@
   "incrementalFile": "reports/stryker-incremental.json",
   "thresholds": {
     "high": 80,
-    "low": 65,
-    "break": 50
+    "low": 70,
+    "break": 80
   }
 }
