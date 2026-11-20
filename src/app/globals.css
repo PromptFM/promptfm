@@ -230,6 +230,13 @@ html[data-theme='light'] .from-rose-950\/40 {
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
 }
 
+html[data-theme='light'] .from-red-950\/40,
+html[data-theme='light'] .from-red-950\/30 {
+  --tw-gradient-from: #fef2f2 var(--tw-gradient-from-position);
+  --tw-gradient-to: rgb(254 242 242 / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+
 /* Section container borders in light mode */
 html[data-theme='light'] #funding > div > div,
 html[data-theme='light'] #contribute > div > div,
@@ -343,6 +350,15 @@ html[data-theme='light'] [class*='text-rose-400'] {
   color: #be123c;
 }
 
+html[data-theme='light'] .text-red-300,
+html[data-theme='light'] .text-red-400,
+html[data-theme='light'] .text-red-500,
+html[data-theme='light'] [class*='text-red-300'],
+html[data-theme='light'] [class*='text-red-400'],
+html[data-theme='light'] [class*='text-red-500'] {
+  color: #b91c1c;
+}
+
 html[data-theme='light'] .text-teal-300,
 html[data-theme='light'] .text-teal-400,
 html[data-theme='light'] [class*='text-teal-300'],
@@ -389,6 +405,13 @@ html[data-theme='light'] .bg-rose-950 {
   background-color: #fff1f2;
 }
 
+html[data-theme='light'] .bg-red-950\/60,
+html[data-theme='light'] .bg-red-950\/40,
+html[data-theme='light'] .bg-red-950\/30,
+html[data-theme='light'] .bg-red-950 {
+  background-color: #fef2f2;
+}
+
 html[data-theme='light'] .bg-teal-950\/40,
 html[data-theme='light'] .bg-teal-950 {
   background-color: #f0fdfa;
@@ -432,6 +455,13 @@ html[data-theme='light'] .bg-rose-500\/15,
 html[data-theme='light'] .bg-rose-500\/10 {
   background-color: #fff1f2;
   border-color: #fecdd3;
+}
+
+html[data-theme='light'] .bg-red-500\/20,
+html[data-theme='light'] .bg-red-500\/15,
+html[data-theme='light'] .bg-red-500\/10 {
+  background-color: #fef2f2;
+  border-color: #fca5a5;
 }
 
 html[data-theme='light'] .bg-indigo-500\/20,

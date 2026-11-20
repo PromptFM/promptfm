@@ -82,6 +82,7 @@ describe('WCAG 2.1 AA Contrast Engine (Issues #234 - #239)', () => {
         { label: 'amber', text: THEME_TOKENS.light.badges.amber.text, bg: THEME_TOKENS.light.badges.amber.bg },
         { label: 'blue', text: THEME_TOKENS.light.badges.blue.text, bg: THEME_TOKENS.light.badges.blue.bg },
         { label: 'rose', text: THEME_TOKENS.light.badges.rose.text, bg: THEME_TOKENS.light.badges.rose.bg },
+        { label: 'red', text: THEME_TOKENS.light.badges.red.text, bg: THEME_TOKENS.light.badges.red.bg },
         { label: 'teal', text: THEME_TOKENS.light.badges.teal.text, bg: THEME_TOKENS.light.badges.teal.bg },
       ];
 
