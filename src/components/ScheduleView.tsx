@@ -215,7 +215,7 @@ export default function ScheduleView({ initialChannelSlug = 'main', onTuneIn }: 
         <div className="flex items-center gap-2 self-start sm:self-auto bg-zinc-900/90 border border-zinc-800 px-3 py-1.5 rounded-xl text-xs font-mono">
           <Clock className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
           <span className="text-white font-semibold">{currentTimeUtc || 'UTC'}</span>
-          <span className="text-zinc-500">|</span>
+          <span className="text-zinc-400">|</span>
           <span className="text-zinc-400 truncate max-w-[140px]" title={localTimeZone}>
             {localTimeZone}
           </span>
@@ -285,7 +285,7 @@ export default function ScheduleView({ initialChannelSlug = 'main', onTuneIn }: 
 
       {/* Schedule Content */}
       {loading ? (
-        <div className="py-16 text-center text-zinc-500 space-y-2">
+        <div className="py-16 text-center text-zinc-400 space-y-2">
           <div className="w-6 h-6 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin mx-auto" />
           <p className="text-xs font-medium">Loading 24-hour broadcast schedule...</p>
         </div>
@@ -311,7 +311,7 @@ export default function ScheduleView({ initialChannelSlug = 'main', onTuneIn }: 
                     {schedule.current_show.show}
                   </h3>
                   <p className="text-xs sm:text-sm text-zinc-300">
-                    <span className="text-zinc-500 font-medium">Genre: </span>
+                    <span className="text-zinc-400 font-medium">Genre: </span>
                     {schedule.current_show.genre}
                   </p>
                   <p className="text-xs text-zinc-400 italic">
@@ -320,7 +320,7 @@ export default function ScheduleView({ initialChannelSlug = 'main', onTuneIn }: 
 
                   {/* AI Tools Badges */}
                   <div className="flex items-center gap-1.5 pt-1">
-                    <span className="text-[11px] text-zinc-500">Models:</span>
+                    <span className="text-[11px] text-zinc-400">Models:</span>
                     {schedule.current_show.ai_tools.map((tool) => (
                       <span
                         key={tool}
@@ -346,7 +346,7 @@ export default function ScheduleView({ initialChannelSlug = 'main', onTuneIn }: 
                   <p className="text-[11px] text-zinc-400 line-clamp-3 leading-relaxed">
                     {schedule.current_show.dj.bio}
                   </p>
-                  <div className="text-[10px] text-zinc-500 font-mono pt-1">
+                  <div className="text-[10px] text-zinc-400 font-mono pt-1">
                     Voice: {schedule.current_show.dj.voice.name}
                   </div>
                 </div>
@@ -427,8 +427,8 @@ export default function ScheduleView({ initialChannelSlug = 'main', onTuneIn }: 
                             {m.type === 'dj_banter' && <Mic className="w-3 h-3 text-emerald-400" />}
                           </div>
                           {isMilestoneActive && (
-                            <span className="inline-flex items-center gap-1 px-1 py-0.2 rounded text-[8px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 animate-pulse">
-                              <span className="w-1 h-1 rounded-full bg-emerald-400" />
+                            <span className="inline-flex items-center gap-1 px-1 py-0.2 rounded text-[8px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                              <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
                               Live
                             </span>
                           )}
@@ -480,7 +480,7 @@ export default function ScheduleView({ initialChannelSlug = 'main', onTuneIn }: 
                       )}
                     </div>
                     <span className="text-xs font-medium text-zinc-400 flex items-center gap-1">
-                      <Mic className="w-3 h-3 text-zinc-500" /> Host: {block.dj.name}
+                      <Mic className="w-3 h-3 text-zinc-400" /> Host: {block.dj.name}
                     </span>
                   </div>
 
@@ -488,7 +488,7 @@ export default function ScheduleView({ initialChannelSlug = 'main', onTuneIn }: 
                     <div className="space-y-1">
                       <h4 className="text-base font-bold text-white">{block.show}</h4>
                       <p className="text-xs text-zinc-300">
-                        <span className="text-zinc-500">Theme: </span>
+                        <span className="text-zinc-400">Theme: </span>
                         {block.genre}
                       </p>
                     </div>

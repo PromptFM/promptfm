@@ -6,6 +6,7 @@
   "mutator": {
     "excludedMutations": ["Regex"]
   },
+  "ignoreStatic": true,
   "mutate": [
     "src/lib/dj/**/*.ts",
     "src/lib/community/**/*.ts",

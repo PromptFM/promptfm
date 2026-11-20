@@ -7,6 +7,10 @@ import { resolveAffectedSurfaces } from '../../src/lib/testing/affected-surfaces
 const screenshotDir = path.resolve(process.cwd(), 'tests/e2e/screenshots');
 
 test.describe('Issues #234-#241 Light, Dark, System Theme and WCAG Accessibility', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+  });
+
   test('supports three-way theme toggle (system -> light -> dark -> system), persists preference, and meets WCAG AA in both modes', async ({
     page,
   }) => {
@@ -37,13 +41,15 @@ test.describe('Issues #234-#241 Light, Dark, System Theme and WCAG Accessibility
     await page.waitForTimeout(300);
 
     // ── Axe Scan in Light Mode on Affected Home Page Zones ───────────────────
-    // Tests: Section containers (#234), Hero Support Station (#236), Channels Grid (#237), Audio Player (#238)
+    // Tests: Section containers (#234), Hero Support Station (#236), Channels Grid (#237), Audio Player (#238), Community & Footer (#271, #272, #273)
     const lightHomeAxe = await new AxeBuilder({ page })
       .include('nav')
       .include('[data-testid="hero-secondary-cta-group"]')
       .include('#channels')
       .include('#funding')
       .include('#contribute')
+      .include('#community')
+      .include('footer')
       .include('[aria-label="Live radio player"]')
       .analyze();
 
@@ -102,6 +108,8 @@ test.describe('Issues #234-#241 Light, Dark, System Theme and WCAG Accessibility
       .include('#channels')
       .include('#funding')
       .include('#contribute')
+      .include('#community')
+      .include('footer')
       .include('[aria-label="Live radio player"]')
       .analyze();
 
@@ -188,7 +196,7 @@ test.describe('Issues #234-#241 Light, Dark, System Theme and WCAG Accessibility
 
     const affected = resolveAffectedSurfaces(changedFiles);
     const routesToScan = affected.allRoutes
-      ? ['/', '/top', '/library', '/status']
+      ? affected.routes
       : affected.routes;
 
     for (const route of routesToScan) {
@@ -214,6 +222,9 @@ test.describe('Issues #234-#241 Light, Dark, System Theme and WCAG Accessibility
         }
       } else {
         lightBuilder.include('main');
+        if ((await page.locator('footer').count()) > 0 && (await page.locator('footer').first().isVisible())) {
+          lightBuilder.include('footer');
+        }
       }
 
       const lightResults = await lightBuilder.analyze();
@@ -242,6 +253,9 @@ test.describe('Issues #234-#241 Light, Dark, System Theme and WCAG Accessibility
         }
       } else {
         darkBuilder.include('main');
+        if ((await page.locator('footer').count()) > 0 && (await page.locator('footer').first().isVisible())) {
+          darkBuilder.include('footer');
+        }
       }
 
       const darkResults = await darkBuilder.analyze();

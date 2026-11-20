@@ -9,10 +9,15 @@ const ALL_PUBLIC_ROUTES = [
   '/top',
   '/library',
   '/status',
+  '/channels',
+  '/schedule',
   '/about',
   '/submit',
   '/faq',
   '/contact',
+  '/privacy',
+  '/terms',
+  '/copyright',
   '/dmca',
 ];
 
@@ -27,15 +32,16 @@ const GLOBAL_THEME_TRIGGERS: RegExp[] = [
   /^tailwind\.config\.(ts|js|mjs)$/,
 ];
 
-interface ComponentRouteMapping {
+export interface ComponentRouteMapping {
   pattern: RegExp;
   routes: string[];
   selectors: string[];
 }
 
-const COMPONENT_MAPPINGS: ComponentRouteMapping[] = [
-  {
-    pattern: /^src\/components\/FundingSection\.tsx$/,
+export function getComponentMappings(): ComponentRouteMapping[] {
+  return [
+    {
+      pattern: /^src\/components\/FundingSection\.tsx$/,
     routes: ['/'],
     selectors: ['#funding'],
   },
@@ -55,6 +61,21 @@ const COMPONENT_MAPPINGS: ComponentRouteMapping[] = [
     selectors: ['#channels'],
   },
   {
+    pattern: /^src\/components\/CommunitySection\.tsx$/,
+    routes: ['/'],
+    selectors: ['#community'],
+  },
+  {
+    pattern: /^src\/components\/Footer\.tsx$/,
+    routes: ALL_PUBLIC_ROUTES,
+    selectors: ['footer'],
+  },
+  {
+    pattern: /^src\/components\/CookieConsentBanner\.tsx$/,
+    routes: ALL_PUBLIC_ROUTES,
+    selectors: ['[role="region"][aria-label*="Cookie"]'],
+  },
+  {
     pattern: /^src\/components\/AudioPlayer\.tsx$/,
     routes: ['/', '/top', '/library', '/status'],
     selectors: ['[aria-label="Live radio player"]'],
@@ -67,6 +88,16 @@ const COMPONENT_MAPPINGS: ComponentRouteMapping[] = [
   {
     pattern: /^src\/app\/page\.tsx$/,
     routes: ['/'],
+    selectors: ['main'],
+  },
+  {
+    pattern: /^src\/app\/channels\/page\.tsx$/,
+    routes: ['/channels'],
+    selectors: ['main'],
+  },
+  {
+    pattern: /^src\/app\/schedule\/page\.tsx$/,
+    routes: ['/schedule'],
     selectors: ['main'],
   },
   {
@@ -105,11 +136,27 @@ const COMPONENT_MAPPINGS: ComponentRouteMapping[] = [
     selectors: ['main'],
   },
   {
+    pattern: /^src\/app\/privacy\/page\.tsx$/,
+    routes: ['/privacy'],
+    selectors: ['main'],
+  },
+  {
+    pattern: /^src\/app\/terms\/page\.tsx$/,
+    routes: ['/terms'],
+    selectors: ['main'],
+  },
+  {
+    pattern: /^src\/app\/copyright\/page\.tsx$/,
+    routes: ['/copyright'],
+    selectors: ['main'],
+  },
+  {
     pattern: /^src\/app\/dmca\/page\.tsx$/,
     routes: ['/dmca'],
     selectors: ['main'],
   },
 ];
+}
 
 /**
  * Resolves the list of routes and component selectors affected by changed files.
@@ -140,7 +187,7 @@ export function resolveAffectedSurfaces(changedFiles: string[]): AffectedSurface
   const selectorsSet = new Set<string>();
 
   for (const file of changedFiles) {
-    for (const mapping of COMPONENT_MAPPINGS) {
+    for (const mapping of getComponentMappings()) {
       if (mapping.pattern.test(file)) {
         for (const route of mapping.routes) {
           routesSet.add(route);
@@ -155,6 +202,6 @@ export function resolveAffectedSurfaces(changedFiles: string[]): AffectedSurface
   return {
     routes: Array.from(routesSet),
     selectors: Array.from(selectorsSet),
-    allRoutes: false,
+    allRoutes: routesSet.size >= ALL_PUBLIC_ROUTES.length,
   };
 }

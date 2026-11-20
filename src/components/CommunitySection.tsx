@@ -32,7 +32,7 @@ export default function CommunitySection() {
   };
 
   return (
-    <section className="w-full max-w-4xl mx-auto px-4 py-8">
+    <section id="community" className="w-full max-w-4xl mx-auto px-4 py-8">
       <div className="text-center mb-6">
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-xs text-emerald-400 font-medium mb-2">
           <Users className="w-3.5 h-3.5" />
@@ -152,7 +152,7 @@ export default function CommunitySection() {
                   <code className="text-xs font-mono font-semibold text-emerald-400 group-hover:text-emerald-300">
                     {cmd.command}
                   </code>
-                  <span className="text-[10px] text-zinc-500 font-medium px-1.5 py-0.2 bg-zinc-900 border border-zinc-800 rounded">
+                  <span className="text-[10px] text-zinc-400 font-medium px-1.5 py-0.2 bg-zinc-900 border border-zinc-800 rounded">
                     {cmd.category}
                   </span>
                 </div>
@@ -160,7 +160,7 @@ export default function CommunitySection() {
               </div>
               <button
                 type="button"
-                className="p-1.5 rounded-lg text-zinc-500 group-hover:text-emerald-400 transition-colors flex-shrink-0"
+                className="p-1.5 rounded-lg text-zinc-400 group-hover:text-emerald-400 transition-colors flex-shrink-0"
                 aria-label={`Copy ${cmd.command}`}
               >
                 {copiedCmd === cmd.command ? (
@@ -201,8 +201,8 @@ export default function CommunitySection() {
                       {seg.range}
                     </span>
                     {isActive ? (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 animate-pulse">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                         Live Now
                       </span>
                     ) : seg.badge ? (

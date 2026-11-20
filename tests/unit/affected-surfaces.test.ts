@@ -22,7 +22,26 @@ describe('Issue #241 Affected Surfaces & Accessibility Scope Resolver', () => {
       expect(result.routes).toContain('/top');
       expect(result.routes).toContain('/library');
       expect(result.routes).toContain('/status');
+      expect(result.routes).toContain('/channels');
+      expect(result.routes).toContain('/schedule');
+      expect(result.routes).toContain('/privacy');
+      expect(result.routes).toContain('/terms');
+      expect(result.routes).toContain('/copyright');
     }
+  });
+
+  it('Issue #273: resolves footer, community section, and cookie banner mappings', () => {
+    const footerResult = resolveAffectedSurfaces(['src/components/Footer.tsx']);
+    expect(footerResult.allRoutes).toBe(true);
+    expect(footerResult.selectors).toContain('footer');
+
+    const communityResult = resolveAffectedSurfaces(['src/components/CommunitySection.tsx']);
+    expect(communityResult.routes).toContain('/');
+    expect(communityResult.selectors).toContain('#community');
+
+    const cookieResult = resolveAffectedSurfaces(['src/components/CookieConsentBanner.tsx']);
+    expect(cookieResult.allRoutes).toBe(true);
+    expect(cookieResult.selectors).toContain('[role="region"][aria-label*="Cookie"]');
   });
 
   it('resolves home page routes and container selectors when section components change', () => {
@@ -83,9 +102,23 @@ describe('Issue #241 Affected Surfaces & Accessibility Scope Resolver', () => {
 
   it('resolves specific routes when page routes change', () => {
     expect(resolveAffectedSurfaces(['src/app/top/page.tsx']).routes).toEqual(['/top']);
+    expect(resolveAffectedSurfaces(['src/app/top/page.tsx']).selectors).toEqual(['main']);
     expect(resolveAffectedSurfaces(['src/app/library/page.tsx']).routes).toEqual(['/library']);
+    expect(resolveAffectedSurfaces(['src/app/library/page.tsx']).selectors).toEqual(['main']);
     expect(resolveAffectedSurfaces(['src/app/status/page.tsx']).routes).toEqual(['/status']);
+    expect(resolveAffectedSurfaces(['src/app/status/page.tsx']).selectors).toEqual(['main']);
     expect(resolveAffectedSurfaces(['src/app/about/page.tsx']).routes).toEqual(['/about']);
+    expect(resolveAffectedSurfaces(['src/app/about/page.tsx']).selectors).toEqual(['main']);
+    expect(resolveAffectedSurfaces(['src/app/channels/page.tsx']).routes).toEqual(['/channels']);
+    expect(resolveAffectedSurfaces(['src/app/channels/page.tsx']).selectors).toEqual(['main']);
+    expect(resolveAffectedSurfaces(['src/app/schedule/page.tsx']).routes).toEqual(['/schedule']);
+    expect(resolveAffectedSurfaces(['src/app/schedule/page.tsx']).selectors).toEqual(['main']);
+    expect(resolveAffectedSurfaces(['src/app/privacy/page.tsx']).routes).toEqual(['/privacy']);
+    expect(resolveAffectedSurfaces(['src/app/privacy/page.tsx']).selectors).toEqual(['main']);
+    expect(resolveAffectedSurfaces(['src/app/terms/page.tsx']).routes).toEqual(['/terms']);
+    expect(resolveAffectedSurfaces(['src/app/terms/page.tsx']).selectors).toEqual(['main']);
+    expect(resolveAffectedSurfaces(['src/app/copyright/page.tsx']).routes).toEqual(['/copyright']);
+    expect(resolveAffectedSurfaces(['src/app/copyright/page.tsx']).selectors).toEqual(['main']);
   });
 
   it('falls back to core routes when changedFiles list is empty or unrelated', () => {

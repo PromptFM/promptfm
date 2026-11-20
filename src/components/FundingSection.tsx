@@ -188,7 +188,7 @@ export default function FundingSection() {
                   Direct card, Apple Pay, Google Pay, and 1-click debit checkout.
                 </p>
               </div>
-              <div className="mt-3 pt-2 border-t border-zinc-800/60 flex items-center justify-between text-[11px] text-zinc-500">
+              <div className="mt-3 pt-2 border-t border-zinc-800/60 flex items-center justify-between text-[11px] text-zinc-400">
                 <span>Apple Pay / Cards</span>
                 <span className="text-emerald-400 font-semibold">Instant ⚡</span>
               </div>
@@ -214,7 +214,7 @@ export default function FundingSection() {
                   Quick contribution via your PayPal balance, linked bank account, or debit card.
                 </p>
               </div>
-              <div className="mt-3 pt-2 border-t border-zinc-800/60 flex items-center justify-between text-[11px] text-zinc-500">
+              <div className="mt-3 pt-2 border-t border-zinc-800/60 flex items-center justify-between text-[11px] text-zinc-400">
                 <span>paypal.me/promptfm</span>
                 <span className="text-sky-400 font-semibold">1-Click</span>
               </div>
@@ -240,7 +240,7 @@ export default function FundingSection() {
                   Tip coffee and track support via Apple Pay, Google Pay, and credit card.
                 </p>
               </div>
-              <div className="mt-3 pt-2 border-t border-zinc-800/60 flex items-center justify-between text-[11px] text-zinc-500">
+              <div className="mt-3 pt-2 border-t border-zinc-800/60 flex items-center justify-between text-[11px] text-zinc-400">
                 <span>ko-fi.com/promptfm</span>
                 <span className="text-amber-400 font-semibold">Tip Jar ☕</span>
               </div>
@@ -266,7 +266,7 @@ export default function FundingSection() {
                   0% platform fee developer patronage billed directly with your GitHub invoice.
                 </p>
               </div>
-              <div className="mt-3 pt-2 border-t border-zinc-800/60 flex items-center justify-between text-[11px] text-zinc-500">
+              <div className="mt-3 pt-2 border-t border-zinc-800/60 flex items-center justify-between text-[11px] text-zinc-400">
                 <span>0% Platform Fee</span>
                 <span className="text-purple-400 font-semibold">Monthly / One-time</span>
               </div>
