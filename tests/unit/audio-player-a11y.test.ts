@@ -60,4 +60,22 @@ describe('AudioPlayer Accessibility & Mobile Progress (Issue #87)', () => {
     // Mobile-only inline playback progress indicator should be rendered for small screens
     expect(html).toContain('sm:hidden');
   });
+
+  it('Issue #271: renders play/pause stream button with high-contrast icon styling', () => {
+    const html = renderToString(React.createElement(AudioPlayer));
+
+    // Play button should be present with accessible label
+    const playBtnMatch = html.match(
+      /<button[^>]*aria-label="Play stream"[^>]*class="([^"]*)"/
+    );
+    expect(playBtnMatch).toBeTruthy();
+    const btnClasses = playBtnMatch![1];
+
+    // Must have dark background class and explicit text-white class
+    expect(btnClasses).toContain('text-white');
+    expect(btnClasses).toMatch(/bg-zinc-(?:900|800|700)/);
+
+    // The play SVG inside must have text-white or explicit fill/color class so currentColor stays white in light mode
+    expect(html).toMatch(/<svg[^>]*class="[^"]*text-white[^"]*"/);
+  });
 });
