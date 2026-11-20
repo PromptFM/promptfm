@@ -120,6 +120,10 @@ const PUBLIC_MCP_TOOLS = [
           type: 'string',
           description: 'The musical vibe, genre, or keyword to match against community tracks.',
         },
+        lyrics: {
+          type: 'string',
+          description: 'Optional lyric line or excerpt to improve track matching.',
+        },
         requested_by: {
           type: 'string',
           description: 'Name or handle of the user making the request (default: "AI Assistant Listener")',
@@ -792,6 +796,7 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
 
     case 'promptfm_queue_song_request': {
       const prompt = args.prompt as string;
+      const lyrics = args.lyrics as string | undefined;
       const requester = (args.requested_by as string) || 'AI Agent';
       const channelSlug = (args.channel as string) || 'main';
       if (!prompt) throw new Error('Missing prompt');
@@ -800,6 +805,7 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
         source: 'mcp',
         requestedBy: requester,
         prompt,
+        lyrics,
         channelSlug,
       });
 
