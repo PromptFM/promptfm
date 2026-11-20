@@ -41,6 +41,7 @@
     "generate:badges": "jiti scripts/generate-badges.ts",
     "test:speed": "jiti scripts/profile-speed.ts --strict",
     "profile:speed": "jiti scripts/profile-speed.ts",
+    "test:a11y": "playwright test tests/e2e/theme-mode.spec.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },

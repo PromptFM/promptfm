@@ -56,7 +56,7 @@ export default async function StatusPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-neutral-500 font-mono">
+            <span className="text-xs text-neutral-400 font-mono">
               Updated: {new Date(health.timestamp).toLocaleTimeString()}
             </span>
           </div>
@@ -118,7 +118,7 @@ export default async function StatusPage() {
             <h3 className="text-sm font-semibold uppercase tracking-wider text-neutral-400">
               Core Component Probes
             </h3>
-            <span className="text-xs text-neutral-500 font-mono">Response Latencies (ms)</span>
+            <span className="text-xs text-neutral-400 font-mono">Response Latencies (ms)</span>
           </div>
 
           <div className="divide-y divide-neutral-900 rounded-2xl border border-neutral-800 bg-neutral-900/40 backdrop-blur-sm overflow-hidden">
@@ -329,7 +329,7 @@ export default async function StatusPage() {
                       href={cryptoWallets.bitcoin.explorerUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[10px] text-neutral-500 hover:text-neutral-300"
+                      className="text-[10px] text-neutral-400 hover:text-neutral-300"
                     >
                       View on Mempool ↗
                     </a>
@@ -351,7 +351,7 @@ export default async function StatusPage() {
                       href={cryptoWallets.ethereum.explorerUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[10px] text-neutral-500 hover:text-neutral-300"
+                      className="text-[10px] text-neutral-400 hover:text-neutral-300"
                     >
                       View on Etherscan ↗
                     </a>
@@ -366,14 +366,14 @@ export default async function StatusPage() {
         </section>
 
         {/* Footer */}
-        <footer className="text-center text-xs text-neutral-500 pt-8 border-t border-neutral-900 space-y-2">
+        <footer className="text-center text-xs text-neutral-400 pt-8 border-t border-neutral-900 space-y-2">
           <p>
             PromptFM Open Status • Probed continuously via Edge Network •{' '}
             <a
               href="https://github.com/PromptFM/promptfm"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-neutral-400 hover:underline"
+              className="text-neutral-400 underline hover:text-white transition-colors"
             >
               GitHub Repository
             </a>

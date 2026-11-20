@@ -22,6 +22,7 @@
     "src/lib/faq/**/*.ts",
     "src/lib/seo/**/*.ts",
     "src/lib/infra/**/*.ts",
+    "src/lib/theme/**/*.ts",
     "!src/lib/**/*.d.ts",
     "!src/**/*.test.ts",
     "!src/**/*.spec.ts"
