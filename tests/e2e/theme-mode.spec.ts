@@ -7,6 +7,10 @@ import { resolveAffectedSurfaces } from '../../src/lib/testing/affected-surfaces
 const screenshotDir = path.resolve(process.cwd(), 'tests/e2e/screenshots');
 
 test.describe('Issues #234-#241 Light, Dark, System Theme and WCAG Accessibility', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+  });
+
   test('supports three-way theme toggle (system -> light -> dark -> system), persists preference, and meets WCAG AA in both modes', async ({
     page,
   }) => {

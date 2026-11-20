@@ -32,6 +32,17 @@
   }
 }
 
+/* ── Accessible Reduced Motion (WCAG AA & automated testing stability) ────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* ── Smooth scroll & Mobile overflow boundary ─────────────────────────────── */
 html {
   scroll-behavior: smooth;
@@ -294,6 +305,23 @@ html[data-theme='light'] .text-white {
   color: #18181b;
 }
 
+/* Ensure saturated action buttons and solid badges retain high-contrast white text in light mode (Issue #271) */
+html[data-theme='light'] .bg-indigo-600,
+html[data-theme='light'] .bg-indigo-600 *,
+html[data-theme='light'] .bg-indigo-500,
+html[data-theme='light'] .bg-indigo-500 *,
+html[data-theme='light'] .bg-sky-600,
+html[data-theme='light'] .bg-sky-600 *,
+html[data-theme='light'] .bg-emerald-600,
+html[data-theme='light'] .bg-emerald-600 *,
+html[data-theme='light'] [class*='bg-emerald-600'] *,
+html[data-theme='light'] .bg-rose-600,
+html[data-theme='light'] .bg-rose-600 *,
+html[data-theme='light'] .bg-red-600,
+html[data-theme='light'] .bg-red-600 * {
+  color: #ffffff !important;
+}
+
 html[data-theme='light'] .text-zinc-100,
 html[data-theme='light'] .text-zinc-200,
 html[data-theme='light'] .text-zinc-300 {
@@ -303,6 +331,12 @@ html[data-theme='light'] .text-zinc-300 {
 html[data-theme='light'] .text-zinc-400,
 html[data-theme='light'] .text-zinc-500 {
   color: #3f3f46;
+}
+
+/* In dark mode, ensure secondary zinc-500 achieves WCAG AA >= 4.5:1 against dark surfaces (Issue #271) */
+html:not([data-theme='light']) .text-zinc-500,
+html[data-theme='dark'] .text-zinc-500 {
+  color: #a1a1aa;
 }
 
 html[data-theme='light'] .bg-black\/30,

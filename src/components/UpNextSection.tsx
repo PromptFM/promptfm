@@ -178,12 +178,12 @@ export default function UpNextSection() {
         </div>
 
         {loading && displayCards.length === 0 ? (
-          <div className="flex items-center justify-center py-8 text-zinc-500 text-sm" role="status" aria-live="polite">
+          <div className="flex items-center justify-center py-8 text-zinc-400 text-sm" role="status" aria-live="polite">
             <Radio className="w-4 h-4 animate-spin mr-2 text-emerald-400" aria-hidden="true" />
             Loading upcoming tracks...
           </div>
         ) : queueMode === 'empty' ? (
-          <div className="text-center py-8 text-zinc-500 text-sm" data-testid="queue-empty-message">
+          <div className="text-center py-8 text-zinc-400 text-sm" data-testid="queue-empty-message">
             <Sparkles className="w-5 h-5 mx-auto mb-2 text-zinc-600" aria-hidden="true" />
             No user requests in the queue &mdash; station is dynamically rotating top library tracks.
           </div>
@@ -292,7 +292,7 @@ export default function UpNextSection() {
                   <Sparkles className="w-3 h-3 text-emerald-400" aria-hidden="true" />
                   Queue Standing By
                 </span>
-                <span className="text-[10px] font-mono text-zinc-500 font-medium">Auto-Rotation</span>
+                <span className="text-[10px] font-mono text-zinc-400 font-medium">Auto-Rotation</span>
               </div>
 
               <div className="space-y-1.5 my-auto">
@@ -353,7 +353,7 @@ export default function UpNextSection() {
                         ON AIR
                       </span>
                     ) : (
-                      <span className="text-[10px] font-mono text-zinc-500 font-medium">
+                      <span className="text-[10px] font-mono text-zinc-400 font-medium">
                         Upcoming
                       </span>
                     )}

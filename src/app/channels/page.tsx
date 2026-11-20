@@ -98,17 +98,17 @@ export default function ChannelsPage() {
 
                 <div className="space-y-1.5 pt-2 border-t border-zinc-900 text-[11px] text-zinc-400">
                   <div className="flex justify-between">
-                    <span className="text-zinc-500">Musical Aesthetic:</span>
+                    <span className="text-zinc-400">Musical Aesthetic:</span>
                     <span className="text-zinc-300 font-medium">{channel.vibe}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-zinc-500">Parental Rating:</span>
+                    <span className="text-zinc-400">Parental Rating:</span>
                     <span className={channel.isFamilySafe ? 'text-emerald-400' : 'text-amber-400'}>
                       {channel.isFamilySafe ? 'Family-Safe (All Ages)' : 'Late-Night Watershed / 18+'}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-zinc-500">Audio Stream:</span>
+                    <span className="text-zinc-400">Audio Stream:</span>
                     <span className="text-zinc-300 font-mono">192 kbps Stereo AAC/MP3</span>
                   </div>
                 </div>
