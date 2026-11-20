@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -12,10 +12,9 @@ describe('scripts/mutate-affected.ts CLI Execution Suite', () => {
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'promptfm-mutate-cli-test-'));
-    execSync('git init && git config user.email "test@promptfm.live" && git config user.name "PromptFM Tester"', {
-      cwd: tempDir,
-      stdio: 'pipe',
-    });
+    execFileSync('git', ['init'], { cwd: tempDir, stdio: 'pipe' });
+    execFileSync('git', ['config', 'user.email', 'test@promptfm.live'], { cwd: tempDir, stdio: 'pipe' });
+    execFileSync('git', ['config', 'user.name', 'PromptFM Tester'], { cwd: tempDir, stdio: 'pipe' });
   });
 
   afterEach(() => {
@@ -25,7 +24,7 @@ describe('scripts/mutate-affected.ts CLI Execution Suite', () => {
   });
 
   it('exits cleanly with 0 when comparing against an unchanged base ref in repo', () => {
-    const output = execSync(`"${jitiBin}" ${scriptPath} --base HEAD --dry-run`, {
+    const output = execFileSync(process.execPath, [jitiBin, scriptPath, '--base', 'HEAD', '--dry-run'], {
       encoding: 'utf8',
       cwd: rootDir,
       env: { ...process.env, NODE_ENV: 'test' },
@@ -43,7 +42,8 @@ describe('scripts/mutate-affected.ts CLI Execution Suite', () => {
       path.join(tempDir, 'src/lib/dj/sampler.ts'),
       'export function playSample(volume: number) {\n  return volume > 0;\n}\n'
     );
-    execSync('git add . && git commit -m "feat(dj): add sampler"', { cwd: tempDir, stdio: 'pipe' });
+    execFileSync('git', ['add', '.'], { cwd: tempDir, stdio: 'pipe' });
+    execFileSync('git', ['commit', '-m', 'feat(dj): add sampler'], { cwd: tempDir, stdio: 'pipe' });
 
     // Modify a functional line in sampler.ts
     fs.writeFileSync(
@@ -51,7 +51,7 @@ describe('scripts/mutate-affected.ts CLI Execution Suite', () => {
       'export function playSample(volume: number) {\n  return volume >= 10;\n}\n'
     );
 
-    const output = execSync(`"${jitiBin}" ${scriptPath} --base HEAD --dry-run`, {
+    const output = execFileSync(process.execPath, [jitiBin, scriptPath, '--base', 'HEAD', '--dry-run'], {
       encoding: 'utf8',
       cwd: tempDir,
       env: { ...process.env, NODE_ENV: 'test' },
@@ -70,7 +70,8 @@ describe('scripts/mutate-affected.ts CLI Execution Suite', () => {
       path.join(tempDir, 'src/lib/dj/sampler.ts'),
       'export function playSample(volume: number) {\n  return volume > 0;\n}\n'
     );
-    execSync('git add . && git commit -m "feat(dj): add sampler"', { cwd: tempDir, stdio: 'pipe' });
+    execFileSync('git', ['add', '.'], { cwd: tempDir, stdio: 'pipe' });
+    execFileSync('git', ['commit', '-m', 'feat(dj): add sampler'], { cwd: tempDir, stdio: 'pipe' });
 
     // Modify only comments and whitespace
     fs.writeFileSync(
@@ -78,7 +79,7 @@ describe('scripts/mutate-affected.ts CLI Execution Suite', () => {
       '// Sample player comment\nexport function playSample(volume: number) {\n  return volume > 0;\n}\n'
     );
 
-    const output = execSync(`"${jitiBin}" ${scriptPath} --base HEAD --dry-run`, {
+    const output = execFileSync(process.execPath, [jitiBin, scriptPath, '--base', 'HEAD', '--dry-run'], {
       encoding: 'utf8',
       cwd: tempDir,
       env: { ...process.env, NODE_ENV: 'test' },
@@ -90,11 +91,12 @@ describe('scripts/mutate-affected.ts CLI Execution Suite', () => {
 
   it('skips mutation testing when only non-core files are modified', () => {
     fs.writeFileSync(path.join(tempDir, 'README.md'), '# Initial README\n');
-    execSync('git add . && git commit -m "docs: init readme"', { cwd: tempDir, stdio: 'pipe' });
+    execFileSync('git', ['add', '.'], { cwd: tempDir, stdio: 'pipe' });
+    execFileSync('git', ['commit', '-m', 'docs: init readme'], { cwd: tempDir, stdio: 'pipe' });
 
     fs.writeFileSync(path.join(tempDir, 'README.md'), '# Updated README\n');
 
-    const output = execSync(`"${jitiBin}" ${scriptPath} --base HEAD --dry-run`, {
+    const output = execFileSync(process.execPath, [jitiBin, scriptPath, '--base', 'HEAD', '--dry-run'], {
       encoding: 'utf8',
       cwd: tempDir,
       env: { ...process.env, NODE_ENV: 'test' },

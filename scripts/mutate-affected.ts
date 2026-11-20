@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { spawnSync, execSync } from 'child_process';
+import { spawnSync, execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
@@ -82,19 +82,19 @@ function main(): void {
   if (!wholeFiles) {
     let diffOutput = '';
     try {
-      diffOutput = execSync(`git diff -U0 ${baseRef}...HEAD`, {
+      diffOutput = execFileSync('git', ['diff', '-U0', `${baseRef}...HEAD`], {
         encoding: 'utf-8',
         stdio: 'pipe',
       });
     } catch {
       try {
-        diffOutput = execSync(`git diff -U0 ${baseRef} HEAD`, {
+        diffOutput = execFileSync('git', ['diff', '-U0', baseRef, 'HEAD'], {
           encoding: 'utf-8',
           stdio: 'pipe',
         });
       } catch {
         try {
-          diffOutput = execSync('git diff -U0 HEAD~1...HEAD', {
+          diffOutput = execFileSync('git', ['diff', '-U0', 'HEAD~1...HEAD'], {
             encoding: 'utf-8',
             stdio: 'pipe',
           });
@@ -105,7 +105,7 @@ function main(): void {
     }
 
     try {
-      const uncommittedDiff = execSync('git diff -U0 HEAD', {
+      const uncommittedDiff = execFileSync('git', ['diff', '-U0', 'HEAD'], {
         encoding: 'utf-8',
         stdio: 'pipe',
       });
