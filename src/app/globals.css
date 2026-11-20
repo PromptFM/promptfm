@@ -297,8 +297,10 @@ html[data-theme='light'] .text-neutral-500 {
 /* ── Issue #239: Pastel status badges & chips WCAG AA contrast ────────────── */
 html[data-theme='light'] .text-emerald-300,
 html[data-theme='light'] .text-emerald-400,
+html[data-theme='light'] .text-emerald-500,
 html[data-theme='light'] [class*='text-emerald-300'],
-html[data-theme='light'] [class*='text-emerald-400'] {
+html[data-theme='light'] [class*='text-emerald-400'],
+html[data-theme='light'] [class*='text-emerald-500'] {
   color: #065f46;
 }
 

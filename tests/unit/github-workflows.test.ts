@@ -307,6 +307,13 @@ describe('GitHub Actions Workflows Suite', () => {
       expect(content).toContain("if: steps.playwright-cache.outputs.cache-hit != 'true'");
       expect(content).not.toContain("if: steps.playwright-cache.outputs.cache-hit == 'true'\n        run: npx playwright install-deps");
     });
+
+    it('runs light and dark mode WCAG accessibility scans in playwright-e2e-tests (Issue #241)', () => {
+      const content = readWorkflow('ci.yml');
+      expect(content).toContain('Run WCAG Accessibility Scans (Issue #241)');
+      expect(content).toContain('run: npm run test:a11y');
+      expect(content).toContain('GITHUB_BASE_REF: ${{ github.base_ref }}');
+    });
   });
 
   describe('PR Guidance Bot in CI Workflow (ci.yml)', () => {

@@ -78,7 +78,7 @@ jobs:
                   DOC_ONLY=false
                   HAS_INFRA=true
                   ;;
-                src/app/*|src/components/*|playwright.config.ts|tests/e2e/*)
+                src/app/*|src/components/*|src/lib/theme/*|src/lib/testing/affected-surfaces.ts|playwright.config.ts|tests/e2e/*)
                   DOC_ONLY=false
                   HAS_UI=true
                   ;;
@@ -295,10 +295,17 @@ jobs:
   playwright-e2e-tests:
     name: playwright-e2e-tests
     runs-on: ubuntu-latest
-    if: github.actor != 'dependabot[bot]'
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.docs_only != 'true' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout Code
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - name: Fetch Base Branch for Diff Resolution
+        if: github.event_name == 'pull_request'
+        run: git fetch origin ${{ github.base_ref }} --depth=1 || true
 
       - name: Setup Node.js 22
         uses: actions/setup-node@v7
@@ -331,6 +338,18 @@ jobs:
       - name: Build Next.js Production Bundle
         run: npm run build
         env:
+          NEXT_PUBLIC_SUPABASE_URL: https://mock-supabase.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: mock-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: mock-service-role-key
+          DEV_FALLBACK_SIMULATION: "true"
+
+      - name: Run WCAG Accessibility Scans (Issue #241)
+        run: npm run test:a11y
+        env:
+          CI: "true"
+          NODE_ENV: production
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+          ADMIN_API_KEY: promptfm-local-dev-key
           NEXT_PUBLIC_SUPABASE_URL: https://mock-supabase.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: mock-anon-key
           SUPABASE_SERVICE_ROLE_KEY: mock-service-role-key
