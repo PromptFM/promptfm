@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync, execSync } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
 import {
   detectChangedFiles,
   filterMutatableFiles,
@@ -149,6 +151,29 @@ function main(): void {
 
   console.log(`[Stryker:Targeted] Found ${targets.length} target mutation range(s) across ${functionalMutatables.length} file(s):`);
   targets.forEach((t) => console.log(`  - ${t}`));
+
+  if (incremental) {
+    const incrementalPath = path.resolve(process.cwd(), 'reports/stryker-incremental.json');
+    if (fs.existsSync(incrementalPath)) {
+      try {
+        const raw = fs.readFileSync(incrementalPath, 'utf-8');
+        const data = JSON.parse(raw);
+        if (data && typeof data === 'object' && data.files) {
+          const filteredFiles: Record<string, unknown> = {};
+          for (const file of functionalMutatables) {
+            if (data.files[file]) {
+              filteredFiles[file] = data.files[file];
+            }
+          }
+          data.files = filteredFiles;
+          fs.writeFileSync(incrementalPath, JSON.stringify(data), 'utf-8');
+          console.log(`[Stryker:Targeted] Scoped incremental cache to ${Object.keys(filteredFiles).length} affected file(s).`);
+        }
+      } catch {
+        // ignore cache filtering failures
+      }
+    }
+  }
 
   const strykerArgs = buildStrykerArgs(targets, {
     incremental,

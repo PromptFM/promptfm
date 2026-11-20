@@ -42,7 +42,10 @@ describe('Affected Files & Targeted Testing Engine', () => {
     });
 
     it('includes uncommitted working-tree and untracked files when present', () => {
-      const mockExec = vi.fn().mockImplementation((cmd: string) => {
+      const mockExec = vi.fn().mockImplementation((cmd: string, opts?: { encoding?: string; stdio?: string }) => {
+        if (opts?.encoding !== 'utf-8' || opts?.stdio !== 'pipe') {
+          throw new Error('invalid spawn options');
+        }
         if (cmd.includes('...HEAD')) {
           return 'src/lib/dj/rotation.ts\n';
         }
@@ -670,6 +673,40 @@ export function isAllowed(role: string): boolean {
         'tests/integration/mcp-admin.test.ts',
         'tests/unit/feature-flags.test.ts',
       ]);
+    });
+
+    it('matches test files importing only by baseName without matching full module stem', () => {
+      const changed = ['src/lib/dj/sampler.ts'];
+      const testFileMap: Record<string, string> = {
+        'tests/unit/sampler.test.ts': `import { playSample } from './sampler';`,
+      };
+
+      const mockReadFile = vi.fn().mockImplementation((p: string) => testFileMap[p] || '');
+
+      const related = findRelatedTestFiles(changed, {
+        availableTestFiles: Object.keys(testFileMap),
+        readFileFn: mockReadFile,
+      });
+
+      expect(related).toEqual(['tests/unit/sampler.test.ts']);
+    });
+
+    it('skips redundant test file reads when testFile is already in related set', () => {
+      const changed = ['src/lib/flags/feature-flags.ts', 'src/lib/flags/feature-flags-cache.ts'];
+      const testFileMap: Record<string, string> = {
+        'tests/unit/flags.test.ts': `import { flag } from '@/lib/flags/feature-flags';\nimport { cache } from '@/lib/flags/feature-flags-cache';`,
+      };
+
+      const mockReadFile = vi.fn().mockImplementation((p: string) => testFileMap[p] || '');
+
+      const related = findRelatedTestFiles(changed, {
+        availableTestFiles: Object.keys(testFileMap),
+        readFileFn: mockReadFile,
+      });
+
+      expect(related).toEqual(['tests/unit/flags.test.ts']);
+      // Should read the file once and skip on the second changed file because it's already in the set
+      expect(mockReadFile).toHaveBeenCalledTimes(1);
     });
 
     it('uses module stem for index files to avoid false matches on baseName', () => {
