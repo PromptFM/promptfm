@@ -2,7 +2,7 @@
 // PromptFM Resend Email Service for listener inquiries, moderation alerts, and DMCA notifications.
 
 import { Resend } from 'resend';
-import type { ContentReport } from '@/types/database';
+import type { ContentReport } from '../../types/database';
 
 let cachedClient: { key: string; client: Resend } | null = null;
 

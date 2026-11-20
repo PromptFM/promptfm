@@ -157,6 +157,7 @@ curl -X POST https://promptfm.live/api/mcp \
 
 | Tool Name | Parameters | Description |
 |---|---|---|
+| `promptfm_get_library` | `page?` (number), `pageSize?` (number), `q?` (string), `tool?` (string) | Fetches the full approved music library outside web admin with pagination, title/artist search, tool filtering, 15-second audio preview, and vote count. |
 | `promptfm_search_tracks_by_vibe` | `prompt` (string), `channel?` (string), `limit?` (number) | Performs dense pgvector semantic similarity search across catalog (e.g. *"dark metal about lost love"*, *"chill morning lo-fi"*). |
 | `promptfm_get_top_tracks` | `limit?` (number) | Returns top community-voted tracks on the weekly leaderboard with play counts and audio links. |
 | `promptfm_queue_song_request` | `prompt` (string), `requested_by?` (string), `channel?` (string) | Queues a track into the live broadcast rotation matching the requested musical vibe. |

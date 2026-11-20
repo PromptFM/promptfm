@@ -21,7 +21,7 @@ export interface StrykerOptions {
  * Default patterns matching core business logic targeted by mutation tests.
  */
 const DEFAULT_MUTATABLE_INCLUDES: RegExp[] = [
-  /^src\/lib\/(dj|community|radio|guardrails|legal|safety|streaming|status|ads|auth|chat|email|player|telemetry|ai|testing|ci|flags|mcp|infra)\/.*\.ts$/,
+  /^src\/lib\/(dj|community|radio|guardrails|legal|safety|streaming|status|ads|auth|chat|email|player|telemetry|ai|testing|ci|flags|mcp|infra|contact|faq|seo)\/.*\.ts$/,
 ];
 
 const DEFAULT_MUTATABLE_EXCLUDES: RegExp[] = [

@@ -53,8 +53,16 @@ import {
 import {
   formatMobilePlayerTime,
   getPopoverPositionClasses,
+  getUpNextPopoverScrollClasses,
 } from '@/lib/radio/mobile-layout';
 import { formatPageTitle, updateMediaSession } from '@/lib/player/media-session';
+import {
+  applyOptimisticVoteCount,
+  postPlayerQuickVote,
+  readPlayerVoteFromStorage,
+  reconcileVoteAfterResponse,
+  writePlayerVoteToStorage,
+} from '@/lib/player/player-vote';
 import { fetchRadioTelemetry } from '@/lib/radio/telemetry-client';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -170,12 +178,7 @@ export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerPro
       if (data.now_playing) {
         const trackId = data.now_playing.id;
         if (trackId && typeof window !== 'undefined') {
-          try {
-            const alreadyVoted = localStorage.getItem(`promptfm_voted_${trackId}`) === 'true';
-            setVoted(alreadyVoted);
-          } catch {
-            // Ignore localStorage restrictions
-          }
+          setVoted(readPlayerVoteFromStorage(trackId, window.localStorage));
         }
 
         setNowPlaying({
@@ -239,37 +242,31 @@ export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerPro
   const handleQuickVote = async () => {
     if (!nowPlaying?.id || voted) return;
 
-    // Optimistically mark as voted and persist to localStorage
-    setVoted(true);
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(`promptfm_voted_${nowPlaying.id}`, 'true');
-      } catch {
-        // Ignore localStorage restrictions
-      }
-    }
+    const trackId = nowPlaying.id;
+    const previousCount = nowPlaying.upvotes_count;
+    const optimisticCount = applyOptimisticVoteCount(previousCount);
 
+    setVoted(true);
+    setNowPlaying((prev) => (prev ? { ...prev, upvotes_count: optimisticCount } : null));
+
+    const storage = typeof window !== 'undefined' ? window.localStorage : null;
+    const response = await postPlayerQuickVote(trackId);
+    const reconciled = reconcileVoteAfterResponse({
+      ok: response.ok,
+      serverCount: response.upvotes_count,
+      previousCount,
+      optimisticCount,
+    });
+
+    setVoted(reconciled.voted);
     setNowPlaying((prev) =>
-      prev ? { ...prev, upvotes_count: (prev.upvotes_count || 0) + 1 } : null
+      prev ? { ...prev, upvotes_count: reconciled.upvotesCount } : null
     );
 
-    try {
-      const res = await fetch('/api/vote', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ trackId: nowPlaying.id }),
-      });
+    writePlayerVoteToStorage(trackId, reconciled.voted, storage);
 
-      if (res.ok) {
-        const json = await res.json();
-        if (typeof json.upvotes_count === 'number') {
-          setNowPlaying((prev) =>
-            prev ? { ...prev, upvotes_count: json.upvotes_count } : null
-          );
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to register quick vote:', e);
+    if (!response.ok) {
+      console.warn('Failed to register quick vote for track:', trackId);
     }
   };
 
@@ -626,7 +623,13 @@ export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerPro
                 </button>
               </div>
 
-              <div className="overflow-y-auto max-h-[50vh] pr-0.5 space-y-1.5">
+              <div
+                data-testid="upnext-popover-scroll"
+                role="region"
+                aria-label="Upcoming tracks"
+                tabIndex={0}
+                className={`${getUpNextPopoverScrollClasses()} max-h-[min(42dvh,22rem)] overflow-y-auto overscroll-y-contain touch-pan-y`}
+              >
                 {queueMode === 'empty' ? (
                   <p className="text-xs text-zinc-400 py-2" data-testid="player-queue-empty">
                     Automated rotation selecting from top-voted community tracks.
@@ -697,7 +700,7 @@ export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerPro
                   </div>
                 ) : (
                   <div className="space-y-1.5">
-                    {modalQueueItems.slice(0, 4).map((item, i) => {
+                    {modalQueueItems.map((item, i) => {
                     const isCurrent = item.isCurrent;
                     return (
                       <div
@@ -975,7 +978,12 @@ export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerPro
               type="button"
               onClick={handleQuickVote}
               disabled={voted}
-              aria-label={`${nowPlaying.upvotes_count ?? 0} upvotes, upvote track`}
+              aria-label={
+                voted
+                  ? `Upvoted, ${nowPlaying.upvotes_count ?? 0} upvotes on this track`
+                  : `Upvote track, ${nowPlaying.upvotes_count ?? 0} upvotes`
+              }
+              aria-pressed={voted}
               className={`flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-lg text-xs font-bold transition-all border ${
                 voted
                   ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'

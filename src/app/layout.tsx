@@ -11,6 +11,7 @@ import Footer from '@/components/Footer';
 import JsonLd from '@/components/JsonLd';
 import Navbar from '@/components/Navbar';
 import SponsorBanner from '@/components/SponsorBanner';
+import { THEME_STORAGE_KEY } from '@/lib/theme/color-scheme';
 import { SITE_URL, SITE_NAME, SITE_TAGLINE, SITE_DESCRIPTION } from '@/lib/seo/structured-data';
 import { siteMetadata } from '@/lib/seo/site-metadata';
 
@@ -30,8 +31,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable}>
-      <body className="bg-zinc-950 font-sans antialiased">
+    <html lang="en" data-theme="dark" className={inter.variable} suppressHydrationWarning>
+      <body className="bg-zinc-950 text-zinc-100 font-sans antialiased">
+        <Script id="promptfm-theme" strategy="beforeInteractive">
+          {`(function(){try{var s=localStorage.getItem('${THEME_STORAGE_KEY}');var t=s==='light'||s==='dark'?s:(window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t;}catch(e){}})();`}
+        </Script>
         {/* Google AdSense Universal Tag */}
         <Script
           id="google-adsense"

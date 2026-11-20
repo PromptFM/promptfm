@@ -876,3 +876,69 @@ export async function insertCommunityRequestDirect(params: {
     }
   }
 }
+
+export async function incrementTrackUpvotesDirect(
+  trackId: string,
+  options: {
+    client?: MinimalPgClient;
+    databaseUrl?: string;
+  } = {}
+): Promise<{ id: string; title: string; upvotes_count: number } | null> {
+  if (!trackId || typeof trackId !== 'string' || !trackId.trim()) {
+    return null;
+  }
+
+  const trimmedId = trackId.trim();
+  let client = options.client;
+  let ownClient = false;
+
+  if (!client) {
+    if (process.env.VITEST && !options.databaseUrl) {
+      return null;
+    }
+    const resolvedUrl =
+      (options.databaseUrl && formatPostgresSessionUrl(options.databaseUrl)) ||
+      getDirectPostgresDatabaseUrl();
+
+    if (!resolvedUrl) {
+      return null;
+    }
+
+    client = await createDefaultPgClient(resolvedUrl);
+    ownClient = true;
+  }
+
+  try {
+    const res = await client.query(
+      `
+        UPDATE public.tracks
+        SET upvotes_count = COALESCE(upvotes_count, 0) + 1
+        WHERE id::text = $1
+        RETURNING
+          id::text as id,
+          title,
+          COALESCE(upvotes_count, 0) as upvotes_count
+      `,
+      [trimmedId]
+    );
+
+    const row = res.rows[0];
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: String(row.id),
+      title: String(row.title),
+      upvotes_count: Number(row.upvotes_count),
+    };
+  } finally {
+    if (ownClient && client) {
+      try {
+        await client.end();
+      } catch {
+        // Non-blocking cleanup
+      }
+    }
+  }
+}

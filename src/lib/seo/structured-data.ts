@@ -1,7 +1,10 @@
 // src/lib/seo/structured-data.ts
 // Centralized SEO configuration, metadata utilities, and Schema.org JSON-LD generators.
 
-import { OFFICIAL_CHANNELS } from '@/lib/radio/channels';
+import { OFFICIAL_CHANNELS } from '../radio/channels';
+import { getAllFaqItems } from '../faq/faq-data';
+import { STATION_CONTACTS } from '../contact/contact-info';
+import { DMCA_DESIGNATED_AGENT } from '../legal/policies';
 
 export const SITE_URL = 'https://promptfm.live';
 export const SITE_NAME = 'PromptFM';
@@ -83,10 +86,40 @@ export function generateSitemapUrls(now = new Date()): SitemapEntry[] {
       priority: 0.9,
     },
     {
+      url: `${SITE_URL}/schedule`,
+      lastModified: now,
+      changeFrequency: 'daily',
+      priority: 0.9,
+    },
+    {
+      url: `${SITE_URL}/library`,
+      lastModified: now,
+      changeFrequency: 'daily',
+      priority: 0.9,
+    },
+    {
       url: `${SITE_URL}/top`,
       lastModified: now,
       changeFrequency: 'daily',
       priority: 0.9,
+    },
+    {
+      url: `${SITE_URL}/about`,
+      lastModified: now,
+      changeFrequency: 'weekly',
+      priority: 0.8,
+    },
+    {
+      url: `${SITE_URL}/faq`,
+      lastModified: now,
+      changeFrequency: 'weekly',
+      priority: 0.8,
+    },
+    {
+      url: `${SITE_URL}/contact`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.7,
     },
     {
       url: `${SITE_URL}/submit`,
@@ -190,4 +223,58 @@ export function generateWebSiteJsonLd() {
     },
   };
 }
+
+/**
+ * Schema.org FAQPage structured data for Google Search rich snippets.
+ */
+export function generateFaqJsonLd() {
+  const items = getAllFaqItems();
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: items.map((item) => ({
+      '@type': 'Question',
+      name: item.question,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: item.answer,
+      },
+    })),
+  };
+}
+
+/**
+ * Schema.org ContactPage structured data for Google Search and publisher verification.
+ */
+export function generateContactPageJsonLd() {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'ContactPage',
+    name: `Contact PromptFM — Station Inquiries & Support`,
+    url: `${SITE_URL}/contact`,
+    description:
+      'Official contact information for PromptFM listener support, AI music submissions, DMCA legal inquiries, and sponsorship partnerships.',
+    mainEntity: {
+      '@type': 'Organization',
+      name: SITE_NAME,
+      url: SITE_URL,
+      email: 'contact@promptfm.live',
+      contactPoint: STATION_CONTACTS.map((c) => ({
+        '@type': 'ContactPoint',
+        contactType: c.name,
+        email: c.email,
+        description: c.description,
+      })),
+      address: {
+        '@type': 'PostalAddress',
+        streetAddress: '13101 Preston Rd, Suite 110',
+        addressLocality: 'Dallas',
+        addressRegion: 'TX',
+        postalCode: '75240',
+        addressCountry: 'US',
+      },
+    },
+  };
+}
+
 

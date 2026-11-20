@@ -212,6 +212,14 @@ export function clearRecentlyPlayed(channelSlug?: string): void {
 }
 
 /**
+ * Test and preview helper: seed rotation history without running the full airplay engine.
+ */
+export function recordRecentlyPlayedForPreview(channelSlug: string, trackIds: string[]): void {
+  const deduped = trackIds.filter(Boolean);
+  channelRecentlyPlayed.set(channelSlug, deduped.slice(-20));
+}
+
+/**
  * Returns current countdown position for a channel.
  */
 export function getCountdownPosition(channelSlug = 'main'): number {
@@ -803,82 +811,10 @@ export async function getUpNext(
     }
   }
 
-  // 2. Fill remainder from top-voted approved library tracks
-  const needed = limit - upNext.length;
-  if (needed > 0) {
-    const libraryExcludedTrackIds = new Set<string>();
-    if (currentTrackId && currentTrackId !== 'demo-fallback') {
-      libraryExcludedTrackIds.add(currentTrackId);
-    }
-    for (const item of upNext) {
-      libraryExcludedTrackIds.add(item.id);
-    }
-
-    let topTracks: any[] | null = null;
-    try {
-      const { data, error } = await supabase
-        .from('tracks')
-        .select('id, title, artist_name, audio_url, tool_used, upvotes_count, cover_art_url, category, is_explicit, family_friendly, duration_hint_seconds')
-        .eq('status', 'approved')
-        .order('upvotes_count', { ascending: false })
-        .limit(needed + 25);
-      if (!error && Array.isArray(data) && data.length > 0) {
-        topTracks = data;
-      }
-    } catch {
-      // Non-blocking failover
-    }
-
-    if (!topTracks || topTracks.length === 0) {
-      try {
-        const directTracks = await fetchApprovedTracksDirect({ limit: needed + 25 });
-        if (directTracks && directTracks.length > 0) {
-          topTracks = directTracks;
-        }
-      } catch {
-        // Non-blocking failover
-      }
-    }
-
-    if (topTracks) {
-      for (const t of topTracks) {
-        if (!libraryExcludedTrackIds.has(t.id) && upNext.length < limit) {
-          const isAllowed = isContentAllowedForAirplay(
-            Boolean((t as unknown as { is_explicit?: boolean }).is_explicit),
-            channelSlug,
-            now,
-            (t as unknown as { family_friendly?: boolean }).family_friendly,
-            (t as unknown as { category?: string }).category,
-            (t as unknown as { title?: string }).title
-          );
-          if (isAllowed) {
-            libraryExcludedTrackIds.add(t.id);
-
-            const targetTime = new Date(now.getTime() + runningOffsetSeconds * 1000);
-            const hoursStr = String(targetTime.getUTCHours()).padStart(2, '0');
-            const minStr = String(targetTime.getUTCMinutes()).padStart(2, '0');
-            const estimated_air_time = `${hoursStr}:${minStr} UTC`;
-
-            upNext.push({
-              id: t.id,
-              type: 'music',
-              title: t.title,
-              artist: t.artist_name,
-              audio_url: t.audio_url,
-              cover_art_url: (t as unknown as { cover_art_url?: string }).cover_art_url || '/logo-mark.png',
-              category: (t as unknown as { category?: string }).category,
-              tool_used: t.tool_used,
-              upvotes_count: t.upvotes_count,
-              queue_position: upNext.length + 1,
-              estimated_air_time,
-            });
-            runningOffsetSeconds += ((t as unknown as { duration_hint_seconds?: number }).duration_hint_seconds || 210);
-          }
-        }
-      }
-    }
-  }
-
+  // Library rows are not a committed playlist. The engine picks the real next
+  // track about a minute before air (staged_item). Showing top-voted titles
+  // such as "Forged in Pain" before that pick exists advertises tracks that
+  // will never become slot #1.
   return upNext;
 }
 

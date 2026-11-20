@@ -39,13 +39,14 @@ export const metadata: Metadata = {
 };
 
 interface SchedulePageProps {
-  searchParams?: {
+  searchParams?: Promise<{
     channel?: string;
-  };
+  }>;
 }
 
-export default function SchedulePage({ searchParams }: SchedulePageProps) {
-  const initialChannel = searchParams?.channel || 'main';
+export default async function SchedulePage({ searchParams }: SchedulePageProps) {
+  const resolvedSearchParams = await searchParams;
+  const initialChannel = resolvedSearchParams?.channel || 'main';
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 py-8 px-3 sm:px-6">

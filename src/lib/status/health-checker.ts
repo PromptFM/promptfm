@@ -1,7 +1,7 @@
 // src/lib/status/health-checker.ts
 // Real-time health check probes and system status aggregation for PromptFM
 
-import { DEFAULT_STREAM_URL } from '@/lib/audio/player-controller';
+import { DEFAULT_STREAM_URL } from '../audio/player-controller';
 
 export type ServiceStatus = 'operational' | 'degraded' | 'outage' | 'not_configured';
 export type SystemStatus = 'all_operational' | 'degraded_performance' | 'major_outage';

@@ -5,7 +5,7 @@
 // Features:
 //   • Server-fetched initial data (hydrated by a parent Server Component wrapper).
 //   • Optimistic UI voting — the count updates instantly in the browser.
-//   • Inline 30-second preview player per track.
+//   • Inline 20-second midsection preview player per track.
 //   • Visual rank badges for positions 1–3.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -23,6 +23,11 @@ import { createClient } from '@/lib/supabase/client';
 import ReportModal from '@/components/ReportModal';
 import NativeSponsorCard from '@/components/NativeSponsorCard';
 import type { RankedTrack, AITool } from '@/types/database';
+import {
+  DEFAULT_PREVIEW_DURATION_SECONDS,
+  createPreviewPlayerSession,
+  type PreviewSession,
+} from '@/lib/audio/preview';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,56 +50,64 @@ const RANK_STYLES: Record<number, string> = {
 
 function usePreviewPlayer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const sessionRef = useRef<PreviewSession | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
-  // Stop after 30 seconds
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const play = useCallback((trackId: string, url: string) => {
     // Stop whatever is currently playing
+    sessionRef.current?.stop();
+    sessionRef.current = null;
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.src = '';
+      audioRef.current = null;
     }
-    if (timerRef.current) clearTimeout(timerRef.current);
 
     if (playingId === trackId) {
       // Toggle off
       setPlayingId(null);
+      setLoadingId(null);
       return;
     }
 
     setLoadingId(trackId);
     const audio = new Audio(url);
-    audio.volume = 0.8;
-
-    audio.addEventListener('playing', () => {
-      setPlayingId(trackId);
-      setLoadingId(null);
-      timerRef.current = setTimeout(() => {
-        audio.pause();
-        setPlayingId(null);
-      }, 30_000);
-    });
-
-    audio.addEventListener('error', () => {
-      setLoadingId(null);
-      setPlayingId(null);
-    });
-
     audioRef.current = audio;
-    audio.play().catch(() => {
-      setLoadingId(null);
-      setPlayingId(null);
+
+    sessionRef.current = createPreviewPlayerSession(audio, {
+      previewDurationSeconds: DEFAULT_PREVIEW_DURATION_SECONDS,
+      onPlaying: () => {
+        setPlayingId(trackId);
+        setLoadingId(null);
+      },
+      onStop: () => {
+        if (audioRef.current === audio) {
+          audioRef.current = null;
+        }
+        setPlayingId((curr) => (curr === trackId ? null : curr));
+        setLoadingId(null);
+      },
+      onError: () => {
+        if (audioRef.current === audio) {
+          audioRef.current = null;
+        }
+        setLoadingId(null);
+        setPlayingId((curr) => (curr === trackId ? null : curr));
+      },
     });
   }, [playingId]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      audioRef.current?.pause();
-      if (timerRef.current) clearTimeout(timerRef.current);
+      sessionRef.current?.stop();
+      sessionRef.current = null;
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+        audioRef.current = null;
+      }
     };
   }, []);
 
@@ -188,7 +201,7 @@ function TrackRow({
       {/* Preview play button */}
       <button
         onClick={() => onPlay(track.id, track.audio_url)}
-        aria-label={isPlaying ? `Pause preview of ${track.title}` : `Play 30s preview of ${track.title}`}
+        aria-label={isPlaying ? `Pause preview of ${track.title}` : `Play 20s preview of ${track.title}`}
         className={[
           'flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center',
           'transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400',
@@ -289,37 +302,59 @@ export default function TopPage() {
     async function fetchTracks() {
       setLoading(true);
 
-      // Fetch top 20 approved tracks
-      const { data: trackData, error } = await supabase
-        .from('tracks')
-        .select('*')
-        .eq('status', 'approved')
-        .order('upvotes_count', { ascending: false })
-        .limit(20);
+      let trackData: any[] = [];
+      try {
+        const res = await fetch('/api/charts?limit=20');
+        if (res.ok) {
+          const body = await res.json();
+          if (Array.isArray(body?.items) && body.items.length > 0) {
+            trackData = body.items;
+          }
+        }
+      } catch {
+        // Fallback to client-side supabase if API request fails
+      }
 
-      if (error || !trackData || cancelled) {
+      if (trackData.length === 0) {
+        // Fetch top 20 approved tracks via client-side Supabase as fallback
+        const { data: clientData, error } = await supabase
+          .from('tracks')
+          .select('*')
+          .eq('status', 'approved')
+          .order('upvotes_count', { ascending: false })
+          .limit(20);
+
+        if (!error && clientData) {
+          trackData = clientData;
+        }
+      }
+
+      if (cancelled) {
         setLoading(false);
         return;
       }
 
       // Fetch the current user's votes in parallel
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
       let userVotedIds = new Set<string>();
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      if (user) {
-        const { data: voteData } = await supabase
-          .from('votes')
-          .select('track_id')
-          .eq('user_id', user.id)
-          .in(
-            'track_id',
-            trackData.map((t) => t.id),
-          );
+        if (user && trackData.length > 0) {
+          const { data: voteData } = await supabase
+            .from('votes')
+            .select('track_id')
+            .eq('user_id', user.id)
+            .in(
+              'track_id',
+              trackData.map((t) => t.id),
+            );
 
-        userVotedIds = new Set((voteData ?? []).map((v) => v.track_id as string));
+          userVotedIds = new Set((voteData ?? []).map((v) => v.track_id as string));
+        }
+      } catch {
+        // Non-blocking auth / vote check
       }
 
       if (!cancelled) {
@@ -380,16 +415,27 @@ export default function TopPage() {
       );
 
       // ── Actual DB mutation ─────────────────────────────────────────────────
-      if (isVoted) {
-        await supabase
-          .from('votes')
-          .delete()
-          .eq('user_id', user.id)
-          .eq('track_id', trackId);
-      } else {
-        await supabase
-          .from('votes')
-          .insert({ user_id: user.id, track_id: trackId });
+      try {
+        if (isVoted) {
+          await supabase
+            .from('votes')
+            .delete()
+            .eq('user_id', user.id)
+            .eq('track_id', trackId);
+        } else {
+          // Send to /api/vote to record upvote reliably via direct PostgreSQL
+          await fetch('/api/vote', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ trackId }),
+          }).catch(() => null);
+
+          await supabase
+            .from('votes')
+            .insert({ user_id: user.id, track_id: trackId });
+        }
+      } catch {
+        // Non-blocking mutation error
       }
 
       setVotingId(null);
@@ -474,6 +520,35 @@ export default function TopPage() {
               ))}
           </div>
         )}
+
+        {/* Editorial Chart Methodology & Broadcast Cadence */}
+        <section className="mt-10 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6 space-y-4 text-left text-xs text-zinc-300">
+          <div className="border-b border-zinc-800 pb-3">
+            <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-emerald-400" />
+              Chart Methodology & Broadcast Rotation
+            </h2>
+            <p className="text-zinc-400 mt-1">
+              Every Sunday at 18:00 UTC, DJ Neon hosts the live Top 20 Countdown show on the PromptFM Main Stage.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <h3 className="font-semibold text-white">Democratic Listener Voting</h3>
+              <p className="text-zinc-400 leading-relaxed">
+                Rankings reflect genuine listener engagement. Upvotes placed across our web player, Discord, and Telegram bot gateways contribute directly to weekly position calculation.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <h3 className="font-semibold text-white">Anti-Brigading Guardrails</h3>
+              <p className="text-zinc-400 leading-relaxed">
+                To ensure fair airplay discovery, our voting pipeline enforces cryptographic session hashing and per-track rate limits to prevent inorganic voting manipulation.
+              </p>
+            </div>
+          </div>
+        </section>
       </div>
 
       {/* Content Report Dialog */}

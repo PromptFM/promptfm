@@ -55,6 +55,19 @@ describe('Web MCP Client to /api/mcp Route Integration', () => {
     expect(tools.length).toBeGreaterThan(0);
     const names = tools.map((t) => t.name);
     expect(names).toContain('promptfm_get_now_playing');
+    expect(names).toContain('promptfm_get_library');
+  });
+
+  it('executes promptfm_get_library through /api/mcp POST route', async () => {
+    const data = await callMcpTool(
+      'promptfm_get_library',
+      { page: 1, pageSize: 10, q: '', tool: '' },
+      { fetchFn: customFetch }
+    );
+    expect(data.items).toBeDefined();
+    expect(data.page).toBe(1);
+    expect(data.pageSize).toBe(10);
+    expect(data.previewSeconds).toBe(20);
   });
 
   it('calls promptfm_admin_edit_track and promptfm_admin_delete_track through /api/mcp', async () => {

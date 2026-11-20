@@ -58,6 +58,18 @@ export default function Footer() {
               <span>About PromptFM</span>
             </Link>
             <Link
+              href="/faq"
+              className="hover:text-emerald-400 transition-colors flex items-center gap-1"
+            >
+              <span>FAQ</span>
+            </Link>
+            <Link
+              href="/contact"
+              className="hover:text-emerald-400 transition-colors flex items-center gap-1"
+            >
+              <span>Contact</span>
+            </Link>
+            <Link
               href="/#funding"
               className="hover:text-emerald-400 transition-colors flex items-center gap-1 font-semibold text-emerald-400/90"
             >

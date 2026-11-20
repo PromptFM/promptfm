@@ -41,6 +41,12 @@ import { getConfiguredStreamUrl } from '@/lib/audio/stream-config';
 import { getInfraBudgetPolicy } from '@/lib/infra/budget-gate';
 import { canBypassUnconfiguredAdminAuth, hasValidAdminApiKey } from '@/lib/auth/admin-auth';
 import type { ReportReason, ReportTargetType } from '@/types/database';
+import {
+  fetchApprovedCatalogTracks,
+  buildPublicCatalog,
+} from '@/lib/library/public-catalog';
+import { fetchTopApprovedTracks } from '@/lib/charts/charts-service';
+import { castVoteForTrack } from '@/lib/chat/bridge';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 
@@ -49,6 +55,32 @@ export const dynamic = 'force-dynamic';
 // ── Public MCP Tools ─────────────────────────────────────────────────────────
 
 const PUBLIC_MCP_TOOLS = [
+  {
+    name: 'promptfm_get_library',
+    description:
+      'Fetches the approved AI music track library with pagination, search by title or artist, tool filter, vote count, audio URLs, and 15-second preview.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        page: {
+          type: 'number',
+          description: 'Page number (default: 1)',
+        },
+        pageSize: {
+          type: 'number',
+          description: 'Number of tracks per page (default: 20, max: 50)',
+        },
+        q: {
+          type: 'string',
+          description: 'Search query to filter by title or artist name',
+        },
+        tool: {
+          type: 'string',
+          description: 'Filter tracks by AI tool (e.g. Suno, Udio, Stable Audio)',
+        },
+      },
+    },
+  },
   {
     name: 'promptfm_get_top_tracks',
     description:
@@ -721,19 +753,30 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
 
   // Public tools
   switch (name) {
+    case 'promptfm_get_library': {
+      const tracks = await fetchApprovedCatalogTracks();
+      return buildPublicCatalog(tracks, {
+        page: args.page,
+        pageSize: args.pageSize,
+        q: args.q,
+        tool: args.tool,
+      });
+    }
+
     case 'promptfm_get_top_tracks': {
       const limit = typeof args.limit === 'number' ? Math.min(Math.max(args.limit, 1), 20) : 10;
-      const { data, error } = await supabase
-        .from('tracks')
-        .select('id, title, artist_name, tool_used, upvotes_count, audio_url')
-        .eq('status', 'approved')
-        .order('upvotes_count', { ascending: false })
-        .limit(limit);
-
-      if (error) throw new Error(error.message);
+      const tracks = await fetchTopApprovedTracks({ limit });
       return {
-        count: data?.length || 0,
-        leaderboard: data?.map((t, idx) => ({ rank: idx + 1, ...t })),
+        count: tracks.length,
+        leaderboard: tracks.map((t, idx) => ({
+          rank: idx + 1,
+          id: t.id,
+          title: t.title,
+          artist_name: t.artist_name,
+          tool_used: t.tool_used,
+          upvotes_count: t.upvotes_count,
+          audio_url: t.audio_url,
+        })),
       };
     }
 
@@ -741,26 +784,13 @@ async function handleToolCall(name?: string, args: Record<string, unknown> = {},
       const trackId = args.track_id as string;
       if (!trackId) throw new Error('Missing track_id');
 
-      const { data: track, error: fetchErr } = await supabase
-        .from('tracks')
-        .select('id, title, upvotes_count')
-        .eq('id', trackId)
-        .single();
+      const voteResult = await castVoteForTrack(trackId);
+      if (!voteResult.success) throw new Error('Track not found');
 
-      if (fetchErr || !track) throw new Error('Track not found');
-
-      const { data: updated, error: updateErr } = await supabase
-        .from('tracks')
-        .update({ upvotes_count: (track.upvotes_count || 0) + 1 })
-        .eq('id', trackId)
-        .select()
-        .single();
-
-      if (updateErr) throw new Error(updateErr.message);
       return {
         success: true,
-        message: `Upvoted "${updated.title}"!`,
-        new_upvotes_count: updated.upvotes_count,
+        message: `Upvoted "${voteResult.title}"!`,
+        new_upvotes_count: voteResult.newCount,
       };
     }
 

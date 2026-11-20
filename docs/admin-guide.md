@@ -76,7 +76,7 @@ Every administrative capability is designed with **100% feature parity** across 
 
 | Capability | Web Studio (`/admin`) | Terminal CLI (`npm run promptfm`) | MCP Admin Tool (`/api/mcp`) |
 | :--- | :---: | :---: | :---: |
-| **Inspect Station Music Library** | Library Tab | `admin list` | `promptfm_get_top_tracks` |
+| **Inspect Station Music Library** | Library Tab / `/library` | `library` / `tracks list` / `admin list` | `promptfm_get_library` |
 | **Edit Track Metadata** | Library Tab ("Edit" button) | `admin edit <id> [options]` | `promptfm_admin_edit_track` |
 | **Delete / Archive Track** | Library Tab ("Delete" button) | `admin delete <id> [--soft]` | `promptfm_admin_delete_track` |
 | **Queue Track on Air from Library** | Click "Queue on Air" (+) | `queue <title/prompt>` | `promptfm_queue_song_request` |
@@ -128,6 +128,8 @@ The PromptFM CLI is a standalone station management suite located in `scripts/pr
 | `report file <id> <reason> [details]` | Files a report directly from the terminal. | `npm run promptfm -- report file track-123 copyright_dmca "Sampled vocal"` |
 | `report resolve <id> --action <actioned\|dismissed>` | Resolves a safety or copyright report, recording actor attribution, timestamp, and notes across database and memory cache. | `npm run promptfm -- report resolve rep_123 --action actioned --notes "Removed from rotation" --actor "compliance_alex"` |
 | `admin list` | Lists all approved tracks in the station music library with ranks and votes. | `npm run promptfm -- admin list` |
+| `library [--page N] [--q text] [--tool name]` | Browses the full approved music library outside web admin with pagination and search filters. | `npm run promptfm -- library --page 1 --q synth --tool Suno` |
+| `tracks list [--page N] [--q text] [--tool name]` | Alias for browsing the full library catalog with paging and search. | `npm run promptfm -- tracks list --page 2` |
 | `admin edit <id> [options]` | Updates track metadata (title, artist, category, lyrics, explicit flags) and automatically re-indexes vector embeddings. | `npm run promptfm -- admin edit 0df3ba68-... --title "Cyber Dreams (Remix)" --category Electronic` |
 | `admin delete <id> [--soft]` | Deletes a track from the library and cleans up any orphaned queue items. Performs hard deletion by default, or archival soft-delete with `--soft`. | `npm run promptfm -- admin delete 0df3ba68-... --soft` |
 | `admin pending` | Lists all community track submissions awaiting review. | `npm run promptfm -- admin pending` |
