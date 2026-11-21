@@ -49,6 +49,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       trackId: parsed.trackId,
+      position: result.position,
+      eta: result.eta,
       message: result.confirmationMessage || `Queued track for airplay.`,
     });
   } catch (err: unknown) {

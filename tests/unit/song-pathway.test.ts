@@ -22,6 +22,8 @@ let mockRagShouldThrow = false;
 let mockNowPlayingShouldThrow = false;
 let mockCommunityRequestsShouldError = false;
 let mockPostgrestExceededQuota = false;
+let mockCommunityRequestsReturnNullData = false;
+let mockQueuePriorityShouldFail = false;
 let mockStationState: any = null;
 
 export const mockDirectQueries = {
@@ -74,13 +76,23 @@ vi.mock('@/lib/supabase/server', () => ({
       if (table === 'channel_queue') {
         return {
           insert: (data: any) => {
+            if (mockQueuePriorityShouldFail) {
+              return {
+                select: () => ({
+                  single: async () => ({
+                    data: null,
+                    error: { message: 'Supabase channel_queue offline' },
+                  }),
+                }),
+              };
+            }
             const row = {
               id: `queue-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-              created_at: new Date().toISOString(),
+              created_at: data.created_at || new Date().toISOString(),
               played_at: null,
               ...data,
             };
-            if (data.priority) {
+            if (data.priority || data.created_at) {
               mockChannelQueue.unshift(row);
             } else {
               mockChannelQueue.push(row);
@@ -215,6 +227,13 @@ vi.mock('@/lib/supabase/server', () => ({
       if (table === 'community_requests') {
         return {
           insert: (data: any) => {
+            if (mockCommunityRequestsReturnNullData) {
+              return {
+                select: () => ({
+                  single: async () => ({ data: null, error: null }),
+                }),
+              };
+            }
             if (mockCommunityRequestsShouldError) {
               return {
                 select: () => ({
@@ -262,6 +281,9 @@ vi.mock('@/lib/dj/rotation', () => ({
 
 vi.mock('@/lib/safety/guardrails', () => ({
   evaluateContentSafety: vi.fn().mockImplementation(async (text: string) => {
+    if (!text || !text.trim()) {
+      throw new Error('evaluateContentSafety should not be called when prompt is empty');
+    }
     if (text.includes('hate_custom_msg')) {
       return {
         safe: false,
@@ -290,6 +312,8 @@ describe('Unified Song Pathway (Issue #43)', () => {
     mockRagShouldThrow = false;
     mockNowPlayingShouldThrow = false;
     mockCommunityRequestsShouldError = false;
+    mockCommunityRequestsReturnNullData = false;
+    mockQueuePriorityShouldFail = false;
     mockPostgrestExceededQuota = false;
     mockStationState = null;
     mockDirectQueries.fetchTrackByTitleOrLyricsDirect.mockReset();
@@ -595,6 +619,16 @@ describe('Unified Song Pathway (Issue #43)', () => {
       expect(msg).toContain('already in the live queue! Position: #2');
       expect(msg).not.toContain('UP NEXT');
     });
+
+    it('returns empty string when unrecognized status is passed', () => {
+      expect(formatQueueConfirmation({
+        status: 'unknown' as any,
+        trackTitle: 'Test',
+        position: 1,
+        waitMinutes: 1,
+        displayTime: '12:00 UTC',
+      })).toBe('');
+    });
   });
 
   describe('2b. normalizeRequestPlatform', () => {
@@ -651,6 +685,17 @@ describe('Unified Song Pathway (Issue #43)', () => {
 
     it('handles undefined or null builder gracefully', async () => {
       const res = await executeInsert(null);
+      expect(res.data).toBeNull();
+      expect(res.error).toBeNull();
+    });
+
+    it('handles builder select().single() returning null', async () => {
+      const builder = {
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue(null),
+        }),
+      };
+      const res = await executeInsert(builder);
       expect(res.data).toBeNull();
       expect(res.error).toBeNull();
     });
@@ -798,6 +843,14 @@ describe('Unified Song Pathway (Issue #43)', () => {
       const result = await queueSong(input);
       expect(result.status).toBe('queued');
       expect(result.track.id).toBe('track-ambient');
+    });
+
+    it('does not invoke direct PostgreSQL track lookup when Supabase resolves trackId', async () => {
+      const directQueries = await import('@/lib/dj/direct-track-queries');
+      const spy = vi.spyOn(directQueries, 'fetchTrackByIdOrTitleDirect');
+      const res = await queueSong({ trackId: 'track-ambient', source: 'cli', requestedBy: 'test' });
+      expect(res.status).toBe('queued');
+      expect(spy).not.toHaveBeenCalled();
     });
 
     it('detects when requested track is currently playing on air and prevents duplicate queueing', async () => {
@@ -977,6 +1030,7 @@ describe('Unified Song Pathway (Issue #43)', () => {
 
       expect(result.status).toBe('rejected');
       expect(result.isRejected).toBe(true);
+      expect(result.requestId).toBe(mockCommunityRequests[0].id);
       expect(result.rejectionReason).toContain('Violation of broadcast ethics');
       expect(result.confirmationMessage).toContain('broadcast ethics (hate speech)');
       expect(result.confirmationMessage).toContain('PromptFM operates as a family-safe and inclusive 24/7 radio station');
@@ -1101,6 +1155,59 @@ describe('Unified Song Pathway (Issue #43)', () => {
       expect(result.track.id).toBe('track-synth');
       expect(mockChannelQueue[0].prompt_used).toBe('Neon Skyline');
       expect(mockCommunityRequests[0].content).toBe('Neon Skyline');
+    });
+
+    it('fails over to direct PostgreSQL when channel_queue Supabase insert fails', async () => {
+      mockQueuePriorityShouldFail = true;
+      const directQueries = await import('@/lib/dj/direct-track-queries');
+      const spy = vi.spyOn(directQueries, 'insertChannelQueueDirect').mockResolvedValueOnce({
+        id: 'q-direct-inserted',
+        channel_id: 'channel-main',
+        track_id: 'track-synth',
+        prompt_used: 'Neon Skyline',
+        requested_by: '@Admin (web_admin)',
+        created_at: new Date().toISOString(),
+      });
+
+      const res = await queueSong({
+        source: 'web_admin',
+        requestedBy: 'Admin',
+        trackId: 'track-synth',
+      });
+      expect(res.status).toBe('queued');
+      expect(res.queueItemId).toBe('q-direct-inserted');
+      expect(spy).toHaveBeenCalledWith({
+        channelSlug: 'main',
+        trackId: 'track-synth',
+        promptUsed: 'Neon Skyline',
+        requestedBy: '@Admin (web_admin)',
+      });
+    });
+
+    it('fails over to direct PostgreSQL with custom prompt when channel_queue Supabase insert fails', async () => {
+      mockQueuePriorityShouldFail = true;
+      const directQueries = await import('@/lib/dj/direct-track-queries');
+      const spy = vi.spyOn(directQueries, 'insertChannelQueueDirect').mockResolvedValueOnce({
+        id: 'q-direct-inserted-2',
+        channel_id: 'channel-main',
+        track_id: 'track-synth',
+        prompt_used: 'cyber vibe',
+        requested_by: '@Listener (discord)',
+        created_at: new Date().toISOString(),
+      });
+
+      const res = await queueSong({
+        source: 'discord',
+        requestedBy: 'Listener',
+        prompt: 'cyber vibe',
+      });
+      expect(res.status).toBe('queued');
+      expect(spy).toHaveBeenCalledWith({
+        channelSlug: 'main',
+        trackId: 'track-synth',
+        promptUsed: 'cyber vibe',
+        requestedBy: '@Listener (discord)',
+      });
     });
 
     it('falls back to channel-main when channel query returns null', async () => {
@@ -1306,6 +1413,35 @@ describe('Unified Song Pathway (Issue #43)', () => {
       expect(result.confirmationMessage).toContain('Track request "unmatched melody" added to airplay queue!');
       expect(mockChannelQueue).toHaveLength(0);
       expect(mockCommunityRequests).toHaveLength(1);
+      expect(mockCommunityRequests[0].target).toBeNull();
+    });
+
+    it('schedules fallback request with dedication target when allowFallbackRequest is true', async () => {
+      mockTracks = [];
+      const result = await queueSong({
+        source: 'telegram',
+        requestedBy: 'user',
+        prompt: 'unmatched melody',
+        allowFallbackRequest: true,
+        dedicationTarget: 'Alice',
+      });
+      expect(result.status).toBe('queued');
+      expect(mockCommunityRequests[0].target).toBe('Alice');
+    });
+
+    it('does not invoke direct community_requests insert when Supabase succeeds', async () => {
+      const directQueries = await import('@/lib/dj/direct-track-queries');
+      const spy = vi.spyOn(directQueries, 'insertCommunityRequestDirect');
+      await queueSong({ source: 'discord', requestedBy: 'user', prompt: 'cyberpunk' });
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('handles community_requests row returning null data without throwing', async () => {
+      mockCommunityRequests = [];
+      mockCommunityRequestsReturnNullData = true;
+      const res = await queueSong({ source: 'discord', requestedBy: 'user', prompt: 'cyberpunk' });
+      expect(res.status).toBe('queued');
+      expect(res.requestId).toBeUndefined();
     });
   });
 
@@ -1351,6 +1487,14 @@ describe('Unified Song Pathway (Issue #43)', () => {
       expect(second?.eta.formattedETA).toContain('Queue #2');
     });
 
+    it('does not invoke direct PostgreSQL fallback when Supabase returns items', async () => {
+      const directQueries = await import('@/lib/dj/direct-track-queries');
+      const spy = vi.spyOn(directQueries, 'fetchPendingChannelQueueDirect');
+      const status = await getSongQueueStatus('main');
+      expect(status.totalQueued).toBe(2);
+      expect(spy).not.toHaveBeenCalled();
+    });
+
     it('finds a specific track in queue by track ID', async () => {
       const status = await getSongQueueStatus('main', 'track-ambient');
 
@@ -1377,6 +1521,7 @@ describe('Unified Song Pathway (Issue #43)', () => {
     it('handles channel returning null in getSongQueueStatus', async () => {
       const status = await getSongQueueStatus('non-existent');
       expect(status.channelSlug).toBe('non-existent');
+      expect(status.totalQueued).toBe(2);
     });
 
     it('finds track in queue using lowercase title when track title is mixed case', async () => {
@@ -1414,6 +1559,35 @@ describe('Unified Song Pathway (Issue #43)', () => {
       expect(status.totalQueued).toBe(0);
       expect(status.items).toEqual([]);
       expect(status.matchedItem).toBeUndefined();
+    });
+
+    it('populates queue items via direct PostgreSQL fallback when Supabase returns empty', async () => {
+      mockChannelQueue = [];
+      const directQueries = await import('@/lib/dj/direct-track-queries');
+      const spy = vi.spyOn(directQueries, 'fetchPendingChannelQueueDirect').mockResolvedValueOnce([
+        {
+          queue_id: 'q-direct-fallback',
+          channel_id: 'ch-fallback',
+          track_id: 'track-direct',
+          prompt_used: 'direct prompt',
+          requested_by: '@direct (web)',
+          created_at: new Date().toISOString(),
+          title: 'Direct Track',
+          artist_name: 'Direct Artist',
+          audio_url: 'https://example.com/direct.mp3',
+          tool_used: 'udio',
+          upvotes_count: 5,
+          cover_art_url: 'https://example.com/direct.jpg',
+          category: 'Synth',
+          is_explicit: false,
+          family_friendly: true,
+        },
+      ]);
+
+      const status = await getSongQueueStatus('main');
+      expect(status.totalQueued).toBe(1);
+      expect(status.items[0]?.track.title).toBe('Direct Track');
+      expect(spy).toHaveBeenCalledWith({ channelSlug: 'main', limit: 50 });
     });
   });
 });

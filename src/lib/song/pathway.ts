@@ -9,9 +9,11 @@ import { findTracksByVibe } from '../dj/rag';
 import { getNowPlaying, getPendingAirplayItem } from '../dj/rotation';
 import {
   fetchTrackByTitleOrLyricsDirect,
+  fetchTrackByIdOrTitleDirect,
   fetchStationStateDirect,
   countPendingQueueDirect,
   insertChannelQueueDirect,
+  fetchPendingChannelQueueDirect,
   insertCommunityRequestDirect,
 } from '../dj/direct-track-queries';
 
@@ -145,15 +147,19 @@ export function formatQueueConfirmation(params: {
     return `ℹ️ Track "${trackTitle}"${byArtist} is already in the live queue! Position: #${position} (Estimated: ${minText} • ~${displayTime}).`;
   }
 
-  const posText = position === 1 ? 'Up next (#1 in queue)' : `#${position} in queue`;
-  const batchLabel = batchId ? ` • Scheduled for ${batchId}` : '';
-  const timeEst = `~${displayTime} (est. in ~${waitMinutes}m, provisional)`;
+  if (status === 'queued') {
+    const posText = position === 1 ? 'Up next (#1 in queue)' : `#${position} in queue`;
+    const batchLabel = batchId ? ` • Scheduled for ${batchId}` : '';
+    const timeEst = `~${displayTime} (est. in ~${waitMinutes}m, provisional)`;
 
-  if (isUnmatched) {
-    return `🎵 Track request "${trackTitle}" added to airplay queue! Position: ${posText}${batchLabel} (${timeEst}). Check live queue anytime with /queue.`;
+    if (isUnmatched) {
+      return `🎵 Track request "${trackTitle}" added to airplay queue! Position: ${posText}${batchLabel} (${timeEst}). Check live queue anytime with /queue.`;
+    }
+
+    return `🎵 Track "${trackTitle}"${byArtist} queued for live airplay! Position: ${posText}${batchLabel} (${timeEst}). Check live queue anytime with /queue.`;
   }
 
-  return `🎵 Track "${trackTitle}"${byArtist} queued for live airplay! Position: ${posText}${batchLabel} (${timeEst}). Check live queue anytime with /queue.`;
+  return '';
 }
 
 export function normalizeRequestPlatform(source: SongRequestSource): 'web' | 'discord' | 'telegram' {
@@ -222,15 +228,25 @@ export async function queueSong(input: UnifiedSongRequestInput): Promise<Unified
   let selectedTrack: any = null;
 
   if (input.trackId) {
-    const { data: directTrack } = await supabase
-      .from('tracks')
-      .select('id, title, artist_name, tool_used, audio_url, duration_seconds')
-      .eq('id', input.trackId)
-      .eq('status', 'approved')
-      .maybeSingle();
+    try {
+      const { data: directTrack } = await supabase
+        .from('tracks')
+        .select('id, title, artist_name, tool_used, audio_url, upvotes_count, cover_art_url, category, is_explicit')
+        .eq('id', input.trackId)
+        .eq('status', 'approved')
+        .maybeSingle();
 
-    if (directTrack) {
-      selectedTrack = directTrack;
+      selectedTrack = directTrack || null;
+    } catch {
+      // Fall through to direct pooler
+    }
+
+    if (!selectedTrack) {
+      try {
+        selectedTrack = (await fetchTrackByIdOrTitleDirect({ id: input.trackId })) || null;
+      } catch {
+        // Fall through
+      }
     }
   } else if (queryText) {
     // 1. Semantic RAG Vibe Search
@@ -251,7 +267,7 @@ export async function queueSong(input: UnifiedSongRequestInput): Promise<Unified
       try {
         const { data: lexicalMatch } = await supabase
           .from('tracks')
-          .select('id, title, artist_name, tool_used, audio_url, duration_seconds')
+          .select('id, title, artist_name, tool_used, audio_url, upvotes_count, cover_art_url, category, is_explicit')
           .eq('status', 'approved')
           .ilike('title', `%${queryText}%`)
           .limit(1)
@@ -270,7 +286,7 @@ export async function queueSong(input: UnifiedSongRequestInput): Promise<Unified
       try {
         const { data: lyricsMatch } = await supabase
           .from('tracks')
-          .select('id, title, artist_name, tool_used, audio_url, duration_seconds')
+          .select('id, title, artist_name, tool_used, audio_url, upvotes_count, cover_art_url, category, is_explicit')
           .eq('status', 'approved')
           .ilike('lyrics', `%${input.lyrics.trim()}%`)
           .limit(1)
@@ -289,7 +305,7 @@ export async function queueSong(input: UnifiedSongRequestInput): Promise<Unified
       try {
         const { data: topTrack } = await supabase
           .from('tracks')
-          .select('id, title, artist_name, tool_used, audio_url, duration_seconds')
+          .select('id, title, artist_name, tool_used, audio_url, upvotes_count, cover_art_url, category, is_explicit')
           .eq('status', 'approved')
           .order('upvotes_count', { ascending: false })
           .limit(1)
@@ -568,30 +584,33 @@ export async function queueSong(input: UnifiedSongRequestInput): Promise<Unified
       requestedByFormatted = `${handle} (${input.source})`;
     }
 
-    const queueBuilder = supabase.from('channel_queue').insert({
+    const insertPayload: Record<string, any> = {
       channel_id: channelId,
       track_id: selectedTrack.id,
       prompt_used: queryText || selectedTrack.title,
       requested_by: requestedByFormatted,
-      priority: isPriority,
-    });
+    };
+    if (isPriority) {
+      insertPayload.created_at = new Date(Date.now() - 86400000).toISOString();
+    }
 
+    const queueBuilder = supabase.from('channel_queue').insert(insertPayload);
     const { data: qData, error: qError } = await executeInsert(queueBuilder);
-    if (!qData || qError) {
+
+    if (qData && !qError) {
+      queueRow = qData;
+    } else {
       try {
         const directQueue = await insertChannelQueueDirect({
           channelSlug,
           trackId: selectedTrack.id,
           promptUsed: queryText || selectedTrack.title,
           requestedBy: requestedByFormatted,
-          priority: isPriority,
         });
         queueRow = directQueue;
       } catch {
         // Non-blocking
       }
-    } else {
-      queueRow = qData;
     }
   }
 
@@ -679,15 +698,53 @@ export async function getSongQueueStatus(
 
   const channelId = channel?.id || 'channel-main';
 
-  const { data: rawQueue } = await supabase
-    .from('channel_queue')
-    .select('id, track_id, prompt_used, requested_by, created_at, track:tracks(*)')
-    .eq('channel_id', channelId)
-    .is('played_at', null)
-    .order('created_at', { ascending: true })
-    .limit(50);
+  let rawItems: any[] = [];
+  try {
+    const { data: rawQueue } = await supabase
+      .from('channel_queue')
+      .select('id, track_id, prompt_used, requested_by, created_at, track:tracks(*)')
+      .eq('channel_id', channelId)
+      .is('played_at', null)
+      .order('created_at', { ascending: true })
+      .limit(50);
 
-  const items: QueuedTrackStatusItem[] = (rawQueue || []).map((row, idx) => {
+    if (Array.isArray(rawQueue)) {
+      rawItems = rawQueue;
+    }
+  } catch {
+    // Fall through to direct pooler
+  }
+
+  if (rawItems.length === 0) {
+    try {
+      const directQueue = await fetchPendingChannelQueueDirect({ channelSlug, limit: 50 });
+      for (const dq of directQueue) {
+        rawItems.push({
+          id: dq.queue_id,
+          track_id: dq.track_id,
+          prompt_used: dq.prompt_used,
+          requested_by: dq.requested_by,
+          created_at: dq.created_at,
+          track: {
+            id: dq.track_id,
+            title: dq.title,
+            artist_name: dq.artist_name,
+            audio_url: dq.audio_url,
+            tool_used: dq.tool_used,
+            upvotes_count: dq.upvotes_count,
+            cover_art_url: dq.cover_art_url,
+            category: dq.category,
+            is_explicit: dq.is_explicit,
+            family_friendly: dq.family_friendly,
+          },
+        });
+      }
+    } catch {
+      // Non-blocking
+    }
+  }
+
+  const items: QueuedTrackStatusItem[] = rawItems.map((row, idx) => {
     const position = idx + 1;
     const eta = calculateQueueETA(idx);
     return {
@@ -707,8 +764,8 @@ export async function getSongQueueStatus(
     matchedItem = items.find(
       (item) =>
         item.track?.id === trackIdOrQuery ||
-        item.track?.title?.toLowerCase().includes(clean) ||
-        item.promptUsed?.toLowerCase().includes(clean)
+        (item.track?.title ?? '').toLowerCase().includes(clean) ||
+        (item.promptUsed ?? '').toLowerCase().includes(clean)
     );
   }
 
