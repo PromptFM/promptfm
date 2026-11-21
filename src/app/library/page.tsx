@@ -12,6 +12,7 @@ import {
   createPreviewPlayerSession,
   type PreviewSession,
 } from '@/lib/audio/preview';
+import { fetchRadioTelemetry } from '@/lib/radio/telemetry-client';
 
 export const dynamic = 'force-dynamic';
 
@@ -186,6 +187,7 @@ export default function PublicLibraryPage() {
       if (res.ok && data.success) {
         setQueuedIds((prev) => new Set(prev).add(track.id));
         setToastMessage(data.message || `Queued ${track.title}`);
+        fetchRadioTelemetry('main', { forceRefresh: true }).catch(() => {});
         setTimeout(() => setToastMessage(null), 4000);
       } else {
         setToastMessage(data.error || 'Could not queue track.');

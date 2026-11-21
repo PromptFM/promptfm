@@ -27,6 +27,8 @@ import {
   fetchStationStateDirect,
   countPendingQueueDirect,
   insertChannelQueueDirect,
+  fetchPendingChannelQueueDirect,
+  markChannelQueueItemPlayedDirect,
   insertCommunityRequestDirect,
   incrementTrackUpvotesDirect,
   type DirectDbTrackRow,
@@ -784,11 +786,11 @@ describe('direct track queries module', () => {
       expect(result).toEqual(insertedRow);
       expect(mockClient.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO public.channel_queue'),
-        expect.arrayContaining(['chill', 'track-999', 'cyber synth', '@alex.trifan (discord)', true])
+        expect.arrayContaining(['chill', 'track-999', 'cyber synth', '@alex.trifan (discord)'])
       );
       expect(mockClient.end).not.toHaveBeenCalled();
 
-      // Test default channelSlug and priority: false
+      // Test default channelSlug
       await insertChannelQueueDirect({
         trackId: 'track-888',
         promptUsed: 'default prompt',
@@ -797,7 +799,7 @@ describe('direct track queries module', () => {
       });
       expect(mockClient.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO public.channel_queue'),
-        expect.arrayContaining(['main', 'track-888', 'default prompt', '@user', false])
+        expect.arrayContaining(['main', 'track-888', 'default prompt', '@user'])
       );
       expect(mockClient.end).not.toHaveBeenCalled();
     });
@@ -1083,6 +1085,98 @@ describe('direct track queries module', () => {
     it('returns null when no client and no databaseUrl is configured in test env', async () => {
       const result = await incrementTrackUpvotesDirect('track-123');
       expect(result).toBeNull();
+    });
+
+    it('creates and closes own client when databaseUrl is provided', async () => {
+      mockPgQuery.mockResolvedValueOnce({
+        rows: [{ id: 'track-123', title: 'Song', upvotes_count: 10 }],
+      });
+      const result = await incrementTrackUpvotesDirect('track-123', {
+        databaseUrl: 'postgres://localhost:5432/db',
+      });
+      expect(result).toEqual({ id: 'track-123', title: 'Song', upvotes_count: 10 });
+      expect(mockPgEnd).toHaveBeenCalled();
+    });
+  });
+
+  describe('direct channel queue failover queries', () => {
+    it('fetchPendingChannelQueueDirect fetches pending items with defaults and custom channel/limit', async () => {
+      const mockRows = [
+        {
+          queue_id: 'q-1',
+          channel_id: 'ch-1',
+          track_id: 't-1',
+          title: 'Track One',
+          artist_name: 'Artist A',
+        },
+      ];
+      const mockClient = {
+        query: vi.fn().mockResolvedValue({ rows: mockRows }),
+        end: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const result = await fetchPendingChannelQueueDirect({
+        channelSlug: 'chill',
+        limit: 5,
+        client: mockClient as any,
+      });
+
+      expect(result).toEqual(mockRows);
+      expect(mockClient.query).toHaveBeenCalledWith(
+        expect.stringContaining('FROM public.channel_queue q'),
+        ['chill', 5]
+      );
+      expect(mockClient.end).not.toHaveBeenCalled();
+
+      // Test defaults
+      await fetchPendingChannelQueueDirect({ client: mockClient as any });
+      expect(mockClient.query).toHaveBeenCalledWith(
+        expect.stringContaining('FROM public.channel_queue q'),
+        ['main', 10]
+      );
+    });
+
+    it('fetchPendingChannelQueueDirect returns empty array when no client and no databaseUrl', async () => {
+      const result = await fetchPendingChannelQueueDirect({});
+      expect(result).toEqual([]);
+    });
+
+    it('fetchPendingChannelQueueDirect creates and closes own client when databaseUrl is provided', async () => {
+      mockPgQuery.mockResolvedValueOnce({ rows: [{ queue_id: 'q-own' }] });
+      const result = await fetchPendingChannelQueueDirect({
+        databaseUrl: 'postgres://localhost:5432/db',
+      });
+      expect(result).toEqual([{ queue_id: 'q-own' }]);
+      expect(mockPgEnd).toHaveBeenCalled();
+    });
+
+    it('markChannelQueueItemPlayedDirect updates played_at with client and ownClient', async () => {
+      const mockClient = {
+        query: vi.fn().mockResolvedValue({ rows: [] }),
+        end: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const ok = await markChannelQueueItemPlayedDirect({
+        queueId: 'q-123',
+        client: mockClient as any,
+      });
+      expect(ok).toBe(true);
+      expect(mockClient.query).toHaveBeenCalledWith(
+        expect.stringContaining('SET played_at = NOW()'),
+        ['q-123']
+      );
+
+      // Returns false in test env without client or databaseUrl
+      expect(await markChannelQueueItemPlayedDirect({ queueId: 'q-123' })).toBe(false);
+
+      // Closes ownClient when databaseUrl is provided
+      mockPgQuery.mockResolvedValueOnce({ rows: [] });
+      const ownOk = await markChannelQueueItemPlayedDirect({
+        queueId: 'q-123',
+        databaseUrl: 'postgres://localhost:5432/db',
+      });
+      expect(ownOk).toBe(true);
+      expect(mockPgEnd).toHaveBeenCalled();
     });
   });
 });

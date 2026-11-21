@@ -672,6 +672,24 @@ export async function countPendingQueueDirect(options: {
   }
 }
 
+export interface PendingQueueItemDirect {
+  queue_id: string;
+  channel_id: string;
+  track_id: string;
+  prompt_used: string;
+  requested_by: string;
+  created_at: string;
+  title: string;
+  artist_name: string;
+  audio_url: string;
+  tool_used: string;
+  upvotes_count: number;
+  cover_art_url?: string | null;
+  category?: string | null;
+  is_explicit?: boolean;
+  family_friendly?: boolean;
+}
+
 export async function insertChannelQueueDirect(params: {
   channelSlug?: string | null;
   trackId: string;
@@ -682,7 +700,6 @@ export async function insertChannelQueueDirect(params: {
   databaseUrl?: string;
 }): Promise<any> {
   const channelSlug = params.channelSlug || 'main';
-  const priority = Boolean(params.priority);
 
   let client = params.client;
   let ownClient = false;
@@ -710,25 +727,141 @@ export async function insertChannelQueueDirect(params: {
           channel_id,
           track_id,
           prompt_used,
-          requested_by,
-          priority
+          requested_by
         ) VALUES (
-          COALESCE((SELECT id FROM public.channels WHERE slug = $1 LIMIT 1), $1),
-          $2, $3, $4, $5
+          COALESCE(
+            (SELECT id FROM public.channels WHERE slug = $1 LIMIT 1),
+            (SELECT id FROM public.channels WHERE id::text = $1 LIMIT 1),
+            $1
+          ),
+          $2, $3, $4
         )
         RETURNING
           id::text as id,
-          channel_id,
-          track_id,
+          channel_id::text as channel_id,
+          track_id::text as track_id,
           prompt_used,
           requested_by,
-          priority,
           created_at
       `,
-      [channelSlug, params.trackId, params.promptUsed, params.requestedBy, priority]
+      [channelSlug, params.trackId, params.promptUsed, params.requestedBy]
     );
 
     return res.rows[0];
+  } finally {
+    if (ownClient && client) {
+      try {
+        await client.end();
+      } catch {
+        // Non-blocking cleanup
+      }
+    }
+  }
+}
+
+export async function fetchPendingChannelQueueDirect(params: {
+  channelSlug?: string | null;
+  limit?: number;
+  client?: MinimalPgClient;
+  databaseUrl?: string;
+} = {}): Promise<PendingQueueItemDirect[]> {
+  const channelSlug = params.channelSlug || 'main';
+  const limit = params.limit ?? 10;
+
+  let client = params.client;
+  let ownClient = false;
+
+  if (!client) {
+    if (process.env.VITEST && !params.databaseUrl) {
+      return [];
+    }
+    const resolvedUrl =
+      (params.databaseUrl && formatPostgresSessionUrl(params.databaseUrl)) ||
+      getDirectPostgresDatabaseUrl();
+
+    if (!resolvedUrl) {
+      return [];
+    }
+
+    client = await createDefaultPgClient(resolvedUrl);
+    ownClient = true;
+  }
+
+  try {
+    const res = await client.query(
+      `
+        SELECT
+          q.id::text as queue_id,
+          q.channel_id::text as channel_id,
+          q.track_id::text as track_id,
+          q.prompt_used,
+          q.requested_by,
+          q.created_at::text as created_at,
+          t.title,
+          t.artist_name,
+          t.audio_url,
+          t.tool_used,
+          COALESCE(t.upvotes_count, 0) as upvotes_count,
+          t.cover_art_url,
+          t.category,
+          COALESCE(t.is_explicit, false) as is_explicit,
+          COALESCE(t.family_friendly, true) as family_friendly
+        FROM public.channel_queue q
+        JOIN public.tracks t ON t.id = q.track_id
+        WHERE (q.channel_id IN (SELECT id FROM public.channels WHERE slug = $1) OR q.channel_id::text = $1)
+          AND q.played_at IS NULL
+        ORDER BY q.created_at ASC
+        LIMIT $2
+      `,
+      [channelSlug, limit]
+    );
+
+    return (res.rows || []) as PendingQueueItemDirect[];
+  } finally {
+    if (ownClient && client) {
+      try {
+        await client.end();
+      } catch {
+        // Non-blocking cleanup
+      }
+    }
+  }
+}
+
+export async function markChannelQueueItemPlayedDirect(params: {
+  queueId: string;
+  client?: MinimalPgClient;
+  databaseUrl?: string;
+}): Promise<boolean> {
+  let client = params.client;
+  let ownClient = false;
+
+  if (!client) {
+    if (process.env.VITEST && !params.databaseUrl) {
+      return false;
+    }
+    const resolvedUrl =
+      (params.databaseUrl && formatPostgresSessionUrl(params.databaseUrl)) ||
+      getDirectPostgresDatabaseUrl();
+
+    if (!resolvedUrl) {
+      return false;
+    }
+
+    client = await createDefaultPgClient(resolvedUrl);
+    ownClient = true;
+  }
+
+  try {
+    await client.query(
+      `
+        UPDATE public.channel_queue
+        SET played_at = NOW()
+        WHERE id::text = $1
+      `,
+      [params.queueId]
+    );
+    return true;
   } finally {
     if (ownClient && client) {
       try {
