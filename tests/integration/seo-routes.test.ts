@@ -52,6 +52,9 @@ describe('Next.js App Router Metadata Routes Integration', () => {
     expect(urls).toContain('https://promptfm.live/privacy');
     expect(urls).toContain('https://promptfm.live/dmca');
     expect(urls).toContain('https://promptfm.live/copyright');
+    expect(urls).toContain('https://promptfm.live/guides/prompt-engineering');
+    expect(urls).toContain('https://promptfm.live/guides/radio-architecture');
+    expect(urls).toContain('https://promptfm.live/editorial-standards');
 
     // Theme radio channel URLs
     expect(urls).toContain('https://promptfm.live/channels?channel=main');

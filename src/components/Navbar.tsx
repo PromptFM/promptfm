@@ -21,6 +21,7 @@ import {
   Code2,
   Heart,
   ChevronDown,
+  BookOpen,
 } from 'lucide-react';
 import AuthButton from '@/components/AuthButton';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -235,6 +236,49 @@ export default function Navbar() {
                   </div>
                 </Link>
 
+                {/* Sub-section: Guides & Editorial */}
+                <div className="pt-2 mt-1 border-t border-zinc-900">
+                  <div className="px-2.5 py-1 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
+                    Editorial & Guides
+                  </div>
+
+                  <Link
+                    href="/guides/prompt-engineering"
+                    onClick={closeMenu}
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-900 transition-colors text-xs"
+                  >
+                    <BookOpen className="w-4 h-4 text-emerald-400" />
+                    <div>
+                      <span className="font-semibold block">Prompt Engineering Guide</span>
+                      <span className="text-[11px] text-zinc-400">Suno, Udio & Stable Audio Mastery</span>
+                    </div>
+                  </Link>
+
+                  <Link
+                    href="/guides/radio-architecture"
+                    onClick={closeMenu}
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-900 transition-colors text-xs"
+                  >
+                    <Radio className="w-4 h-4 text-emerald-400" />
+                    <div>
+                      <span className="font-semibold block">Radio Architecture</span>
+                      <span className="text-[11px] text-zinc-400">Clock Wheels & Neural DJs</span>
+                    </div>
+                  </Link>
+
+                  <Link
+                    href="/editorial-standards"
+                    onClick={closeMenu}
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-900 transition-colors text-xs"
+                  >
+                    <Shield className="w-4 h-4 text-emerald-400" />
+                    <div>
+                      <span className="font-semibold block">Editorial Standards</span>
+                      <span className="text-[11px] text-zinc-400">Curation Charter & Integrity</span>
+                    </div>
+                  </Link>
+                </div>
+
                 {/* Sub-section: Chat & Socials */}
                 <div className="pt-2 mt-1 border-t border-zinc-900">
                   <div className="px-2.5 py-1 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
@@ -441,6 +485,33 @@ export default function Navbar() {
               >
                 <Shield className="w-4 h-4 text-emerald-400" />
                 <span>Station Studio & Moderation</span>
+              </Link>
+
+              <Link
+                href="/guides/prompt-engineering"
+                onClick={closeMenu}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-zinc-200 hover:text-emerald-400 hover:bg-zinc-800/60 transition-colors text-sm font-medium"
+              >
+                <BookOpen className="w-4 h-4 text-emerald-400" />
+                <span>Prompt Engineering Guide</span>
+              </Link>
+
+              <Link
+                href="/guides/radio-architecture"
+                onClick={closeMenu}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-zinc-200 hover:text-emerald-400 hover:bg-zinc-800/60 transition-colors text-sm font-medium"
+              >
+                <Radio className="w-4 h-4 text-emerald-400" />
+                <span>Radio Architecture</span>
+              </Link>
+
+              <Link
+                href="/editorial-standards"
+                onClick={closeMenu}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-zinc-200 hover:text-emerald-400 hover:bg-zinc-800/60 transition-colors text-sm font-medium"
+              >
+                <Shield className="w-4 h-4 text-emerald-400" />
+                <span>Editorial Standards</span>
               </Link>
             </div>
           </div>
