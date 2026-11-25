@@ -53,7 +53,7 @@
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.1.0",
     "flags": "^4.4.1",
-    "lucide-react": "^1.74.0",
+    "lucide-react": "^1.77.0",
     "music-metadata": "^12.7.0",
     "next": "^16.4.6",
     "react": "^18.3.1",
