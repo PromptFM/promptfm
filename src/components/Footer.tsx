@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Shield, Flag, Scale, Radio, MessageSquare, Terminal, Cookie, Send, Heart } from 'lucide-react';
+import { Shield, Flag, Scale, Radio, MessageSquare, Terminal, Cookie, Send, Heart, BookOpen } from 'lucide-react';
 import AgreementsModal from '@/components/AgreementsModal';
 import ReportModal from '@/components/ReportModal';
 import { getCommunityLinks } from '@/lib/community/links';
@@ -63,6 +63,27 @@ export default function Footer() {
               className="hover:text-emerald-400 transition-colors flex items-center gap-1"
             >
               <span>FAQ</span>
+            </Link>
+            <Link
+              href="/guides/prompt-engineering"
+              className="hover:text-emerald-400 transition-colors flex items-center gap-1"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Prompting Guide</span>
+            </Link>
+            <Link
+              href="/guides/radio-architecture"
+              className="hover:text-emerald-400 transition-colors flex items-center gap-1"
+            >
+              <Radio className="w-3.5 h-3.5" />
+              <span>Radio Architecture</span>
+            </Link>
+            <Link
+              href="/editorial-standards"
+              className="hover:text-emerald-400 transition-colors flex items-center gap-1"
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span>Editorial Standards</span>
             </Link>
             <Link
               href="/contact"

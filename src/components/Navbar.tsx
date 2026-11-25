@@ -21,6 +21,7 @@ import {
   Code2,
   Heart,
   ChevronDown,
+  BookOpen,
 } from 'lucide-react';
 import AuthButton from '@/components/AuthButton';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -131,6 +132,13 @@ export default function Navbar() {
           </Link>
 
           <Link
+            href="/guides/prompt-engineering"
+            className="text-zinc-300 hover:text-white px-3 py-1.5 rounded-lg hover:bg-zinc-900/60 transition-colors"
+          >
+            Guides
+          </Link>
+
+          <Link
             href="/#funding"
             className="text-zinc-300 hover:text-emerald-300 px-3 py-1.5 rounded-lg hover:bg-emerald-950/30 transition-colors flex items-center gap-1.5"
           >
@@ -232,6 +240,18 @@ export default function Navbar() {
                   <div>
                     <span className="font-semibold block">Station Studio</span>
                     <span className="text-[11px] text-zinc-400">DJ Curation & Moderation</span>
+                  </div>
+                </Link>
+
+                <Link
+                  href="/guides/prompt-engineering"
+                  onClick={closeMenu}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-900 transition-colors text-xs"
+                >
+                  <BookOpen className="w-4 h-4 text-emerald-400" />
+                  <div>
+                    <span className="font-semibold block">Guides & Standards</span>
+                    <span className="text-[11px] text-zinc-400">Prompting & Station Charter</span>
                   </div>
                 </Link>
 
@@ -441,6 +461,33 @@ export default function Navbar() {
               >
                 <Shield className="w-4 h-4 text-emerald-400" />
                 <span>Station Studio & Moderation</span>
+              </Link>
+
+              <Link
+                href="/guides/prompt-engineering"
+                onClick={closeMenu}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-zinc-200 hover:text-emerald-400 hover:bg-zinc-800/60 transition-colors text-sm font-medium"
+              >
+                <BookOpen className="w-4 h-4 text-emerald-400" />
+                <span>Prompt Engineering Guide</span>
+              </Link>
+
+              <Link
+                href="/guides/radio-architecture"
+                onClick={closeMenu}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-zinc-200 hover:text-emerald-400 hover:bg-zinc-800/60 transition-colors text-sm font-medium"
+              >
+                <Radio className="w-4 h-4 text-emerald-400" />
+                <span>Radio Architecture</span>
+              </Link>
+
+              <Link
+                href="/editorial-standards"
+                onClick={closeMenu}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-zinc-200 hover:text-emerald-400 hover:bg-zinc-800/60 transition-colors text-sm font-medium"
+              >
+                <Shield className="w-4 h-4 text-emerald-400" />
+                <span>Editorial Standards</span>
               </Link>
             </div>
           </div>

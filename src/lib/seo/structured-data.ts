@@ -157,6 +157,24 @@ export function generateSitemapUrls(now = new Date()): SitemapEntry[] {
       changeFrequency: 'daily',
       priority: 0.8,
     },
+    {
+      url: `${SITE_URL}/guides/prompt-engineering`,
+      lastModified: now,
+      changeFrequency: 'weekly',
+      priority: 0.9,
+    },
+    {
+      url: `${SITE_URL}/guides/radio-architecture`,
+      lastModified: now,
+      changeFrequency: 'weekly',
+      priority: 0.9,
+    },
+    {
+      url: `${SITE_URL}/editorial-standards`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.8,
+    },
   ];
 
   const channelRoutes: SitemapEntry[] = OFFICIAL_CHANNELS.map((ch) => ({
@@ -276,5 +294,53 @@ export function generateContactPageJsonLd() {
     },
   };
 }
+
+export interface ArticleJsonLdOptions {
+  title: string;
+  description: string;
+  url: string;
+  datePublished?: string;
+  dateModified?: string;
+  author?: string;
+  keywords?: string[];
+  isTechnical?: boolean;
+}
+
+/**
+ * Schema.org Article or TechArticle structured data for Google Search and rich snippets.
+ */
+export function generateArticleJsonLd(options: ArticleJsonLdOptions) {
+  const isTech = options.isTechnical ?? true;
+  return {
+    '@context': 'https://schema.org',
+    '@type': isTech ? 'TechArticle' : 'Article',
+    headline: options.title,
+    description: options.description,
+    url: options.url,
+    inLanguage: 'en-US',
+    datePublished: options.datePublished || '2026-11-01T00:00:00Z',
+    dateModified: options.dateModified || new Date().toISOString(),
+    author: {
+      '@type': 'Organization',
+      name: options.author || 'PromptFM Editorial Engineering Team',
+      url: SITE_URL,
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: SITE_NAME,
+      url: SITE_URL,
+      logo: {
+        '@type': 'ImageObject',
+        url: `${SITE_URL}/logo-mark.png`,
+      },
+    },
+    ...(options.keywords ? { keywords: options.keywords.join(', ') } : {}),
+    mainEntityOfPage: {
+      '@type': 'WebPage',
+      '@id': options.url,
+    },
+  };
+}
+
 
 

@@ -474,7 +474,7 @@ export default function AudioPlayer({ initialNowPlaying = null }: AudioPlayerPro
     <>
       <div
         className={[
-          'fixed bottom-0 inset-x-0 z-50',
+          'fixed bottom-0 inset-x-0 z-40',
           'bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800',
           'px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:py-2.5',
           'flex items-center justify-between gap-2 sm:gap-4',
