@@ -132,6 +132,13 @@ export default function Navbar() {
           </Link>
 
           <Link
+            href="/guides/prompt-engineering"
+            className="text-zinc-300 hover:text-white px-3 py-1.5 rounded-lg hover:bg-zinc-900/60 transition-colors"
+          >
+            Guides
+          </Link>
+
+          <Link
             href="/#funding"
             className="text-zinc-300 hover:text-emerald-300 px-3 py-1.5 rounded-lg hover:bg-emerald-950/30 transition-colors flex items-center gap-1.5"
           >
@@ -236,48 +243,17 @@ export default function Navbar() {
                   </div>
                 </Link>
 
-                {/* Sub-section: Guides & Editorial */}
-                <div className="pt-2 mt-1 border-t border-zinc-900">
-                  <div className="px-2.5 py-1 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
-                    Editorial & Guides
+                <Link
+                  href="/guides/prompt-engineering"
+                  onClick={closeMenu}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-900 transition-colors text-xs"
+                >
+                  <BookOpen className="w-4 h-4 text-emerald-400" />
+                  <div>
+                    <span className="font-semibold block">Guides & Standards</span>
+                    <span className="text-[11px] text-zinc-400">Prompting & Station Charter</span>
                   </div>
-
-                  <Link
-                    href="/guides/prompt-engineering"
-                    onClick={closeMenu}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-900 transition-colors text-xs"
-                  >
-                    <BookOpen className="w-4 h-4 text-emerald-400" />
-                    <div>
-                      <span className="font-semibold block">Prompt Engineering Guide</span>
-                      <span className="text-[11px] text-zinc-400">Suno, Udio & Stable Audio Mastery</span>
-                    </div>
-                  </Link>
-
-                  <Link
-                    href="/guides/radio-architecture"
-                    onClick={closeMenu}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-900 transition-colors text-xs"
-                  >
-                    <Radio className="w-4 h-4 text-emerald-400" />
-                    <div>
-                      <span className="font-semibold block">Radio Architecture</span>
-                      <span className="text-[11px] text-zinc-400">Clock Wheels & Neural DJs</span>
-                    </div>
-                  </Link>
-
-                  <Link
-                    href="/editorial-standards"
-                    onClick={closeMenu}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-900 transition-colors text-xs"
-                  >
-                    <Shield className="w-4 h-4 text-emerald-400" />
-                    <div>
-                      <span className="font-semibold block">Editorial Standards</span>
-                      <span className="text-[11px] text-zinc-400">Curation Charter & Integrity</span>
-                    </div>
-                  </Link>
-                </div>
+                </Link>
 
                 {/* Sub-section: Chat & Socials */}
                 <div className="pt-2 mt-1 border-t border-zinc-900">

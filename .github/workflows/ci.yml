@@ -631,6 +631,7 @@ jobs:
       !contains(needs.*.result, 'cancelled')
     permissions:
       pull-requests: write
+      issues: write
       contents: read
     steps:
       - name: Checkout Code
@@ -659,6 +660,7 @@ jobs:
 
       - name: Post Guidance Comment to Pull Request
         uses: actions/github-script@v9
+        continue-on-error: true
         with:
           github-token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           script: |
@@ -674,32 +676,55 @@ jobs:
               return;
             }
             
-            // Check for existing bot comment to avoid duplicate spam
-            const comments = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber,
-            });
-            
-            const existingComment = comments.data.find(c =>
-              c.body.includes('make an admin run the Make preview link workflow') ||
-              c.body.includes('Quality & Security Gate')
-            );
-            
-            if (existingComment) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existingComment.id,
-                body: commentBody,
-              });
-              console.log(`Updated existing PR comment #${existingComment.id}`);
-            } else {
-              await github.rest.issues.createComment({
+            const wait = (ms) => new Promise(r => setTimeout(r, ms));
+            async function callWithRetry(fn, maxRetries = 3) {
+              for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                  return await fn();
+                } catch (err) {
+                  const status = err.status || err.response?.status;
+                  const isRetryable = !status || status >= 500 || status === 429;
+                  if (attempt < maxRetries && isRetryable) {
+                    const delay = attempt * 1500;
+                    console.warn(`GitHub API request failed (status: ${status || 'network'}). Retrying in ${delay}ms (attempt ${attempt}/${maxRetries})...`);
+                    await wait(delay);
+                  } else {
+                    throw err;
+                  }
+                }
+              }
+            }
+
+            try {
+              // Check for existing bot comment to avoid duplicate spam
+              const comments = await callWithRetry(() => github.rest.issues.listComments({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: prNumber,
-                body: commentBody,
-              });
-              console.log(`Posted new PR guidance comment on PR #${prNumber}`);
+              }));
+              
+              const existingComment = comments.data.find(c =>
+                c.body.includes('make an admin run the Make preview link workflow') ||
+                c.body.includes('Quality & Security Gate')
+              );
+              
+              if (existingComment) {
+                await callWithRetry(() => github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existingComment.id,
+                  body: commentBody,
+                }));
+                console.log(`Updated existing PR comment #${existingComment.id}`);
+              } else {
+                await callWithRetry(() => github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  body: commentBody,
+                }));
+                console.log(`Posted new PR guidance comment on PR #${prNumber}`);
+              }
+            } catch (err) {
+              console.warn(`[warning] Failed to post PR guidance comment due to upstream GitHub API error: ${err.message}`);
             }

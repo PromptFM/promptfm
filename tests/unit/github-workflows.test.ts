@@ -323,6 +323,13 @@ describe('GitHub Actions Workflows Suite', () => {
       expect(content).toContain('name: pr-guidance-comment');
       expect(content).toContain('scripts/pr-guidance.ts');
     });
+
+    it('handles transient GitHub API 500 errors resiliently with retries, try/catch, and continue-on-error', () => {
+      const content = readWorkflow('ci.yml');
+      expect(content).toContain('issues: write');
+      expect(content).toContain('continue-on-error: true');
+      expect(content).toContain('callWithRetry');
+    });
   });
 
   describe('Infrastructure Checks in CI Workflow (ci.yml)', () => {

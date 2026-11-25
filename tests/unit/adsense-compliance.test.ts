@@ -123,6 +123,10 @@ describe('Google AdSense Legal & Privacy Compliance Specification', () => {
         path.join(process.cwd(), 'src/components/CookieConsentBanner.tsx'),
         'utf8'
       );
+      const audioPlayerContent = fs.readFileSync(
+        path.join(process.cwd(), 'src/components/AudioPlayer.tsx'),
+        'utf8'
+      );
       const navbarContent = fs.readFileSync(
         path.join(process.cwd(), 'src/components/Navbar.tsx'),
         'utf8'
@@ -130,6 +134,8 @@ describe('Google AdSense Legal & Privacy Compliance Specification', () => {
 
       expect(cookieBannerContent).toContain('z-40');
       expect(cookieBannerContent).not.toContain('z-50');
+      expect(audioPlayerContent).toContain('z-40');
+      expect(audioPlayerContent).not.toContain('z-50');
       expect(navbarContent).toContain('sticky top-0 z-50');
     });
   });
